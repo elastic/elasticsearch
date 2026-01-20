@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class EsqlQueryRequestTests extends ESTestCase {
 
@@ -875,6 +876,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
             .replaceAll("41770830", Long.toString(taskInfo.runningTimeNanos()))
             .trim();
         assertThat(json, equalTo(expected));
+    }
+
+    public void testProjectRouting() throws IOException {
+        String json = """
+            {
+                "query": "FROM test",
+                "project_routing": "_alias:_origin"
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.projectRouting(), is("_alias:_origin"));
     }
 
     private List<QueryParam> randomParameters() {

@@ -15,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,8 +24,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TRUNCATE_FIELD;
 
-public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation cohereTruncation) implements TaskSettings {
-    public static final AmazonBedrockEmbeddingsTaskSettings EMPTY = new AmazonBedrockEmbeddingsTaskSettings((CohereTruncation) null);
+public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncation) implements TaskSettings {
+    public static final AmazonBedrockEmbeddingsTaskSettings EMPTY = new AmazonBedrockEmbeddingsTaskSettings((Truncation) null);
     public static final String NAME = "amazon_bedrock_embeddings_task_settings";
     private static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = TransportVersion.fromName("amazon_bedrock_task_settings");
 
@@ -36,12 +36,12 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation coh
 
         ValidationException validationException = new ValidationException();
 
-        var cohereTruncation = extractOptionalEnum(
+        var extractedTruncation = extractOptionalEnum(
             map,
             TRUNCATE_FIELD,
             ModelConfigurations.TASK_SETTINGS,
-            CohereTruncation::fromString,
-            CohereTruncation.ALL,
+            Truncation::fromString,
+            Truncation.ALL,
             validationException
         );
 
@@ -49,23 +49,23 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation coh
             throw validationException;
         }
 
-        return new AmazonBedrockEmbeddingsTaskSettings(cohereTruncation);
+        return new AmazonBedrockEmbeddingsTaskSettings(extractedTruncation);
     }
 
     public AmazonBedrockEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(CohereTruncation.class));
+        this(in.readOptionalEnum(Truncation.class));
     }
 
     @Override
     public boolean isEmpty() {
-        return cohereTruncation() == null;
+        return truncation() == null;
     }
 
     @Override
     public AmazonBedrockEmbeddingsTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         var newTaskSettings = fromMap(new HashMap<>(newSettings));
 
-        return new AmazonBedrockEmbeddingsTaskSettings(firstNonNullOrNull(newTaskSettings.cohereTruncation(), cohereTruncation()));
+        return new AmazonBedrockEmbeddingsTaskSettings(firstNonNullOrNull(newTaskSettings.truncation(), truncation()));
     }
 
     private static <T> T firstNonNullOrNull(T first, T second) {
@@ -90,14 +90,14 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation coh
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalEnum(cohereTruncation());
+        out.writeOptionalEnum(truncation());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (cohereTruncation != null) {
-            builder.field(TRUNCATE_FIELD, cohereTruncation);
+        if (truncation != null) {
+            builder.field(TRUNCATE_FIELD, truncation);
         }
         return builder.endObject();
     }

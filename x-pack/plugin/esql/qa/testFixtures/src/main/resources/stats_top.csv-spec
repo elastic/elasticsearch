@@ -405,3 +405,29 @@ birth_year:long | v:integer
 1965            | 10095
 null            | null
 ;
+
+outputFieldAndShouldSurrogate
+required_capability: agg_top_with_output_field
+
+FROM employees
+| STATS
+    min_height = TOP(height, 1, "asc"),
+    max_height = TOP(height, 1, "desc")
+;
+
+min_height:double | max_height:double
+1.41              | 2.1
+;
+
+outputFieldAndShouldNotSurrogate
+required_capability: fix_agg_top_with_output_field_surrogate
+
+FROM employees
+| STATS
+    shortest_employee = TOP(height, 1, "asc", emp_no),
+    tallest_employee = TOP(height, 1, "desc", emp_no)
+;
+
+shortest_employee:integer | tallest_employee:integer
+10020                     | 10094
+;

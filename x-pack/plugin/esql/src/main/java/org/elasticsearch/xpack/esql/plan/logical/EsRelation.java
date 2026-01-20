@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,16 +15,19 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public class EsRelation extends LeafPlan {
+
+    private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "EsRelation",
@@ -33,6 +36,8 @@ public class EsRelation extends LeafPlan {
 
     private final String indexPattern;
     private final IndexMode indexMode;
+    private final Map<String, List<String>> originalIndices; // keyed by cluster alias
+    private final Map<String, List<String>> concreteIndices; // keyed by cluster alias
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
 
@@ -40,12 +45,16 @@ public class EsRelation extends LeafPlan {
         Source source,
         String indexPattern,
         IndexMode indexMode,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices,
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes
     ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
+        this.originalIndices = originalIndices;
+        this.concreteIndices = concreteIndices;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
     }
@@ -53,33 +62,32 @@ public class EsRelation extends LeafPlan {
     private static EsRelation readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         String indexPattern = in.readString();
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            // this used to be part of EsIndex deserialization
-            in.readImmutableMap(StreamInput::readString, EsField::readFrom);
+        Map<String, List<String>> originalIndices;
+        Map<String, List<String>> concreteIndices;
+        if (in.getTransportVersion().supports(SPLIT_INDICES)) {
+            originalIndices = in.readMapOfLists(StreamInput::readString);
+            concreteIndices = in.readMapOfLists(StreamInput::readString);
+        } else {
+            originalIndices = Map.of();
+            concreteIndices = Map.of();
         }
         Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            in.readBoolean();
-        }
-        return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
+        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeString(indexPattern);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            // this used to be part of EsIndex serialization
-            out.writeMap(Map.<String, EsField>of(), (o, x) -> x.writeTo(out));
+        if (out.getTransportVersion().supports(SPLIT_INDICES)) {
+            out.writeMap(originalIndices, StreamOutput::writeStringCollection);
+            out.writeMap(concreteIndices, StreamOutput::writeStringCollection);
         }
         out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            out.writeBoolean(false);
-        }
     }
 
     @Override
@@ -89,7 +97,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, indexNameWithModes, attrs);
+        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 
     public String indexPattern() {
@@ -98,6 +106,14 @@ public class EsRelation extends LeafPlan {
 
     public IndexMode indexMode() {
         return indexMode;
+    }
+
+    public Map<String, List<String>> originalIndices() {
+        return originalIndices;
+    }
+
+    public Map<String, List<String>> concreteIndices() {
+        return concreteIndices;
     }
 
     public Map<String, IndexMode> indexNameWithModes() {
@@ -109,7 +125,7 @@ public class EsRelation extends LeafPlan {
         return attrs;
     }
 
-    public Set<String> concreteIndices() {
+    public Set<String> concreteQualifiedIndices() {
         return indexNameWithModes.keySet();
     }
 
@@ -122,7 +138,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs);
+        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 
     @Override
@@ -138,25 +154,34 @@ public class EsRelation extends LeafPlan {
         EsRelation other = (EsRelation) obj;
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(originalIndices, other.originalIndices)
+            && Objects.equals(concreteIndices, other.concreteIndices)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs);
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
             + "]"
             + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
-            + NodeUtils.limitedToString(attrs);
+            + NodeUtils.toString(attrs, format);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, newAttributes);
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
+    }
+
+    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
+        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + 1);
+        newAttrs.addAll(attrs);
+        newAttrs.add(additionalAttribute);
+        return withAttributes(newAttrs);
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {
-        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, attrs);
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 }

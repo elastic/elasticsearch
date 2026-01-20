@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -77,16 +76,25 @@ public class ReplicationSplitHelper<
             && requestSplitSummary.equals(SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId())) == false;
     }
 
+    @FunctionalInterface
+    public interface PrimaryRequestExecutor<
+        Request extends ReplicationRequest<Request>,
+        ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+        Response extends ReplicationResponse> {
+        void execute(
+            TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
+            Request request,
+            ActionListener<Response> listener
+        ) throws Exception;
+    }
+
     public SplitCoordinator newSplitRequest(
         TransportReplicationAction<Request, ReplicaRequest, Response> action,
         ReplicationTask task,
         ProjectMetadata project,
         TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
         Request primaryRequest,
-        CheckedBiConsumer<
-            TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
-            ActionListener<Response>,
-            Exception> executePrimaryRequest,
+        PrimaryRequestExecutor<Request, ReplicaRequest, Response> executePrimaryRequest,
         ActionListener<Response> onCompletionListener
     ) {
         return new SplitCoordinator(
@@ -107,10 +115,7 @@ public class ReplicationSplitHelper<
         private final ProjectMetadata project;
         private final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference;
         private final Request originalRequest;
-        private final CheckedBiConsumer<
-            TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
-            ActionListener<Response>,
-            Exception> doPrimaryRequest;
+        private final PrimaryRequestExecutor<Request, ReplicaRequest, Response> doPrimaryRequest;
         private final ActionListener<Response> onCompletionListener;
 
         public SplitCoordinator(
@@ -119,10 +124,7 @@ public class ReplicationSplitHelper<
             ProjectMetadata project,
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
             Request originalRequest,
-            CheckedBiConsumer<
-                TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
-                ActionListener<Response>,
-                Exception> doPrimaryRequest,
+            PrimaryRequestExecutor<Request, ReplicaRequest, Response> doPrimaryRequest,
             ActionListener<Response> onCompletionListener
         ) {
             this.action = action;
@@ -147,7 +149,7 @@ public class ReplicationSplitHelper<
                 // If the request is for source, same behavior as before
                 if (splitRequests.containsKey(originalRequest.shardId())) {
                     TransportReplicationAction.setPhase(task, "primary");
-                    doPrimaryRequest.accept(primaryShardReference, onCompletionListener);
+                    doPrimaryRequest.execute(primaryShardReference, originalRequest, onCompletionListener);
                 } else {
                     // If the request is for target, forward request to target.
                     primaryShardReference.close(); // release shard operation lock as soon as possible
@@ -210,7 +212,7 @@ public class ReplicationSplitHelper<
                     }
                 };
                 if (splitRequest.getKey().equals(originalRequest.shardId())) {
-                    doPrimaryRequest.accept(primaryShardReference, listener);
+                    doPrimaryRequest.execute(primaryShardReference, splitRequest.getValue(), listener);
                 } else {
                     delegateToTarget(splitRequest.getKey(), splitRequest.getValue(), clusterService::state, project, listener);
                 }

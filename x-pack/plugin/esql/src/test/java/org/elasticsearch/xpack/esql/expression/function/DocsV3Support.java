@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -52,6 +53,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -560,13 +562,18 @@ public abstract class DocsV3Support {
         callbacks.write(dir, name, "md", str, false);
     }
 
-    void writeToTempKibanaDir(String subdir, String extension, String str) throws IOException {
+    protected void writeToTempKibanaDir(String subdir, String extension, String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
-        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("kibana").resolve(subdir).resolve(category);
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("kibana").resolve(subdir);
+        if (category != null) {
+            dir = dir.resolve(category);
+        }
         callbacks.write(dir, name, extension, str, true);
     }
 
-    protected abstract void renderSignature() throws IOException;
+    public void renderSignature() throws IOException {
+        // Only functions and operators currently have signatures to render, so only they should override this method.
+    }
 
     protected abstract void renderDocs() throws Exception;
 
@@ -586,7 +593,7 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        protected void renderSignature() throws IOException {
+        public void renderSignature() throws IOException {
             if (callbacks.supportsRendering() == false) {
                 return;
             }
@@ -622,6 +629,7 @@ public abstract class DocsV3Support {
                     trueValue.type(),
                     "The value that’s returned when no condition evaluates to `true`.",
                     true,
+                    null,
                     true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
@@ -666,7 +674,8 @@ public abstract class DocsV3Support {
                 rendered.append("(").append(type).append(") ").append(arg.description()).append("\n\n");
             }
 
-            logger.info("Writing function named parameters for [{}]:\n{}", name, rendered);
+            logger.info("Writing function named parameters for [{}]", name);
+            logger.debug("{}", rendered);
             writeToTempSnippetsDir("functionNamedParams", rendered.toString());
         }
 
@@ -756,7 +765,8 @@ public abstract class DocsV3Support {
             if (hasAppendix) {
                 rendered.append(addInclude("appendix"));
             }
-            logger.info("Writing layout for [{}]:\n{}", name, rendered.toString());
+            logger.info("Writing layout for [{}]", name);
+            logger.debug("{}", rendered);
             writeToTempSnippetsDir("layout", rendered.toString());
         }
 
@@ -945,7 +955,8 @@ public abstract class DocsV3Support {
             }
             if (rendered.isEmpty() == false) {
                 rendered.append("\n");
-                logger.info("Writing detailed description for [{}]:\n{}", name, rendered);
+                logger.info("Writing detailed description for [{}]", name);
+                logger.debug("{}", rendered);
                 writeToTempSnippetsDir("detailedDescription", rendered.toString());
             }
         }
@@ -1000,11 +1011,6 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        public void renderSignature() throws IOException {
-            // Unimplemented until we make command docs dynamically generated
-        }
-
-        @Override
         public void renderDocs() throws Exception {
             // Currently we only render either signatures or kibana definition files,
             // but we could expand to rendering much more if we decide to
@@ -1032,7 +1038,8 @@ public abstract class DocsV3Support {
                     builder.field("observability_tier", observabilityTier.toString());
                 }
                 String rendered = Strings.toString(builder.endObject());
-                logger.info("Writing kibana command definition for [{}]:\n{}", name, rendered);
+                logger.info("Writing kibana command definition for [{}]", name);
+                logger.debug("{}", rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
             }
         }
@@ -1074,7 +1081,8 @@ public abstract class DocsV3Support {
                 **Supported types**
 
                 """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
-            logger.info("Writing function types for [{}]:\n{}", name, rendered);
+            logger.info("Writing function types for [{}]", name);
+            logger.debug("{}", rendered);
             writeToTempSnippetsDir("types", rendered);
         }
     }
@@ -1089,32 +1097,69 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        public void renderSignature() throws IOException {
-            // Unimplemented until we make setting docs dynamically generated
-        }
-
-        @Override
         public void renderDocs() throws Exception {
             // TODO docs for settings
             renderKibanaCommandDefinition();
         }
 
         void renderKibanaCommandDefinition() throws Exception {
+            org.elasticsearch.xpack.esql.expression.function.Param param = param(setting);
+            MapParam mapParam = mapParam(setting);
+            assert param != null || mapParam != null;
+
             try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject()) {
                 builder.field(
                     "comment",
                     "This is generated by ESQL’s DocsV3Support. Do not edit it. See ../README.md for how to regenerate it."
                 );
-                builder.field("name", name);
-                builder.field("type", setting.type().typeName());
+                builder.field("name", param != null ? param.name() : mapParam.name());
+                builder.field("type", param != null ? param.type() : "map_params");
+                if (mapParam != null) {
+                    EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
+                    builder.field(
+                        "mapParams",
+                        arg.mapParams()
+                            .values()
+                            .stream()
+                            .map(mapArgSignature -> "{" + mapArgSignature + "}")
+                            .collect(Collectors.joining(", "))
+                    );
+                }
                 builder.field("serverlessOnly", setting.serverlessOnly());
                 builder.field("preview", setting.preview());
                 builder.field("snapshotOnly", setting.snapshotOnly());
-                builder.field("description", setting.description());
+                builder.field("description", param != null ? param.description() : mapParam.description());
                 String rendered = Strings.toString(builder.endObject());
-                logger.info("Writing kibana setting definition for [{}]:\n{}", name, rendered);
+                logger.info("Writing kibana setting definition for [{}]", name);
+                logger.debug("{}", rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
             }
+        }
+
+        private static MapParam mapParam(QuerySettingDef<?> def) {
+            for (Field declaredField : QuerySettings.class.getFields()) {
+                try {
+                    if (declaredField != null && declaredField.get(null) == def) {
+                        return declaredField.getAnnotation(MapParam.class);
+                    }
+                } catch (IllegalAccessException e) {
+                    // do nothing
+                }
+            }
+            return null;
+        }
+
+        private static org.elasticsearch.xpack.esql.expression.function.Param param(QuerySettingDef<?> def) {
+            for (Field declaredField : QuerySettings.class.getFields()) {
+                try {
+                    if (declaredField != null && declaredField.get(null) == def) {
+                        return declaredField.getAnnotation(org.elasticsearch.xpack.esql.expression.function.Param.class);
+                    }
+                } catch (IllegalAccessException e) {
+                    // do nothing
+                }
+            }
+            return null;
         }
     }
 
@@ -1132,7 +1177,8 @@ public abstract class DocsV3Support {
         }
         builder.append('\n');
         String rendered = builder.toString();
-        logger.info("Writing parameters for [{}]:\n{}", name, rendered);
+        logger.info("Writing parameters for [{}]", name);
+        logger.debug("{}", rendered);
         writeToTempSnippetsDir("parameters", rendered);
     }
 
@@ -1170,8 +1216,44 @@ public abstract class DocsV3Support {
             **Supported types**
 
             """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
-        logger.info("Writing function types for [{}]:\n{}", name, rendered);
+        logger.info("Writing function types for [{}]", name);
+        logger.debug("{}", rendered);
         writeToTempSnippetsDir("types", rendered);
+    }
+
+    /**
+     * Gets the index of the first signature provided within the function parameters,
+     * taking into consideration initial optional parameters.
+     * <p>
+     *     Used for functions like DATE_PARSE, with an optional parameter at the start.
+     * </p>
+     * @return The corresponding index of the first sig arg within the function parameters.
+     *         {@code sig.argTypes().size() + initialProvidedParamIndex} will never exceed {@code args.size()}
+     */
+    public static int getFirstParametersIndexForSignature(List<EsqlFunctionRegistry.ArgSignature> args, TypeSignature sig) {
+        int initialProvidedParamIndex = 0;
+
+        // For functions like DATE_PARSE, with an optional parameter at the start, detect if it's being used or not
+        // At least 1 missing parameter, with the first parameter being optional
+        if (args.size() >= 2 && args.size() > sig.argTypes().size() && args.get(0).optional) {
+            assert args.get(1).optional == false : "This function isn't prepared to handle +1 optional parameters at the beginning";
+            long optionalParameters = args.stream().filter(EsqlFunctionRegistry.ArgSignature::optional).count();
+            if (
+            // If no optional parameter is being provided, we know the first one is missing
+            (args.size() - optionalParameters == sig.argTypes().size()) ||
+            // If there are at least 2 params, ensure the second one matches the second function parameter.
+            // If it doesn't match, it means the optional isn't filled.
+            // This doesn't work for multiple initial optional parameters
+                (sig.argTypes().size() >= 2
+                    && Arrays.stream(args.get(1).type()).noneMatch(type -> sig.argTypes().get(1).dataType().typeName().equals(type)))) {
+                initialProvidedParamIndex++;
+            }
+        }
+
+        assert initialProvidedParamIndex + sig.argTypes().size() <= args.size()
+            || args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic)
+            : "The calculated initialProvidedParamIndex exceeds the args size";
+        return initialProvidedParamIndex;
     }
 
     private static String getTypeRow(
@@ -1181,9 +1263,15 @@ public abstract class DocsV3Support {
         boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
+
+        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, sig);
+        for (int i = 0; i < initialProvidedParamIndex; i++) {
+            b.append("| ");
+        }
+
         for (int i = 0; i < sig.argTypes().size(); i++) {
             Param param = sig.argTypes().get(i);
-            EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
+            EsqlFunctionRegistry.ArgSignature argSignature = args.get(initialProvidedParamIndex + i);
             if (argSignature.mapArg()) {
                 b.append("named parameters");
             } else {
@@ -1194,7 +1282,7 @@ public abstract class DocsV3Support {
             }
             b.append(" | ");
         }
-        b.append("| ".repeat(argNames.size() - sig.argTypes().size()));
+        b.append("| ".repeat(argNames.size() - sig.argTypes().size() - initialProvidedParamIndex));
         if (showResultColumn) {
             b.append(sig.returnType().esNameIfPossible());
             b.append(" |");
@@ -1219,7 +1307,8 @@ public abstract class DocsV3Support {
             rendered += "\n::::{note}\n" + note + "\n::::\n\n";
         }
         rendered += "\n";
-        logger.info("Writing description for [{}]:\n{}", name, rendered);
+        logger.info("Writing description for [{}]", name);
+        logger.debug("{}", rendered);
         writeToTempSnippetsDir("description", rendered);
     }
 
@@ -1258,7 +1347,8 @@ public abstract class DocsV3Support {
         }
         builder.append('\n');
         String rendered = builder.toString();
-        logger.info("Writing examples for [{}]:\n{}", name, rendered);
+        logger.info("Writing examples for [{}]", name);
+        logger.debug("{}", rendered);
         writeToTempSnippetsDir("examples", rendered);
         return true;
     }
@@ -1290,7 +1380,8 @@ public abstract class DocsV3Support {
         }
 
         String rendered = builder.toString();
-        logger.info("Writing kibana inline docs for [{}]:\n{}", name, rendered);
+        logger.info("Writing kibana inline docs for [{}]", name);
+        logger.debug("{}", rendered);
         writeToTempKibanaDir("docs", "md", rendered);
     }
 
@@ -1340,66 +1431,80 @@ public abstract class DocsV3Support {
             // TODO aliases
 
             builder.startArray("signatures");
-            if (args.isEmpty()) {
+            int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
+            for (TypeSignature sig : sortedSignatures()) {
+                if (variadic && sig.argTypes().size() > args.size()) {
+                    // For variadic functions we test much longer signatures, let’s just stop at the last one
+                    continue;
+                }
+                if (sig.argTypes().size() < minArgCount) {
+                    throw new IllegalArgumentException("signature " + sig.argTypes() + " is missing non-optional arg for " + args);
+                }
+                if (shouldHideSignature(sig.argTypes(), sig.returnType())) {
+                    continue;
+                }
                 builder.startObject();
+                int firstParameterIndex = getFirstParametersIndexForSignature(args, sig);
                 builder.startArray("params");
-                builder.endArray();
-                // There should only be one return type so just use that as the example
-                builder.field("returnType", signatures.get().iterator().next().returnType().esNameIfPossible());
-                builder.endObject();
-            } else {
-                int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
-                for (TypeSignature sig : sortedSignatures()) {
-                    if (variadic && sig.argTypes().size() > args.size()) {
-                        // For variadic functions we test much longer signatures, let’s just stop at the last one
-                        continue;
-                    }
-                    if (sig.argTypes().size() < minArgCount) {
-                        throw new IllegalArgumentException("signature " + sig.argTypes() + " is missing non-optional arg for " + args);
-                    }
-                    if (shouldHideSignature(sig.argTypes(), sig.returnType())) {
-                        continue;
-                    }
+                for (int i = 0; i < sig.argTypes().size(); i++) {
+                    EsqlFunctionRegistry.ArgSignature arg = kibanaSignaturePatcher.invoke(args.get(i + firstParameterIndex));
                     builder.startObject();
-                    builder.startArray("params");
-                    for (int i = 0; i < sig.argTypes().size(); i++) {
-                        EsqlFunctionRegistry.ArgSignature arg = kibanaSignaturePatcher.invoke(args.get(i));
-                        builder.startObject();
-                        builder.field("name", arg.name());
-                        if (arg.mapArg()) {
-                            builder.field("type", "function_named_parameters");
-                            builder.field(
-                                "mapParams",
-                                arg.mapParams()
-                                    .values()
-                                    .stream()
-                                    .map(mapArgSignature -> "{" + mapArgSignature + "}")
-                                    .collect(Collectors.joining(", "))
-                            );
-                        } else {
-                            builder.field("type", sig.argTypes().get(i).dataType().esNameIfPossible());
+                    builder.field("name", arg.name());
+                    if (arg.mapArg()) {
+                        builder.field("type", "function_named_parameters");
+                        builder.field(
+                            "mapParams",
+                            arg.mapParams()
+                                .values()
+                                .stream()
+                                .map(mapArgSignature -> "{" + mapArgSignature + "}")
+                                .collect(Collectors.joining(", "))
+                        );
+                    } else {
+                        builder.field("type", sig.argTypes().get(i).dataType().esNameIfPossible());
+                    }
+                    builder.field("optional", arg.optional());
+                    String cleanedParamDesc = removeAppliesToBlocks(arg.description());
+                    builder.field("description", cleanedParamDesc);
+                    if (arg.hint != null) {
+                        builder.startObject("hint");
+                        builder.field("entityType", arg.hint.entityType());
+                        if (arg.hint.constraints() != null && arg.hint.constraints().size() > 0) {
+                            builder.startObject("constraints");
+                            for (Map.Entry<String, String> constraint : arg.hint.constraints().entrySet()) {
+                                builder.field(constraint.getKey(), constraint.getValue());
+                            }
+                            builder.endObject();
                         }
-                        builder.field("optional", arg.optional());
-                        String cleanedParamDesc = removeAppliesToBlocks(arg.description());
-                        builder.field("description", cleanedParamDesc);
                         builder.endObject();
                     }
-                    builder.endArray();
-                    license = licenseChecker.invoke(sig.argTypes().stream().map(Param::dataType).toList());
-                    if (license != null && license != License.OperationMode.BASIC) {
-                        builder.field("license", license.toString());
-                    }
-                    builder.field("variadic", variadic);
-                    builder.field("returnType", sig.returnType().esNameIfPossible());
                     builder.endObject();
                 }
+                builder.endArray();
+                license = licenseChecker.invoke(sig.argTypes().stream().map(Param::dataType).toList());
+                if (license != null && license != License.OperationMode.BASIC) {
+                    builder.field("license", license.toString());
+                }
+                builder.field("variadic", variadic);
+                builder.field("returnType", sig.returnType().esNameIfPossible());
+                builder.endObject();
             }
             builder.endArray();
 
             if (info.examples().length > 0) {
                 builder.startArray("examples");
                 for (Example example : info.examples()) {
-                    builder.value(loadExample(example.file(), example.tag()));
+                    var loadedExample = loadExample(example.file(), example.tag());
+                    if (loadedExample == null) {
+                        throw new IllegalArgumentException(
+                            "Failed to write Kibana function definition for function ["
+                                + name
+                                + "], example with tag ["
+                                + example.tag()
+                                + "] cannot be loaded."
+                        );
+                    }
+                    builder.value(loadedExample);
                 }
                 builder.endArray();
             } else if (info.operator().isEmpty()) {
@@ -1412,7 +1517,8 @@ public abstract class DocsV3Support {
             builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
 
             String rendered = Strings.toString(builder.endObject());
-            logger.info("Writing kibana function definition for [{}]:\n{}", name, rendered);
+            logger.info("Writing kibana function definition for [{}]", name);
+            logger.debug("{}", rendered);
             writeToTempKibanaDir("definition", "json", rendered);
         }
     }
@@ -1466,7 +1572,8 @@ public abstract class DocsV3Support {
 
         String rendered = DOCS_WARNING + replaceLinks(appendix) + "\n";
 
-        logger.info("Writing appendix for [{}]:\n{}", name, rendered);
+        logger.info("Writing appendix for [{}]", name);
+        logger.debug("{}", rendered);
         writeToTempSnippetsDir("appendix", rendered);
         return true;
     }

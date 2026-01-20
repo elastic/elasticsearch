@@ -449,7 +449,7 @@ final class CanMatchPreFilterSearchPhase {
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
             ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex),
-            shardIt.getReshardSplitShardCountSummary()
+            shardIt.getSplitShardCountSummary()
         );
     }
 

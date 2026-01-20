@@ -110,6 +110,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "exponential_histogram",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "exponential_histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression to evaluate."

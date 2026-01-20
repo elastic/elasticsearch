@@ -15,10 +15,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -32,6 +36,10 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
+import static org.elasticsearch.inference.TaskType.RERANK;
+import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,77 +56,93 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testCRUD() throws IOException {
-        for (int i = 0; i < 5; i++) {
-            putModel("se_model_" + i, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        String sparseEmbeddingModelBase = "se_model_";
+        int sparseModelsToCreate = 5;
+        for (int i = 0; i < sparseModelsToCreate; i++) {
+            putModel(sparseEmbeddingModelBase + i, mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         }
-        for (int i = 0; i < 4; i++) {
-            putModel("te_model_" + i, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+        String textEmbeddingModelBase = "te_model_";
+        int textEmbeddingModelsToCreate = 4;
+        for (int i = 0; i < textEmbeddingModelsToCreate; i++) {
+            putModel(textEmbeddingModelBase + i, mockTextEmbeddingServiceModelConfig(), TEXT_EMBEDDING);
         }
-        for (int i = 0; i < 3; i++) {
-            putModel("re-model-" + i, mockRerankServiceModelConfig(), TaskType.RERANK);
+        String rerankModelBase = "re_model_";
+        int rerankModelsToCreate = 3;
+        for (int i = 0; i < rerankModelsToCreate; i++) {
+            putModel(rerankModelBase + i, mockRerankServiceModelConfig(), RERANK);
+        }
+
+        String embeddingModelBase = "e_model_";
+        int embeddingModelsToCreate = 2;
+        for (int i = 0; i < embeddingModelsToCreate; i++) {
+            putModel(embeddingModelBase + i, mockEmbeddingServiceModelConfig(), TaskType.EMBEDDING);
         }
 
         var getAllModels = getAllModels();
-        int numModels = 15;
+        // The three extra models come from the default sparse embedding, text embedding and rerank models
+        int numModels = sparseModelsToCreate + textEmbeddingModelsToCreate + rerankModelsToCreate + embeddingModelsToCreate + 3;
         assertThat(getAllModels, hasSize(numModels));
 
-        var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        int numSparseModels = 6;
-        assertThat(getSparseModels, hasSize(numSparseModels));
-        for (var sparseModel : getSparseModels) {
-            assertEquals("sparse_embedding", sparseModel.get("task_type"));
-        }
+        // Add one for the default sparse embedding model
+        assertModelCount(SPARSE_EMBEDDING, sparseModelsToCreate + 1);
 
-        var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        int numDenseModels = 5;
-        assertThat(getDenseModels, hasSize(numDenseModels));
-        for (var denseModel : getDenseModels) {
-            assertEquals("text_embedding", denseModel.get("task_type"));
-        }
+        // Add one for the default text embedding model
+        assertModelCount(TEXT_EMBEDDING, textEmbeddingModelsToCreate + 1);
 
-        var getRerankModels = getModels("_all", TaskType.RERANK);
-        int numRerankModels = 4;
-        assertThat(getRerankModels, hasSize(numRerankModels));
-        for (var denseModel : getRerankModels) {
-            assertEquals("rerank", denseModel.get("task_type"));
-        }
+        // Add one for the default rerank model
+        assertModelCount(RERANK, rerankModelsToCreate + 1);
+
+        assertModelCount(EMBEDDING, embeddingModelsToCreate);
+
         String oldApiKey;
+        String sparseEmbeddingModelId = sparseEmbeddingModelBase + 1;
         {
-            var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
+            var singleModel = getModels(sparseEmbeddingModelId, SPARSE_EMBEDDING);
             assertThat(singleModel, hasSize(1));
-            assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
+            assertEquals(sparseEmbeddingModelId, singleModel.get(0).get("inference_id"));
             oldApiKey = (String) singleModel.get(0).get("api_key");
         }
         var newApiKey = randomAlphaOfLength(10);
         int temperature = randomIntBetween(1, 10);
         Map<String, Object> updatedEndpoint = updateEndpoint(
-            "se_model_1",
-            updateConfig(TaskType.SPARSE_EMBEDDING, newApiKey, temperature),
-            TaskType.SPARSE_EMBEDDING
+            sparseEmbeddingModelId,
+            updateConfig(SPARSE_EMBEDDING, newApiKey, temperature),
+            SPARSE_EMBEDDING
         );
         Map<String, Objects> updatedTaskSettings = (Map<String, Objects>) updatedEndpoint.get("task_settings");
         assertEquals(temperature, updatedTaskSettings.get("temperature"));
         {
-            var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
+            var singleModel = getModels(sparseEmbeddingModelId, SPARSE_EMBEDDING);
             assertThat(singleModel, hasSize(1));
-            assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
+            assertEquals(sparseEmbeddingModelId, singleModel.get(0).get("inference_id"));
             assertNotEquals(oldApiKey, newApiKey);
             assertEquals(updatedEndpoint, singleModel.get(0));
         }
-        for (int i = 0; i < 5; i++) {
-            deleteModel("se_model_" + i, TaskType.SPARSE_EMBEDDING);
+        for (int i = 0; i < sparseModelsToCreate; i++) {
+            deleteModel(sparseEmbeddingModelBase + i, SPARSE_EMBEDDING);
         }
-        for (int i = 0; i < 4; i++) {
-            deleteModel("te_model_" + i, TaskType.TEXT_EMBEDDING);
+        for (int i = 0; i < textEmbeddingModelsToCreate; i++) {
+            deleteModel(textEmbeddingModelBase + i, TEXT_EMBEDDING);
         }
-        for (int i = 0; i < 3; i++) {
-            deleteModel("re-model-" + i, TaskType.RERANK);
+        for (int i = 0; i < rerankModelsToCreate; i++) {
+            deleteModel(rerankModelBase + i, RERANK);
+        }
+        for (int i = 0; i < embeddingModelsToCreate; i++) {
+            deleteModel(embeddingModelBase + i, TaskType.EMBEDDING);
+        }
+    }
+
+    private static void assertModelCount(TaskType taskType, int expectedNumberOfModels) throws IOException {
+        var models = getModels("_all", taskType);
+        assertThat(models, hasSize(expectedNumberOfModels));
+        for (var model : models) {
+            assertEquals(taskType.toString(), model.get("task_type"));
         }
     }
 
     public void testGetModelWithWrongTaskType() throws IOException {
-        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var e = expectThrows(ResponseException.class, () -> getModels("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
+        var e = expectThrows(ResponseException.class, () -> getModels("sparse_embedding_model", TEXT_EMBEDDING));
         assertThat(
             e.getMessage(),
             containsString("Requested task type [text_embedding] does not match the inference endpoint's task type [sparse_embedding]")
@@ -126,8 +150,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testDeleteModelWithWrongTaskType() throws IOException {
-        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var e = expectThrows(ResponseException.class, () -> deleteModel("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
+        var e = expectThrows(ResponseException.class, () -> deleteModel("sparse_embedding_model", TEXT_EMBEDDING));
         assertThat(
             e.getMessage(),
             containsString("Requested task type [text_embedding] does not match the inference endpoint's task type [sparse_embedding]")
@@ -137,22 +161,22 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetModelWithAnyTaskType() throws IOException {
         String inferenceEntityId = "sparse_embedding_model";
-        putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(inferenceEntityId, mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         var singleModel = getModels(inferenceEntityId, TaskType.ANY);
         assertEquals(inferenceEntityId, singleModel.get(0).get("inference_id"));
-        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
+        assertEquals(SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
     }
 
     @SuppressWarnings("unchecked")
     public void testApisWithoutTaskType() throws IOException {
         String modelId = "no_task_type_in_url";
-        putModel(modelId, mockSparseServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+        putModel(modelId, mockSparseServiceModelConfig(SPARSE_EMBEDDING));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
-        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
+        assertEquals(SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         var inference = infer(modelId, List.of(randomAlphaOfLength(10)));
-        assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
+        assertNonEmptyInferenceResults(inference, 1, SPARSE_EMBEDDING);
         deleteModel(modelId);
     }
 
@@ -174,12 +198,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         updateClusterSettings(Settings.builder().put("xpack.inference.skip_validate_and_start", true).build());
 
         // We would expect an error about the invalid API key if the validation occurred
-        putModel("unvalidated", openAiConfigWithBadApiKey, TaskType.TEXT_EMBEDDING);
+        putModel("unvalidated", openAiConfigWithBadApiKey, TEXT_EMBEDDING);
     }
 
     public void testDeleteEndpointWhileReferencedByPipeline() throws IOException {
         String endpointId = "endpoint_referenced_by_pipeline";
-        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(endpointId, mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         var pipelineId = "pipeline_referencing_model";
         putPipeline(pipelineId, endpointId);
 
@@ -219,7 +243,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             + ". Ensure that no index mappings are using this inference endpoint, or use force to ignore this warning and delete the"
             + " inference endpoint.";
 
-        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(endpointId, mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         putSemanticText(endpointId, indexName);
         {
             var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
@@ -239,7 +263,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
         deleteIndex(indexName);
 
-        putModel(searchEndpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(searchEndpointId, mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         putSemanticText(endpointId, searchEndpointId, indexName);
         {
             var e = expectThrows(ResponseException.class, () -> deleteModel(searchEndpointId));
@@ -262,7 +286,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     public void testDeleteEndpointWhileReferencedBySemanticTextAndPipeline() throws IOException {
         String endpointId = "endpoint_referenced_by_semantic_text";
-        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(endpointId, mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         String indexName = randomAlphaOfLength(10).toLowerCase();
         putSemanticText(endpointId, indexName);
         var pipelineId = "pipeline_referencing_model";
@@ -310,8 +334,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         final String indexName1 = randomAlphaOfLength(10).toLowerCase();
         final String indexName2 = randomValueOtherThan(indexName1, () -> randomAlphaOfLength(10).toLowerCase());
 
-        putModel(endpointId, mockDenseServiceModelConfig(128), TaskType.TEXT_EMBEDDING);
-        putModel(otherEndpointId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+        putModel(endpointId, mockTextEmbeddingServiceModelConfig(128), TEXT_EMBEDDING);
+        putModel(otherEndpointId, mockTextEmbeddingServiceModelConfig(), TEXT_EMBEDDING);
         // Create two indices, one where the inference ID of the endpoint we'll be deleting and
         // recreating is used for inference_id and one where it's used for search_inference_id
         putSemanticText(endpointId, otherEndpointId, indexName1);
@@ -330,7 +354,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
 
         deleteModel(endpointId, "force=true");
-        putModel(endpointId, mockDenseServiceModelConfig(64), TaskType.TEXT_EMBEDDING);
+        putModel(endpointId, mockTextEmbeddingServiceModelConfig(64), TEXT_EMBEDDING);
 
         // Index a document with the semantic text field into each index
         request = new Request("PUT", indexName1 + "/_create/2");
@@ -349,7 +373,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         // from when the document with the semantic text field was indexed
         ResponseException responseException = assertThrows(
             ResponseException.class,
-            () -> putModel(endpointId, mockDenseServiceModelConfig(128), TaskType.TEXT_EMBEDDING)
+            () -> putModel(endpointId, mockTextEmbeddingServiceModelConfig(128), TEXT_EMBEDDING)
         );
         assertThat(
             responseException.getMessage(),
@@ -374,13 +398,13 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     public void testUnsupportedStream() throws Exception {
         String modelId = "streaming";
-        putModel(modelId, mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+        putModel(modelId, mockCompletionServiceModelConfig(SPARSE_EMBEDDING, "streaming_completion_test_service"));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
-        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
+        assertEquals(SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         try {
-            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()), null);
+            var events = streamInferOnMockService(modelId, SPARSE_EMBEDDING, List.of(randomUUID()), null);
             assertThat(events.size(), equalTo(1));
             events.forEach(event -> {
                 assertThat(event.type(), equalToIgnoringCase("error"));
@@ -453,27 +477,49 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
     }
 
+    public void testEmbeddingInference() throws IOException {
+        String modelId = "embedding_model";
+        int dimensions = 128;
+        putModel(modelId, mockEmbeddingServiceModelConfig(dimensions));
+        var singleModel = getModel(modelId);
+        assertThat(singleModel.get("inference_id"), is(modelId));
+        assertThat(singleModel.get("task_type"), is(EMBEDDING.toString()));
+        try {
+            var input = List.of(
+                new InferenceString(DataType.IMAGE, randomAlphaOfLength(5)),
+                new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
+            );
+            var resultMap = embedding(modelId, input);
+            assertThat(resultMap.values(), hasSize(1));
+            @SuppressWarnings("unchecked")
+            var embeddings = (List<Map<String, List<Float>>>) resultMap.get(GenericDenseEmbeddingFloatResults.EMBEDDINGS);
+            assertThat(embeddings, hasSize(input.size()));
+            for (var embedding : embeddings) {
+                assertThat(embedding.get(EmbeddingResults.EMBEDDING), hasSize(dimensions));
+            }
+        } finally {
+            deleteModel(modelId);
+        }
+    }
+
     public void testUpdateEndpointWithWrongTaskTypeInURL() throws IOException {
-        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         var e = expectThrows(
             ResponseException.class,
             () -> updateEndpoint(
                 "sparse_embedding_model",
                 updateConfig(null, randomAlphaOfLength(10), randomIntBetween(1, 10)),
-                TaskType.TEXT_EMBEDDING
+                TEXT_EMBEDDING
             )
         );
         assertThat(e.getMessage(), containsString("Task type must match the task type of the existing endpoint"));
     }
 
     public void testUpdateEndpointWithWrongTaskTypeInBody() throws IOException {
-        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
         var e = expectThrows(
             ResponseException.class,
-            () -> updateEndpoint(
-                "sparse_embedding_model",
-                updateConfig(TaskType.TEXT_EMBEDDING, randomAlphaOfLength(10), randomIntBetween(1, 10))
-            )
+            () -> updateEndpoint("sparse_embedding_model", updateConfig(TEXT_EMBEDDING, randomAlphaOfLength(10), randomIntBetween(1, 10)))
         );
         assertThat(e.getMessage(), containsString("Task type must match the task type of the existing endpoint"));
     }
@@ -493,13 +539,13 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     private void testUpdateEndpoint(boolean taskTypeInBody, boolean taskTypeInURL) throws IOException {
         String endpointId = "sparse_embedding_model";
-        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(endpointId, mockSparseServiceModelConfig(), SPARSE_EMBEDDING);
 
         int temperature = randomIntBetween(1, 10);
-        var expectedConfig = updateConfig(taskTypeInBody ? TaskType.SPARSE_EMBEDDING : null, randomAlphaOfLength(1), temperature);
+        var expectedConfig = updateConfig(taskTypeInBody ? SPARSE_EMBEDDING : null, randomAlphaOfLength(1), temperature);
         Map<String, Object> updatedEndpoint;
         if (taskTypeInURL) {
-            updatedEndpoint = updateEndpoint(endpointId, expectedConfig, TaskType.SPARSE_EMBEDDING);
+            updatedEndpoint = updateEndpoint(endpointId, expectedConfig, SPARSE_EMBEDDING);
         } else {
             updatedEndpoint = updateEndpoint(endpointId, expectedConfig);
         }

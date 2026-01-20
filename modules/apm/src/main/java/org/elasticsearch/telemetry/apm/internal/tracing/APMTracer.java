@@ -192,10 +192,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             }
 
             final Span span = spanBuilder.startSpan();
-            // If not a root span (meaning a local parent exists) and the agent decided not to record the span, discard it immediately.
-            // Root spans (transactions), however, have to be kept to correctly report their duration.
-            if (localParentContext != null && span.isRecording() == false) {
-                logger.trace("Span [{}] [{}] will not be recorded due to transaction_max_spans reached", spanId, spanName);
+            if (span.isRecording() == false) {
+                if (localParentContext == null) {
+                    // this root span (transactions) is dropped due to sampling; the agent might report these when connected to
+                    // very old versions of apm server, however (with an incorrect duration)
+                    logger.trace("Root span [{}] [{}] will not be recorded due to sampling", spanId, spanName);
+                } else {
+                    logger.trace("Span [{}] [{}] will not be recorded due to transaction_max_spans reached", spanId, spanName);
+                }
                 span.end(); // end span immediately to release any resources.
                 return null; // return null to discard and not record in map of spans
             }

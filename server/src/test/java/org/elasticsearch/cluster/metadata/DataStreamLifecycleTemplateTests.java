@@ -47,7 +47,8 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
         var retention = instance.dataRetention();
         var downsamplingRounds = instance.downsamplingRounds();
         var downsamplingMethod = instance.downsamplingMethod();
-        switch (randomInt(4)) {
+        var frozenAfter = instance.frozenAfter();
+        switch (randomInt(DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? 5 : 4)) {
             case 0 -> {
                 lifecycleTarget = lifecycleTarget == DataStreamLifecycle.LifecycleType.DATA
                     ? DataStreamLifecycle.LifecycleType.FAILURES
@@ -74,9 +75,10 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                 }
             }
+            case 5 -> frozenAfter = randomValueOtherThan(frozenAfter, DataStreamLifecycleTemplateTests::randomFrozenAfter);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new DataStreamLifecycle.Template(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod);
+        return new DataStreamLifecycle.Template(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod, frozenAfter);
     }
 
     public void testDataLifecycleXContentSerialization() throws IOException {
@@ -215,26 +217,27 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
 
     public static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds = randomDownsamplingRounds();
-        return DataStreamLifecycle.createDataLifecycleTemplate(
-            randomBoolean(),
-            randomRetention(),
-            downsamplingRounds,
-            downsamplingRounds.get() == null
-                ? randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset()
-                : randomDownsamplingMethod()
-        );
+        return DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(randomBoolean())
+            .dataRetention(randomRetention())
+            .downsamplingRounds(downsamplingRounds)
+            .downsamplingMethod(
+                downsamplingRounds.get() == null
+                    ? randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset()
+                    : randomDownsamplingMethod()
+            )
+            .frozenAfter(randomFrozenAfter())
+            .buildTemplate();
     }
 
     public void testInvalidLifecycleConfiguration() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataStreamLifecycle.Template(
-                DataStreamLifecycle.LifecycleType.FAILURES,
-                randomBoolean(),
-                randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue(),
-                DataStreamLifecycleTests.randomDownsamplingRounds(),
-                null
-            )
+            () -> DataStreamLifecycle.failuresLifecycleBuilder()
+                .enabled(randomBoolean())
+                .dataRetention(randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue())
+                .downsamplingRounds(DataStreamLifecycleTests.randomDownsamplingRounds())
+                .buildTemplate()
         );
         assertThat(
             exception.getMessage(),
@@ -243,13 +246,12 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
 
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataStreamLifecycle.Template(
-                DataStreamLifecycle.LifecycleType.DATA,
-                randomBoolean(),
-                randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue(),
-                null,
-                randomFrom(DownsampleConfig.SamplingMethod.values())
-            )
+            () -> DataStreamLifecycle.dataLifecycleBuilder()
+                .enabled(randomBoolean())
+                .dataRetention(randomBoolean() ? null : randomPositiveTimeValue())
+                .downsamplingRounds(ResettableValue.create(null))
+                .downsamplingMethod(randomFrom(DownsampleConfig.SamplingMethod.values()))
+                .buildTemplate()
         );
         assertThat(
             exception.getMessage(),
@@ -262,13 +264,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
      * downsampling.
      */
     public static DataStreamLifecycle.Template randomFailuresLifecycleTemplate() {
-        return new DataStreamLifecycle.Template(
-            DataStreamLifecycle.LifecycleType.FAILURES,
-            randomBoolean(),
-            randomRetention(),
-            ResettableValue.undefined(),
-            ResettableValue.undefined()
-        );
+        return DataStreamLifecycle.failuresLifecycleBuilder().enabled(randomBoolean()).dataRetention(randomRetention()).buildTemplate();
     }
 
     private static ResettableValue<TimeValue> randomRetention() {
@@ -292,6 +288,18 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
         return switch (randomIntBetween(0, 1)) {
             case 0 -> ResettableValue.reset();
             case 1 -> ResettableValue.create(DownsampleConfigTests.randomSamplingMethod());
+            default -> throw new IllegalStateException("Unknown randomisation path");
+        };
+    }
+
+    private static ResettableValue<TimeValue> randomFrozenAfter() {
+        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() == false) {
+            return ResettableValue.undefined();
+        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> ResettableValue.undefined();
+            case 1 -> ResettableValue.reset();
+            case 2 -> ResettableValue.create(randomPositiveTimeValue());
             default -> throw new IllegalStateException("Unknown randomisation path");
         };
     }

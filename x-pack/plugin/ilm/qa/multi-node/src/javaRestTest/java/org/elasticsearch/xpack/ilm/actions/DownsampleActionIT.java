@@ -420,15 +420,16 @@ public class DownsampleActionIT extends IlmESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         assertBusy(() -> {
+            Map<String, Object> explainResponse = explainIndex(client(), backingIndexName);
             assertThat(
                 "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
-                explainIndex(client(), backingIndexName).get("step"),
+                explainResponse.get("step"),
                 is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
             );
 
-            assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+            assertThat(explainResponse.get("step_info"), is(notNullValue()));
             assertThat(
-                (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                (String) ((Map<String, Object>) explainResponse.get("step_info")).get("message"),
                 containsString("Waiting until the index's time series end time lapses")
             );
         }, 30, TimeUnit.SECONDS);
@@ -630,8 +631,9 @@ public class DownsampleActionIT extends IlmESRestTestCase {
             assertThat(indexExists(downsampleIndexName), is(true));
             assertThat(indexExists(firstBackingIndex), is(false));
 
-            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
-            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("warm"));
+            Map<String, Object> explainResponse = explainIndex(client(), downsampleIndexName);
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainResponse.get("phase"), is("warm"));
 
             Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleIndexName);
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
@@ -674,8 +676,9 @@ public class DownsampleActionIT extends IlmESRestTestCase {
         // reach the cold/complete/complete step
         assertBusy(() -> {
             assertThat(indexExists(downsampleIndexName), is(true));
-            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
-            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("cold"));
+            Map<String, Object> explainResponse = explainIndex(client(), downsampleIndexName);
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainResponse.get("phase"), is("cold"));
             Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleIndexName);
             assertEquals(
                 DownsampleConfig.SamplingMethod.getOrDefault(initialSamplingMethod).toString(),

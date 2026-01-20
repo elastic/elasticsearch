@@ -22,12 +22,13 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -44,17 +45,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class ShutdownPrepareService {
 
-    private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
-    private final Settings settings;
-    private final HttpServerTransport httpServerTransport;
-    private final TerminationHandler terminationHandler;
-    private volatile boolean hasBeenShutdown = false;
-
-    public ShutdownPrepareService(Settings settings, HttpServerTransport httpServerTransport, TerminationHandler terminationHandler) {
-        this.settings = settings;
-        this.httpServerTransport = httpServerTransport;
-        this.terminationHandler = terminationHandler;
-    }
+    private record ShutdownHook(String name, Runnable action) {}
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_shutdown_grace_period",
@@ -68,6 +59,39 @@ public class ShutdownPrepareService {
         Setting.Property.NodeScope
     );
 
+    private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
+    private final TimeValue maxTimeout;
+    private final TerminationHandler terminationHandler;
+    private final List<ShutdownHook> hooks = new ArrayList<>();
+    private volatile boolean isShuttingDown = false;
+
+    @SuppressWarnings(value = "this-escape")
+    public ShutdownPrepareService(
+        Settings settings,
+        HttpServerTransport httpServerTransport,
+        TransportService transportService,
+        TerminationHandler terminationHandler
+    ) {
+        this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
+        this.terminationHandler = terminationHandler;
+
+        final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
+        addShutdownHook("http-server-transport-stop", httpServerTransport::close);
+        addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, transportService.getTaskManager()));
+        addShutdownHook("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, transportService.getTaskManager()));
+        if (terminationHandler != null) {
+            addShutdownHook("termination-handler-stop", terminationHandler::handleTermination);
+        }
+    }
+
+    public void addShutdownHook(String name, Runnable action) {
+        hooks.add(new ShutdownHook(name, action));
+    }
+
+    public boolean isShuttingDown() {
+        return isShuttingDown;
+    }
+
     /**
      * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
      * gracefully from the underlying operating system, before system resources are closed. This method will block
@@ -76,11 +100,14 @@ public class ShutdownPrepareService {
      * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
-    public void prepareForShutdown(TaskManager taskManager) {
-        assert hasBeenShutdown == false;
-        hasBeenShutdown = true;
-        final var maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
-        final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
+    public void prepareForShutdown() {
+        assert isShuttingDown == false;
+        isShuttingDown = true;
+
+        // first make sure the node can safely be shutdown
+        if (terminationHandler != null) {
+            terminationHandler.blockTermination();
+        }
 
         record Stopper(String name, SubscribableListener<Void> listener) {
             boolean isIncomplete() {
@@ -91,26 +118,19 @@ public class ShutdownPrepareService {
         final var stoppers = new ArrayList<Stopper>();
         final var allStoppersFuture = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(allStoppersFuture)) {
-            final BiConsumer<String, Runnable> stopperRunner = (name, action) -> {
-                final var stopper = new Stopper(name, new SubscribableListener<>());
+            for (var hook : hooks) {
+                final var stopper = new Stopper(hook.name(), new SubscribableListener<>());
                 stoppers.add(stopper);
                 stopper.listener().addListener(listeners.acquire());
                 new Thread(() -> {
                     try {
-                        action.run();
+                        hook.action.run();
                     } catch (Exception ex) {
                         logger.warn("unexpected exception in shutdown task [" + stopper.name() + "]", ex);
                     } finally {
                         stopper.listener().onResponse(null);
                     }
                 }, stopper.name()).start();
-            };
-
-            stopperRunner.accept("http-server-transport-stop", httpServerTransport::close);
-            stopperRunner.accept("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, taskManager));
-            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, taskManager));
-            if (terminationHandler != null) {
-                stopperRunner.accept("termination-handler-stop", terminationHandler::handleTermination);
             }
         }
 

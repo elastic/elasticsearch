@@ -8,15 +8,37 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 import java.util.Objects;
 
-public class AcrossSeriesAggregate extends PromqlFunctionCall {
+/**
+ * Represents a PromQL aggregate function call that operates across multiple time series.
+ * <p>
+ * These functions aggregate elements from multiple time series into a single result vector,
+ * optionally grouping by specific labels. This corresponds to PromQL syntax:
+ * <pre>
+ * function_name(instant_vector) [without|by (label_list)]
+ * </pre>
+ *
+ * Examples:
+ * <pre>
+ * sum(http_requests_total)
+ * sum(rate(http_requests_total[5m]))
+ * avg(cpu_usage) by (host, env)
+ * max(response_time) without (instance)
+ * </pre>
+ *
+ * These functions reduce the number of time series by aggregating values across series
+ * that share the same grouping labels (or all series if no grouping is specified).
+ */
+public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     public enum Grouping {
         BY,
@@ -25,7 +47,7 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     private final Grouping grouping;
-    private final List<Expression> groupings;
+    private final List<Attribute> groupings;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -33,7 +55,7 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
         String functionName,
         List<Expression> parameters,
         Grouping grouping,
-        List<Expression> groupings
+        List<Attribute> groupings
     ) {
         super(source, child, functionName, parameters);
         this.grouping = grouping;
@@ -44,7 +66,7 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
         return grouping;
     }
 
-    public List<Expression> groupings() {
+    public List<Attribute> groupings() {
         return groupings;
     }
 
@@ -78,7 +100,17 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     @Override
+    public List<Attribute> output() {
+        return groupings;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), grouping, groupings);
+    }
+
+    @Override
+    public FunctionType functionType() {
+        return FunctionType.ACROSS_SERIES_AGGREGATION;
     }
 }

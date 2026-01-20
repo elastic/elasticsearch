@@ -30,11 +30,15 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
@@ -48,6 +52,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         "esql_documents_found_and_values_loaded"
     );
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
+    private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
+    private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -63,6 +69,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isAsync;
     private final EsqlExecutionInfo executionInfo;
 
+    private final long startTimeMillis;
+    private final long expirationTimeMillis;
+
+    private final ZoneId zoneId;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -73,6 +84,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable String asyncExecutionId,
         boolean isRunning,
         boolean isAsync,
+        ZoneId zoneId,
+        long startTimeMillis,
+        long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
         this.columns = columns;
@@ -84,6 +98,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isAsync = isAsync;
+        this.zoneId = zoneId;
+        this.startTimeMillis = startTimeMillis;
+        this.expirationTimeMillis = expirationTimeMillis;
         this.executionInfo = executionInfo;
     }
 
@@ -95,9 +112,26 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable Profile profile,
         boolean columnar,
         boolean isAsync,
+        ZoneId zoneId,
+        long startTimeMillis,
+        long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
-        this(columns, pages, documentsFound, valuesLoaded, profile, columnar, null, false, isAsync, executionInfo);
+        this(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            profile,
+            columnar,
+            null,
+            false,
+            isAsync,
+            zoneId,
+            startTimeMillis,
+            expirationTimeMillis,
+            executionInfo
+        );
     }
 
     /**
@@ -121,6 +155,19 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         Profile profile = in.readOptionalWriteable(Profile::readFrom);
         boolean columnar = in.readBoolean();
+
+        long startTimeMillis = 0L;
+        long expirationTimeMillis = 0L;
+        if (in.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+            startTimeMillis = in.readLong();
+            expirationTimeMillis = in.readLong();
+        }
+
+        ZoneId zoneId = ZoneOffset.UTC;
+        if (in.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
+            zoneId = in.readZoneId();
+        }
+
         EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         return new EsqlQueryResponse(
             columns,
@@ -132,6 +179,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             asyncExecutionId,
             isRunning,
             isAsync,
+            zoneId,
+            startTimeMillis,
+            expirationTimeMillis,
             executionInfo
         );
     }
@@ -149,6 +199,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
+
+        if (out.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+            out.writeLong(startTimeMillis);
+            out.writeLong(expirationTimeMillis);
+        }
+
+        if (out.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
+            out.writeZoneId(zoneId);
+        }
+
         out.writeOptionalWriteable(executionInfo);
     }
 
@@ -166,17 +226,17 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public Iterator<Iterator<Object>> values() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.pagesToValues(dataTypes, pages);
+        return ResponseValueUtils.pagesToValues(dataTypes, pages, zoneId);
     }
 
     public Iterable<Iterable<Object>> rows() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages);
+        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages, zoneId);
     }
 
     public Iterator<Object> column(int columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
-        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
+        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages, zoneId);
     }
 
     /**
@@ -211,6 +271,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return isAsync;
     }
 
+    public ZoneId zoneId() {
+        return zoneId;
+    }
+
     public boolean isPartial() {
         return executionInfo != null && executionInfo.isPartial();
     }
@@ -237,21 +301,36 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
         }
         if (executionInfo != null && executionInfo.overallTook() != null) {
-            content.add(
-                ChunkedToXContentHelper.chunk(
-                    (builder, p) -> builder //
-                        .field("took", executionInfo.overallTook().millis())
-                        .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
-                )
-            );
+            content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+                builder //
+                    .field("took", executionInfo.overallTook().millis())
+                    .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
+
+                if (startTimeMillis != 0L) {
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + executionInfo.overallTook().millis()
+                    );
+                }
+
+                return builder;
+            }));
         }
-        content.add(
-            ChunkedToXContentHelper.chunk(
-                (builder, p) -> builder //
-                    .field("documents_found", documentsFound)
-                    .field("values_loaded", valuesLoaded)
-            )
-        );
+        content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+            builder //
+                .field("documents_found", documentsFound)
+                .field("values_loaded", valuesLoaded);
+
+            if (startTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+            }
+            if (expirationTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            }
+
+            return builder;
+        }));
         if (dropNullColumns) {
             content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
             content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
@@ -259,7 +338,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ResponseXContentUtils.allColumns(columns, "columns"));
         }
         content.add(
-            ChunkedToXContentHelper.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns))
+            ChunkedToXContentHelper.array(
+                "values",
+                ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns, zoneId)
+            )
         );
         if (executionInfo != null && executionInfo.hasMetadataToReport()) {
             content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));
@@ -269,12 +351,17 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ChunkedToXContentHelper.chunk((b, p) -> {
                 if (executionInfo != null) {
                     b.field("query", executionInfo.overallTimeSpan());
-                    b.field("planning", executionInfo.planningTimeSpan());
+                    executionInfo.planningProfile().toXContent(b, p);
                 }
                 return b;
             }));
             content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
             content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
+            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
+                TransportVersion minimumVersion = profile.minimumVersion();
+                b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
+                return b;
+            }));
             content.add(ChunkedToXContentHelper.endObject());
         }
         content.add(ChunkedToXContentHelper.endObject());
@@ -383,14 +470,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans) implements Writeable {
+    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {
 
         public static Profile readFrom(StreamInput in) throws IOException {
             return new Profile(
                 in.readCollectionAsImmutableList(DriverProfile::readFrom),
                 in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
                     ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                    : List.of()
+                    : List.of(),
+                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? readOptionalTransportVersion(in) : null
             );
         }
 
@@ -399,6 +487,27 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeCollection(drivers);
             if (out.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)) {
                 out.writeCollection(plans);
+            }
+            if (out.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+                // When retrieving the profile from an older node, there might be no minimum version attached.
+                // When writing the profile somewhere else, we need to handle the case that the minimum version is null.
+                writeOptionalTransportVersion(minimumVersion, out);
+            }
+        }
+
+        private static TransportVersion readOptionalTransportVersion(StreamInput in) throws IOException {
+            if (in.readBoolean()) {
+                return TransportVersion.readVersion(in);
+            }
+            return null;
+        }
+
+        private static void writeOptionalTransportVersion(@Nullable TransportVersion version, StreamOutput out) throws IOException {
+            if (version == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                TransportVersion.writeVersion(version, out);
             }
         }
     }

@@ -82,6 +82,8 @@ import static org.elasticsearch.compute.data.ElementType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
+import static org.elasticsearch.compute.data.ElementType.LONG_RANGE;
+import static org.elasticsearch.compute.data.ElementType.TDIGEST;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
@@ -535,7 +537,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -606,7 +608,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM) {
+            if (e == ElementType.UNKNOWN
+                || e == COMPOSITE
+                || e == AGGREGATE_METRIC_DOUBLE
+                || e == EXPONENTIAL_HISTOGRAM
+                || e == TDIGEST
+                || e == LONG_RANGE) {
                 continue;
             }
             elementTypes.add(e);
@@ -685,7 +692,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders
     ) {
-        var page = topNTwoColumns(
+        var pages = topNTwoColumns(
             driverContext,
             new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000)),
             AlwaysReferencedIndexedByShardId.INSTANCE,
@@ -696,7 +703,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         var result = pageToTuples(
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
-            page
+            pages
         );
         assertThat(result, hasSize(Math.min(limit, values.size())));
         return result;
@@ -711,27 +718,35 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders
     ) {
         var pages = new ArrayList<Page>();
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                sourceOperator,
-                List.of(
-                    new TopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        limit,
-                        sourceOperator.elementTypes(),
-                        encoder,
-                        sortOrders,
-                        randomPageSize()
-                    )
-                ),
-                new PageConsumerOperator(pages::add)
-            )
-        ) {
-            runDriver(driver);
+        boolean success = false;
+        try {
+            try (
+                Driver driver = TestDriverFactory.create(
+                    driverContext,
+                    sourceOperator,
+                    List.of(
+                        new TopNOperator(
+                            driverContext.blockFactory(),
+                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            limit,
+                            sourceOperator.elementTypes(),
+                            encoder,
+                            sortOrders,
+                            randomPageSize()
+                        )
+                    ),
+                    new PageConsumerOperator(pages::add)
+                )
+            ) {
+                runDriver(driver);
+            }
+            assertDriverContext(driverContext);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(pages);
+            }
         }
-        assertDriverContext(driverContext);
         return pages;
     }
 
@@ -1042,7 +1057,9 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == ElementType.DOC
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
-                    || t == EXPONENTIAL_HISTOGRAM,
+                    || t == EXPONENTIAL_HISTOGRAM
+                    || t == TDIGEST
+                    || t == LONG_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

@@ -10,11 +10,11 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 
@@ -36,7 +36,7 @@ public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
     }
 
     public static class DummyQuery extends Query {
-        private final Query matchAllDocsQuery = new MatchAllDocsQuery();
+        private final Query matchAllDocsQuery = Queries.ALL_DOCS_INSTANCE;
 
         @Override
         public String toString(String field) {

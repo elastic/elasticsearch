@@ -180,7 +180,9 @@ public class InternalUsers {
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
                         ".fleet-actions-results",
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
-                        ".fleet-fileds*"
+                        ".fleet-fileds*",
+                        // System data stream for kibana workflows logs
+                        ".workflows-execution-data-stream-logs"
                     )
                     .privileges(
                         filterNonNull(
@@ -309,7 +311,8 @@ public class InternalUsers {
                 TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
                 "cluster:internal:data/read/esql/open_exchange",
-                "cluster:internal:data/read/esql/exchange" },
+                "cluster:internal:data/read/esql/exchange",
+                "cluster:internal/remote_cluster/nodes" },
             null,
             null,
             null,

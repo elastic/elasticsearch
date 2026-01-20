@@ -27,9 +27,9 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("count", ElementType.LONG),
       new IntermediateStateDesc("sumVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTs", ElementType.LONG),
+      new IntermediateStateDesc("sumTs", ElementType.DOUBLE),
       new IntermediateStateDesc("sumTsVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTsSq", ElementType.LONG)  );
+      new IntermediateStateDesc("sumTsSq", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
 
@@ -37,16 +37,19 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
+  private final boolean dateNanos;
+
   public DerivDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SimpleLinearRegressionWithTimeseries state) {
+      SimpleLinearRegressionWithTimeseries state, boolean dateNanos) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.dateNanos = dateNanos;
   }
 
   public static DerivDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new DerivDoubleAggregatorFunction(driverContext, channels, DerivDoubleAggregator.initSingle(driverContext));
+      List<Integer> channels, boolean dateNanos) {
+    return new DerivDoubleAggregatorFunction(driverContext, channels, DerivDoubleAggregator.initSingle(driverContext, dateNanos), dateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -192,7 +195,7 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
     if (sumTsUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTs = ((LongBlock) sumTsUncast).asVector();
+    DoubleVector sumTs = ((DoubleBlock) sumTsUncast).asVector();
     assert sumTs.getPositionCount() == 1;
     Block sumTsValUncast = page.getBlock(channels.get(3));
     if (sumTsValUncast.areAllValuesNull()) {
@@ -204,9 +207,9 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
     if (sumTsSqUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
+    DoubleVector sumTsSq = ((DoubleBlock) sumTsSqUncast).asVector();
     assert sumTsSq.getPositionCount() == 1;
-    DerivDoubleAggregator.combineIntermediate(state, count.getLong(0), sumVal.getDouble(0), sumTs.getLong(0), sumTsVal.getDouble(0), sumTsSq.getLong(0));
+    DerivDoubleAggregator.combineIntermediate(state, count.getLong(0), sumVal.getDouble(0), sumTs.getDouble(0), sumTsVal.getDouble(0), sumTsSq.getDouble(0));
   }
 
   @Override

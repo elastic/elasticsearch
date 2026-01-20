@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DenseVectorCountAggregatorFunction;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -36,8 +38,9 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
-public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
 
     @FunctionInfo(
@@ -80,6 +83,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -134,6 +138,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        if (field().dataType() == DENSE_VECTOR) {
+            return DenseVectorCountAggregatorFunction.supplier();
+        }
         return CountAggregatorFunction.supplier();
     }
 
@@ -146,10 +153,14 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            dt -> dt.isCounter() == false
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.TDIGEST
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types or dense_vector"
+            "any type except counter types, tdigest, histogram, exponential_histogram, or date_range"
         );
     }
 
@@ -169,7 +180,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
         if (field.foldable()) {
             if (field instanceof Literal l) {
-                if (l.value() != null && (l.value() instanceof List<?>) == false) {
+                if (l.value() != null && ((l.value() instanceof List<?>) == false || l.dataType() == DENSE_VECTOR)) {
                     // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
                     // Does not apply to COUNT([1,2,3])
                     // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD));

@@ -378,13 +378,6 @@ setup:
 ---
 # Won't be true for larger datasets, but this helps checking kNN vs rescoring vs exact search
 "Vector rescoring has the same scoring as exact search for kNN section":
-  - requires:
-      reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -433,36 +426,6 @@ setup:
   - match: { hits.hits.1._score: $rescore_score1 }
   - match: { hits.hits.2._score: $rescore_score2 }
 
----
-"Test bad quantization parameters":
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_hnsw_quantized
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 5
-                element_type: byte
-                index: true
-                index_options:
-                  type: int8_hnsw
-
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_hnsw_quantized
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 5
-                index: false
-                index_options:
-                  type: int8_hnsw
 ---
 "Test create, merge, and search cosine":
   - do:
@@ -539,9 +502,6 @@ setup:
   - match: { hits.hits.2._id: "3"}
 ---
 "Test create, merge, and search dot_product":
-  - requires:
-      cluster_features: "gte_v8.12.0"
-      reason: 'kNN float to byte quantization added in 8.12'
   - do:
       indices.create:
         index: hnsw_byte_quantized_merge_dot_product
@@ -616,9 +576,6 @@ setup:
   - match: { hits.hits.2._id: "3"}
 ---
 "Test index configured rescore vector":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_vector"]
-      reason: Needs rescore_vector feature
   - skip:
       features: "headers"
   - do:
@@ -691,10 +648,6 @@ setup:
   - match: { hits.hits.2._score: $rescore_score2 }
 ---
 "Test index configured rescore vector updateable and settable to 0":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
-      reason: Needs rescore_zero_vector feature
-
   - do:
       indices.create:
         index: int8_rescore_0_hnsw
@@ -749,9 +702,6 @@ setup:
   - match: { .int8_rescore_update_hnsw.mappings.properties.vector.index_options.rescore_vector.oversample: 0 }
 ---
 "Test index configured rescore vector score consistency":
-  - requires:
-      cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
-      reason: Needs rescore_zero_vector feature
   - skip:
       features: "headers"
   - do:

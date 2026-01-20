@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
@@ -208,7 +208,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
     private static void assertHeadersWithAuth(List<MockRequest> requests, String secret) {
         var request = assertSingleRequestSent(requests);
-        assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo(bearerToken(secret)));
+        assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo(apiKey(secret)));
     }
 
     private static MockRequest assertSingleRequestSent(List<MockRequest> requests) {

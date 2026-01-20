@@ -22,7 +22,7 @@ import java.util.stream.IntStream;
 /**
  * A {@link GroupingAggregatorFunction} that wraps another, and apply a window function on the final aggregation.
  */
-record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, AggregatorFunctionSupplier supplier, Duration window)
+public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, AggregatorFunctionSupplier supplier, Duration window)
     implements
         GroupingAggregatorFunction {
 
@@ -122,6 +122,16 @@ record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, Aggrega
                     @Override
                     public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
                         throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int previousGroupId(int currentGroupId) {
+                        return -1;
+                    }
+
+                    @Override
+                    public int nextGroupId(int currentGroupId) {
+                        return -1;
                     }
                 }
             );

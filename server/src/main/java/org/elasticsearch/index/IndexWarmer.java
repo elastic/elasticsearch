@@ -120,7 +120,7 @@ public final class IndexWarmer {
                         final long start = System.nanoTime();
                         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
                             fieldType,
-                            FieldDataContext.noRuntimeFields("index warming")
+                            FieldDataContext.noRuntimeFields(mapperService.index().getName(), "index warming")
                         );
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {

@@ -82,6 +82,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
@@ -141,7 +142,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         SearchPlugin,
         InternalSearchPlugin,
         ShutdownAwarePlugin,
-        RestServerActionPlugin {
+        RestServerActionPlugin,
+        InternalVectorFormatProviderPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;

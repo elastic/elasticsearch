@@ -140,7 +140,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
@@ -252,7 +252,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         assertFalse(topn.local());
         Order topNOrder = topn.order().get(1);
         NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
-        assertThat(expr.name(), startsWith("$$order_by$1$0"));
+        assertThat(expr.name(), startsWith("$$order_by$1$"));
         var enrich = as(topn.child(), Enrich.class);
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         var innerTopN = as(enrich.child(), TopN.class);

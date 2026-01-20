@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -91,7 +90,18 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     private void indexDocs() throws IOException {
         Request putIndex = new Request("PUT", "/test");
         putIndex.setJsonEntity("""
-            {"settings":{"index":{"number_of_shards":3}}}""");
+            {
+              "settings": {
+                "index":{"number_of_shards":3}
+              },
+              "mappings":{
+                "properties": {
+                  "int": {"type": "integer"},
+                  "kw": {"type": "keyword"}
+                }
+              }
+            }
+            """);
         client().performRequest(putIndex);
 
         Request indexDocs = new Request("POST", "/test/_bulk");
@@ -102,7 +112,9 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         }
 
         indexDocs.setJsonEntity(bulk.toString());
-        client().performRequest(indexDocs);
+
+        Response result = client().performRequest(indexDocs);
+        assertThat(result.getStatusLine().getStatusCode(), Matchers.equalTo(200));
     }
 
     @SuppressWarnings("unchecked")
@@ -129,11 +141,6 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         json.endObject();
 
         return Strings.toString(json);
-    }
-
-    public void testHistoricCursorFromOldNodeFailsOnNewNode() throws IOException {
-        assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(TransportVersions.V_8_8_0));
-        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.current(), newNodesClient);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")

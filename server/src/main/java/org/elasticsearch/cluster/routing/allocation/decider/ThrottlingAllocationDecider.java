@@ -77,9 +77,17 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION = Setting.boolSetting(
+        "cluster.routing.allocation.unthrottle_replica_assignment_in_simulation",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile int primariesInitialRecoveries;
     private volatile int concurrentIncomingRecoveries;
     private volatile int concurrentOutgoingRecoveries;
+    private volatile boolean unthrottleReplicaAssignmentInSimulation = false;
 
     public ThrottlingAllocationDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
@@ -94,6 +102,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
             this::setConcurrentOutgoingRecoverries
         );
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION, (settingVal) -> {
+            unthrottleReplicaAssignmentInSimulation = settingVal;
+        });
         logger.debug(
             "using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], "
                 + "node_initial_primaries_recoveries [{}]",
@@ -150,6 +161,13 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 );
             }
             return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
+        } else if (allocation.isSimulating() && unthrottleReplicaAssignmentInSimulation && shardRouting.unassigned()) {
+            // CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION permits us to treat unassigned replicas as equally
+            // urgent as unassigned primaries to allocate, for availability reasons.
+            // During simulation, this supports early publishing DesiredBalance, with all unassigned shards assigned.
+            // Notably, this bypass is only in simulation decisions. Reconciliation will continue to obey throttling, in particular the
+            // requirement to assign a primary before allowing its replicas to begin initializing.
+            return allocation.decision(Decision.YES, NAME, "replica allocation is not throttled when simulating");
         } else {
             // Peer recovery
             assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;

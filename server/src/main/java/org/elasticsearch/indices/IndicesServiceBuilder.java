@@ -83,27 +83,7 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-        @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
-                @Override
-                public Map<String, String> indexFields() {
-                    return Map.of();
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
-                    return Map.of();
-                }
-            };
-        }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
-        }
-
+    SlowLogFieldProvider slowLogFieldProvider = (context) -> new SlowLogFields(context) {
     };
 
     public IndicesServiceBuilder settings(Settings settings) {

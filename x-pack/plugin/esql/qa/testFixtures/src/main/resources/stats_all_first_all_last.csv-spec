@@ -4,13 +4,13 @@ required_capability: all_last
 
 ROW row = [
   #       @timestamp        |  name   | number
-  "2023-01-23T00:00:00.000Z | alpha   | ",
-  "2023-01-23T00:00:01.000Z | alpha   | 2",
-  "2023-01-23T00:00:02.000Z | bravo   | ",
-  "2023-01-23T00:00:03.000Z | alpha   | 4",
-  "2023-01-23T00:00:04.000Z | bravo   | 5",
-  "2023-01-23T00:00:05.000Z | charlie | 6",
-  "2023-01-23T00:00:06.000Z | delta   | "
+  "2025-11-25T00:00:00.000Z | alpha   | ",
+  "2025-11-25T00:00:01.000Z | alpha   | 2",
+  "2025-11-25T00:00:02.000Z | bravo   | ",
+  "2025-11-25T00:00:03.000Z | alpha   | 4",
+  "2025-11-25T00:00:04.000Z | bravo   | 5",
+  "2025-11-25T00:00:05.000Z | charlie | 6",
+  "2025-11-25T00:00:06.000Z | delta   | "
 ]
 | MV_EXPAND row
 | DISSECT row """%{@timestamp} | %{name} | %{number}"""
@@ -45,13 +45,13 @@ required_capability: all_last
 
 ROW row = [
   #       @timestamp        |  name   | number
-  "2023-01-23T00:00:00.000Z | alpha   | ",
-  "2023-01-23T00:00:01.000Z | alpha   | 2",
-  "2023-01-23T00:00:02.000Z | bravo   | ",
-  "2023-01-23T00:00:03.000Z | alpha   | 4",
-  "2023-01-23T00:00:04.000Z | bravo   | 5",
-  "2023-01-23T00:00:05.000Z | charlie | 6",
-  "2023-01-23T00:00:06.000Z | delta   | "
+  "2025-11-25T00:00:00.000Z | alpha   | ",
+  "2025-11-25T00:00:01.000Z | alpha   | 2",
+  "2025-11-25T00:00:02.000Z | bravo   | ",
+  "2025-11-25T00:00:03.000Z | alpha   | 4",
+  "2025-11-25T00:00:04.000Z | bravo   | 5",
+  "2025-11-25T00:00:05.000Z | charlie | 6",
+  "2025-11-25T00:00:06.000Z | delta   | "
 ]
 | MV_EXPAND row
 | DISSECT row """%{@timestamp} | %{name} | %{number}"""
@@ -82,4 +82,71 @@ null         | null            | null           | null            | 4           
 null         | null            | null           | null            | 5           | 5              | 5.0           | 5              | bravo
 6            | 6               | 6.0            | 6               | 6           | 6              | 6.0           | 6              | charlie
 null         | null            | null           | null            | null        | null           | null          | null           | delta
+;
+
+all_first_long_by_date
+required_capability: all_first
+// tag::all_first[]
+ROW row = [
+  #       @timestamp        |  name   | number
+  "2025-11-25T00:00:00.000Z | alpha   | ",
+  "2025-11-25T00:00:01.000Z | alpha   | 2",
+  "2025-11-25T00:00:02.000Z | bravo   | ",
+  "2025-11-25T00:00:03.000Z | alpha   | 4",
+  "2025-11-25T00:00:04.000Z | bravo   | 5",
+  "2025-11-25T00:00:05.000Z | charlie | 6",
+  "2025-11-25T00:00:06.000Z | delta   | "
+]
+| MV_EXPAND row
+| DISSECT row """%{@timestamp} | %{name} | %{number}"""
+| KEEP @timestamp, name, number
+| EVAL @timestamp = TO_DATETIME(@timestamp), 
+       name = TRIM(name), 
+       number = TO_LONG(number)
+| STATS first_val = ALL_FIRST(number, @timestamp)
+// end::all_first[]
+;
+
+warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+
+// tag::all_first-result[]
+first_val:long
+null 
+// end::all_first-result[]
+;
+
+all_last_long_by_date
+required_capability: all_last
+// tag::all_last[]
+ROW row = [
+  #       @timestamp        |  name   | number
+  "2025-11-25T00:00:00.000Z | alpha   | ",
+  "2025-11-25T00:00:01.000Z | alpha   | 2",
+  "2025-11-25T00:00:02.000Z | bravo   | ",
+  "2025-11-25T00:00:03.000Z | alpha   | 4",
+  "2025-11-25T00:00:04.000Z | bravo   | 5",
+  "2025-11-25T00:00:05.000Z | charlie | 6",
+  "2025-11-25T00:00:06.000Z | delta   | "
+]
+| MV_EXPAND row
+| DISSECT row """%{@timestamp} | %{name} | %{number}"""
+| KEEP @timestamp, name, number
+| EVAL @timestamp = TO_DATETIME(@timestamp), 
+       name = TRIM(name), 
+       number = TO_LONG(number)
+| STATS last_val = ALL_LAST(number, @timestamp) BY name
+// end::all_last[]
+;
+
+warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+
+// tag::all_last-result[]
+last_val:long | name:keyword
+4             | alpha
+5             | bravo
+6             | charlie
+null          | delta
+// end::all_last-result[]
 ;

@@ -480,6 +480,11 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedSize) {
+                return new LongRangeBuilder(expectedSize);
+            }
+
+            @Override
             public BlockLoader.Block buildAggregateMetricDoubleDirect(
                 BlockLoader.Block minBlock,
                 BlockLoader.Block maxBlock,
@@ -552,6 +557,12 @@ public class TestBlock implements BlockLoader.Block {
                 }
 
                 return new TestBlock(values);
+            }
+
+            @Override
+            public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+                // TODO: implement when needed
+                throw new UnsupportedOperationException();
             }
         };
     }
@@ -775,7 +786,7 @@ public class TestBlock implements BlockLoader.Block {
         private final BlockLoader.DoubleBuilder minima;
         private final BlockLoader.DoubleBuilder maxima;
         private final BlockLoader.DoubleBuilder sums;
-        private final BlockLoader.LongBuilder valueCounts;
+        private final BlockLoader.DoubleBuilder valueCounts;
         private final BlockLoader.DoubleBuilder zeroThresholds;
         private final BlockLoader.BytesRefBuilder encodedHistograms;
 
@@ -783,7 +794,7 @@ public class TestBlock implements BlockLoader.Block {
             minima = testFactory.doubles(expectedSize);
             maxima = testFactory.doubles(expectedSize);
             sums = testFactory.doubles(expectedSize);
-            valueCounts = testFactory.longs(expectedSize);
+            valueCounts = testFactory.doubles(expectedSize);
             zeroThresholds = testFactory.doubles(expectedSize);
             encodedHistograms = testFactory.bytesRefs(expectedSize);
         }
@@ -833,12 +844,13 @@ public class TestBlock implements BlockLoader.Block {
                 }
                 CompressedExponentialHistogram result = new CompressedExponentialHistogram();
                 try {
+                    Double sum = (Double) sums.get(i);
                     Double min = (Double) minima.get(i);
                     Double max = (Double) maxima.get(i);
                     result.reset(
                         (Double) zeroThresholds.get(i),
-                        (Long) valueCounts.get(i),
-                        (Double) sums.get(i),
+                        ((Double) valueCounts.get(i)).longValue(),
+                        sum == null ? 0.0 : sum,
                         min == null ? Double.NaN : min,
                         max == null ? Double.NaN : max,
                         (BytesRef) encodedHistograms.get(i)
@@ -886,7 +898,7 @@ public class TestBlock implements BlockLoader.Block {
         }
 
         @Override
-        public BlockLoader.LongBuilder valueCounts() {
+        public BlockLoader.DoubleBuilder valueCounts() {
             return valueCounts;
         }
 
@@ -900,4 +912,68 @@ public class TestBlock implements BlockLoader.Block {
             return encodedHistograms;
         }
     }
+
+    public static class LongRangeBuilder implements BlockLoader.LongRangeBuilder {
+        private final LongBuilder from;
+        private final LongBuilder to;
+
+        LongRangeBuilder(int expectedSize) {
+            from = new LongBuilder(expectedSize);
+            to = new LongBuilder(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder from() {
+            return from;
+        }
+
+        @Override
+        public BlockLoader.LongBuilder to() {
+            return to;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            var fromBlock = from.build();
+            var toBlock = to.build();
+            assert fromBlock.size() == toBlock.size();
+            var values = new ArrayList<>(fromBlock.size());
+            for (int i = 0; i < fromBlock.size(); i++) {
+                values.add(List.of(fromBlock.values.get(i), toBlock.values.get(i)));
+            }
+            return new TestBlock(values);
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        private static class LongBuilder extends TestBlock.Builder implements BlockLoader.LongBuilder {
+            private LongBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.LongBuilder appendLong(long value) {
+                add(value);
+                return this;
+            }
+        }
+    };
 }

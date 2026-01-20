@@ -44,6 +44,7 @@ dependencies {
   implementation project(':libs:grok')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
 
@@ -55,8 +56,10 @@ dependencies {
   }
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('inference'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('inference'))
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
@@ -72,6 +75,17 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // TODO: Remove these exclusions by renaming the esql-core packages
+  ignoreClasses(
+    "org.elasticsearch.xpack.esql.core.util.*",
+    "org.elasticsearch.xpack.esql.core.plugin.AbstractTransportQlAsyncGetResultsAction",
+    "org.elasticsearch.xpack.esql.core.package-info"
+  )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -599,4 +613,18 @@ tasks.named('stringTemplates').configure {
     it.inputFile = roundToInput
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
+}
+
+tasks.named("test").configure {
+  if (System.getProperty("golden.noactual") != null || project.hasProperty("golden.noactual")) {
+    systemProperty "golden.noactual", "true"
+  }
+  if (System.getProperty("golden.cleanactual") != null || project.hasProperty("golden.cleanactual")) {
+    systemProperty "golden.cleanactual", "true"
+  }
+  if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
+    systemProperty "golden.overwrite", "true"
+  }
+  systemProperty "policy.directory", file("${projectDir}").absolutePath
+  systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
 }

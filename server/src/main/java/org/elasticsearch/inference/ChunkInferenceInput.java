@@ -13,20 +13,17 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
-
-public record ChunkInferenceInput(InferenceString input, @Nullable ChunkingSettings chunkingSettings) {
+public record ChunkInferenceInput(InferenceStringGroup input, @Nullable ChunkingSettings chunkingSettings) {
 
     public ChunkInferenceInput(String input) {
-        this(new InferenceString(input, TEXT), null);
+        this(new InferenceStringGroup(input), null);
     }
 
-    public static List<InferenceString> inputs(List<ChunkInferenceInput> chunkInferenceInputs) {
+    public static List<InferenceStringGroup> inputs(List<ChunkInferenceInput> chunkInferenceInputs) {
         return chunkInferenceInputs.stream().map(ChunkInferenceInput::input).toList();
     }
 
     public String inputText() {
-        assert input.isText();
-        return input.value();
+        return input.textValue();
     }
 }

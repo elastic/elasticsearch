@@ -12,6 +12,12 @@
     "ip_addr": {
       "type": "ip"
     },
+    "date": {
+      "type": "date"
+    },
+    "date_nanos": {
+      "type": "date_nanos"
+    },
     "other1": {
       "type": "keyword"
     },

@@ -11,10 +11,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -28,12 +26,12 @@ import java.util.Objects;
  * This is a surrogate logical plan that encapsulates a PromQL function invocation
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
-public class PromqlFunctionCall extends UnaryPlan {
+public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
+    WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
     private final String functionName;
     private final List<Expression> parameters;
-    private List<Attribute> output;
 
     public PromqlFunctionCall(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child);
@@ -51,34 +49,12 @@ public class PromqlFunctionCall extends UnaryPlan {
         throw new UnsupportedOperationException("PromqlFunctionCall does not support serialization");
     }
 
-    @Override
-    protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, PromqlFunctionCall::new, child(), functionName, parameters);
-    }
-
-    @Override
-    public PromqlFunctionCall replaceChild(LogicalPlan newChild) {
-        return new PromqlFunctionCall(source(), newChild, functionName, parameters);
-    }
-
     public String functionName() {
         return functionName;
     }
 
     public List<Expression> parameters() {
         return parameters;
-    }
-
-    @Override
-    public List<Attribute> output() {
-        if (output == null) {
-            output = List.of(
-                new ReferenceAttribute(source(), "promql$labels", DataType.KEYWORD),
-                new ReferenceAttribute(source(), "promql$timestamp", DataType.DATETIME),
-                new ReferenceAttribute(source(), "promql$value", DataType.DOUBLE)
-            );
-        }
-        return output;
     }
 
     @Override
@@ -109,5 +85,17 @@ public class PromqlFunctionCall extends UnaryPlan {
         return Objects.equals(child(), other.child())
             && Objects.equals(functionName, other.functionName)
             && Objects.equals(parameters, other.parameters);
+    }
+
+    @Override
+    public List<Attribute> output() {
+        return List.of();
+    }
+
+    public abstract FunctionType functionType();
+
+    @Override
+    public final PromqlDataType returnType() {
+        return functionType().outputType();
     }
 }

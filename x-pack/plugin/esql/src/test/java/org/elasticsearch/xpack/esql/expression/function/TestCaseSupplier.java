@@ -14,6 +14,9 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -58,9 +61,12 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -872,6 +878,72 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryDateTime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, dateCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
+    }
+
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, dateNanosCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
+    }
+
+    public static void forUnaryDateRange(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<LongRangeBlockBuilder.LongRange, Object> expectedValue,
+        List<String> warnings
+    ) {
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+            unary(
+                suppliers,
+                expectedEvaluatorToString,
+                dateRangeCases(),
+                expectedType,
+                v -> expectedValue.apply((LongRangeBlockBuilder.LongRange) v),
+                warnings
+            );
+        }
+    }
+
+    public static void forUnaryExponentialHistogram(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<ExponentialHistogram, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            exponentialHistogramCases(),
+            expectedType,
+            v -> expectedValue.apply((ExponentialHistogram) v),
+            warnings
+        );
+    }
+
+    public static void forUnaryHistogram(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, histogramCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -906,21 +978,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String expectedEvaluatorToString,
         List<TypedDataSupplier> valueSuppliers,
         DataType expectedOutputType,
-        Function<Object, Object> expectedValue,
+        Function<Object, Object> expectedValueMapper,
         Function<Object, List<String>> expectedWarnings
     ) {
         for (TypedDataSupplier supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
                 TypedData typed = supplier.get();
                 Object value = typed.getValue();
+                var expectedValue = expectedValueMapper.apply(value);
                 logger.info("Value is " + value + " of type " + value.getClass());
-                logger.info("expectedValue is " + expectedValue.apply(value));
-                TestCase testCase = new TestCase(
-                    List.of(typed),
-                    expectedEvaluatorToString,
-                    expectedOutputType,
-                    equalTo(expectedValue.apply(value))
-                );
+                logger.info("expectedValue is " + expectedValue);
+                var matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
+                TestCase testCase = new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, matcher);
                 for (String warning : expectedWarnings.apply(value)) {
                     testCase = testCase.withWarning(warning);
                 }
@@ -1523,6 +1592,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static List<TypedDataSupplier> dateRangeCases() {
+        return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
+    }
+
+    static LongRangeBlockBuilder.LongRange randomDateRange() {
+        var from = randomMillisUpToYear9999();
+        var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+        return new LongRangeBlockBuilder.LongRange(from, to);
+    }
+
     /**
      * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
      */
@@ -1533,6 +1612,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 EsqlTestUtils::randomExponentialHistogram,
                 DataType.EXPONENTIAL_HISTOGRAM
             )
+        );
+    }
+
+    public static List<TypedDataSupplier> histogramCases() {
+        return List.of(
+            new TypedDataSupplier("<random histogram>", EsqlTestUtils::randomHistogram, DataType.HISTOGRAM),
+            new TypedDataSupplier("<empty histogram>", () -> new BytesRef(""), DataType.HISTOGRAM)
+        );
+    }
+
+    /**
+     * Generate cases for {@link DataType#TDIGEST}.
+     */
+    public static List<TypedDataSupplier> tdigestCases() {
+        return List.of(
+            new TypedDataSupplier("<random tdigest>", EsqlTestUtils::randomTDigest, DataType.TDIGEST),
+            new TypedDataSupplier("<empty t-digest>", TDigestHolder::empty, DataType.TDIGEST)
         );
     }
 
@@ -1604,8 +1700,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Collection<TestCaseSupplier> suppliers,
         Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper
     ) {
+        return mapTestCases(suppliers, mapper, TestCaseSupplier::types);
+    }
+
+    public static List<TestCaseSupplier> mapTestCases(
+        Collection<TestCaseSupplier> suppliers,
+        Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper,
+        Function<TestCaseSupplier, List<DataType>> typesMapper
+    ) {
         return suppliers.stream()
-            .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
+            .map(supplier -> new TestCaseSupplier(supplier.name(), typesMapper.apply(supplier), () -> mapper.apply(supplier.get())))
             .collect(Collectors.toCollection(ArrayList::new));
     }
 

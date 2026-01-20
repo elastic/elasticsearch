@@ -330,7 +330,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         );
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
-        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query))), minimumVersion);
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query))), minimumVersion);
     }
 
     static PhysicalPlan mapAndMaybeOptimize(Versioned<LogicalPlan> logicalPlan) {

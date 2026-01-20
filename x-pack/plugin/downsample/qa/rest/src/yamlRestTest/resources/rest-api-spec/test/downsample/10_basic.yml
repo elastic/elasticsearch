@@ -346,7 +346,7 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
   - is_false: hits.hits.0._source.k8s\.pod\.running
 
-  # Assert rollup index settings
+  # Assert downsample index settings
   - do:
       indices.get_settings:
         index: test-downsample
@@ -358,7 +358,7 @@ setup:
   - match: { test-downsample.settings.index.downsample.source.name: test }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
 
-  # Assert rollup index mapping
+  # Assert downsample index mapping
   - do:
       indices.get_mapping:
         index: test-downsample
@@ -432,7 +432,7 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
   - is_false: hits.hits.0._source.k8s\.pod\.running
 
-  # Assert rollup index settings
+  # Assert downsample index settings
   - do:
       indices.get_settings:
         index: test-downsample
@@ -442,7 +442,7 @@ setup:
   - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
   - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
   - match: { test-downsample.settings.index.downsample.source.name: test }
-  - match: { test-downsample.settings.index.downsample.method: last_value }
+  - match: { test-downsample.settings.index.downsample.sampling_method: last_value }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
 
   # Assert rollup index mapping
@@ -1001,7 +1001,7 @@ setup:
   - do:
       catch: /Downsampling method \[aggregate\] is not compatible with the source index downsampling method \[last_value\]/
       indices.downsample:
-        index: test-downsample
+        index: test-downsample-last-value
         target_index: test-downsample-2
         body: >
           {

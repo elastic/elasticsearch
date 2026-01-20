@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+
+import java.util.Map;
 
 public class DisabledSearchStats implements SearchStats {
 
@@ -78,5 +82,10 @@ public class DisabledSearchStats implements SearchStats {
     @Override
     public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
         return false;
+    }
+
+    @Override
+    public Map<ShardId, IndexMetadata> targetShards() {
+        return Map.of();
     }
 }

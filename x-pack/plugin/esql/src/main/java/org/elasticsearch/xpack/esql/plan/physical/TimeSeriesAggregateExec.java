@@ -39,7 +39,9 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         TimeSeriesAggregateExec::new
     );
 
-    private static final TransportVersion TIME_SERIES_AGGREGATE_EXEC_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName("time_series_aggregate_exec_timestamp_value_range");
+    private static final TransportVersion TIME_SERIES_AGGREGATE_EXEC_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName(
+        "time_series_aggregate_exec_timestamp_value_range"
+    );
 
     private final Bucket timeBucket;
 
@@ -67,10 +69,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_TIMESTAMP_VALUE_RANGE)) {
             if (in.readBoolean()) {
-                this.timeRange = new TimeSeriesAggregate.TimeRange(
-                    in.readLong(),
-                    in.readLong()
-                );
+                this.timeRange = new TimeSeriesAggregate.TimeRange(in.readLong(), in.readLong());
             } else {
                 this.timeRange = null;
             }

@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.AggregateSerializationTests;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregateSerializationTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +33,21 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         if (randomBoolean()) {
             return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         } else {
-            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null, null);
+            TimeSeriesAggregate.TimeRange timeRange = null;
+            if (randomBoolean()) {
+                timeRange = TimeSeriesAggregateSerializationTests.randomTimeRange();
+            }
+            return new TimeSeriesAggregateExec(
+                source,
+                child,
+                groupings,
+                aggregates,
+                mode,
+                intermediateAttributes,
+                estimatedRowSize,
+                null,
+                timeRange
+            );
         }
     }
 
@@ -48,7 +64,8 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         List<Attribute> intermediateAttributes = instance.intermediateAttributes();
         AggregatorMode mode = instance.getMode();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 5)) {
+        TimeSeriesAggregate.TimeRange timeRange = instance instanceof TimeSeriesAggregateExec tse ? tse.timeRange() : null;
+        switch (between(0, 6)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(groupings, () -> randomFieldAttributes(0, 5, false));
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
@@ -58,6 +75,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
+            case 6 -> timeRange = randomValueOtherThan(timeRange, TimeSeriesAggregateSerializationTests::randomTimeRange);
             default -> throw new IllegalStateException();
         }
         if (instance instanceof TimeSeriesAggregateExec) {
@@ -70,7 +88,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 intermediateAttributes,
                 estimatedRowSize,
                 null,
-                null
+                timeRange
             );
         } else {
             return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);

@@ -40,7 +40,7 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         );
     }
 
-    private static TimeSeriesAggregate.TimeRange randomTimeRange() {
+    public static TimeSeriesAggregate.TimeRange randomTimeRange() {
         TimeSeriesAggregate.TimeRange timeRange;
         long start = randomLongBetween(0, 1_000_000);
         long end = randomLongBetween(start, start + 1_000_000);

@@ -2400,7 +2400,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         Instant start = Instant.parse("2023-01-01T00:00:00Z");
         Instant end = Instant.parse("2023-01-02T00:00:00Z");
 
-        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats(){
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats() {
             @Override
             public Object min(FieldAttribute.FieldName field) {
                 if (field.string().equals("@timestamp")) {
@@ -2421,7 +2421,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
         var timeseriesAggregate = as(aggregate.child(), TimeSeriesAggregate.class);
-        assertThat(timeseriesAggregate.timestampRange(), equalTo(new TimeSeriesAggregate.TimeRange(start.toEpochMilli(), end.toEpochMilli())));
+        assertThat(
+            timeseriesAggregate.timestampRange(),
+            equalTo(new TimeSeriesAggregate.TimeRange(start.toEpochMilli(), end.toEpochMilli()))
+        );
     }
 
     public static EsRelation relation() {

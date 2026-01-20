@@ -43,7 +43,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
-    private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName("time_series_aggregate_timestamp_value_range");
+    private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName(
+        "time_series_aggregate_timestamp_value_range"
+    );
 
     private final Bucket timeBucket;
     private final Expression timestamp;
@@ -52,7 +54,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     private final TimeRange timestampRange;
 
     public record TimeRange(long min, long max) {}
-
 
     public TimeSeriesAggregate(
         Source source,
@@ -81,7 +82,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         }
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE)) {
             if (in.readBoolean()) {
-                this.timestampRange = new  TimeRange(in.readLong(), in.readLong());
+                this.timestampRange = new TimeRange(in.readLong(), in.readLong());
             } else {
                 this.timestampRange = null;
             }
@@ -137,7 +138,15 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     }
 
     public TimeSeriesAggregate withTimestampRange(long minTimestampValue, long maxTimestampValue) {
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, timestamp, new TimeRange(minTimestampValue, maxTimestampValue));
+        return new TimeSeriesAggregate(
+            source(),
+            child(),
+            groupings,
+            aggregates,
+            timeBucket,
+            timestamp,
+            new TimeRange(minTimestampValue, maxTimestampValue)
+        );
     }
 
     public TimeRange timestampRange() {
@@ -180,7 +189,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
             && Objects.equals(timestamp, other.timestamp)
-           && Objects.equals(timestampRange, other.timestampRange);
+            && Objects.equals(timestampRange, other.timestampRange);
     }
 
     @Override

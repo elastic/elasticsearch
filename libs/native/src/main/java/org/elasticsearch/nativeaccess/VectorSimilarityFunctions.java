@@ -77,7 +77,6 @@ public interface VectorSimilarityFunctions {
      * Produces a method handle returning the dot product of an int4 (half-byte) vector and
      * a bit vector (one bit per element)
      *
-     *
      * <p> The type of the method handle will have {@code long} as return type, The type of
      * its first and second arguments will be {@code MemorySegment}, whose contents is the
      * vector data bytes. The third argument is the length of the vector data.

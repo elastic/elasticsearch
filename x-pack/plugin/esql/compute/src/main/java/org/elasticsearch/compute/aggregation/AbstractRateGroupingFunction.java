@@ -33,6 +33,7 @@ class AbstractRateGroupingFunction {
         IntArray sliceStarts;
         IntArray sliceGroupIds;
         int sliceCount;
+        int lastGroupId = -1;
         int minGroupId = Integer.MAX_VALUE;
         int maxGroupId = Integer.MIN_VALUE;
 
@@ -52,10 +53,9 @@ class AbstractRateGroupingFunction {
         }
 
         final void prepareSlicesOnly(int groupId, long firstTimestamp) {
-            if (valueCount > 0) {
-                assert sliceCount > 0 : sliceCount;
-                // continue with the current slice if the previous timestamp is greater than the first timestamp of the new page
-                if (sliceGroupIds.get(sliceCount - 1) == groupId && timestamps.get(valueCount - 1) > firstTimestamp) {
+            if (lastGroupId == groupId) {
+                assert valueCount > 0 : "last_group_id = " + lastGroupId + ", value_count = " + valueCount;
+                if (timestamps.get(valueCount - 1) > firstTimestamp) {
                     return;
                 }
             }
@@ -70,6 +70,7 @@ class AbstractRateGroupingFunction {
             }
             sliceStarts.set(sliceCount, valueCount);
             sliceGroupIds.set(sliceCount, groupId);
+            lastGroupId = groupId;
             sliceCount++;
         }
 
@@ -106,6 +107,7 @@ class AbstractRateGroupingFunction {
             }
             valueCount = 0;
             sliceCount = 0;
+            lastGroupId = -1;
             return new FlushQueues(this, minGroupId, maxGroupId, runningOffsets, sliceOffsets);
         }
 

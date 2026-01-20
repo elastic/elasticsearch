@@ -62,6 +62,8 @@ public class CsvTestsDataLoader {
         "mapping-default-incompatible.json",
         "employees_incompatible.csv"
     ).noSubfields();
+    // Note: this index currently has no data, and is only used by the golden tests.
+    private static final TestDataset ALL_TYPES = new TestDataset("all_types", "mapping-all-types.json", "all-types.csv");
     private static final TestDataset HOSTS = new TestDataset("hosts");
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
@@ -193,6 +195,7 @@ public class CsvTestsDataLoader {
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
+        Map.entry(ALL_TYPES.indexName, ALL_TYPES),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),

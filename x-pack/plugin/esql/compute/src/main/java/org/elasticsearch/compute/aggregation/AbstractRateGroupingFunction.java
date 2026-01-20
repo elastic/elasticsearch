@@ -19,7 +19,7 @@ class AbstractRateGroupingFunction {
     /**
      * Buffers data points in two arrays: one for timestamps and one for values, partitioned into multiple slices.
      * Each slice is sorted in descending order of timestamp. A new slice is created when a data point has a
-     * timestamp greater than the last point of the current slice. Since each page is sorted by descending timestamp,
+     * timestamp greater than the last point of the current slice or it belongs to a different group (=timeseries). Since each page is sorted by descending timestamp,
      * we only need to compare the first point of the new page with the last point of the current slice to decide
      * if a new slice is needed. During merging, a priority queue is used to iterate through the slices, selecting
      * the slice with the greatest timestamp.
@@ -77,7 +77,7 @@ class AbstractRateGroupingFunction {
                 return new FlushQueues(this, minGroupId, maxGroupId, null, null);
             }
             final int numGroups = maxGroupId - minGroupId + 1;
-            // count the number of slices each group
+            // count the number of slices in each group
             int[] runningOffsets = new int[numGroups];
             for (int i = 0; i < sliceCount; i++) {
                 int groupIndex = sliceGroupIds.get(i) - minGroupId;

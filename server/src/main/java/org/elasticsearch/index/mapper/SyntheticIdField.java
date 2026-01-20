@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -44,8 +45,8 @@ public final class SyntheticIdField extends Field {
         TYPE.setIndexOptions(IndexOptions.DOCS);
         TYPE.setTokenized(false);
         TYPE.setOmitNorms(true);
-        // The field is marked as stored, but storage on disk might be skipped
-        TYPE.setStored(true);
+        TYPE.setStored(false);
+        TYPE.setDocValuesType(DocValuesType.BINARY);
         TYPE.freeze();
     }
 

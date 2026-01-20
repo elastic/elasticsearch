@@ -1210,24 +1210,29 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testMoveToBytesReference() throws IOException {
-        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        byte[] testData = randomizedByteArrayWithSize(100);
-        out.writeBytes(testData);
+        final var testData = randomByteArrayOfLength(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final ReleasableBytesReference releasableBytesReference;
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.writeBytes(testData);
 
-        ReleasableBytesReference ref = out.moveToBytesReference();
-        assertArrayEquals(testData, BytesReference.toBytes(ref));
+            releasableBytesReference = out.moveToBytesReference();
+            assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
 
-        // Verify that pages are nulled after move
-        assertEquals(0, out.size());
+            // Verify that pages are nulled after move
+            assertEquals(0, out.size());
 
-        // ISE after close
-        expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
-        expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
+            // ISE after close
+            expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
+            expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
 
-        // Verify that close becomes noop after move
-        out.close(); // Should not throw
+            assertThat(recycler.activePageCount(), greaterThan(0));
 
-        ref.close();
+        } // Verifies that closing after move does not throw
+
+        assertThat(recycler.activePageCount(), greaterThan(0));
+        assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
+        releasableBytesReference.close();
+        assertThat(recycler.activePageCount(), equalTo(0));
     }
 
     public void testMultipleCloseOperations() throws IOException {

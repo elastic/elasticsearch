@@ -40,10 +40,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -237,7 +233,6 @@ public class PromqlFunctionRegistry {
     protected interface AcrossSeriesBinary<T extends AggregateFunction> {
         T build(Source source, Expression field, Expression filter, Expression window, Expression param);
     }
-
 
     @FunctionalInterface
     protected interface ValueTransformationFunction<T extends ScalarFunction> {

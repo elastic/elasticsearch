@@ -939,8 +939,10 @@ public class SecurityTests extends ESTestCase {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
 
-        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
-        SettingsModule settingsModule = new SettingsModule(Settings.builder().put("path.home", createTempDir()).build());
+        Path homeDir = createTempDir();
+        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", homeDir).build();
+        // these settings cannot have xpack.security.enabled since we haven't loaded plugins, so that setting is unknown
+        SettingsModule settingsModule = new SettingsModule(Settings.builder().put("path.home", homeDir).build());
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
         try (var mockLog = MockLog.capture(ActionModule.class)) {

@@ -63,7 +63,7 @@ public class TransportReadinessActionTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void setReady() {
+    private void setReady() {
         readinessService.start();
         readinessService.startListener();
     }

@@ -39,9 +39,7 @@ public class TransportReadinessAction extends HandledTransportAction<ReadinessRe
 
     @Override
     protected void doExecute(Task task, ReadinessRequest request, ActionListener<ActionResponse.Empty> listener) {
-        logger.debug("readiness check requested");
         // A bound address indicates the node is ready. This transport action will not respond until the node is ready.
         readinessService.addBoundAddressListener(address -> listener.onResponse(ActionResponse.Empty.INSTANCE));
-        logger.debug("readiness check done");
     }
 }

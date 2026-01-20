@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -19,6 +21,11 @@ import static org.hamcrest.Matchers.contains;
 public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
 
     private final PromqlFakeResolver resolver = new PromqlFakeResolver();
+
+    @Before
+    public void enabled() {
+        assumeTrue("requires PROMQL boolean expression capability", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V14.isEnabled());
+    }
 
     public void testSimpleQuery() {
         var attributes = extractAttributes("PROMQL step=1m foo");

@@ -401,7 +401,8 @@ record TestConfiguration(
                     filterSelectivity.getFirst(),
                     filterCached.getFirst(),
                     earlyTermination.getFirst(),
-                    seed.getFirst()
+                    seed.getFirst(),
+                    postFilteringThresholds.getFirst()
                 );
 
                 for (var so : searchParams) {
@@ -549,6 +550,10 @@ record TestConfiguration(
                 result = temp;
             }
             return result;
+        }
+
+        public void setPostFilteringThresholds(List<Float> floats) {
+                this.postFilteringThresholds = floats;
         }
     }
 }

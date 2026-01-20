@@ -51,10 +51,10 @@ class AbstractRateGroupingFunction {
         }
 
         final void prepareSlicesOnly(int groupId, long firstTimestamp) {
-            if (valueCount > 0 && sliceGroupIds.get(sliceCount - 1) == groupId) {
-                long prevTimestamp = timestamps.get(valueCount - 1);
-                // continue with the current slice
-                if (prevTimestamp >= firstTimestamp) {
+            if (valueCount > 0) {
+                assert sliceCount > 0 : sliceCount;
+                // continue with the current slice if the previous timestamp is greater than the first timestamp of the new page
+                if (sliceGroupIds.get(sliceCount - 1) == groupId && timestamps.get(valueCount - 1) > firstTimestamp) {
                     return;
                 }
             }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -117,7 +118,37 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
-    private static final ElasticsearchInternalModelFactory MODEL_FACTORY = new ElasticsearchInternalModelFactory();
+    private static final List<ElasticsearchInternalModelCreator<? extends ElasticsearchInternalModel>> MODEL_CREATORS = List.of(
+        new MultilingualE5SmallModelCreator(),
+        new ElserInternalModelCreator(),
+        new ElasticRerankerModelCreator(),
+        new CustomElandEmbeddingModelCreator(),
+        new CustomElandModelCreator(),
+        new CustomElandRerankModelCreator()
+    );
+
+    private static ElasticsearchInternalModelCreator<? extends ElasticsearchInternalModel> retrieveModelCreatorFromListOrThrow(
+        String inferenceId,
+        TaskType taskType,
+        String modelId,
+        String service
+    ) {
+        validateModelId(inferenceId, modelId);
+        return MODEL_CREATORS.stream()
+            .filter(creator -> creator.matches(taskType, modelId))
+            .findFirst()
+            .orElseThrow(
+                () -> new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, service), RestStatus.BAD_REQUEST)
+            );
+    }
+
+    private static void validateModelId(String inferenceEntityId, String modelId) {
+        if (modelId == null) {
+            throw new IllegalArgumentException(
+                Strings.format("Error parsing request config, model id is missing for inference id: %s", inferenceEntityId)
+            );
+        }
+    }
 
     /**
      * Fix for https://github.com/elastic/elasticsearch/issues/124675
@@ -483,7 +514,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        String modelId = config.getServiceSettings().modelId();
+        return retrieveModelCreatorFromListOrThrow(config.getInferenceEntityId(), config.getTaskType(), modelId, config.getService())
+            .createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -497,7 +530,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
-        return MODEL_FACTORY.createFromMaps(
+
+        String modelId = (String) serviceSettingsMap.get(MODEL_ID);
+        return retrieveModelCreatorFromListOrThrow(inferenceEntityId, taskType, modelId, NAME).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,

@@ -52,7 +52,10 @@ T-Digest fields accept two field-specific configuration parameters:
   In general, the higher this number, the more space on disk the field will use
   but the more accurate the sketch approximations will be.  Default is `100`
 * `digest_type`, which selects the merge strategy to use with the sketch.  Valid
-  values are `default` and `high_accuracy`.  The default is `default`.
+  values are `default` and `high_accuracy`.  The default is `default`.  The
+  `default` is optimized for storage and performance, while still producing a
+  good approximation.  The `high_accuracy` variant uses more memory and disk for
+  a better approximation.
 
 ## Use cases [tdigest-use-cases]
 
@@ -63,13 +66,13 @@ indexed.
 
 `tdigest` fields are supported in the following [ES|QL](/reference/query-languages/esql.md) aggregation functions:
 
-* [Avg](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-avg)
-* [Max](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-max)
+* [Avg](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-avg)
+* [Max](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-max)
   and
-  [Min](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-min)
-* [Percentile](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile)
-* [Present](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-present) and
-  [Absent](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-absent)
+  [Min](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-min)
+* [Percentile](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile)
+* [Present](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-present) and
+  [Absent](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-absent)
 
 
 ## Synthetic `_source` [tdigest-synthetic-source]

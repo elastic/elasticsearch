@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
@@ -84,8 +84,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     @BeforeClass
     public static void initTest() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(
             new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of())
@@ -711,13 +709,47 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
     }
 
-    public void testTransformScalar() {
-        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m ceil=(ceil(vector(3.14159)))");
-        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ceil", "step")));
+    public void testConstantResults() {
+        assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
+        assertConstantResult("pi()", equalTo(Math.PI));
+        assertConstantResult("abs(vector(-1))", equalTo(1.0));
+        assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
 
+    public void testRound() {
+        assertConstantResult("round(vector(pi()))", equalTo(3.0)); // round down to nearest integer
+        assertConstantResult("round(vector(pi()), 1)", equalTo(3.0)); // same as above but with explicit argument
+        assertConstantResult("round(vector(pi()), 0.01)", equalTo(3.14)); // round down 2 decimal places
+        assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
+        assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
+        assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
+    public void testClamp() {
+        assertConstantResult("clamp(vector(5), 0, 10)", equalTo(5.0));
+        assertConstantResult("clamp(vector(-5), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(15), 0, 10)", equalTo(10.0));
+        assertConstantResult("clamp(vector(0), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
+    }
+
+    public void testClampMin() {
+        assertConstantResult("clamp_min(vector(5), 0)", equalTo(5.0));
+        assertConstantResult("clamp_min(vector(-5), 0)", equalTo(0.0));
+        assertConstantResult("clamp_min(vector(0), 0)", equalTo(0.0));
+    }
+
+    public void testClampMax() {
+        assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
+        assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
+        assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
+    }
+
+    private void assertConstantResult(String query, Matcher<Double> matcher) {
+        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m " + query);
         Eval eval = plan.collect(Eval.class).getFirst();
         Literal literal = as(eval.fields().getFirst().child(), Literal.class);
-        assertThat(literal.value(), equalTo(4.0));
+        assertThat(as(literal.value(), Double.class), matcher);
 
         Aggregate aggregate = eval.collect(Aggregate.class).getFirst();
         ReferenceAttribute step = as(aggregate.groupings().getFirst(), ReferenceAttribute.class);
@@ -731,14 +763,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
-    }
-
-    public void testAbsScalar() {
-        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m abs=(abs(vector(-1)))");
-        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("abs", "step")));
-        Eval eval = plan.collect(Eval.class).getFirst();
-        Literal literal = as(eval.fields().getFirst().child(), Literal.class);
-        assertThat(literal.value(), equalTo(1.0));
     }
 
     protected LogicalPlan planPromql(String query) {

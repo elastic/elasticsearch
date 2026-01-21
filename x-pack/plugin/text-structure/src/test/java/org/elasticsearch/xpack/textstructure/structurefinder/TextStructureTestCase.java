@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -94,6 +96,7 @@ public abstract class TextStructureTestCase extends ESTestCase {
 
     // This doesn't need closing because it has an infinite timeout
     protected static final TimeoutChecker NOOP_TIMEOUT_CHECKER = new TimeoutChecker("unit test", null, null);
+    protected static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
     protected List<String> explanation;
 

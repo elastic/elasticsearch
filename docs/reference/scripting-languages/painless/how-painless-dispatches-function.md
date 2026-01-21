@@ -16,7 +16,9 @@ Painless uses a function dispatch mechanism based on the receiver, method name, 
 
 Before diving into the dispatch process, here a brief definition of the main concepts:
 
-* **Receiver:** The object or class on which the method is called. For example, in `s.foo(a, b)` the variable `s` is the receiver  
+* **Receiver:** The object or class on which the method is called.
+
+    In `s.foo(a, b)` the type `s` is the receiver. The method `foo` that will be called depends on the type that the variable `s` is. For example, if `s` is a `List` then `foo` will be called on the `List` type.
 * **Name:** The name of the method being invoked, such as `foo` in `s.foo(a, b)`  
 * **Arity:** The number of parameters the method accepts. In `s.foo(a, b)` the arity is 2  
 * **Dispatch:** The process of determining which method implementation to execute based on the receiver, name, and arity

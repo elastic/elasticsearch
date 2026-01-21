@@ -28,6 +28,10 @@ For example, search scoring contexts provide document fields as input and genera
 
 Contexts determine how you can access document data in Painless scripts:
 
+:::{note}
+The parameters listed here might not be available in all contexts. Some or even none might be available depending on the context that the script is written for.
+:::
+
 **`doc` values:**
 :   Read-only field access using columnar storage for search, aggregation, and sorting context
 

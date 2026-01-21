@@ -98,7 +98,7 @@ public class TopNOomRaceTests extends ESTestCase {
         List<Driver> drivers = new ArrayList<>();
         for (int d = 0; d < driverCount; d++) {
             MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
-            DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+            DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
             contexts.add(driverContext);
 
             SourceOperator source = new AbstractBlockSourceOperator(blockFactory, 1024) {

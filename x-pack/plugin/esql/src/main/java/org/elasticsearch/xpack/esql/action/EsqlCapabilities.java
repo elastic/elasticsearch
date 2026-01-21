@@ -553,6 +553,13 @@ public class EsqlCapabilities {
         UNION_TYPES_NUMERIC_WIDENING,
 
         /**
+         * Fix for resolving union type casts past projections (KEEP) and MV_EXPAND operations.
+         * Ensures that casting a union type field works correctly when the field has been projected
+         * and expanded through MV_EXPAND. See #137923
+         */
+        UNION_TYPES_RESOLVE_PAST_PROJECTIONS,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -1365,6 +1372,11 @@ public class EsqlCapabilities {
         KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
+         * Support timezones in the conversion utils and functions, like TO_STRING.
+         */
+        TYPE_CONVERSION_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
         DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
@@ -1662,15 +1674,25 @@ public class EsqlCapabilities {
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
+         * this allows for type conversion functions with no further computation to be
+         * evaluated inside default wrapping _over_time functions.
+         */
+        ALLOW_CASTING_IN_DEFAULT_TS_AGGS,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
 
         /**
-         * "time_zone" parameter in request body and in {@code SET time_zone="x"}
+         * "time_zone" parameter in request body and in {@code SET time_zone="x"}.
+         * <p>
+         *     Originally `GLOBAL_TIMEZONE_PARAMETER`, but changed to "_WITH_OUTPUT" so tests don't fail after formatting the _query output.
+         * </p>
          */
-        GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
+        GLOBAL_TIMEZONE_PARAMETER_WITH_OUTPUT(Build.current().isSnapshot()),
 
         /**
          * Optional options argument for DATE_PARSE
@@ -1787,13 +1809,9 @@ public class EsqlCapabilities {
         LIKE_PARAMETER_SUPPORT,
 
         /**
-         * PromQL support in ESQL, before it is released into tech preview.
-         * When implementing new functionality or breaking changes,
-         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
-         * At this point, we need to add new capabilities for any further changes.
+         * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
          */
-        PROMQL_PRE_TECH_PREVIEW_V13(Build.current().isSnapshot()),
+        PROMQL_COMMAND_V0,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1883,6 +1901,11 @@ public class EsqlCapabilities {
         ENRICH_DENSE_VECTOR_BUGFIX,
 
         /**
+         * Support for dense_vector arithmetic operations (+, -, *, /)
+         */
+        DENSE_VECTOR_ARITHMETIC,
+
+        /**
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
@@ -1895,6 +1918,21 @@ public class EsqlCapabilities {
          * Adds support for binary operations (such as addition, subtraction, etc.) to the TS|STATS command.
          */
         TS_STATS_BINARY_OPS,
+
+        /**
+         * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
+         */
+        CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
+
+        /**
+         * MMR result diversification command
+         */
+        MMR(Build.current().isSnapshot()),
+
+        /**
+         * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
+         */
+        METADATA_WILDCARDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

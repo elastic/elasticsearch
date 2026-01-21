@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-field-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,11 @@ products:
 
 Use a Painless script to create a [script field](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#script-fields) to return a customized value for each document in the results of a query.
 
-**Variables**
+:::{tip}
+To create dynamic fields with more capabilities, consider using [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) instead. Runtime fields can be used in the query phase to select documents and in aggregations, while script fields only work during the fetch phase to decorate already selected results. Note, however, that runtime fields are typically processed much more slowly than script fields.
+:::
+
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -20,101 +27,106 @@ Use a Painless script to create a [script field](/reference/elasticsearch/rest-a
 [`params['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`, read-only)
 :   Contains extracted JSON in a `Map` and `List` structure for the fields existing in a stored document.
 
-**Return**
+## Return
 
 `Object`
 :   The customized value for each document.
 
-**API**
+## API
 
-Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) and [Specialized Field API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-field.html) are available.
+Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) and specialized [Field API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-field.html) are available.
 
-**Example**
+## Example
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-You can then use these two example scripts to compute custom information for each search hit and output it to two new fields.
+The first script extracts the day index from the `day_of_week_i` field to determine whether the order was placed on a weekday or during the weekend:
 
-The first script gets the doc value for the `datetime` field and calls the `getDayOfWeekEnum` function to determine the corresponding day of the week.
-
-```painless
-doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ROOT)
+```java
+doc['day_of_week_i'].value >= 5 ? 'Weekend' : 'Weekday'
 ```
 
-The second script calculates the number of actors. Actors' names are stored as a keyword array in the `actors` field.
+The second script evaluates the `total_quantity` field to classify the order size:
 
-```painless
-doc['actors'].size()  <1>
+```java
+long tq = doc['total_quantity'].value;
+
+if (tq == 1) return 'Single Item';
+if (tq <= 3) return 'Small Order';
+if (tq <= 6) return 'Medium Order';
+
+return 'Large Order';
 ```
 
-1. By default, doc values are not available for `text` fields. If `actors` was a `text` field, you could still calculate the number of actors by extracting values from `_source` with `params['_source']['actors'].size()`.
+The following request uses both scripts to categorize each order by the day it was placed and by its size:
 
-
-The following request returns the calculated day of week and the number of actors that appear in each play:
-
-```console
-GET seats/_search
+```json
+GET kibana_sample_data_ecommerce/_search
 {
-  "size": 2,
+  "size": 1,
   "query": {
     "match_all": {}
   },
   "script_fields": {
-    "day-of-week": {
+    "is_weekend_shopper": {
       "script": {
-        "source": "doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ENGLISH)"
+        "source": "doc['day_of_week_i'].value >= 5 ? 'Weekend' : 'Weekday'"
       }
     },
-    "number-of-actors": {
+    "order_size_category": {
       "script": {
-        "source": "doc['actors'].size()"
+        "source": """
+          long qty = doc['total_quantity'].value;
+
+          if (qty == 1) return 'Single Item';
+          if (qty <= 3) return 'Small Order';
+          if (qty <= 6) return 'Medium Order';
+
+          return 'Large Order';
+        """
       }
     }
-  }
+  },
+  "fields": ["day_of_week_i", "total_quantity"]
 }
 ```
-% TEST[setup:seats]
 
-```console-result
-{
-  "took" : 68,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 1,
-    "successful" : 1,
-    "skipped" : 0,
-    "failed" : 0
+Response:
+
+```json
+
+ {
+  "took": 0,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
   },
-  "hits" : {
-    "total" : {
-      "value" : 11,
-      "relation" : "eq"
+  "hits": {
+    "total": {
+      "value": 4675,
+      "relation": "eq"
     },
-    "max_score" : 1.0,
-    "hits" : [
+    "max_score": 1,
+    "hits": [
       {
-        "_index" : "seats",
-        "_id" : "1",
-        "_score" : 1.0,
-        "fields" : {
-          "day-of-week" : [
-            "Thursday"
+        "_index": "kibana_sample_data_ecommerce",
+        "_id": "ZkUZjJgBMSQotAoT_Jcg",
+        "_score": 1,
+        "fields": {
+          "order_size_category": [
+            "Small Order"
           ],
-          "number-of-actors" : [
+          "is_weekend_shopper": [
+            "Weekday"
+          ],
+          "day_of_week_i": [
             4
-          ]
-        }
-      },
-      {
-        "_index" : "seats",
-        "_id" : "2",
-        "_score" : 1.0,
-        "fields" : {
-          "day-of-week" : [
-            "Thursday"
           ],
-          "number-of-actors" : [
-            1
+          "total_quantity": [
+            2
           ]
         }
       }
@@ -122,5 +134,4 @@ GET seats/_search
   }
 }
 ```
-% TESTRESPONSE[s/"took" : 68/"took" : "$body.took"/]
 

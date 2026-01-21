@@ -87,7 +87,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -107,12 +106,12 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.ra
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.toChunkedResult;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -1021,9 +1020,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "100kb").build()
         );
         final ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), indexingPressure, useLegacyFormat, inferenceStats);
+        final int docCount = 10;
 
-        final AtomicReference<Exception> expectedDeduplicatedCause = new AtomicReference<>(null);
-        final AtomicInteger deduplicationCount = new AtomicInteger(0);
         final Consumer<BulkItemRequest> assertBulkItemRequest = (item) -> {
             BulkItemResponse response = item.getPrimaryResponse();
             assertNotNull(response);
@@ -1037,19 +1035,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 failure.getCause().getMessage(),
                 containsString("Inference id [missing_inference_id] not found for field [inference_field]")
             );
-
-            if (expectedDeduplicatedCause.compareAndSet(null, failure.getCause()) == false) {
-                Exception deduplicatedCause = expectedDeduplicatedCause.get();
-                assertThat(deduplicatedCause, sameInstance(failure.getCause()));
-                deduplicationCount.incrementAndGet();
-            }
+            assertThat(failure.getCause().getSuppressed(), emptyArray());
         };
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
             try {
                 assertNull(request.getInferenceFieldMap());
-                assertThat(request.items().length, equalTo(100));
+                assertThat(request.items().length, equalTo(docCount));
 
                 for (BulkItemRequest item : request.items()) {
                     assertBulkItemRequest.accept(item);
@@ -1057,8 +1050,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure, times(100)).increment(eq(1), longThat(l -> l > 0));
-                verify(coordinatingIndexingPressure, times(100)).increment(anyInt(), anyLong());
+                verify(coordinatingIndexingPressure, times(docCount)).increment(eq(1), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(docCount)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();
@@ -1077,11 +1070,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new InferenceFieldMetadata("inference_field", "missing_inference_id", new String[] { "inference_field" }, null)
         );
 
-        BulkItemRequest[] items = new BulkItemRequest[100];
-        for (int i = 0; i < 100; i++) {
+        BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            // Use a multivalued input to generate multiple failures per index request. These failures should be deduplicated.
+            List<String> inferenceFieldValue = randomList(2, 5, () -> randomAlphaOfLengthBetween(3, 20));
             items[i] = new BulkItemRequest(
                 0,
-                new IndexRequest("index").id(Integer.toString(i)).source("inference_field", randomAlphaOfLengthBetween(3, 20))
+                new IndexRequest("index").id(Integer.toString(i)).source("inference_field", inferenceFieldValue)
             );
         }
 
@@ -1089,8 +1084,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
-        assertThat(expectedDeduplicatedCause.get(), notNullValue());
-        assertThat(deduplicationCount.get(), equalTo(99));
 
         IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
         assertThat(coordinatingIndexingPressure, notNullValue());

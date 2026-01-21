@@ -413,6 +413,8 @@ public class Approximation {
      * Computes approximate results for the logical plan.
      */
     public void approximate(ActionListener<Result> listener) {
+        // TODO: check if the plan can be translated to an EsStatsQuery.
+        // If so, don't query approximation, because it's slower.
         runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, planTimeProfile, sourceCountListener(listener));
     }
 

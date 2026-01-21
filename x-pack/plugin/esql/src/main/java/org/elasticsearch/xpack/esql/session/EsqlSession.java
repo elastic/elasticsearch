@@ -424,11 +424,13 @@ public class EsqlSession {
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
         } else if (statement.setting(QuerySettings.APPROXIMATION) != null) {
+            // TODO: unify the subplan execution of query approximation and joins.
             new Approximation(
                 optimizedPlan,
                 statement.setting(QuerySettings.APPROXIMATION),
                 logicalPlanOptimizer,
                 p -> logicalPlanToPhysicalPlan(
+                    // TODO: don't run the full optimizer twice, because it may break things.
                     optimizedPlan(p, logicalPlanOptimizer, planTimeProfile),
                     request,
                     physicalPlanOptimizer,

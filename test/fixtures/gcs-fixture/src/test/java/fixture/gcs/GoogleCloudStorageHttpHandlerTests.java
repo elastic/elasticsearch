@@ -106,24 +106,19 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(
             new TestHttpResponse(RestStatus.OK, """
                 --$boundary
-                Content-Length: 168
-                Content-Type: application/http
-                content-id: 1
-                content-transfer-encoding: binary
+                content-type: application/http
+                content-id: response-1
 
-                HTTP/1.1 204 NO_CONTENT
+                HTTP/1.1 204 No Content
 
 
-
-
-                --$boundary--
-                """.replace("\n", "\r\n").replace("$boundary", boundary)),
+                --$boundary--""".replace("\n", "\r\n").replace("$boundary", boundary)),
             handleRequest(
                 handler,
                 "POST",
                 "/batch/storage/v1",
                 createBatchDeleteRequest(bucket, boundary, blobName),
-                Headers.of("Content-Type", "mixed/multipart")
+                Headers.of("Content-Type", "multipart/mixed; boundary=" + boundary)
             )
         );
         assertEquals(
@@ -133,7 +128,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
                 "POST",
                 "/batch/storage/v1",
                 createBatchDeleteRequest(bucket, boundary, blobName),
-                Headers.of("Content-Type", "mixed/multipart")
+                Headers.of("Content-Type", "multipart/mixed; boundary=" + boundary)
             ).restStatus()
         );
 
@@ -144,7 +139,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     public void testGetWithBytesRange() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
-        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobName = randomIdentifier("blob_name_");
         final var blobBytes = randomBytesReference(256);
 
         assertEquals(RestStatus.OK, executeUpload(handler, bucket, blobName, blobBytes, 0L).restStatus());
@@ -190,7 +185,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     public void testZeroLengthObjectGets() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
-        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobName = randomIdentifier("blob_name_");
         final var blobBytes = BytesArray.EMPTY;
 
         assertEquals(RestStatus.OK, executeMultipartUpload(handler, bucket, blobName, blobBytes, 0L).restStatus());
@@ -217,7 +212,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     public void testResumableUpload() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
-        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobName = randomIdentifier("blob_name_");
 
         final var createUploadResponse = handleRequest(
             handler,
@@ -296,7 +291,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     public void testIfGenerationMatch_MultipartUpload() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
-        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobName = randomIdentifier("blob_name_");
 
         assertEquals(
             RestStatus.OK,
@@ -362,7 +357,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     public void testIfGenerationMatch_ResumableUpload() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
-        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobName = randomIdentifier("blob_name_");
 
         assertEquals(
             RestStatus.OK,
@@ -428,7 +423,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     public void testIfGenerationMatch_GetObject() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
-        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobName = randomIdentifier("blob_name_");
 
         assertEquals(
             RestStatus.OK,
@@ -847,7 +842,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             content-transfer-encoding: binary
 
             %s
-            """.replace("$boundary", boundary);
+            """.replace("\n", "\r\n").replace("$boundary", boundary);
         StringBuilder builder = new StringBuilder();
         AtomicInteger contentId = new AtomicInteger();
         Arrays.stream(paths).forEach(p -> {

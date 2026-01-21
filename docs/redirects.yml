@@ -1,6 +1,6 @@
 redirects:
   # Elastic managed connectors page consolidated into main index
-  'reference/search-connectors/elastic-managed-connectors.md': 'reference/search-connectors/index.md#setup-modes'
+  'reference/search-connectors/elastic-managed-connectors.md': '!reference/search-connectors/index.md'
 
   # Redirect for bbq.md move
   'reference/elasticsearch/index-settings/bbq.md': 'reference/elasticsearch/mapping-reference/bbq.md'

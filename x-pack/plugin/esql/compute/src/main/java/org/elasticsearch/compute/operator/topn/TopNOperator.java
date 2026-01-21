@@ -592,6 +592,9 @@ public class TopNOperator implements Operator, Accountable {
              */
             output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
         );
+        // Aggressively null these so they can be GCed more quickly.
+        inputQueue = null;
+        output = null;
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
@@ -685,8 +688,22 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public void close() {
             Releasables.close(
-                // Release all entries in the topn
-                Releasables.wrap(this),
+                /*
+                 * Release all entries in the topn, nulling references to each row after closing them
+                 * so they can be GC immediately. Without this nulling very large heaps can race with
+                 * the circuit breaker itself. With this we're still racing, but we're only racing a
+                 * single row at a time. And single rows can only be so large. And we have enough slop
+                 * to live with being inaccurate by one row.
+                 */
+                () -> {
+                    for (int i = 0; i < getHeapArray().length; i++) {
+                        Row row = (Row) getHeapArray()[i];
+                        if (row != null) {
+                            row.close();
+                            getHeapArray()[i] = null;
+                        }
+                    }
+                },
                 // Release the array itself
                 () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
             );

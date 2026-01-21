@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -32,14 +34,16 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOptimizerTests {
+public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * <pre>{@code
@@ -799,5 +803,155 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         assertTrue(aliasCc.child().foldable());
         assertThat(aliasCc.child().fold(FoldContext.small()), is(0L));
         as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[max(x){r}#6],Page{blocks=[ConstantNullBlock[positions=1]]}]
+     * }</pre>
+     */
+    public void testReplaceStatsMaxOnNullReferenceWithEvalSingleAgg() {
+        var plan = plan("""
+            row x = null
+            | stats max(x)
+            """);
+
+        var project = as(plan, Limit.class);
+        var source = as(project.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("max(x)"));
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getBlock(0).getPositionCount(), is(1));
+        assertTrue(page.getBlock(0).areAllValuesNull());
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[y{r}#6]]
+     * \_Eval[[null[NULL] AS y#6]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[{e}#7],Page{blocks=[ConstantNullBlock[positions=1]]}]
+     * }</pre>
+     */
+    public void testReplaceStatsMaxOnNullLiteralWithEvalSingleAgg() {
+        var plan = plan("""
+            row x = 3
+            | stats y = max(null)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("y"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
+        assertThat(alias.child().dataType(), is(NULL));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[max(x){r}#9, sum(y){r}#11, x{r}#4]]
+     * \_Eval[[null[NULL] AS max(x)#9]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Aggregate[[x{r}#4],[SUM(y{r}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum(y)#11, x{r}#4]]
+     *       \_LocalRelation[[x{r}#4, y{r}#6],Page{blocks=[ConstantNullBlock[positions=1], IntVectorBlock[vector=..]]}]
+     * }</pre>
+     */
+    public void testReplaceStatsMaxOnNullWithEvalAndAgg() {
+        var plan = plan("""
+            row x = null, y = 1
+            | stats max(x),
+                    sum(y)
+              by x
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("max(x)", "sum(y)", "x"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
+        assertThat(alias.child().dataType(), is(NULL));
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var source = as(aggregate.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[a{r}#6, b{r}#8]]
+     * \_Eval[[0[LONG] AS a#6]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[b{r}#8],Page{blocks=[BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]]}]
+     * }</pre>
+     */
+    public void testReplaceStatsOnNullLiteralWithEvalSpecialFunctions() {
+        // COUNT(null) surrogates to COUNT(*) * MV_COUNT(null), and ABSENT(x) surrogates to NOT(PRESENT(x)), so they're not included
+        var plan = plan("""
+            row x = 3
+            | stats a = COUNT_DISTINCT(null), b = PRESENT(null)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("a", "b"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("a"));
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(FoldContext.small()), is(0L));
+        assertThat(alias.child().dataType(), is(LONG));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("b"));
+
+        var page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getPositionCount(), is(1));
+        assertThat(page.getBlock(0), instanceOf(BooleanBlock.class));
+        assertThat(((BooleanBlock) page.getBlock(0)).getBoolean(0), is(false));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#7, b{r}#10, c{r}#13],Page{blocks=[
+     *     LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
+     *     LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
+     *     BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]
+     *   ]}]
+     * }</pre>
+     */
+    public void testReplaceStatsOnPropagatedNullLiteralWithEvalSpecialFunctions() {
+        // ABSENT(x) surrogates to NOT(PRESENT(x)), so it's not included
+        var plan = plan("""
+            row x = null
+            | stats a = COUNT(x), b = COUNT_DISTINCT(x), c = PRESENT(x)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("a", "b", "c"));
+
+        var page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(3));
+        assertThat(page.getPositionCount(), is(1));
+        assertThat(page.getBlock(0), instanceOf(LongBlock.class));
+        assertThat(((LongBlock) page.getBlock(0)).getLong(0), is(0L));
+        assertThat(page.getBlock(1), instanceOf(LongBlock.class));
+        assertThat(((LongBlock) page.getBlock(1)).getLong(0), is(0L));
+        assertThat(page.getBlock(2), instanceOf(BooleanBlock.class));
+        assertThat(((BooleanBlock) page.getBlock(2)).getBoolean(0), is(false));
     }
 }

@@ -530,12 +530,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
-                    if (rebalanceConditionsMet && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
+                    if (rebalanceConditionsMet && canAllocate.type().compareToBetweenNodes(bestRebalanceCanAllocateDecisionType) > 0) {
                         // Overwrite the best decision since it is better than the last. This means that YES/THROTTLE decisions will replace
                         // NOT_PREFERRED/NO decisions, and a YES decision will replace a THROTTLE decision. NOT_PREFERRED will also replace
                         // NO, even if neither are acted upon for rebalancing, for allocation explain purposes.
                         bestRebalanceCanAllocateDecisionType = canAllocate.type();
-                        if (canAllocate.type().higherThan(Type.NOT_PREFERRED)) {
+                        if (canAllocate.type().compareToBetweenNodes(Type.NOT_PREFERRED) > 0) {
                             // Movement is only allowed to THROTTLE/YES nodes. NOT_PREFERRED is the same as no for rebalancing, since
                             // rebalancing aims to distribute resource usage and NOT_PREFERRED means the move could cause hot-spots.
                             targetNode = node;
@@ -861,7 +861,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         shardMoved = true;
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
-                    logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                    logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
                 }
             }
 
@@ -1053,7 +1053,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
                         continue;
                     }
-                    if (allocationDecision.type().higherThan(bestDecision)) {
+                    if (allocationDecision.type().compareToBetweenNodes(bestDecision) > 0) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
                             targetNode = target;
@@ -1570,12 +1570,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
 
-                    final Decision.Type canAllocateOrRebalance = Decision.Type.min(allocationDecision.type(), rebalanceDecision.type());
+                    final Decision.Type canAllocateOrRebalance = Decision.minimumDecisionTypeThrottleOrYes(
+                        allocationDecision,
+                        rebalanceDecision
+                    );
 
                     maxNode.removeShard(projectIndex(shard), shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    assert canAllocateOrRebalance == Type.YES || canAllocateOrRebalance == Type.THROTTLE : canAllocateOrRebalance;
                     logger.debug(
                         "decision [{}]: relocate [{}] from [{}] to [{}]",
                         canAllocateOrRebalance,

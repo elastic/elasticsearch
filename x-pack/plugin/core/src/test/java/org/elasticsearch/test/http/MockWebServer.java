@@ -251,6 +251,16 @@ public class MockWebServer implements Closeable {
         return request;
     }
 
+    public String getHttpAddress() {
+        String host = getHostName();
+        if (host.contains(":")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+
+        return host + ":" + getPort();
+    }
+
     /**
      * @return The hostname the server is bound to.
      */

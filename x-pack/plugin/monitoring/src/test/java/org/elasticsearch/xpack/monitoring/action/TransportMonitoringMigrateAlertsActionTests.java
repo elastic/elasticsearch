@@ -298,7 +298,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", true)
-                .put("xpack.monitoring.exporters.remoteCluster.host", getFormattedAddress())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
@@ -338,7 +338,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", false)
-                .put("xpack.monitoring.exporters.remoteCluster.host", getFormattedAddress())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // configure disabled http exporter
@@ -378,7 +378,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", false)
-                .put("xpack.monitoring.exporters.remoteCluster.host", getFormattedAddress())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // create a disabled http exporter
@@ -413,7 +413,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", true)
-                .put("xpack.monitoring.exporters.remoteCluster.host", getFormattedAddress())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
@@ -457,7 +457,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", true)
-                .put("xpack.monitoring.exporters.remoteCluster.host", getFormattedAddress())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
@@ -618,15 +618,5 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     protected void waitForWatcherIndices() throws Exception {
         awaitIndexExists(Watch.INDEX);
         assertBusy(() -> ensureYellowAndNoInitializingShards(Watch.INDEX));
-    }
-
-    private String getFormattedAddress() {
-        String host = webServer.getHostName();
-        if (host.contains(":")) {
-            // ipv6 format
-            host = "[" + host + "]";
-        }
-
-        return host + ":" + webServer.getPort();
     }
 }

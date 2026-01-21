@@ -32,7 +32,7 @@ import java.net.URISyntaxException;
 
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.hamcrest.core.Is.is;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ContextualAiServiceTests extends InferenceServiceTestCase {

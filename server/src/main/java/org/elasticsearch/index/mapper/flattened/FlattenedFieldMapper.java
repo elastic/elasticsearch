@@ -1054,7 +1054,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
             return new SyntheticSourceSupport.Native(
-                () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                () -> new FlattenedDocValuesSyntheticFieldLoader(
                     fullPath(),
                     fullPath() + KEYED_FIELD_SUFFIX,
                     fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,

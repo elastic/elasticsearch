@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.elasticsearch.simdvec.VectorComparisonUtils;
+
 public interface ESVectorUtilSupport {
 
     /**
@@ -71,4 +73,7 @@ public interface ESVectorUtilSupport {
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
+
+    VectorComparisonUtils getVectorComparisonUtils();
+
 }

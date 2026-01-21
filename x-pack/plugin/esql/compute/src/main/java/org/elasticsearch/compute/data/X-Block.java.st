@@ -70,7 +70,7 @@ $if(BytesRef)$
 $elseif(boolean)$
 $else$
         final var BINARYSEARCH_THRESHOLD = 16;
-        if(count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
             return binarySearch(this, position, count, value) >= 0;
         }
 
@@ -110,12 +110,9 @@ $else$
             int mid = (low + high) >>> 1;
             $type$ midVal = block.get$Type$(mid);
 
-            if (midVal < value)
-                low = mid + 1;
-            else if (midVal > value)
-                high = mid - 1;
-            else
-                return mid; // key found
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
         }
         return -(low + 1);  // key not found.
     }

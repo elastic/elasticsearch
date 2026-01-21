@@ -4,21 +4,39 @@
   "operator" : "*",
   "name" : "mul",
   "titleName" : "multiply",
-  "description" : "Multiply two numbers together. If either field is multivalued then the result is `null`.",
+  "description" : "Multiply two values together. For numeric fields, if either field is multivalued\nthen the result is `null`. For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate\nnull result.\n",
   "signatures" : [
     {
       "params" : [
         {
           "name" : "lhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        },
+        {
+          "name" : "rhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -30,13 +48,13 @@
           "name" : "lhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -48,13 +66,13 @@
           "name" : "lhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -66,13 +84,13 @@
           "name" : "lhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -84,13 +102,13 @@
           "name" : "lhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -102,13 +120,13 @@
           "name" : "lhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -120,13 +138,13 @@
           "name" : "lhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -138,13 +156,13 @@
           "name" : "lhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -156,13 +174,13 @@
           "name" : "lhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,
@@ -174,13 +192,13 @@
           "name" : "lhs",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         },
         {
           "name" : "rhs",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "A numeric value."
+          "description" : "A numeric value or dense_vector"
         }
       ],
       "variadic" : false,

@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.datageneration.matchers.Messages.formatErrorMessage;
@@ -71,7 +72,34 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
             return Collections.emptyList();
         }
 
-        return values.stream().map(o -> (Map<String, Object>) o).filter(m -> m.isEmpty() == false).toList();
+        return values.stream()
+            .map(FlattenedFieldMatcher::filterEmptyCollections)
+            .filter(Objects::nonNull)
+            .map(o -> (Map<String, Object>) o)
+            .toList();
+    }
+
+    private static Object filterEmptyCollections(Object value) {
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<String, Object> filtered = new TreeMap<>();
+            for (var entry : mapValue.entrySet()) {
+                var filteredValue = filterEmptyCollections(entry.getValue());
+                if (filteredValue != null) {
+                    filtered.put((String) entry.getKey(), filteredValue);
+                }
+            }
+            if (filtered.isEmpty()) {
+                return null;
+            }
+            return filtered;
+        } else if (value instanceof List<?> listValue) {
+            if (listValue.isEmpty()) {
+                return null;
+            }
+            return listValue.stream().map(FlattenedFieldMatcher::filterEmptyCollections).filter(Objects::nonNull).toList();
+        } else {
+            return value;
+        }
     }
 
     private static class FlattenedSourceMatcher extends SourceMatcher {

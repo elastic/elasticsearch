@@ -23,7 +23,7 @@ public class GetBasicStatusRequest extends LocalClusterStateRequest {
      * Prior to 9.3 TransportGetBasicStatusAction was a TransportMasterNodeReadAction so for BwC we need to be
      * able to read this from the transport layer until we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public GetBasicStatusRequest(StreamInput in) throws IOException {
         super(in);
     }

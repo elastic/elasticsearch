@@ -841,6 +841,7 @@ public class RestClient implements Closeable {
 
         RequestContext(InternalRequest request, Node node, AuthCache authCache) {
             this.node = node;
+            System.out.println("HOST: " + node.getHost().toString());
             // we stream the request body if the entity allows for it
             this.requestProducer = HttpAsyncMethods.create(node.getHost(), request.httpRequest);
             this.asyncResponseConsumer = request.request.getOptions()

@@ -73,7 +73,7 @@ import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDo
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
-import org.elasticsearch.datastreams.lifecycle.transitions.StepResources;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -450,7 +450,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
 
-            maybeProcessTierTransitions(projectState, dataStream, indicesToExcludeForRemainingRun);
+            maybeProcessDlmActions(projectState, dataStream, indicesToExcludeForRemainingRun);
 
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
@@ -465,15 +465,33 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
+    /**
+     * Processes Data Lifecycle Management (DLM) actions for the given data stream.
+     * <p>
+     * For each configured {@link DlmAction}, this method:
+     *   * Determines if the action is scheduled for the data stream.
+     *   * Finds indices eligible for the action, excluding those in {@code indicesToExclude}.
+     *   * For each eligible index, iterates through the action's steps in reverse order:
+     *     * Checks if the step is already completed for the index.
+     *     * If not completed, attempts to execute the step, handling and logging any exceptions.
+     *     * Adds the index to {@code indicesToExclude} after a step is executed to avoid reprocessing in this run.
+     * <p>
+     * Any errors encountered during step completion checks or execution are logged, but do not prevent processing of
+     * other actions or indices.
+     *
+     * @param projectState      the current project state
+     * @param dataStream        the data stream to process
+     * @param indicesToExclude  indices to skip for this run (will be updated with processed indices)
+     */
     // Visible for testing
-    void maybeProcessTierTransitions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
+    void maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
         for (DlmAction action : actions) {
-            var actionSchedule = action.schedulingFieldFunction().apply(dataStream.getDataLifecycle());
+            var actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
 
             if (actionSchedule == null) {
                 logger.trace(
                     "Data stream lifecycle action [{}] is not scheduled for data stream [{}]",
-                    action.actionName(),
+                    action.name(),
                     dataStream.getName()
                 );
                 continue;
@@ -490,7 +508,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             logger.trace(
                 "Data stream lifecycle action [{}] found [{}] eligible indices for data stream [{}]",
-                action.actionName(),
+                action.name(),
                 indicesEligibleForAction.size(),
                 dataStream.getName()
             );
@@ -504,9 +522,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         logger.warn(
                             logger.getMessageFactory()
                                 .newMessage(
-                                    "Unable to execute check for step complete [{}] for action [{}] on index [{}]",
+                                    "Unable to execute check for step complete [{}] for action [{}] on datastream [{}] index [{}]",
                                     step.stepName(),
-                                    action.actionName(),
+                                    action.name(),
+                                    dataStream.getName(),
                                     index.getName()
                                 ),
                             ex
@@ -515,10 +534,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     }
 
                     if (stepCompleted == false) {
-                        // Throttling init
                         try {
                             step.execute(
-                                new StepResources(
+                                new DlmStepContext(
                                     index,
                                     projectState,
                                     transportActionsDeduplicator,
@@ -531,16 +549,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             logger.warn(
                                 logger.getMessageFactory()
                                     .newMessage(
-                                        "Unable to execute step [{}] for action [{}] on index [{}]",
+                                        "Unable to execute step [{}] for action [{}] on datastream [{}] index [{}]",
                                         step.stepName(),
-                                        action.actionName(),
+                                        action.name(),
+                                        dataStream.getName(),
                                         index.getName()
                                     ),
                                 ex
                             );
                             continue;
                         }
-                        // Throttling closedown
                         indicesToExclude.add(index);
                         break;
                     }

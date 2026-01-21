@@ -12,12 +12,34 @@ package org.elasticsearch.datastreams.lifecycle.transitions;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.index.Index;
 
+/**
+ * A step within a Data Lifecycle Management action. Each step is responsible for determining if it has been completed for a given index
+ * and executing the necessary operations to complete the step.
+ */
 public interface DlmStep {
 
+    /**
+     * Determines if the step has been completed for the given index and project state.
+     *
+     * @param index The index to check.
+     * @param projectState The current project state.
+     * @return
+     */
     boolean stepCompleted(Index index, ProjectState projectState);
 
-    void execute(StepResources stepResources);
+    /**
+     * This method determines how to execute the step and performs the necessary operations to update the index
+     * so that {@link #stepCompleted(Index, ProjectState)} will return true after successful execution.
+     *
+     * @param dlmStepContext The context and resources for executing the step.
+     */
+    void execute(DlmStepContext dlmStepContext);
 
+    /**
+     * A human-readable name for the step.
+     *
+     * @return The step name.
+     */
     String stepName();
 
 }

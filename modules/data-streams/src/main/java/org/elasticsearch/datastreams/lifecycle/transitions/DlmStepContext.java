@@ -18,7 +18,10 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportRequest;
 
-public record StepResources(
+/**
+ * Context and resources required for executing a DLM step.
+ */
+public record DlmStepContext(
     Index index,
     ProjectState projectState,
     ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator,
@@ -26,10 +29,17 @@ public record StepResources(
     int signallingErrorRetryThreshold,
     Client client
 ) {
+
+    /**
+     * @return The name of the index associated with this context.
+     */
     public String indexName() {
         return index.getName();
     }
 
+    /**
+     * @return The project ID associated with this context.
+     */
     public ProjectId projectId() {
         return projectState.projectId();
     }

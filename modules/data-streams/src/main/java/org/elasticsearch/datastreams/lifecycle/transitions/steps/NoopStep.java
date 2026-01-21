@@ -14,7 +14,7 @@ package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
-import org.elasticsearch.datastreams.lifecycle.transitions.StepResources;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
@@ -38,8 +38,8 @@ public final class NoopStep implements DlmStep {
     }
 
     @Override
-    public void execute(StepResources stepResources) {
-        logger.info("Executing NoopStep for index: {} in project: {}", stepResources.indexName(), stepResources.projectId());
+    public void execute(DlmStepContext dlmStepContext) {
+        logger.info("Executing NoopStep for index: {} in project: {}", dlmStepContext.indexName(), dlmStepContext.projectId());
         // No-op
     }
 

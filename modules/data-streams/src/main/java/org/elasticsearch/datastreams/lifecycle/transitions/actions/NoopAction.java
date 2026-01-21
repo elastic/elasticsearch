@@ -24,12 +24,12 @@ import java.util.function.Function;
  */
 public class NoopAction implements DlmAction {
     @Override
-    public String actionName() {
+    public String name() {
         return "No-op action";
     }
 
     @Override
-    public Function<DataStreamLifecycle, TimeValue> schedulingFieldFunction() {
+    public Function<DataStreamLifecycle, TimeValue> applyAfterTime() {
         return dataStreamLifecycle -> TimeValue.ONE_MINUTE;
     }
 

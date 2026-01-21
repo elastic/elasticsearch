@@ -70,14 +70,7 @@ public class DecodeGcdFriendlyBenchmark {
         decode.setupTrial(GcdFriendlySupplier.builder(SEED, decode.getBlockSize()).withGcd(gcd).build());
 
         decode.setBlocksPerInvocation(blocksPerInvocation);
-
-        decode.setupIteration();
         decode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration();
     }
 
     @Benchmark

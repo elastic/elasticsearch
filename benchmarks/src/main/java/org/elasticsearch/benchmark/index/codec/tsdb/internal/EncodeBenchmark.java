@@ -65,11 +65,6 @@ public final class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
     }
 
     @Override
-    public void setupIteration() {
-        lastEncodedBytesSum = 0;
-    }
-
-    @Override
     public void run() throws IOException {
         int sum = 0;
         for (int i = 0; i < blocksPerInvocation; i++) {

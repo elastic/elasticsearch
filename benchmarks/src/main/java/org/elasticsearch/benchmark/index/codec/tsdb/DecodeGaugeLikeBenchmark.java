@@ -70,14 +70,7 @@ public class DecodeGaugeLikeBenchmark {
         decode.setupTrial(GaugeLikeSupplier.builder(SEED, decode.getBlockSize()).withVarianceRatio(varianceRatio).build());
 
         decode.setBlocksPerInvocation(blocksPerInvocation);
-
-        decode.setupIteration();
         decode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration();
     }
 
     @Benchmark

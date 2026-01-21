@@ -67,14 +67,7 @@ public class EncodeConstantIntegerBenchmark {
         encode.setupTrial(new ConstantIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
 
         encode.setBlocksPerInvocation(blocksPerInvocation);
-
-        encode.setupIteration();
         encode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        encode.setupIteration();
     }
 
     @Benchmark
@@ -95,7 +88,6 @@ public class EncodeConstantIntegerBenchmark {
     @Warmup(iterations = 0)
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
-        encode.setupIteration();
         encode.benchmark(bh);
         metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), bitsPerValue);
     }

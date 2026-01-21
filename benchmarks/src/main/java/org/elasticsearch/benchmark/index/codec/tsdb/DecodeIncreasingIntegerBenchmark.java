@@ -66,14 +66,7 @@ public class DecodeIncreasingIntegerBenchmark {
         decode.setupTrial(new IncreasingIntegerSupplier(SEED, bitsPerValue, decode.getBlockSize()));
 
         decode.setBlocksPerInvocation(blocksPerInvocation);
-
-        decode.setupIteration();
         decode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration();
     }
 
     @Benchmark

@@ -70,14 +70,7 @@ public class DecodeCounterWithResetsBenchmark {
         decode.setupTrial(CounterWithResetsSupplier.builder(SEED, decode.getBlockSize()).withResetProbability(resetProbability).build());
 
         decode.setBlocksPerInvocation(blocksPerInvocation);
-
-        decode.setupIteration();
         decode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration();
     }
 
     @Benchmark

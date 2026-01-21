@@ -75,11 +75,6 @@ public final class DecodeBenchmark extends AbstractTSDBCodecBenchmark {
     }
 
     @Override
-    public void setupIteration() {
-        lastDecodedChecksum = 0;
-    }
-
-    @Override
     public void run() throws IOException {
         long checksum = 0;
         for (int i = 0; i < blocksPerInvocation; i++) {

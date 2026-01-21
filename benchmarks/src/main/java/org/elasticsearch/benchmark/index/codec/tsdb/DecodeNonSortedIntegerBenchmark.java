@@ -66,14 +66,7 @@ public class DecodeNonSortedIntegerBenchmark {
         decode.setupTrial(new NonSortedIntegerSupplier(SEED, bitsPerValue, decode.getBlockSize()));
 
         decode.setBlocksPerInvocation(blocksPerInvocation);
-
-        decode.setupIteration();
         decode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration();
     }
 
     @Benchmark

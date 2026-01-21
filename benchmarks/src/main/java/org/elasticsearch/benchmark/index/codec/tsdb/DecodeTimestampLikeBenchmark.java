@@ -70,13 +70,7 @@ public class DecodeTimestampLikeBenchmark {
         decode.setupTrial(TimestampLikeSupplier.builder(SEED, decode.getBlockSize()).withJitterProbability(jitterProbability).build());
 
         decode.setBlocksPerInvocation(blocksPerInvocation);
-        decode.setupIteration();
         decode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        decode.setupIteration();
     }
 
     @Benchmark

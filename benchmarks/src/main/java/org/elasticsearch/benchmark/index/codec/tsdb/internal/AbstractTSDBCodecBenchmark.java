@@ -91,17 +91,6 @@ public abstract class AbstractTSDBCodecBenchmark {
     public abstract void setupTrial(Supplier<long[]> arraySupplier) throws IOException;
 
     /**
-     * Sets up state for a new benchmark iteration.
-     * Called once per iteration. Default implementation does nothing.
-     *
-     * <p>Implementations may override this to restore original input state and reset buffers
-     * before measured benchmark invocations.
-     *
-     * @throws IOException if setup fails
-     */
-    public void setupIteration() throws IOException {}
-
-    /**
      * Returns the number of values per encoded block.
      *
      * @return the block size.

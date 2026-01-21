@@ -76,13 +76,7 @@ public class EncodeLowCardinalityBenchmark {
 
         encode.setupTrial(supplier);
         encode.setBlocksPerInvocation(blocksPerInvocation);
-        encode.setupIteration();
         encode.run();
-    }
-
-    @Setup(Level.Iteration)
-    public void setupIteration() throws IOException {
-        encode.setupIteration();
     }
 
     @Benchmark
@@ -103,7 +97,6 @@ public class EncodeLowCardinalityBenchmark {
     @Warmup(iterations = 0)
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {
-        encode.setupIteration();
         encode.benchmark(bh);
         metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize(), supplier.getNominalBitsPerValue());
     }

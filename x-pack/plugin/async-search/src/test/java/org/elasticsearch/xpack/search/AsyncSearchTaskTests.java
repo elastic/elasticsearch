@@ -22,6 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
@@ -51,6 +52,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AsyncSearchTaskTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -324,7 +327,31 @@ public class AsyncSearchTaskTests extends ESTestCase {
             assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false, true);
             ActionListener.respondAndRelease(
                 (AsyncSearchTask.Listener) task.getProgressListener(),
-                newSearchResponse(totalShards, totalShards, numSkippedShards)
+                SearchResponseUtils.response(
+                    new SearchHits(new SearchHit[1], new TotalHits(10, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), 1)
+                )
+                    .aggregations(
+                        InternalAggregations.from(
+                            Collections.singletonList(
+                                new StringTerms(
+                                    "name",
+                                    BucketOrder.key(true),
+                                    BucketOrder.key(true),
+                                    1,
+                                    1,
+                                    Collections.emptyMap(),
+                                    DocValueFormat.RAW,
+                                    1,
+                                    false,
+                                    1,
+                                    Collections.emptyList(),
+                                    0L
+                                )
+                            )
+                        )
+                    )
+                    .shards(totalShards, totalShards, numSkippedShards)
+                    .build()
             );
             assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false, true);
         }
@@ -573,10 +600,12 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 }
                 if (partialResultsSuppressed && resp.isPartial()) {
                     assertThat(resp.getSearchResponse().getHits().getHits().length, equalTo(0));
-                    assertThat(resp.getSearchResponse().getAggregations(), equalTo(null));
+                    assertThat(resp.getSearchResponse().getAggregations(), nullValue());
                 } else if (partialResultsSuppressed) {
                     // if partial results are suppressed but the response is not partial, we have all results
-                    assertThat(resp.getSearchResponse().getHits().getTotalHits().value(), equalTo(1L));
+                    assertThat(resp.getSearchResponse().getHits().getTotalHits().value(), equalTo(10L));
+                    assertThat(resp.getSearchResponse().getHits().getHits().length, equalTo(1));
+                    assertThat(resp.getSearchResponse().getAggregations(), notNullValue());
                 }
 
                 latch.countDown();

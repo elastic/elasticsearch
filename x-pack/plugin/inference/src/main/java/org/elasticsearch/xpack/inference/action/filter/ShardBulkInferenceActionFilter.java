@@ -754,7 +754,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private void handleInferenceFailures(BulkItemRequest item, List<Exception> failures) {
             for (Exception failure : failures) {
                 // Generate a signature for the failure to deduplicate on the most important properties
-                FailureSignature failureSignature = new FailureSignature(item.request().id(), item.index(), failure);
+                FailureSignature failureSignature = new FailureSignature(item.id(), item.index(), failure);
 
                 Exception existing = deduplicatedFailures.putIfAbsent(failureSignature, failure);
                 if (existing == null) {
@@ -851,13 +851,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     record FailureSignature(
-        String requestId,
+        int requestId,
         String requestIndex,
         Class<? extends Throwable> failureClass,
         String failureMessage,
         FailureSignature causeSignature
     ) {
-        FailureSignature(String requestId, String index, Throwable failure) {
+        FailureSignature(int requestId, String index, Throwable failure) {
             this(
                 requestId,
                 index,

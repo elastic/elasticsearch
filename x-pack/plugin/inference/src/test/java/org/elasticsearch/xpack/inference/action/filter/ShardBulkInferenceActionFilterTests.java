@@ -1075,7 +1075,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             // Use a multivalued input to generate multiple failures per index request. These failures should be deduplicated.
             List<String> inferenceFieldValue = randomList(2, 5, () -> randomAlphaOfLengthBetween(3, 20));
             items[i] = new BulkItemRequest(
-                0,
+                i,
                 new IndexRequest("index").id(Integer.toString(i)).source("inference_field", inferenceFieldValue)
             );
         }
@@ -1092,7 +1092,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     public void testEqualFailureSignatures() {
         for (int i = 0; i < 10; i++) {
-            final String requestId = randomAlphaOfLengthBetween(5, 10);
+            final int requestId = randomIntBetween(0, Integer.MAX_VALUE);
             final String requestIndex = randomIndexName();
             final int causeCount = randomIntBetween(0, 5);
 
@@ -1147,7 +1147,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
 
             // TODO: Vary only one value at a time
-            String requestId = randomAlphaOfLengthBetween(5, 10);
+            int requestId = randomIntBetween(0, Integer.MAX_VALUE);
             String requestIndex = randomIndexName();
             String message = randomAlphaOfLengthBetween(5, 10);
             ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
@@ -1156,7 +1156,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 new RuntimeException(message, aCause)
             );
             ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                rarely() ? randomValueOtherThan(requestId, () -> randomAlphaOfLengthBetween(5, 10)) : requestId,
+                rarely() ? randomValueOtherThan(requestId, () -> randomIntBetween(0, Integer.MAX_VALUE)) : requestId,
                 rarely() ? randomValueOtherThan(requestIndex, ESTestCase::randomIndexName) : requestIndex,
                 inequalityLevel == 0 ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause)
             );

@@ -80,9 +80,9 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         Set<String> nodeVersions = readVersionsFromNodesInfo(adminClient());
 
         assertThat(
-                "All nodes should be running the old version [" + expectedOldVersion + "] but found: " + nodeVersions,
-                nodeVersions,
-                everyItem(equalTo(normalizedExpectedVersion))
+            "All nodes should be running the old version [" + expectedOldVersion + "] but found: " + nodeVersions,
+            nodeVersions,
+            everyItem(equalTo(normalizedExpectedVersion))
         );
     }
 

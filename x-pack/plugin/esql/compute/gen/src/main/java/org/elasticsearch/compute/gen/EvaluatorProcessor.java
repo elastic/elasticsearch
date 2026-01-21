@@ -40,8 +40,12 @@ public class EvaluatorProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(Evaluator.class.getName(), MvEvaluator.class.getName(), ConvertEvaluator.class.getName(),
-            DenseVectorEvaluator.class.getName());
+        return Set.of(
+            Evaluator.class.getName(),
+            MvEvaluator.class.getName(),
+            ConvertEvaluator.class.getName(),
+            DenseVectorEvaluator.class.getName()
+        );
     }
 
     @Override

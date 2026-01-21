@@ -276,13 +276,13 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         }
     }
 
-
     public static ExpressionEvaluator.Factory getAddFactory(
         Source source,
         DataType lhsType,
         DataType rhsType,
         ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
+        ExpressionEvaluator.Factory rhsFactory
+    ) {
         if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
             return new DenseVectorsEvaluator.AddFactory(source, lhsfactory, rhsFactory);
         } else {
@@ -321,7 +321,8 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         DataType lhsType,
         DataType rhsType,
         ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
+        ExpressionEvaluator.Factory rhsFactory
+    ) {
         if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
             return new DenseVectorsEvaluator.SubFactory(source, lhsfactory, rhsFactory);
         } else {
@@ -360,7 +361,8 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         DataType lhsType,
         DataType rhsType,
         ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
+        ExpressionEvaluator.Factory rhsFactory
+    ) {
         if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
             return new DenseVectorsEvaluator.MulFactory(source, lhsfactory, rhsFactory);
         } else {
@@ -399,7 +401,8 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         DataType lhsType,
         DataType rhsType,
         ExpressionEvaluator.Factory lhsfactory,
-        ExpressionEvaluator.Factory rhsFactory) {
+        ExpressionEvaluator.Factory rhsFactory
+    ) {
         if (lhsType == DENSE_VECTOR && rhsType == DENSE_VECTOR) {
             return new DenseVectorsEvaluator.DivFactory(source, lhsfactory, rhsFactory);
         } else {

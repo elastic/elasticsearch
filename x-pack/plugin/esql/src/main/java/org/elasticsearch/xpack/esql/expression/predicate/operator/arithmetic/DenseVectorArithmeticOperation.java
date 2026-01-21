@@ -28,7 +28,13 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
     /** Arithmetic (quad) function. */
     @FunctionalInterface
     public interface DenseVectorBinaryEvaluator {
-        EvalOperator.ExpressionEvaluator.Factory apply(Source source, DataType lhsType, DataType rhsType, EvalOperator.ExpressionEvaluator.Factory lhs, EvalOperator.ExpressionEvaluator.Factory rhs);
+        EvalOperator.ExpressionEvaluator.Factory apply(
+            Source source,
+            DataType lhsType,
+            DataType rhsType,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        );
     }
 
     protected DenseVectorArithmeticOperation(
@@ -89,7 +95,13 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = dataType();
         if (commonType == DENSE_VECTOR) {
-            return denseVectors.apply(source(), left().dataType(), right().dataType(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            return denseVectors.apply(
+                source(),
+                left().dataType(),
+                right().dataType(),
+                toEvaluator.apply(left()),
+                toEvaluator.apply(right())
+            );
         }
         return super.toEvaluator(toEvaluator);
     }

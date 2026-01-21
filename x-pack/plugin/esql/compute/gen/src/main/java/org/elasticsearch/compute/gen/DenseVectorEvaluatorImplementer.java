@@ -36,7 +36,6 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
-import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.RAM_USAGE_ESIMATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -166,7 +165,6 @@ public class DenseVectorEvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval");
         builder.addModifiers(Modifier.PUBLIC).returns(resultDataType);
         builder.addParameter(TypeName.INT, "positionCount");
-
 
         TypeName builderType = builderType(resultDataType);
         builder.beginControlFlow(

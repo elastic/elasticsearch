@@ -276,8 +276,7 @@ result:double | step:datetime
 ;
 
 quantile
-required_capability: promql_pre_tech_preview_v14
-required_capability: promql_quantile
+required_capability: promql_command_v0
 PROMQL index=k8s step=1h quantile=(round(quantile by (cluster) (0.5, quantile_over_time(0.5, network.bytes_in[1h])), 0.001))
 | SORT cluster;
 

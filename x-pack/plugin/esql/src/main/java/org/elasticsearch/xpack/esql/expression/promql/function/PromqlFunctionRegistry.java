@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
@@ -241,6 +242,12 @@ public class PromqlFunctionRegistry {
             Abs::new,
             "Returns the input vector with all sample values converted to their absolute value.",
             "abs(rate(http_requests_total[5m]))"
+        ),
+        valueTransformationFunction(
+            "sgn",
+            Signum::new,
+            "Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.",
+            "sgn(rate(http_requests_total[5m]))"
         ),
         valueTransformationFunction(
             "exp",
@@ -694,7 +701,6 @@ public class PromqlFunctionRegistry {
         "ln",
         "log2",
         "scalar",
-        "sgn",
         "sort",
         "sort_desc",
 

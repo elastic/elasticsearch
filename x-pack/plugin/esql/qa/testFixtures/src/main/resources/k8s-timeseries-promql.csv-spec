@@ -139,6 +139,30 @@ log10_scalar:double | step:datetime
 2.0                 | 2024-05-10T00:00:00.000Z
 ;
 
+sgn_scalar
+required_capability: promql_sgn
+PROMQL index=k8s step=1h sgn_scalar=(sgn(vector(-2.5)));
+
+sgn_scalar:double | step:datetime
+-1.0              | 2024-05-10T00:00:00.000Z
+;
+
+sgn_scalar_positive
+required_capability: promql_sgn
+PROMQL index=k8s step=1h sgn_scalar_positive=(sgn(vector(7.25)));
+
+sgn_scalar_positive:double | step:datetime
+1.0                        | 2024-05-10T00:00:00.000Z
+;
+
+sgn_scalar_zero
+required_capability: promql_sgn
+PROMQL index=k8s step=1h sgn_scalar_zero=(sgn(vector(0.0)));
+
+sgn_scalar_zero:double | step:datetime
+0.0                    | 2024-05-10T00:00:00.000Z
+;
+
 floor_scalar
 required_capability: promql_command_v0
 PROMQL index=k8s step=1h floor_scalar=(floor(vector(3.14159)));

@@ -165,6 +165,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void getUserPrivileges(AuthorizationInfo authorizationInfo,
+                                  @Nullable RoleReference.ApiKeyRoleType unwrapLimitedRole,
                                   ActionListener<GetUserPrivilegesResponse> listener) {
         if (isSuperuser(authorizationInfo)) {
             listener.onResponse(getUserPrivilegesResponse(true));

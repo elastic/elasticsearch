@@ -102,6 +102,37 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 
 - In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
+#### Spatial precision [esql-limitations-spatial-precision]
+
+The spatial types `geo_point`, `geo_shape`, `cartesian_point` and `cartesian_shape` are maintained at source precision in the original documents,
+but indexed at reduced precision by Lucene, for performance reasons.
+To ensure this optimization is available in the widest context, all [spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) will produce results
+at this reduced precision, aligned with the underlying Lucene index grid.
+For `geo_point` and `geo_shape`, this grid is smaller than 1 cm at the equator, which is still very high precision for most use cases.
+If the exact, original precision is desired, return the original field in the ES|QL query, which will maintain the original values.
+To prioritize performance over precision, simply drop that field.
+
+For example:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| KEEP location, geohex
+```
+
+This query will perform slowly, due to the need to retrieve the original `location` field from the source document.
+However, the following example will perform much faster:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP x, y, geohex
+```
+
+This query will perform much faster, since the original field `location` is not retrieved, and the three spatial functions used will all return values aligned with the Lucene index grid.
+Note that if you return both the original `location` and the extracted `x` and `y` you will see very slight differences in the extracted values due to the precision loss.
+
 #### Partial support in 9.2.0
 
 * {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:

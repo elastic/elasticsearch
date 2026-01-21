@@ -15,7 +15,7 @@ ip:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_ip_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m ip=(min by (cluster) (count_over_time(client.ip[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -49,7 +49,7 @@ bytes_in:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_long_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m bytes_in=(sum by (cluster) (count_over_time(network.bytes_in[10m])))
 | SORT bytes_in DESC, cluster, step | LIMIT 10;
@@ -99,7 +99,7 @@ bytes_in:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_with_window_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: time_series_window_v1
 
 PROMQL index=k8s step=2m bytes_in=(sum by (cluster) (count_over_time(network.bytes_in[10m])))
@@ -145,7 +145,7 @@ eth0_up:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_boolean_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m eth0_up=(min by (cluster) (count_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -179,7 +179,7 @@ last_up:long | cluster:keyword | time_bucket:date_nanos
 ;
 
 count_over_time_of_date_nanos_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: promql_date_nanos_support_v0
 
 PROMQL index=datenanos-k8s step=10m last_up=(max by (cluster) (count_over_time(network.eth0.last_up[10m])))
@@ -214,7 +214,7 @@ last_up:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_date_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m last_up=(max by (cluster) (count_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -248,7 +248,7 @@ version:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_version_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m version=(max by (cluster) (count_over_time(network.eth0.firmware_version[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -282,7 +282,7 @@ clients:double     | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_integer_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m clients=(avg by (cluster) (count_over_time(network.eth0.currently_connected_clients[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -316,7 +316,7 @@ event_log:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_text_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m event_log=(max by (cluster) (count_over_time(event_log[10m])))
 | SORT event_log, cluster, step | LIMIT 10;
@@ -350,7 +350,7 @@ pod:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_keyword_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m pod=(min by (cluster) (count_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -385,7 +385,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_aggregate_metric_double_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m tx=(sum by (cluster) (count_over_time(network.eth0.tx[10m])))
@@ -420,7 +420,7 @@ min:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_geopoint_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m min=(min by (cluster) (count_over_time(event_city[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -454,7 +454,7 @@ min:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_geoshape_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m min=(min by (cluster) (count_over_time(event_city_boundary[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -488,7 +488,7 @@ min:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_shape_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m min=(min by (cluster) (count_over_time(event_shape[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -522,7 +522,7 @@ min:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_of_point_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m min=(min by (cluster) (count_over_time(event_location[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -556,7 +556,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time_with_filtering_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (count_over_time(network.bytes_in{pod!="three"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -603,7 +603,7 @@ bytes:long | pod:keyword | time_bucket:datetime     | kb:double
 ;
 
 eval_on_count_over_time_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m bytes=(sum by (pod) (count_over_time(network.bytes_in[10m])))
 | EVAL kb = bytes / 1000.0
@@ -639,7 +639,7 @@ events:double | pod:keyword | time_bucket:datetime
 ;
 
 count_over_time_multi_values_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:09:00.000Z" events=(avg by (pod) (count_over_time(events_received[1m])))
 | SORT events, pod, step | LIMIT 10;
@@ -675,7 +675,7 @@ events:long | pod:keyword | time_bucket:datetime
 ;
 
 count_over_time_null_values_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:14:00.000Z" events=(sum by (pod) (count_over_time(events_received[1m])))
 | SORT events, pod, step | LIMIT 10;
@@ -710,7 +710,7 @@ events:long | pod:keyword | time_bucket:datetime
 ;
 
 count_over_time_all_value_types_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m events=(sum by (pod) (count_over_time(events_received[10m])))
 | SORT events, pod, step | LIMIT 10;
@@ -748,7 +748,7 @@ bytes:long | pod:keyword | time_bucket:datetime
 
 # Awaits fix: https://github.com/elastic/metrics-program/issues/302
 count_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s* step=10m bytes=(sum by (pod) (count_over_time(network.eth0.rx[10m])))

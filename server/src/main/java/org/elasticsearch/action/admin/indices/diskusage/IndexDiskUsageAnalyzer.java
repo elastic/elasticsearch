@@ -56,6 +56,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
@@ -206,7 +207,12 @@ final class IndexDiskUsageAnalyzer {
         }
 
         @Override
-        public Status needsField(FieldInfo fieldInfo) throws IOException {
+        public Status needsField(FieldInfo fieldInfo) {
+            if (SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes())) {
+                // Synthetic _id field doesn't have stored values on disk but it pretends to have them, so we explicitly filter it out.
+                assert SyntheticIdField.NAME.equals(fieldInfo.getName()) : fieldInfo.getName();
+                return Status.NO;
+            }
             return Status.YES;
         }
     }
@@ -366,6 +372,12 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             final Terms terms = postingsReader.terms(field.name);
             if (terms == null) {
+                continue;
+            }
+            if (SyntheticIdField.hasSyntheticIdAttributes(field.attributes())) {
+                // Synthetic _id field doesn't have an inverted index stored on disk,
+                // but it pretends to have one on the read path by setting IndexOptions.DOCS
+                assert SyntheticIdField.NAME.equals(field.getName()) : "Expected only synthetic id fields to have synthetic id attribute";
                 continue;
             }
             // It's expensive to look up every term and visit every document of the postings lists of all terms.

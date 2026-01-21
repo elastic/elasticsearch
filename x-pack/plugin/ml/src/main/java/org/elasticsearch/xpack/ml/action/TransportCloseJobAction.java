@@ -329,6 +329,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         StopDatafeedAction.Request request = new StopDatafeedAction.Request(String.join(",", runningDatafeedIds));
         request.setForce(isForce);
         request.setStopTimeout(timeout);
+        request.setCloseJob(false);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,

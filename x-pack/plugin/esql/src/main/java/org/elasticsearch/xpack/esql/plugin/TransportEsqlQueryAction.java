@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
@@ -56,8 +57,10 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -169,7 +172,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceService(client),
+            new InferenceService(client, clusterService),
             blockFactoryProvider,
             new PlannerSettings(clusterService),
             new CrossProjectModeDecider(clusterService.getSettings())
@@ -239,12 +242,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
+        TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (plan, configuration, foldCtx, resultListener) -> computeService.execute(
+        PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
             flags,
@@ -252,11 +256,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             configuration,
             foldCtx,
             executionInfo,
+            planTimeProfile,
             resultListener
         );
         planExecutor.esql(
             request,
             sessionId,
+            localMinimumVersion,
             new AnalyzerSettings(
                 resultTruncationMaxSize,
                 resultTruncationDefaultSize,
@@ -376,8 +382,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Result result) {
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> result) {
+        var innerResult = result.inner();
+        List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
@@ -389,36 +396,42 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
-            ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
+            ? new EsqlQueryResponse.Profile(
+                innerResult.completionInfo().driverProfiles(),
+                innerResult.completionInfo().planProfiles(),
+                result.minimumVersion()
+            )
             : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                result.pages(),
-                result.completionInfo().documentsFound(),
-                result.completionInfo().valuesLoaded(),
+                innerResult.pages(),
+                innerResult.completionInfo().documentsFound(),
+                innerResult.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
                 false,
                 request.async(),
+                result.inner().configuration().zoneId(),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
-                result.executionInfo()
+                innerResult.executionInfo()
             );
         }
         return new EsqlQueryResponse(
             columns,
-            result.pages(),
-            result.completionInfo().documentsFound(),
-            result.completionInfo().valuesLoaded(),
+            innerResult.pages(),
+            innerResult.completionInfo().documentsFound(),
+            innerResult.completionInfo().valuesLoaded(),
             profile,
             request.columnar(),
             request.async(),
+            result.inner().configuration().zoneId(),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
-            result.executionInfo()
+            innerResult.executionInfo()
         );
     }
 
@@ -483,6 +496,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             asyncExecutionId,
             true, // is_running
             true, // isAsync
+            ZoneOffset.UTC,
             task.getStartTime(),
             task.getExpirationTimeMillis(),
             task.executionInfo()

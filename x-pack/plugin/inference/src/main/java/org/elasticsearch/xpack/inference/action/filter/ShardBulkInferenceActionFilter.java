@@ -44,6 +44,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
@@ -79,7 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
@@ -379,7 +380,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                         if (ExceptionsHelper.status(exc).getStatus() >= 500) {
                             List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
-                            logger.error("Error loading inference for inference id [" + inferenceId + "] on fields " + fields, exc);
+                            logger.warn("Error loading inference for inference id [" + inferenceId + "] on fields " + fields, exc);
                         }
                     }
                 });
@@ -397,8 +398,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             }
 
+            // This assumes that all inference requests are text only, with no images
             final List<ChunkInferenceInput> inputs = requests.stream()
-                .map(r -> new ChunkInferenceInput(new InferenceString(r.input, TEXT), r.chunkingSettings))
+                .map(
+                    r -> new ChunkInferenceInput(
+                        new InferenceStringGroup(singletonList(new InferenceString(InferenceString.DataType.TEXT, r.input))),
+                        r.chunkingSettings
+                    )
+                )
                 .collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = ActionListener.wrap(results -> {
@@ -454,7 +461,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     if (ExceptionsHelper.status(exc).getStatus() >= 500) {
                         List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
-                        logger.error(
+                        logger.warn(
                             "Exception when running inference id ["
                                 + inferenceProvider.model.getInferenceEntityId()
                                 + "] on fields "

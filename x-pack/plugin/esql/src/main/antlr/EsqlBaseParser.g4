@@ -44,6 +44,7 @@ sourceCommand
     | timeSeriesCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? promqlCommand
     ;
 
 processingCommand
@@ -70,7 +71,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? promqlCommand
+    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -347,10 +348,14 @@ fuseCommand
 
 fuseConfiguration
     : SCORE BY score=qualifiedName
-    | KEY BY key=fields
+    | KEY BY key=fuseKeyByFields
     | GROUP BY group=qualifiedName
     | WITH options=mapExpression
     ;
+
+fuseKeyByFields
+   : qualifiedName (COMMA qualifiedName)*
+   ;
 
 //
 // In development
@@ -368,6 +373,19 @@ setCommand
     ;
 
 setField
-    : identifier ASSIGN constant
+    : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+mmrCommand
+    : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    ;
+
+mmrQueryVectorParams
+    : parameter                           # mmrQueryVectorParameter
+    | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+mmrOptionalQueryVector
+    : (mmrQueryVectorParams ON)?
     ;
 

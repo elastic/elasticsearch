@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -133,7 +134,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
         try {
@@ -316,7 +317,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 TestDriverFactory.create(
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null),
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
@@ -359,5 +360,13 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         } else {
             return between(1, 16 * 1024);
         }
+    }
+
+    // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
+    protected final String byteRefBlockHashSize() {
+        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
+            return "213112b";
+        }
+        return "392b";
     }
 }

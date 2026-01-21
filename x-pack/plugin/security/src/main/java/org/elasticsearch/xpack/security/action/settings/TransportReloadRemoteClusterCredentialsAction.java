@@ -114,18 +114,22 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         }
         logger.info("project [{}] rebuilding [{}] connections after credentials update", projectId, totalConnectionsToRebuild);
         try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(ActionResponse.Empty.INSTANCE))) {
+            final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
             for (var clusterAlias : result.addedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, staticSettings, newSettings), connectionRefs);
+                maybeRebuildConnectionOnCredentialsChange(projectId, clusterAlias, mergedSettings, connectionRefs);
             }
             for (var clusterAlias : result.removedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, staticSettings, newSettings), connectionRefs);
+                maybeRebuildConnectionOnCredentialsChange(projectId, clusterAlias, mergedSettings, connectionRefs);
             }
         }
     }
 
-    private void maybeRebuildConnectionOnCredentialsChange(LinkedProjectConfig config, RefCountingRunnable connectionRefs) {
-        final var projectId = config.originProjectId();
-        final var clusterAlias = config.linkedProjectAlias();
+    private void maybeRebuildConnectionOnCredentialsChange(
+        ProjectId projectId,
+        String clusterAlias,
+        Settings mergedSettings,
+        RefCountingRunnable connectionRefs
+    ) {
         if (false == remoteClusterService.getRegisteredRemoteClusterNames(projectId).contains(clusterAlias)) {
             // A credential was added or removed before a remote connection was configured.
             // Without an existing connection, there is nothing to rebuild.
@@ -137,6 +141,13 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
             return;
         }
 
+        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings) == false) {
+            logger.info("project [{}] remote cluster connection [{}] not enabled after credentials change", projectId, clusterAlias);
+            remoteClusterService.remove(projectId, ProjectId.DEFAULT, clusterAlias);
+            return;
+        }
+
+        final var config = toConfig(projectId, clusterAlias, mergedSettings);
         remoteClusterService.updateRemoteCluster(config, true, ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(RemoteClusterService.RemoteClusterConnectionStatus status) {
@@ -167,8 +178,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
     }
 
     @FixForMultiProject(description = "Supply the linked project ID when building the LinkedProjectConfig object.")
-    private LinkedProjectConfig toConfig(ProjectId projectId, String clusterAlias, Settings staticSettings, Settings newSettings) {
-        final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
+    private LinkedProjectConfig toConfig(ProjectId projectId, String clusterAlias, Settings mergedSettings) {
         return RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
     }
 

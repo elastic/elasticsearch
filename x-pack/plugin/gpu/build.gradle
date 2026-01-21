@@ -20,7 +20,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   yamlRestTestImplementation project(':libs:gpu-codec')
-  internalClusterTestImplementation('com.nvidia.cuvs:cuvs-java:25.10.0')
+  internalClusterTestImplementation("com.nvidia.cuvs:cuvs-java:${versions.cuvs_java}")
 
   clusterModules project(xpackModule('gpu'))
 }

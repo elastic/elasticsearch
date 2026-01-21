@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverRunner;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -133,6 +135,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -200,7 +204,6 @@ public class CsvTests extends ESTestCase {
      */
     private Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-    private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper();
     private ThreadPool threadPool;
     private Executor executor;
@@ -299,9 +302,10 @@ public class CsvTests extends ESTestCase {
                 "can't load metrics in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName())
             );
+            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName()));
             assumeFalse(
                 "can't load metrics in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V2.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_CLAMP.capabilityName())
             );
             assumeFalse(
                 "can't use QSTR function in csv tests",
@@ -326,10 +330,6 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "lookup join disabled for csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName())
-            );
-            assumeFalse(
-                "can't use TERM function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TERM_FUNCTION.capabilityName())
             );
             assumeFalse(
                 "CSV tests cannot correctly handle the field caps change",
@@ -359,14 +359,7 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
-            assumeFalse(
-                "CSV tests cannot currently handle CHUNK function",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.capabilityName())
-            );
-            assumeFalse(
-                "can't use PromQL in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V2.capabilityName())
-            );
+            assumeFalse("can't use PromQL in csv tests", testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName()));
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -408,7 +401,7 @@ public class CsvTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         var actualResults = executePlan(bigArrays);
         try {
-            var expected = loadCsvSpecValues(testCase.expectedResults);
+            ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
 
             var log = logResults() ? LOGGER : null;
             assertResults(expected, actualResults, testCase.ignoreOrder, log);
@@ -437,7 +430,7 @@ public class CsvTests extends ESTestCase {
         CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
     }
 
-    private static Map<IndexPattern, IndexResolution> loadIndexResolution(
+    public static Map<IndexPattern, IndexResolution> loadIndexResolution(
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
     ) {
         Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
@@ -447,7 +440,7 @@ public class CsvTests extends ESTestCase {
         return indexResolutions;
     }
 
-    private static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+    public static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
         var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
         List<MappingPerIndex> mappings = datasets.datasets()
@@ -577,7 +570,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan analyzedPlan(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
         TransportVersion minimumVersion
@@ -592,17 +585,18 @@ public class CsvTests extends ESTestCase {
                 Map.of(),
                 enrichPolicies,
                 emptyInferenceResolution(),
-                minimumVersion
+                minimumVersion,
+                parsed.setting(UNMAPPED_FIELDS)
             ),
             TEST_VERIFIER
         );
-        LogicalPlan plan = analyzer.analyze(parsed);
+        LogicalPlan plan = analyzer.analyze(parsed.plan());
         plan.setAnalyzed();
         LOGGER.debug("Analyzed plan:\n{}", plan);
         return plan;
     }
 
-    private Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
+    public static Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         if (preAnalysis.indexes().isEmpty()) {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
@@ -666,7 +660,9 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        EsqlStatement statement = parser.createQuery(testCase.query);
+        EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
+        esqlExecutionInfo.planningProfile().planning().start();
+        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(testCase.query);
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
             testCase.query,
@@ -675,11 +671,12 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(statement.plan());
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(statement.plan(), configuration, testDatasets, minimumVersion);
+        LogicalPlan analyzed = analyzedPlan(statement, configuration, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
             getTestName(),
+            TransportVersion.current(),
             queryClusterSettings(),
             null,
             null,
@@ -688,6 +685,7 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
+            null,
             null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
@@ -698,19 +696,22 @@ public class CsvTests extends ESTestCase {
             new LogicalPreOptimizerContext(foldCtx, mock(InferenceService.class), minimumVersion)
         );
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
-        session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, listener.delegateFailureAndWrap((l, preOptimized) -> {
+        PlanTimeProfile planTimeProfile = configuration.profile() ? new PlanTimeProfile() : null;
+        session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
-                new EsqlExecutionInfo(randomBoolean()),
+                esqlExecutionInfo,
                 planRunner(bigArrays, physicalOperationProviders),
-                session.optimizedPlan(preOptimized, logicalPlanOptimizer),
+                session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
                 configuration,
                 foldCtx,
                 minimumVersion,
+                planTimeProfile,
                 listener.delegateFailureAndWrap(
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
                         new ActualResults(
+                            configuration,
                             result.schema().stream().map(Attribute::name).toList(),
                             result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
                             result.schema().stream().map(Attribute::dataType).toList(),
@@ -767,7 +768,7 @@ public class CsvTests extends ESTestCase {
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
-        return (physicalPlan, configuration, foldContext, listener) -> executeSubPlan(
+        return (physicalPlan, configuration, foldContext, planTimeProfile, listener) -> executeSubPlan(
             bigArrays,
             foldContext,
             physicalOperationProviders,
@@ -841,7 +842,7 @@ public class CsvTests extends ESTestCase {
                 new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, flags, configuration, foldCtx, searchStats)
             );
 
-            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, null);
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),
@@ -872,7 +873,7 @@ public class CsvTests extends ESTestCase {
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
         runner.runToCompletion(
             drivers,
-            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
+            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, configuration, DriverCompletionInfo.EMPTY, null))
         );
     }
 }

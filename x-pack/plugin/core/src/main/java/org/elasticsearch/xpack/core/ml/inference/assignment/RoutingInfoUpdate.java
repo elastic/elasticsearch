@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,24 +34,14 @@ public class RoutingInfoUpdate implements Writeable {
     }
 
     public RoutingInfoUpdate(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            numberOfAllocations = Optional.ofNullable(in.readOptionalVInt());
-            stateAndReason = Optional.ofNullable(in.readOptionalWriteable(RoutingStateAndReason::new));
-        } else {
-            numberOfAllocations = Optional.empty();
-            stateAndReason = Optional.of(new RoutingStateAndReason(in));
-        }
+        numberOfAllocations = Optional.ofNullable(in.readOptionalVInt());
+        stateAndReason = Optional.ofNullable(in.readOptionalWriteable(RoutingStateAndReason::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalVInt(numberOfAllocations.orElse(null));
-            out.writeOptionalWriteable(stateAndReason.orElse(null));
-        } else {
-            assert stateAndReason.isPresent() : "updating routing info while nodes prior to 8.4.0 should only contain state and reason";
-            stateAndReason.get().writeTo(out);
-        }
+        out.writeOptionalVInt(numberOfAllocations.orElse(null));
+        out.writeOptionalWriteable(stateAndReason.orElse(null));
     }
 
     @Override

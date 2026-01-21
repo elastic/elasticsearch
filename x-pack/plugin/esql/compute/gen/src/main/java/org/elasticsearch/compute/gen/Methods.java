@@ -51,6 +51,7 @@ import static org.elasticsearch.compute.gen.Types.LONG_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.TDIGEST_BLOCK_BUILDER;
 
 /**
  * Finds declared methods for the code generator.
@@ -229,6 +230,9 @@ public class Methods {
         if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER)) {
             return "appendFloat";
         }
+        if (t.equals(Types.TDIGEST) || t.equals(Types.TDIGEST_BLOCK)) {
+            return "appendTDigest";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -288,6 +292,9 @@ public class Methods {
         if (t.equals(FLOAT_VECTOR_FIXED_BUILDER)) {
             return "newFloatVectorFixedBuilder";
         }
+        if (t.equals(TDIGEST_BLOCK_BUILDER)) {
+            return "newTDigestBlockBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -316,6 +323,9 @@ public class Methods {
         }
         if (elementType.equals(Types.EXPONENTIAL_HISTOGRAM)) {
             return "getExponentialHistogram";
+        }
+        if (elementType.equals(Types.TDIGEST)) {
+            return "getTDigestHolder";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

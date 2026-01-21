@@ -131,6 +131,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
+        settings.put("unsafely_incompatible_with_s3_conditional_writes", randomBoolean());
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -139,7 +140,15 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
-    public void testCompareAndExchangeCleanup() throws IOException {
+    @Override
+    public void testFailIfAlreadyExists() {
+        assumeTrue("S3 repository is not configured with conditional writes and existence check", supportsConditionalWrites());
+        super.testFailIfAlreadyExists();
+    }
+
+    public void testMPUCompareAndExchangeCleanup() throws IOException {
+        assumeFalse("S3 repository is configured condtional-writes and does not use MPU for CAS", supportsConditionalWrites());
+
         final var timeOffsetMillis = new AtomicLong();
         final var threadpool = new TestThreadPool(getTestName()) {
             @Override
@@ -285,5 +294,10 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         });
 
         assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
+    }
+
+    boolean supportsConditionalWrites() {
+        final var repoMetadata = node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata();
+        return repoMetadata.settings().getAsBoolean("unsafely_incompatible_with_s3_conditional_writes", false) == false;
     }
 }

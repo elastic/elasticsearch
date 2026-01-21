@@ -48,14 +48,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
-import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -936,27 +933,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testHideFromConfigurationApi_ThrowsUnsupported_WithNoAvailableModels() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
-            expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
-        }
-    }
-
-    public void testHideFromConfigurationApi_ThrowsUnsupported_WithAvailableModels() throws Exception {
-        try (
-            var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                "model-1",
-                                EnumSet.of(TaskType.CHAT_COMPLETION)
-                            )
-                        )
-                    )
-                )
-            )
-        ) {
+    public void testHideFromConfigurationApi_ThrowsUnsupported() throws Exception {
+        try (var service = createServiceWithMockSender()) {
             expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }
     }
@@ -1040,21 +1018,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testGetConfiguration_ThrowsUnsupported() throws Exception {
-        try (
-            var service = createServiceWithMockSender(
-                // this service doesn't yet support text embedding so we should still have no task types
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                "model-1",
-                                EnumSet.of(TaskType.TEXT_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            )
-        ) {
+        try (var service = createServiceWithMockSender()) {
             expectThrows(UnsupportedOperationException.class, service::getConfiguration);
         }
     }
@@ -1179,10 +1143,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     private ElasticInferenceService createServiceWithMockSender() {
-        return createServiceWithMockSender(ElasticInferenceServiceAuthorizationModelTests.createEnabledAuth());
-    }
-
-    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel auth) {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);

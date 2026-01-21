@@ -13,14 +13,17 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -29,10 +32,15 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+
+import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_MAX_CONN;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -58,20 +66,32 @@ public class PerFieldFormatSupplier {
     }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
+    private final KnnVectorsFormat knnVectorsFormat;
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(true);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
+    private final ThreadPool threadPool;
 
     private final PostingsFormat defaultPostingsFormat;
+    private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
+    private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
 
-    public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
+    public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
+        this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
+        this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
+        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(
+            bigArrays,
+            ES94BloomFilterDocValuesFormat.DEFAULT_BLOOM_FILTER_SIZE,
+            IdFieldMapper.NAME
+        );
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -89,7 +109,34 @@ public class PerFieldFormatSupplier {
         }
     }
 
+    private static KnnVectorsFormat getDefaultKnnVectorsFormat(final MapperService mapperService, final ThreadPool threadPool) {
+        ExecutorService mergingExecutorService = null;
+        int maxMergingWorkers = 1;
+        if (threadPool != null
+            && mapperService != null
+            && mapperService.getIndexSettings().isIntraMergeParallelismEnabled()
+            && threadPool.info(ThreadPool.Names.MERGE) != null) {
+            maxMergingWorkers = threadPool.info(ThreadPool.Names.MERGE).getMax();
+            if (maxMergingWorkers > 1) {
+                mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
+            }
+        }
+        return new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            maxMergingWorkers,
+            mergingExecutorService
+        );
+    }
+
     public PostingsFormat getPostingsFormatForField(String field) {
+        if (useTSDBSyntheticId(field)) {
+            // This gets called during merges where the segment merger
+            // instead of relying on the field format name attribute,
+            // it delegates that decision to the codec.
+            return syntheticIdPostingsFormat;
+        }
         if (useBloomFilter(field)) {
             return bloomFilterPostingsFormat;
         }
@@ -125,20 +172,34 @@ public class PerFieldFormatSupplier {
         }
     }
 
+    private boolean useTSDBSyntheticId(String field) {
+        if (mapperService == null || IdFieldMapper.NAME.equals(field) == false) {
+            return false;
+        }
+        return mapperService.getIndexSettings().useTimeSeriesSyntheticId();
+    }
+
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings());
+                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings(), threadPool);
             }
         }
         return knnVectorsFormat;
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
+        if (useTSDBSyntheticId(field)) {
+            return idBloomFilterDocValuesFormat;
         }
+
+        if (useTSDBDocValuesFormat(field)) {
+            return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
+                ? tsdbDocValuesFormatLargeNumericBlock
+                : tsdbDocValuesFormat;
+        }
+
         return docValuesFormat;
     }
 

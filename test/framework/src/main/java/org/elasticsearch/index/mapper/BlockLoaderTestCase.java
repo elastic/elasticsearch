@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
-    private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
+    protected static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
@@ -65,7 +65,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         this.fieldType = fieldType;
         this.params = params;
         this.customDataSourceHandlers = customDataSourceHandlers;
-        this.runner = new BlockLoaderTestRunner(params);
+        this.runner = new BlockLoaderTestRunner(params, randomBoolean());
 
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
     }
@@ -90,9 +90,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), new TestContext(false, false));
 
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperServiceForParams(mappingXContent);
 
         runner.runTest(mapperService, document, expected, fieldName);
     }
@@ -134,9 +132,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
 
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperServiceForParams(mappingXContent);
 
         Object expected = expected(
             mapping.lookup().get(fullFieldName.toString()),
@@ -201,11 +197,16 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         Object expected = expected(fieldMapping, getFieldValue(document, "parent"), new TestContext(false, true));
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperServiceForParams(mappingXContent);
 
         runner.runTest(mapperService, document, expected, "parent.mf");
+    }
+
+    protected MapperService createMapperServiceForParams(XContentBuilder mappings) throws IOException {
+        if (params.syntheticSource) {
+            return createSytheticSourceMapperService(mappings);
+        }
+        return createMapperService(mappings);
     }
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
@@ -229,6 +230,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             .build();
     }
 
+    /**
+     * For a given mapping and input value, compute the value that will be in the block.  Values are generated from the
+     * {@link DocumentGenerator}, and the behavior can be controled by writing a custom {@link DataSourceHandler}.
+     *
+     * @param fieldMapping Generated parameters for this field mapping
+     * @param value Generated input value to convert
+     * @param testContext Context information for the current test run
+     * @return The value that will be added to the block
+     */
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext);
 
     protected static Object maybeFoldList(List<?> list) {
@@ -275,6 +285,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     public static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
-        return (boolean) fieldMapping.getOrDefault("doc_values", defaultValue);
+        Object value = fieldMapping.getOrDefault("doc_values", defaultValue);
+        if (value instanceof Boolean b) {
+            return b;
+        } else if (value instanceof Map) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("Unexpected value [" + value + "] for mapping parameter [doc_values]");
+        }
     }
 }

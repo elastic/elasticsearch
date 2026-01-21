@@ -80,6 +80,60 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "unsigned_long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
@@ -104,6 +158,60 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "base",
+          "type" : "unsigned_long",
+          "optional" : true,
+          "description" : "(Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
@@ -114,7 +222,9 @@
     }
   ],
   "examples" : [
-    "ROW long = [5013792, 2147483647, 501379200000]\n| EVAL int = TO_INTEGER(long)"
+    "ROW long = [5013792, 2147483647, 501379200000]\n| EVAL int = TO_INTEGER(long)",
+    "ROW str1 = \"0x32\", str2 = \"31\"\n| EVAL int1 = TO_INTEGER(str1, 16), int2 = TO_INTEGER(str2, 13)\n| KEEP str1, int1, str2, int2",
+    "ROW str1 = \"Kona\"\n| EVAL int1 = TO_INTEGER(str1, 27), fail1 = TO_INTEGER(str1, 10)"
   ],
   "preview" : false,
   "snapshot_only" : false

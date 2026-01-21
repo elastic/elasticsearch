@@ -6,7 +6,6 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name = 'exponential-histogram'
@@ -18,11 +17,6 @@ base {
   archivesName = 'x-pack-exponential-histogram'
 }
 
-restResources {
-  restApi {
-    include 'bulk', 'search', 'indices', 'cluster'
-  }
-}
 dependencies {
   api project(":libs:exponential-histogram")
   api project(xpackModule('analytics'))
@@ -30,15 +24,4 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 
   testImplementation(testArtifact(project(":libs:exponential-histogram")))
-
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  clusterModules(project(xpackModule('analytics'))) //histogram field type
-  clusterModules(project(xpackModule('mapper-aggregate-metric'))) //aggregate_metric_double field type
-  clusterModules project(':modules:data-streams')
-}
-
-restResources {
-  restApi {
-    include '_common', 'indices', 'index', 'get'
-  }
 }

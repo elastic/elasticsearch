@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.gpu;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
@@ -34,7 +35,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        var plugin = new GPUPlugin() {
+        var plugin = new GPUPlugin(Settings.EMPTY) {
             @Override
             protected boolean isGpuIndexingFeatureAllowed() {
                 return true;
@@ -72,7 +73,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
             b.field("type", indexOptionsType);
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));

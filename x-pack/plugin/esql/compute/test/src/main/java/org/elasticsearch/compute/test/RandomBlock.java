@@ -19,6 +19,9 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -29,6 +32,10 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 
 /**
  * A block of random values.
@@ -49,6 +56,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
+                || e == ElementType.LONG_RANGE
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
@@ -89,7 +97,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
     ) {
         List<List<Object>> values = new ArrayList<>();
         Block.MvOrdering mvOrdering = Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
-        if (elementType == ElementType.EXPONENTIAL_HISTOGRAM) {
+        if (elementType == ElementType.EXPONENTIAL_HISTOGRAM || elementType == ElementType.TDIGEST) {
             // histograms do not support multi-values
             // TODO(b/133393) remove this when we support multi-values in exponential histogram blocks
             minValuesPerPosition = Math.min(1, minValuesPerPosition);
@@ -171,6 +179,20 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
                             b.append(histogram);
                             valuesAtPosition.add(histogram);
+                        }
+                        case TDIGEST -> {
+                            TDigestBlockBuilder b = (TDigestBlockBuilder) builder;
+                            TDigestHolder digest = BlockTestUtils.randomTDigest();
+                            b.appendTDigest(digest);
+                            valuesAtPosition.add(digest);
+                        }
+                        case LONG_RANGE -> {
+                            var b = (LongRangeBlockBuilder) builder;
+                            var from = randomMillisUpToYear9999();
+                            var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                            b.from().appendLong(from);
+                            b.to().appendLong(to);
+                            valuesAtPosition.add(new LongRangeBlockBuilder.LongRange(from, to));
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

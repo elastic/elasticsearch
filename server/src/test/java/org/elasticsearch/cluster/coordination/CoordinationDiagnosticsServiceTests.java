@@ -985,18 +985,20 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         List<DiscoveryNode> allMasterEligibleNodes = List.of(node1, node2, node3);
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
-            localNode,
-            Map.copyOf(masterEligibleNodesMap),
-            randomLong(),
-            randomLong(),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+            new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                localNode,
+                Map.copyOf(masterEligibleNodesMap),
+                randomLong(),
+                randomLong(),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                randomLong()
+            ),
             Collections.emptyList(),
             hasDiscoveredAllNodes
                 ? allMasterEligibleNodes
                 : randomSubsetOf(randomInt(allMasterEligibleNodes.size() - 1), allMasterEligibleNodes),
             Collections.emptySet(),
-            randomLong(),
             hasDiscoveredQuorum,
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),
             Collections.emptyList()

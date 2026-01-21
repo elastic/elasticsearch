@@ -272,7 +272,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final SnapshotId snapshotId = new SnapshotId(snapshotName, request.uuid());
         Repository repository = repositoriesService.repository(projectId, request.repository());
         if (repository.isReadOnly()) {
-            listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
+            listener.onFailure(
+                new IllegalArgumentException("[" + repository.getMetadata().name() + "] cannot create snapshot in a readonly repository")
+            );
             return;
         }
         submitCreateSnapshotRequest(
@@ -685,9 +687,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
 
                 if (newMaster
-                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false
-                    || SnapshotsServiceUtils.supportsNodeRemovalTracking(event.state()) != SnapshotsServiceUtils
-                        .supportsNodeRemovalTracking(event.previousState())) {
+                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false) {
                     updateNodeIdsToRemoveQueue.submitTask(
                         "SnapshotsService#updateNodeIdsToRemove",
                         new UpdateNodeIdsForRemovalTask(),
@@ -2388,9 +2388,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     changedCount,
                     startedCount
                 );
-                return SnapshotsServiceUtils.supportsNodeRemovalTracking(initialState)
-                    ? updated.withUpdatedNodeIdsForRemoval(initialState)
-                    : updated;
+                return updated.withUpdatedNodeIdsForRemoval(initialState);
             }
             return existing;
         }
@@ -3120,7 +3118,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var projectMetadata = state.metadata().getProject(task.snapshot.getProjectId());
                         final var repoMeta = RepositoriesMetadata.get(projectMetadata).repository(task.snapshot.getRepository());
                         if (RepositoriesService.isReadOnly(repoMeta.settings())) {
-                            taskContext.onFailure(new RepositoryException(repoMeta.name(), "repository is readonly"));
+                            taskContext.onFailure(new IllegalArgumentException("[" + repoMeta.name() + "] repository is readonly"));
                             continue;
                         }
 
@@ -3367,12 +3365,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
 
             final var clusterState = batchExecutionContext.initialState();
-            if (SnapshotsServiceUtils.supportsNodeRemovalTracking(clusterState)) {
-                final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
-                final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
-                if (newSnapshotsInProgress != snapshotsInProgress) {
-                    return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
-                }
+            final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
+            final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
+            if (newSnapshotsInProgress != snapshotsInProgress) {
+                return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
             }
             return clusterState;
         }

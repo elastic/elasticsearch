@@ -46,6 +46,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
@@ -57,11 +58,13 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.histogramCases(1, 100)
         ).flatMap(List::stream).map(PresentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
-        for (var dataType : List.of(
+        List<DataType> types = List.of(
             DataType.AGGREGATE_METRIC_DOUBLE,
             DataType.BOOLEAN,
             DataType.CARTESIAN_POINT,
@@ -69,6 +72,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.DATE_NANOS,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
@@ -79,8 +83,10 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
             DataType.VERSION,
-            DataType.EXPONENTIAL_HISTOGRAM
-        )) {
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
+        );
+        for (var dataType : types) {
             suppliers.add(
                 new TestCaseSupplier(
                     "No rows (" + dataType + ")",
@@ -104,7 +110,7 @@ public class PresentTests extends AbstractAggregationTestCase {
         return new Present(source, args.getFirst());
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             boolean present = fieldTypedData.multiRowData().stream().anyMatch(Objects::nonNull);

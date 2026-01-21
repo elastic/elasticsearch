@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -63,7 +64,10 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.PROJECT_ROUTING_NAM
 /**
  * Base class for requests that contain sql queries (Query and Translate)
  */
-public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest {
+public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest
+    implements
+        CompositeIndicesRequest,
+        IndicesRequest.CrossProjectCandidate {
 
     //
     // parser for sql-proto SqlTypedParamValue
@@ -509,5 +513,10 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             filter,
             runtimeMappings
         );
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
     }
 }

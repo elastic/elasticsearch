@@ -7,11 +7,22 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.ShowTablesTestCase;
+import org.junit.ClassRule;
 
 import java.util.Properties;
 
 public class JdbcShowTablesIT extends ShowTablesTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();

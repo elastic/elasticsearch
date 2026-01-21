@@ -217,11 +217,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             // in CPS the Security Action Filter would populate resolvedExpressions for the local project
             // thus we can get the concreteLocalIndices based on the resolvedLocallyList
             resolvedLocallyList = request.getResolvedIndexExpressions().expressions();
-            concreteLocalIndices = resolvedLocallyList.stream()
-                .map(r -> r.localExpressions().indices())
-                .flatMap(Set::stream)
-                .distinct()
-                .toArray(String[]::new);
+            if (localIndices == null) {
+                concreteLocalIndices = Strings.EMPTY_ARRAY;
+            } else {
+                concreteLocalIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
+            }
         } else {
             // In CCS/Local only search we have to populate resolvedLocallyList one by one for each localIndices.indices()
             // only if the request is includeResolvedTo()
@@ -256,11 +256,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         }
                     }
                 }
-
             }
         }
 
         if (concreteLocalIndices.length == 0 && remoteClusterIndices.isEmpty()) {
+            if (resolveCrossProject) {
+                final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                    request.indicesOptions(),
+                    request.getProjectRouting(),
+                    request.getResolvedIndexExpressions(),
+                    Map.of()
+                );
+                if (ex != null) {
+                    listener.onFailure(ex);
+                    return;
+                }
+            }
             FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder();
             responseBuilder.withMinTransportVersion(minTransportVersion.get());
             if (request.includeResolvedTo()) {
@@ -693,7 +704,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-                innerMerge(subIndices, fieldsBuilder, request, indexResponses[lastPendingIndex]);
+                innerMerge(subIndices, fieldsBuilder, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
         }
@@ -839,15 +850,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-        FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
     ) {
-        Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
-            response.getOriginVersion(),
-            response.get(),
-            request.filters(),
-            request.types()
-        );
+        Map<String, IndexFieldCapabilities> fields = response.get();
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();

@@ -27,7 +27,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -1162,7 +1161,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             case KEYWORD -> randomAlphaOfLength(5);
             case IP -> NetworkAddress.format(randomIp(randomBoolean()));
             case TEXT -> randomAlphaOfLength(50);
-            case VERSION -> VersionUtils.randomVersion(random()).toString();
+            case VERSION -> VersionUtils.randomVersion().toString();
             default -> throw new IllegalArgumentException("Unexpected type: " + dataType);
         };
     }
@@ -1337,35 +1336,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 20, null, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
-    }
-
-    /**
-     * Expecting
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
-     * me{f}#6, long_noidx{f}#11, salary{f}#7],false]
-     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
-     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
-     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen]
-     *       \_EsQueryExec[test], indexMode[standard], query[{"term":{"last_name":{"query":"Smith"}}}]
-     */
-    public void testTermFunction() {
-        // Skip test if the term function is not enabled.
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-
-        var plan = plannerOptimizer.plan("""
-            from test
-            | where term(last_name, "Smith")
-            """, IS_SV_STATS);
-
-        var limit = as(plan, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var field = as(project.child(), FieldExtractExec.class);
-        var query = as(field.child(), EsQueryExec.class);
-        assertThat(as(query.limit(), Literal.class).value(), is(1000));
-        var expected = termQuery("last_name", "Smith");
-        assertThat(query.query().toString(), is(expected.toString()));
     }
 
     /**

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -46,14 +46,14 @@ public class ExponentialHistogramSumAggregatorTests extends ExponentialHistogram
 
         double expectedSum = histograms.stream().mapToDouble(ExponentialHistogram::sum).sum();
 
-        testCase(new MatchAllDocsQuery(), iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), sum -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), sum -> {
             assertThat(sum.value(), closeTo(expectedSum, 0.0001d));
             assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(anyNonEmpty));
         });
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, sum -> {
             assertThat(sum.value(), equalTo(0.0d));
@@ -63,7 +63,7 @@ public class ExponentialHistogramSumAggregatorTests extends ExponentialHistogram
 
     public void testNoMatchingField() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(10);
-        testCase(new MatchAllDocsQuery(), iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), sum -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), sum -> {
             assertThat(sum.value(), equalTo(0.0d));
             assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(false));
         });

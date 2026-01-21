@@ -8,41 +8,61 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
+    @Param(
+        name = "project_routing",
+        type = { "keyword" },
+        description = "A project routing expression, "
+            + "used to define which projects to route the query to. "
+            + "Only supported if Cross-Project Search is enabled."
+        // TODO add a link to CPS docs when available
+    )
+    @Example(file = "from", tag = "project-routing", description = "Routes the query to the specified project.")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
         true,
-        false,
         true,
-        "A project routing expression, "
-            + "used to define which projects to route the query to. "
-            + "Only supported if Cross-Project Search is enabled.",
-        // TODO enable this when CPS is ready and we move this to tech preview
-        // (value, ctx) -> ctx.crossProjectEnabled() ? null : "not enabled",
+        false,
+        (value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled",
         (value) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),
         null
     );
 
+    @Param(
+        name = "time_zone",
+        type = { "keyword" },
+        description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC"
+    )
+    @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
         "time_zone",
         DataType.KEYWORD,
         false,
         true,
         true,
-        "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC",
         (value) -> {
             String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
@@ -54,8 +74,115 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
-        .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
+    @Param(
+        name = "unmapped_fields",
+        type = { "keyword" },
+        since = "9.3+",
+        description = "Defines how unmapped fields are treated. Possible values are: "
+            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
+            + "\"NULLIFY\" - treats unmapped fields as null values. "
+        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
+    )
+    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
+    public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
+        "unmapped_fields",
+        DataType.KEYWORD,
+        false,
+        true,
+        false,
+        (value) -> {
+            String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
+            try {
+                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled() == false) {
+                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
+                }
+                return res;
+            } catch (Exception exc) {
+                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+                    ? UnmappedResolution.values()
+                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
+
+                throw new IllegalArgumentException(
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
+                );
+            }
+        },
+        UnmappedResolution.FAIL
+    );
+
+    @Param(name = "approximate", type = { "boolean", "map_param" }, description = "TODO - add description here")
+    @MapParam(
+        name = "approximate",
+        params = {
+            @MapParam.MapParamEntry(name = "num_rows", type = { "integer" }, description = "Number of rows."),
+            @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
+    )
+    @SuppressWarnings("unchecked")
+    // TODO add examples when approximate is implemented, eg.
+    // @Example(file = "approximate", tag = "approximate-with-boolean")
+    // @Example(file = "approximate", tag = "approximate-with-map")
+    public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
+        "approximate",
+        null,
+        false,
+        false,
+        true,
+        (value, ctx) -> {
+            Object res = null;
+            if (value instanceof Literal l) {
+                res = l.value();
+            } else if (value instanceof MapExpression me) {
+                try {
+                    res = me.toFoldedMap(FoldContext.small());
+                } catch (IllegalStateException ex) {
+                    return "Approximate configuration must be a constant value [" + me + "]";
+                }
+
+                Map<String, Object> map = (Map<String, Object>) res;
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    if (entry.getKey().equals("num_rows")) {
+                        if (entry.getValue() instanceof Integer == false) {
+                            return "Approximate configuration [num_rows] must be an integer value";
+                        }
+                    } else if (entry.getKey().equals("confidence_level")) {
+                        if (entry.getValue() instanceof Double == false) {
+                            return "Approximate configuration [confidence_level] must be a double value";
+                        }
+                    } else {
+                        return "Approximate configuration contains unknown key [" + entry.getKey() + "]";
+                    }
+                }
+            }
+            if (res instanceof Boolean || res instanceof Map || res == null) {
+                return null; // all good, no error
+            }
+            return "Invalid approximate configuration [" + value + "]";
+        },
+
+        value -> {
+            Object folded = null;
+            if (value instanceof Literal l) {
+                folded = l.value();
+            } else if (value instanceof MapExpression me) {
+                folded = me.toFoldedMap(FoldContext.small());
+            }
+            if (folded instanceof Boolean b) {
+                folded = b ? Map.of() : null;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) folded;
+            return map;
+        },
+        null
+    );
+
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(
+        UNMAPPED_FIELDS,
+        PROJECT_ROUTING,
+        TIME_ZONE,
+        APPROXIMATE
+    ).collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         for (QuerySetting setting : statement.settings()) {
@@ -68,18 +195,21 @@ public class QuerySettings {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is only available in snapshot builds");
             }
 
-            if (setting.value().dataType() != def.type()) {
+            // def.type() can be null if the expression is not foldable, eg. see MapExpression for approximate
+            if (def.type() != null && setting.value().dataType() != def.type()) {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
             }
 
-            Literal literal;
-            if (setting.value() instanceof Literal l) {
-                literal = l;
-            } else {
-                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must have a literal value");
+            if (def.type() != null && setting.value().foldable() == false) {
+                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be a constant");
             }
 
-            String error = def.validator().validate(literal, ctx);
+            String error;
+            try {
+                error = def.validator().validate(setting.value(), ctx);
+            } catch (Exception e) {
+                throw new ParsingException("Error validating setting [" + setting.name() + "]: " + e.getMessage());
+            }
             if (error != null) {
                 throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
             }
@@ -90,11 +220,10 @@ public class QuerySettings {
      * Definition of a query setting.
      *
      * @param name The name to be used when setting it in the query. E.g. {@code SET name=value}
-     * @param type The allowed datatype of the setting.
+     * @param type The allowed datatype of the setting. Used for validation and documentation. Use null to skip datatype validation.
      * @param serverlessOnly
      * @param preview
      * @param snapshotOnly
-     * @param description The user-facing description of the setting.
      * @param validator A validation function to check the setting value.
      *                  Defaults to calling the {@link #parser} and returning the error message of any exception it throws.
      * @param parser A function to parse the setting value into the final object.
@@ -107,11 +236,11 @@ public class QuerySettings {
         boolean serverlessOnly,
         boolean preview,
         boolean snapshotOnly,
-        String description,
         Validator validator,
         Parser<T> parser,
         T defaultValue
     ) {
+
         /**
          * Constructor with a default validator that delegates to the parser.
          */
@@ -121,11 +250,10 @@ public class QuerySettings {
             boolean serverlessOnly,
             boolean preview,
             boolean snapshotOnly,
-            String description,
             Parser<T> parser,
             T defaultValue
         ) {
-            this(name, type, serverlessOnly, preview, snapshotOnly, description, (value, rcs) -> {
+            this(name, type, serverlessOnly, preview, snapshotOnly, (value, rcs) -> {
                 try {
                     parser.parse(value);
                     return null;
@@ -135,7 +263,7 @@ public class QuerySettings {
             }, parser, defaultValue);
         }
 
-        public T parse(@Nullable Literal value) {
+        public T parse(@Nullable Expression value) {
             if (value == null) {
                 return defaultValue;
             }
@@ -148,7 +276,7 @@ public class QuerySettings {
              * Validates the setting value and returns the error message if there's an error, or null otherwise.
              */
             @Nullable
-            String validate(Literal value, SettingsValidationContext ctx);
+            String validate(Expression value, SettingsValidationContext ctx);
         }
 
         @FunctionalInterface
@@ -156,7 +284,7 @@ public class QuerySettings {
             /**
              * Parses an already validated literal.
              */
-            T parse(Literal value);
+            T parse(Expression value);
         }
     }
 }

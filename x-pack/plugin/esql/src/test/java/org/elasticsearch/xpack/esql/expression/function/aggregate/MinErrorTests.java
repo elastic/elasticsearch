@@ -37,7 +37,7 @@ public class MinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram"
+                (v, p) -> "boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram, tdigest"
                     + " or numeric except counter types"
             )
         );

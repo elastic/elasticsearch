@@ -2,8 +2,8 @@
 
 **Parameters**
 
-`number`
-:   Expression that outputs values to average.
+`field`
+:   the metric field to calculate the value for
 
 `window`
 :   the time window over which to compute the average

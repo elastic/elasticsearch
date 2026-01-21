@@ -12,6 +12,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -51,8 +52,6 @@ import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
-
-    private EsqlParser parser = new EsqlParser();
 
     public void testDissectQuery() {
         Counters c = esql("from employees | dissect concat(first_name, \" \", last_name) \"%{a} %{b}\"");
@@ -725,8 +724,8 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testTimeSeriesAggregate() {
         assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         Counters c = esql("""
-            TS metrics
-            | STATS sum(avg_over_time(salary))""");
+            TS k8s
+            | STATS sum(avg_over_time(network.cost))""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -814,12 +813,10 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, function("min", c));
     }
 
-    @AwaitsFix(bugUrl = "unresolved @timestamp field")
     public void testPromql() {
-        assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V2.isEnabled());
+        assumeTrue("PromQL required", PromqlFeatures.isEnabled());
         Counters c = esql("""
-            TS metrics
-            | PROMQL step 5m (sum(salary))""");
+            PROMQL index=k8s step=5m sum(network.cost)""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -956,8 +953,9 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         IndexResolution metricsIndex = loadMapping("mapping-basic.json", "metrics", IndexMode.TIME_SERIES);
+        IndexResolution k8sIndex = loadMapping("k8s-mappings.json", "k8s", IndexMode.TIME_SERIES);
         IndexResolution employees = loadMapping("mapping-basic.json", "employees");
-        analyzer(indexResolutions(metricsIndex, employees), verifier).analyze(parser.createStatement(esql));
+        analyzer(indexResolutions(metricsIndex, k8sIndex, employees), verifier).analyze(EsqlParser.INSTANCE.parseQuery(esql));
 
         return metrics == null ? null : metrics.stats();
     }

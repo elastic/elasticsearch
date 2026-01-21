@@ -126,9 +126,9 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersionUtils.randomCompatibleVersion(random()),
+            TransportVersionUtils.randomCompatibleVersion(),
             new VersionInformation(
-                VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
+                VersionUtils.randomVersionBetween(Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current()
             ),
@@ -261,7 +261,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible()),
+            TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true),
             new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current()),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );

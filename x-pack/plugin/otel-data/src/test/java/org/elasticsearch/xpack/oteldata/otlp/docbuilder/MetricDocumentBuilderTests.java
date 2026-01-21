@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createDoubleDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createExponentialHistogramMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
@@ -57,7 +58,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MetricDocumentBuilderTests extends ESTestCase {
 
-    private final MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(new BufferedByteStringAccessor());
+    private final MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(
+        new BufferedByteStringAccessor(),
+        MappingHints.DEFAULT_TDIGEST
+    );
     private final DataPointGroupingContext dataPointGroupingContext = new DataPointGroupingContext(new BufferedByteStringAccessor());
     private final long timestamp = randomLong();
     private final long startTimestamp = randomLong();
@@ -209,7 +213,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         });
     }
 
-    public void testExponentialHistogram() throws Exception {
+    public void testExponentialHistogramAsTDigest() throws Exception {
         ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)
             .setStartTimeUnixNano(startTimestamp)
@@ -263,6 +267,51 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         });
     }
 
+    public void testExponentialHistogramAsExponentialHistogram() throws Exception {
+        MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(
+            new BufferedByteStringAccessor(),
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+
+        ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setZeroCount(1)
+            .setZeroThreshold(0.42)
+            .setScale(2)
+            .setPositive(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 2L)))
+            .setNegative(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(3).addAllBucketCounts(List.of(5L, 6L)))
+            .setSum(42.42)
+            .setMin(-7)
+            .setMax(8)
+            .build();
+
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createExponentialHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
+        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+
+            assertThat(doc.evaluate("metrics.exponential_histogram.scale"), equalTo(2));
+            assertThat(doc.evaluate("metrics.exponential_histogram.zero.count"), equalTo(1));
+            assertThat(doc.evaluate("metrics.exponential_histogram.zero.threshold"), equalTo(0.42));
+            assertThat(doc.evaluate("metrics.exponential_histogram.positive.indices"), equalTo(List.of(0, 1)));
+            assertThat(doc.evaluate("metrics.exponential_histogram.positive.counts"), equalTo(List.of(1, 2)));
+            assertThat(doc.evaluate("metrics.exponential_histogram.negative.indices"), equalTo(List.of(3, 4)));
+            assertThat(doc.evaluate("metrics.exponential_histogram.negative.counts"), equalTo(List.of(5, 6)));
+            assertThat(doc.evaluate("metrics.exponential_histogram.sum"), equalTo(42.42));
+            assertThat(doc.evaluate("metrics.exponential_histogram.min"), equalTo(-7.0));
+            assertThat(doc.evaluate("metrics.exponential_histogram.max"), equalTo(8.0));
+            assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "exponential_histogram"));
+        });
+    }
+
     public void testHistogram() throws Exception {
         HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)
@@ -313,6 +362,47 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
             assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
             assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
+        });
+    }
+
+    public void testHistogramAsExponentialHistogram() throws Exception {
+        MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(
+            new BufferedByteStringAccessor(),
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+
+        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .addAllBucketCounts(List.of(5L, 10L))
+            .addExplicitBounds(5.0)
+            .setSum(42)
+            .setMin(1.0)
+            .setMax(9.0)
+            .build();
+
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
+        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+
+            assertThat(doc.evaluate("metrics.exponential_histogram.scale"), equalTo(MAX_SCALE));
+            assertThat(
+                doc.evaluate("metrics.exponential_histogram.positive.indices"),
+                equalTo(List.of(-1, 363368827853L, 638246734797L, 871342349565L))
+            );
+            assertThat(doc.evaluate("metrics.exponential_histogram.positive.counts"), equalTo(List.of(1, 4, 9, 1)));
+            assertThat(doc.evaluate("metrics.exponential_histogram.sum"), equalTo(42.0));
+            assertThat(doc.evaluate("metrics.exponential_histogram.min"), equalTo(1.0));
+            assertThat(doc.evaluate("metrics.exponential_histogram.max"), equalTo(9.0));
+            assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "exponential_histogram"));
         });
     }
 

@@ -21,10 +21,19 @@ public final class ServiceFields {
     public static final String MODEL_ID = "model_id";
     /**
      * Represents the field elasticsearch uses to determine the embedding type (e.g. float, byte).
-     * The value this field is normally set to would be one of the values in
+     * The value this field is normally set to one of the values in
      * {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType}
      */
     public static final String ELEMENT_TYPE = "element_type";
+    /**
+     * The field used by services other than elasticsearch to determine the embedding type
+     */
+    public static final String EMBEDDING_TYPE = "embedding_type";
+    /**
+     * The name of the field used to specify whether the model supports multimodal inputs for the
+     * {@link org.elasticsearch.inference.TaskType#EMBEDDING} task type. Defaults to true.
+     */
+    public static final String MULTIMODAL_MODEL = "multimodal_model";
 
     private ServiceFields() {
 

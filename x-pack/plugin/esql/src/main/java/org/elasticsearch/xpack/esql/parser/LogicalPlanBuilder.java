@@ -13,7 +13,6 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
@@ -75,11 +74,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -122,8 +123,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step";
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP);
+    private static final String TIME = "time", START = "start", END = "end", STEP = "step", INDEX = "index";
+    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, INDEX);
 
     /**
      * Maximum number of commands allowed per query
@@ -189,7 +190,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
         String name = visitIdentifier(ctx.identifier());
-        Expression value = expression(ctx.constant());
+        Expression value;
+        if (ctx.constant() != null) {
+            value = expression(ctx.constant());
+        } else {
+            value = visitMapExpression(ctx.mapExpression());
+        }
         return new Alias(source(ctx), name, value);
     }
 
@@ -353,7 +359,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    private LogicalPlan visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
+    private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
@@ -368,28 +374,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
-        Map<String, Attribute> metadataMap = new LinkedHashMap<>();
+        Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
-                if (MetadataAttribute.isSupported(id) == false) {
-                    throw new ParsingException(src, "unsupported metadata field [" + id + "]");
-                }
-                Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
+                NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
                 if (a != null) {
                     throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
                 }
             }
         }
-        List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
-        final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
+        List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
             return unresolvedRelation;
         } else {
             // subquery is not supported with time-series indices at the moment
-            if (indexMode == IndexMode.TIME_SERIES) {
+            if (command == SourceCommand.TS) {
                 throw new ParsingException(source, "Subqueries are not supported in TS command");
             }
 
@@ -441,7 +443,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
-        return visitRelation(source(ctx), IndexMode.STANDARD, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.FROM, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -467,7 +469,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             if (input.anyMatch(p -> p instanceof Aggregate) == false
                 && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
-                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
+                return new TimeSeriesAggregate(
+                    source(ctx),
+                    input,
+                    stats.groupings,
+                    stats.aggregates,
+                    null,
+                    new UnresolvedTimestamp(source(ctx))
+                );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
             }
@@ -720,7 +729,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -792,27 +801,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var condition = ctx.joinCondition();
         var joinInfo = typedParsing(this, condition, JoinInfo.class);
 
-        return p -> {
-            boolean hasRemotes = p.anyMatch(node -> {
-                if (node instanceof UnresolvedRelation r) {
-                    return Arrays.stream(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()))
-                        .anyMatch(RemoteClusterAware::isRemoteIndexName);
-                } else {
-                    return false;
-                }
-            });
-            if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
-                throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
-            }
-            return new LookupJoin(
-                source,
-                p,
-                right,
-                joinInfo.joinFields(),
-                hasRemotes,
-                Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
-            );
-        };
+        return p -> new LookupJoin(
+            source,
+            p,
+            right,
+            joinInfo.joinFields(),
+            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+        );
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
@@ -948,21 +943,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return f;
     }
 
-    private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {
-        plan.forEachUp(UnresolvedRelation.class, r -> {
-            for (var indexPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
-                if (RemoteClusterAware.isRemoteIndexName(indexPattern)) {
-                    throw new ParsingException(
-                        source,
-                        "invalid index pattern [{}], remote clusters are not supported with {}",
-                        r.indexPattern().indexPattern(),
-                        commandName
-                    );
-                }
-            }
-        });
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
@@ -972,9 +952,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
-                checkForRemoteClusters(input, source(ctx), "FORK");
-            }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };
@@ -1085,7 +1062,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     throw new ParsingException(source(fuseConfigurationContext), "Only one KEY BY can be specified");
                 }
 
-                keys = visitGrouping(fuseConfigurationContext.key);
+                keys = visitList(this, fuseConfigurationContext.key.qualifiedName(), NamedExpression.class);
             }
         }
 
@@ -1112,17 +1089,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
         Source source = source(ctx);
+
+        if (context.inferenceSettings().rerankEnabled() == false) {
+            throw new ParsingException(source, "RERANK command is disabled in settings.");
+        }
+
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
         if (scoreAttribute.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().rerankRowLimit());
 
-        return p -> {
-            checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
-        };
+        return p -> applyRerankOptions(
+            new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
+            ctx.commandNamedParameters()
+        );
     }
 
     private Rerank applyRerankOptions(Rerank rerank, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1153,6 +1136,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
+
+        if (context.inferenceSettings().completionEnabled() == false) {
+            throw new ParsingException(source, "COMPLETION command is disabled in settings.");
+        }
+
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
 
@@ -1160,10 +1148,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
-        return p -> {
-            checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
-        };
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
+
+        return p -> applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1229,7 +1216,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
+    public LogicalPlan visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
 
         // Check if PromQL functionality is enabled
@@ -1241,6 +1228,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         PromqlParams params = parsePromqlParams(ctx, source);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            params.indexPattern(),
+            false,
+            List.of(),
+            null,
+            SourceCommand.PROMQL
+        );
 
         // TODO: Perform type and value validation
         var queryCtx = ctx.promqlQueryPart();
@@ -1268,21 +1263,37 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 params.startLiteral(),
                 params.endLiteral(),
                 promqlStartLine,
-                promqlStartColumn
+                promqlStartColumn,
+                context.params()
             );
         } catch (ParsingException pe) {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> new PromqlCommand(
+        String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
+
+        return new PromqlCommand(
             source,
-            plan,
+            unresolvedRelation,
             promqlPlan,
             params.startLiteral(),
             params.endLiteral(),
             params.stepLiteral(),
+            valueColumnName,
             new UnresolvedTimestamp(source)
         );
+    }
+
+    private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {
+        if (ctx == null) {
+            return promqlQuery;
+        } else if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.QUOTED_IDENTIFIER() != null) {
+            return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
+        } else {
+            return promqlQuery;
+        }
     }
 
     private PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
@@ -1290,6 +1301,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Instant start = null;
         Instant end = null;
         Duration step = null;
+        IndexPattern indexPattern = new IndexPattern(source, "*");
 
         Set<String> paramsSeen = new HashSet<>();
         for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
@@ -1299,18 +1311,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source(paramNameCtx), "[{}] already specified", name);
             }
             Source valueSource = source(paramCtx.value);
-            String valueString = parseParamValue(paramCtx.value);
             switch (name) {
-                case TIME -> time = PromqlParserUtils.parseDate(valueSource, valueString);
-                case START -> start = PromqlParserUtils.parseDate(valueSource, valueString);
-                case END -> end = PromqlParserUtils.parseDate(valueSource, valueString);
+                case TIME -> time = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
+                case START -> start = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
+                case END -> end = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case STEP -> {
                     try {
-                        step = Duration.ofSeconds(Integer.parseInt(valueString));
+                        step = Duration.ofSeconds(Integer.parseInt(parseParamValueString(paramCtx.value)));
                     } catch (NumberFormatException ignore) {
-                        step = PromqlParserUtils.parseDuration(valueSource, valueString);
+                        step = PromqlParserUtils.parseDuration(valueSource, parseParamValueString(paramCtx.value));
                     }
                 }
+                case INDEX -> indexPattern = parseIndexPattern(paramCtx.value);
                 default -> {
                     String message = "Unknown parameter [{}]";
                     List<String> similar = StringUtils.findSimilar(name, PROMQL_ALLOWED_PARAMS);
@@ -1336,7 +1348,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             start = time;
             end = time;
-        } else if (step != null) {
+        } else if (step != null || start != null || end != null) {
             if (start != null || end != null) {
                 if (start == null || end == null) {
                     throw new ParsingException(
@@ -1355,7 +1367,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     );
                 }
             }
-            if (step.isPositive() == false) {
+            if (step == null) {
+                throw new ParsingException(source, "Parameter [{}] must be specified for a range query", STEP);
+            } else if (step.isPositive() == false) {
                 throw new ParsingException(
                     source,
                     "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
@@ -1364,14 +1378,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
         } else {
-            throw new ParsingException(source, "Parameter [{}] or [{}] is required", STEP, TIME);
+            start = Instant.now();
+            end = start;
         }
-        return new PromqlParams(source, start, end, step);
+        return new PromqlParams(source, start, end, step, indexPattern);
     }
 
-    private String parseParamName(EsqlBaseParser.PromqlParamContentContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+    private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
+        if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
@@ -1379,19 +1394,65 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
-    private String parseParamValue(EsqlBaseParser.PromqlParamContentContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
-        } else if (ctx.QUOTED_STRING() != null) {
-            return AbstractBuilder.unquote(ctx.QUOTED_STRING().getText());
-        } else if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+    private String parseParamValueString(EsqlBaseParser.PromqlParamValueContext ctx) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
-        } else {
-            throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());
+        } else if (ctx.promqlIndexPattern().size() == 1) {
+            EsqlBaseParser.PromqlIndexStringContext string = ctx.promqlIndexPattern().getFirst().promqlIndexString();
+            if (string.UNQUOTED_SOURCE() != null) {
+                return string.UNQUOTED_SOURCE().getText();
+            } else if (string.UNQUOTED_IDENTIFIER() != null) {
+                return string.UNQUOTED_IDENTIFIER().getText();
+            } else if (string.QUOTED_STRING() != null) {
+                return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
+            }
         }
+        throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());
+    }
+
+    private IndexPattern parseIndexPattern(EsqlBaseParser.PromqlParamValueContext ctx) {
+        if (ctx.promqlIndexPattern().isEmpty()) {
+            // Default to all indices if no index pattern is provided
+            return new IndexPattern(source(ctx), "*");
+        } else {
+            return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
+        }
+    }
+
+    public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute diversifyField = visitQualifiedName(ctx.diversifyField);
+        Expression queryVector = visitMMRQueryVector(ctx.mmrOptionalQueryVector());
+        Expression limitValue = expression(ctx.limitValue);
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+
+        return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);
+    }
+
+    private Expression visitMMRQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) {
+        if (ctx == null || ctx.isEmpty()) {
+            return null;
+        }
+
+        var queryVectorParams = ctx.mmrQueryVectorParams();
+        if (queryVectorParams == null || queryVectorParams.isEmpty()) {
+            return null;
+        }
+
+        if (queryVectorParams.getChildCount() == 1) {
+            if (queryVectorParams.getChild(0) instanceof Expression asExpression) {
+                return asExpression;
+            } else if (queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorParameterContext
+                || queryVectorParams instanceof EsqlBaseParser.MmrQueryVectorExpressionContext) {
+                    return expression(queryVectorParams.getChild(0));
+                }
+        }
+
+        throw new ParsingException(source(ctx), "Invalid parameter value for query vector [{}]", ctx.getText());
     }
 
     /**
@@ -1412,7 +1473,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      *
      * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#expression-queries">PromQL API documentation</a>
      */
-    public record PromqlParams(Source source, Instant start, Instant end, Duration step) {
+    public record PromqlParams(Source source, Instant start, Instant end, Duration step, IndexPattern indexPattern) {
 
         public Literal startLiteral() {
             if (start == null) {

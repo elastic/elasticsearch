@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,10 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
-
-    private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName(
-        "esql_aggregate_metric_double_block"
-    );
 
     public void testConstantIntBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantIntBlockWith(randomInt(), randomIntBetween(1, 8192)));
@@ -428,7 +423,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(random(), ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
@@ -490,17 +485,10 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        AggregateMetricDoubleArrayBlock.WRITE_TYPED_BLOCK,
-                        TransportVersion.current()
-                    )
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
-                assertThat(deserBlock.minBlock(), equalTo(minBlock));
+                assertThat(deserBlock, equalTo(origBlock));
                 EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }
@@ -525,6 +513,6 @@ public class BlockSerializationTests extends SerializationTestCase {
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
     protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
-        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance());
+        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance(), null);
     }
 }

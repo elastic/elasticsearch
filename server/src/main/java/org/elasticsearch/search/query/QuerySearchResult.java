@@ -12,7 +12,6 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -453,11 +452,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             nodeQueueSize = in.readInt();
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
             setRescoreDocIds(new RescoreDocIds(in));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
-                if (versionSupportsBatchedExecution(in.getTransportVersion())) {
-                    reduced = in.readBoolean();
-                }
+            rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
+            if (versionSupportsBatchedExecution(in.getTransportVersion())) {
+                reduced = in.readBoolean();
             }
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
@@ -523,11 +520,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeInt(nodeQueueSize);
         out.writeOptionalWriteable(getShardSearchRequest());
         getRescoreDocIds().writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalNamedWriteable(rankShardResult);
-        } else if (rankShardResult != null) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
+        out.writeOptionalNamedWriteable(rankShardResult);
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             out.writeBoolean(reduced);
         }

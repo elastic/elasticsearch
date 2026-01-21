@@ -72,9 +72,10 @@ public enum GrokCaptureType {
     protected static GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
         return (utf8Bytes, offset, region) -> {
             for (int number : backRefs) {
-                if (region.beg[number] >= 0) {
-                    int matchOffset = offset + region.beg[number];
-                    int matchLength = region.end[number] - region.beg[number];
+                final int beginning = region.getBeg(number);
+                if (beginning >= 0) {
+                    int matchOffset = offset + beginning;
+                    int matchLength = region.getEnd(number) - beginning;
                     emit.accept(new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8));
                 }
             }

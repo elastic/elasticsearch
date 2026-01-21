@@ -26,7 +26,7 @@ import java.util.function.LongSupplier;
 
 class ServiceAccountAuthenticator implements Authenticator {
 
-    public static final String ATTRIBUTE_SERVICE_ACCOUNT_ID = "es.security.service_account_id";
+    public static final String ATTRIBUTE_SERVICE_ACCOUNT_ID = "es_security_service_account_id";
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountAuthenticator.class);
     private final ServiceAccountService serviceAccountService;

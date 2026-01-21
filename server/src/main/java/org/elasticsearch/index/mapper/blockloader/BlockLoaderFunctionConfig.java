@@ -45,6 +45,11 @@ public interface BlockLoaderFunctionConfig {
     }
 
     enum Function {
+        AMD_COUNT,
+        AMD_DEFAULT,
+        AMD_MAX,
+        AMD_MIN,
+        AMD_SUM,
         MV_MAX,
         MV_MIN,
         LENGTH,
@@ -53,5 +58,6 @@ public interface BlockLoaderFunctionConfig {
         V_HAMMING,
         V_L1NORM,
         V_L2NORM,
+        TIME_SERIES_DIMENSIONS
     }
 }

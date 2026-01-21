@@ -62,6 +62,8 @@ public class CsvTestsDataLoader {
         "mapping-default-incompatible.json",
         "employees_incompatible.csv"
     ).noSubfields();
+    // Note: this index currently has no data, and is only used by the golden tests.
+    private static final TestDataset ALL_TYPES = new TestDataset("all_types", "mapping-all-types.json", "all-types.csv");
     private static final TestDataset HOSTS = new TestDataset("hosts");
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
@@ -159,6 +161,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DATENANOS = new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv")
+        .withSetting("k8s-settings.json");
     private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
         "k8s-downsampled",
         "k8s-downsampled-mappings.json",
@@ -168,19 +172,36 @@ public class CsvTestsDataLoader {
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
     private static final TestDataset LOGS = new TestDataset("logs");
+    private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
+    private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
+    private static final TestDataset BASE_CONVERSION = new TestDataset("base_conversion");
     private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
         "exp_histo_sample",
         "exp_histo_sample-mappings.json",
         "exp_histo_sample.csv"
     ).withSetting("exp_histo_sample-settings.json");
+    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
+    private static final TestDataset HISTOGRAM_STANDARD_INDEX = new TestDataset("histogram_standard_index");
+    private static final TestDataset TDIGEST_TIMESERIES_INDEX = new TestDataset(
+        "tdigest_timeseries_index",
+        "tdigest_timeseries_index-mappings.json",
+        "tdigest_standard_index.csv"
+    ).withSetting("tdigest_timeseries_index-settings.json");
+    private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
+        "histogram_timeseries_index",
+        "mapping-histogram_time_series_index.json",
+        "histogram_standard_index.csv"
+    ).withSetting("settings-histogram_time_series_index.json");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
+        Map.entry(ALL_TYPES.indexName, ALL_TYPES),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
@@ -233,19 +254,28 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
         Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
         Map.entry(LOGS.indexName, LOGS),
+        Map.entry(DENSE_VECTOR_TEXT.indexName, DENSE_VECTOR_TEXT),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
+        Map.entry(DENSE_VECTOR_BFLOAT16.indexName, DENSE_VECTOR_BFLOAT16),
+        Map.entry(DENSE_VECTOR_ARITHMETIC.indexName, DENSE_VECTOR_ARITHMETIC),
         Map.entry(COLORS.indexName, COLORS),
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
+        Map.entry(BASE_CONVERSION.indexName, BASE_CONVERSION),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
-        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE)
+        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
+        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX),
+        Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
+        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
+        Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -339,22 +369,33 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, true, (restClient, indexName, indexMapping, indexSettings) -> {
-                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                StringBuilder jsonBody = new StringBuilder("{");
-                if (indexSettings != null && indexSettings.isEmpty() == false) {
-                    jsonBody.append("\"settings\":");
-                    jsonBody.append(Strings.toString(indexSettings));
-                    jsonBody.append(",");
-                }
-                jsonBody.append("\"mappings\":");
-                jsonBody.append(indexMapping);
-                jsonBody.append("}");
+            loadDataSetIntoEs(
+                client,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true,
+                (restClient, indexName, indexMapping, indexSettings) -> {
+                    // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                    StringBuilder jsonBody = new StringBuilder("{");
+                    if (indexSettings != null && indexSettings.isEmpty() == false) {
+                        jsonBody.append("\"settings\":");
+                        jsonBody.append(Strings.toString(indexSettings));
+                        jsonBody.append(",");
+                    }
+                    jsonBody.append("\"mappings\":");
+                    jsonBody.append(indexMapping);
+                    jsonBody.append("}");
 
-                Request request = new Request("PUT", "/" + indexName);
-                request.setJsonEntity(jsonBody.toString());
-                restClient.performRequest(request);
-            });
+                    Request request = new Request("PUT", "/" + indexName);
+                    request.setJsonEntity(jsonBody.toString());
+                    restClient.performRequest(request);
+                }
+            );
         }
     }
 
@@ -363,7 +404,10 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean requiresTimeSeries,
-        boolean exponentialHistogramFieldSupported
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
+        boolean bFloat16ElementTypeSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -372,7 +416,10 @@ public class CsvTestsDataLoader {
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
-                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)) {
+                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
+                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
+                && (histogramFieldSupported || containsHistogramFields(dataset) == false)
+                && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -397,6 +444,37 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("type", "exponential_histogram"));
+    }
+
+    private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("type", "tdigest"));
+    }
+
+    private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("element_type", "bfloat16"));
+    }
+
+    private static boolean containsFieldWithProperties(TestDataset dataset, Map<String, Object> properties) throws IOException {
+        if (dataset.mappingFileName() == null || properties.isEmpty()) {
+            return false;
+        }
+
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        Map<?, ?> mappingNode = new ObjectMapper().readValue(mappingJsonText, Map.class);
+        Object mappingProperties = mappingNode.get("properties");
+        if (mappingProperties instanceof Map<?, ?> mappingPropertiesMap) {
+            for (Object field : mappingPropertiesMap.values()) {
+                if (field instanceof Map<?, ?> fieldMap && fieldMap.entrySet().containsAll(properties.entrySet())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean containsHistogramFields(TestDataset dataset) throws IOException {
         if (dataset.mappingFileName() == null) {
             return false;
         }
@@ -408,7 +486,7 @@ public class CsvTestsDataLoader {
                 JsonNode fieldProperties = fieldWithValue.getValue();
                 if (fieldProperties != null) {
                     JsonNode typeNode = fieldProperties.get("type");
-                    if (typeNode != null && typeNode.asText().equals("exponential_histogram")) {
+                    if (typeNode != null && typeNode.asText().equals("histogram")) {
                         return true;
                     }
                 }
@@ -429,7 +507,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false, false);
     }
 
     public static void loadDataSetIntoEs(
@@ -438,7 +516,10 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
-        boolean exponentialHistogramFieldSupported
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
+        boolean bFloat16ElementTypeSupported
     ) throws IOException {
         loadDataSetIntoEs(
             client,
@@ -447,6 +528,9 @@ public class CsvTestsDataLoader {
             inferenceEnabled,
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
+            tDigestFieldSupported,
+            histogramFieldSupported,
+            bFloat16ElementTypeSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -460,6 +544,9 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
+        boolean bFloat16ElementTypeSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
@@ -471,15 +558,20 @@ public class CsvTestsDataLoader {
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
-            exponentialHistogramFieldSupported
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported,
+            histogramFieldSupported,
+            bFloat16ElementTypeSupported
         )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets, logger);
-        logger.info("Loading enrich policies");
-        for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+        if (timeSeriesOnly == false) {
+            logger.info("Loading enrich policies");
+            for (var policy : ENRICH_POLICIES) {
+                loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+            }
         }
     }
 
@@ -589,13 +681,13 @@ public class CsvTestsDataLoader {
 
     private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings)
         throws IOException {
-        Request request = new Request("PUT", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("PUT", "/_inference/" + taskType.name() + "/" + inferenceId);
         request.setJsonEntity(modelSettings);
         client.performRequest(request);
     }
 
     private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
-        Request request = new Request("GET", "_inference/" + taskType.name() + "/" + inferenceId);
+        Request request = new Request("GET", "/_inference/" + taskType.name() + "/" + inferenceId);
         try {
             client.performRequest(request);
         } catch (ResponseException e) {
@@ -609,7 +701,7 @@ public class CsvTestsDataLoader {
 
     private static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
         try {
-            client.performRequest(new Request("DELETE", "_inference/" + inferenceId));
+            client.performRequest(new Request("DELETE", "/_inference/" + inferenceId));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

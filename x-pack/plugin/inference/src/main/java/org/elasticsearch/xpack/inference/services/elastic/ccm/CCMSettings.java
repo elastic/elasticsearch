@@ -14,7 +14,7 @@ import java.util.List;
 public class CCMSettings {
     public static final Setting<Boolean> CCM_SUPPORTED_ENVIRONMENT = Setting.boolSetting(
         "xpack.inference.elastic.ccm_supported_environment",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

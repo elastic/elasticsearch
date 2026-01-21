@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,23 +27,24 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
 import java.util.List;
 
+import static java.lang.Double.NEGATIVE_INFINITY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
  * Determines the maximum value of the x-coordinate from a geometry.
  * The function `st_xmax` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
- * Alternatively it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_XMAX.html">PostGIS:ST_XMAX</a>.
+ * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_XMAX.html">PostGIS:ST_XMAX</a>.
  */
-public class StXMax extends UnaryScalarFunction {
+public class StXMax extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StXMax", StXMax::new);
+    private static final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder = new SpatialEnvelopeResults<>();
 
     @FunctionInfo(
         returnType = "double",
@@ -61,11 +64,20 @@ public class StXMax extends UnaryScalarFunction {
                 + "If `null`, the function returns `null`."
         ) Expression field
     ) {
-        super(source, field);
+        this(source, field, false);
+    }
+
+    private StXMax(Source source, Expression field, boolean spatialDocValues) {
+        super(source, field, spatialDocValues);
     }
 
     private StXMax(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
+        return new StXMax(source(), spatialField(), useDocValues);
     }
 
     @Override
@@ -74,16 +86,18 @@ public class StXMax extends UnaryScalarFunction {
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        return isSpatial(field(), sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
-    }
-
-    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StXMaxFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
+        if (spatialDocValues) {
+            return switch (spatialField().dataType()) {
+                case GEO_POINT -> new StXMaxFromDocValuesGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                case CARTESIAN_POINT -> new StXMaxFromDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
+            };
         }
-        return new StXMaxFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
+        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
+            return new StXMaxFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        }
+        return new StXMaxFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override
@@ -93,37 +107,38 @@ public class StXMax extends UnaryScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StXMax(source(), newChildren.get(0));
+        return new StXMax(source(), newChildren.getFirst(), spatialDocValues);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StXMax::new, field());
+        return NodeInfo.create(this, StXMax::new, spatialField());
     }
 
-    @ConvertEvaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static double fromWellKnownBinary(BytesRef wkb) {
-        var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point point) {
-            return point.getX();
-        }
-        var envelope = SpatialEnvelopeVisitor.visitCartesian(geometry);
-        if (envelope.isPresent()) {
-            return envelope.get().getMaxX();
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
+        results.appendDouble(rectangle.getMaxX());
     }
 
-    @ConvertEvaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
-    static double fromWellKnownBinaryGeo(BytesRef wkb) {
-        var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point point) {
-            return point.getX();
-        }
-        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.WRAP);
-        if (envelope.isPresent()) {
-            return envelope.get().getMaxX();
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromWellKnownBinary(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+        var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMax::buildEnvelopeResults);
+    }
+
+    @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
+    static void fromWellKnownBinaryGeo(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMax::buildEnvelopeResults);
+    }
+
+    @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+        resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, NEGATIVE_INFINITY, (v, e) -> Math.max(v, CARTESIAN.decodeX(e)));
+    }
+
+    @Evaluator(extraName = "FromDocValuesGeo", warnExceptions = { IllegalArgumentException.class })
+    static void fromDocValuesGeo(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
+        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMax::buildEnvelopeResults);
     }
 }

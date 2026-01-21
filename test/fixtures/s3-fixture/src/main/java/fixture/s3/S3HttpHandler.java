@@ -69,19 +69,21 @@ public class S3HttpHandler implements HttpHandler {
     private final String bucket;
     private final String basePath;
     private final String bucketAndBasePath;
+    private final S3ConsistencyModel consistencyModel;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
 
-    public S3HttpHandler(final String bucket) {
-        this(bucket, null);
+    public S3HttpHandler(final String bucket, S3ConsistencyModel consistencyModel) {
+        this(bucket, null, consistencyModel);
     }
 
-    public S3HttpHandler(final String bucket, @Nullable final String basePath) {
+    public S3HttpHandler(final String bucket, @Nullable final String basePath, S3ConsistencyModel consistencyModel) {
         this.bucket = Objects.requireNonNull(bucket);
         this.basePath = Objects.requireNonNullElse(basePath, "");
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
+        this.consistencyModel = consistencyModel;
     }
 
     /**
@@ -247,7 +249,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isAbortMultipartUploadRequest()) {
                 final var uploadId = request.getQueryParamOnce("uploadId");
-                if (consistencyModel().hasStrongMultipartUploads() == false && completingUploads.containsKey(uploadId)) {
+                if (consistencyModel.hasStrongMultipartUploads() == false && completingUploads.containsKey(uploadId)) {
                     // See AWS support case 176070774900712: aborts may sometimes return early if complete is already in progress
                     exchange.sendResponseHeaders(RestStatus.NO_CONTENT.getStatus(), -1);
                 } else {
@@ -340,8 +342,27 @@ public class S3HttpHandler implements HttpHandler {
                     return;
                 }
 
-                exchange.getResponseHeaders().add("ETag", getEtagFromContents(blob));
+                final String etagFromContents = getEtagFromContents(blob);
+                final String ifMatchHeader = exchange.getRequestHeaders().getFirst("If-Match");
+                if (ifMatchHeader != null && ifMatchHeader.equals("*") == false) {
+                    if (etagFromContents.equals(ifMatchHeader) == false) {
+                        final String response = Strings.format("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                                <Code>PreconditionFailed</Code>
+                                <Message>At least one of the pre-conditions you specified did not hold</Message>
+                                <Condition>If-Match</Condition>
+                                <RequestId>test-request-id</RequestId>
+                                <HostId>test-host-id</HostId>
+                            </Error>""");
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), response.length());
+                        exchange.getResponseBody().write(response.getBytes(StandardCharsets.UTF_8));
+                        return;
+                    }
+                }
 
+                exchange.getResponseHeaders().add("ETag", etagFromContents);
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -430,7 +451,7 @@ public class S3HttpHandler implements HttpHandler {
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
     private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
-        if (consistencyModel().hasConditionalWrites()) {
+        if (consistencyModel.hasConditionalWrites()) {
             if (isProtectOverwrite(exchange)) {
                 return blobs.putIfAbsent(path, newContents) == null
                     ? RestStatus.OK
@@ -711,10 +732,6 @@ public class S3HttpHandler implements HttpHandler {
                 return uploadCount;
             }
         });
-    }
-
-    protected S3ConsistencyModel consistencyModel() {
-        return S3ConsistencyModel.AWS_DEFAULT;
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

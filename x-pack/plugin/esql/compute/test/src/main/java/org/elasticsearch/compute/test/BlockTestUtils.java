@@ -25,16 +25,24 @@ import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,14 +51,19 @@ import java.util.Map;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
+import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,12 +87,18 @@ public class BlockTestUtils {
                 randomDouble(),
                 randomNonNegativeInt()
             );
+            case LONG_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
                 randomInt(),
                 between(0, Integer.MAX_VALUE)
             );
             case EXPONENTIAL_HISTOGRAM -> randomExponentialHistogram();
+            case TDIGEST -> randomTDigest();
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
@@ -215,6 +234,20 @@ public class BlockTestUtils {
                 return;
             }
         }
+        if (builder instanceof LongRangeBlockBuilder b) {
+            if (value instanceof LongRangeBlockBuilder.LongRange v) {
+                b.appendLongRange(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendLongRange((LongRangeBlockBuilder.LongRange) l.get(0));
+                    default -> throw new IllegalArgumentException("LONG_RANGE does not support multi-valued positions");
+                }
+                return;
+            }
+        }
         if (builder instanceof AggregateMetricDoubleBlockBuilder b
             && value instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
             b.min().appendDouble(aggMetric.min());
@@ -229,6 +262,10 @@ public class BlockTestUtils {
         }
         if (builder instanceof ExponentialHistogramBlockBuilder b && value instanceof ExponentialHistogram histogram) {
             b.append(histogram);
+            return;
+        }
+        if (builder instanceof TDigestBlockBuilder b && value instanceof TDigestHolder histogram) {
+            b.appendTDigest(histogram);
             return;
         }
         if (value instanceof List<?> l && l.isEmpty()) {
@@ -316,16 +353,41 @@ public class BlockTestUtils {
                         yield literal;
 
                     }
+                    case LONG_RANGE -> {
+                        var b = (LongRangeBlock) block;
+                        var lit = new LongRangeBlockBuilder.LongRange(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                        i++;
+                        yield lit;
+                    }
                     case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
                         i++,
                         new ExponentialHistogramScratch()
                     );
+                    case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++);
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }
             result.add(positionValues);
         }
         return result;
+    }
+
+    /**
+     * Extracts values from a block at a particular position.
+     *
+     * @param block The block to extract the values from
+     * @param position The position at which to extract the values
+     * @param emptyIfNull Whether to return an empty list if there are no values at the position
+     *
+     * @return List of values
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> valuesAtPosition(Block block, int position, boolean emptyIfNull) {
+        List<Object> values = valuesAtPositions(block, position, position + 1).getFirst();
+        if (values == null) {
+            return emptyIfNull ? new ArrayList<>() : null;
+        }
+        return (List<T>) values;
     }
 
     /**
@@ -412,6 +474,39 @@ public class BlockTestUtils {
         }
         // Make the result histogram writeable to allow usage in Literals for testing
         return histo;
+    }
+
+    public static TDigestHolder randomTDigest() {
+        // TODO: This is mostly copied from TDigestFieldMapperTests and EsqlTestUtils; refactor it.
+        int size = between(1, 100);
+        // Note - we use TDigestState to build an actual t-digest for realistic values here
+        TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
+        for (int i = 0; i < size; i++) {
+            double sample = randomGaussianDouble();
+            int count = randomIntBetween(1, Integer.MAX_VALUE);
+            digest.add(sample, count);
+        }
+        List<Double> centroids = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        double sum = 0.0;
+        long valueCount = 0L;
+        for (Centroid c : digest.centroids()) {
+            centroids.add(c.mean());
+            counts.add(c.count());
+            sum += c.mean() * c.count();
+            valueCount += c.count();
+        }
+        double min = digest.getMin();
+        double max = digest.getMax();
+
+        TDigestHolder returnValue = null;
+        try {
+            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        return returnValue;
     }
 
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {

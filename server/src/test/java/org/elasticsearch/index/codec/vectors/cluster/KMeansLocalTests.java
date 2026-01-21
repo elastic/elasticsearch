@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -25,7 +28,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class KMeansLocalTests extends ESTestCase {
 
     public void testIllegalClustersPerNeighborhood() {
-        KMeansLocal kMeansLocal = new KMeansLocal(randomInt(), randomInt());
+        KMeansLocal kMeansLocal = new KMeansLocalSerial(randomInt(), randomInt());
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(new float[0][], new int[0], i -> i);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -69,7 +72,7 @@ public class KMeansLocalTests extends ESTestCase {
         }
 
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations);
+        KMeansLocal kMeansLocal = new KMeansLocalSerial(sampleSize, maxIterations);
         kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
@@ -110,7 +113,7 @@ public class KMeansLocalTests extends ESTestCase {
         }
 
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations);
+        KMeansLocal kMeansLocal = new KMeansLocalSerial(sampleSize, maxIterations);
         kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
@@ -166,6 +169,21 @@ public class KMeansLocalTests extends ESTestCase {
             if (recall == 1.0) {
                 // we cannot assert on array equality as there can be small differences due to numerical errors
                 assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-5f);
+            }
+        }
+        int numThreads = randomIntBetween(2, 8);
+        try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
+            TaskExecutor taskExecutor = new TaskExecutor(executorService);
+            NeighborHood[] neighborHoodsGraphConcurrent = NeighborHood.computeNeighborhoodsGraph(
+                taskExecutor,
+                numThreads,
+                vectors,
+                clustersPerNeighbour
+            );
+            assertEquals(neighborHoodsGraph.length, neighborHoodsGraphConcurrent.length);
+            for (int i = 0; i < neighborHoodsGraph.length; i++) {
+                assertArrayEquals(neighborHoodsGraph[i].neighbors(), neighborHoodsGraphConcurrent[i].neighbors());
+                assertEquals(neighborHoodsGraph[i].maxIntraDistance(), neighborHoodsGraphConcurrent[i].maxIntraDistance(), 0f);
             }
         }
     }

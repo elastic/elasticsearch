@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.calendars;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -115,15 +114,9 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         description = in.readString();
         startTime = in.readInstant();
         endTime = in.readInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            skipResult = in.readBoolean();
-            skipModelUpdate = in.readBoolean();
-            forceTimeShift = in.readOptionalInt();
-        } else {
-            skipResult = true;
-            skipModelUpdate = true;
-            forceTimeShift = null;
-        }
+        skipResult = in.readBoolean();
+        skipModelUpdate = in.readBoolean();
+        forceTimeShift = in.readOptionalInt();
         calendarId = in.readString();
         eventId = in.readOptionalString();
     }
@@ -204,11 +197,9 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         out.writeString(description);
         out.writeInstant(startTime);
         out.writeInstant(endTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeBoolean(skipResult);
-            out.writeBoolean(skipModelUpdate);
-            out.writeOptionalInt(forceTimeShift);
-        }
+        out.writeBoolean(skipResult);
+        out.writeBoolean(skipModelUpdate);
+        out.writeOptionalInt(forceTimeShift);
         out.writeString(calendarId);
         out.writeOptionalString(eventId);
     }

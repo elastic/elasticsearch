@@ -62,6 +62,8 @@ public class MockBytesRefRecycler implements Recycler<BytesRef>, Releasable {
 
             @Override
             public void close() {
+                onClose(bytesRef);
+
                 // page must not be changed
                 assertSame(bufferPool, bytesRef.bytes);
                 assertEquals(offset, bytesRef.offset);
@@ -84,6 +86,8 @@ public class MockBytesRefRecycler implements Recycler<BytesRef>, Releasable {
     public void close() {
         assertEquals(0, activePageCount.get());
     }
+
+    protected void onClose(BytesRef bytesRef) {}
 
     /**
      * @return number of currently-active pages

@@ -53,8 +53,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     // During local planning, we extract the minimum and maximum timestamps from the data to allow for optimized rounding
     private final TimeRange timestampRange;
 
-    public record TimeRange(long min, long max) {}
-
     public TimeSeriesAggregate(
         Source source,
         LogicalPlan child,
@@ -325,6 +323,51 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 });
                 // }
             }
+        }
+    }
+
+    // Unfortunately we can't use a record here because this needs to be mockable in tests
+    public static class TimeRange {
+
+        /**
+         * The minimum timestamp in epoch milliseconds.
+         */
+
+        private final long min;
+        /**
+         * The maximum timestamp in epoch milliseconds.
+         */
+        private final long max;
+
+        public TimeRange(long min, long max) {
+            this.min = min;
+            this.max = max;
+        }
+
+        public long min() {
+            return min;
+        }
+
+        public long max() {
+            return max;
+        }
+
+        @Override
+        public String toString() {
+            return "TimeRange{" + "min=" + min + ", max=" + max + '}';
+        }
+
+        @Override
+        public final boolean equals(Object o) {
+            if (o instanceof TimeRange timeRange) {
+                return min == timeRange.min && max == timeRange.max;
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(min, max);
         }
     }
 }

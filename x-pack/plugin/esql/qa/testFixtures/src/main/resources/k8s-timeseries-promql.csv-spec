@@ -218,3 +218,59 @@ PROMQL index=k8s step=1h result=(tanh(vector(0.0)));
 result:double | step:datetime
 0.0           | 2024-05-10T00:00:00.000Z
 ;
+
+clamp_scalar
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp(vector(5.0), 0, 10));
+
+result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_scalar_below_min
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp(vector(-5.0), 0, 10));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_scalar_above_max
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp(vector(15.0), 0, 10));
+
+result:double | step:datetime
+10.0          | 2024-05-10T00:00:00.000Z
+;
+
+clamp_min_scalar
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_min(vector(-5.0), 0));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_min_scalar_above
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_min(vector(5.0), 0));
+
+result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_max_scalar
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_max(vector(15.0), 10));
+
+result:double | step:datetime
+10.0          | 2024-05-10T00:00:00.000Z
+;
+
+clamp_max_scalar_below
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_max(vector(5.0), 10));
+
+result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
+;

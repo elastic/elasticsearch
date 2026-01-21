@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
-class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String fieldFullPath;
     private final String keyedFieldFullPath;
     private final String keyedIgnoredValuesFieldFullPath;
@@ -37,15 +37,16 @@ class FlattenedSortedSetDocValuesSyntheticFieldLoader implements SourceLoader.Sy
     private List<Object> ignoredValues = List.of();
 
     /**
-     * Build a loader for flattened fields from doc values.
+     * Build a loader for flattened fields from either binary or sorted set doc values.
      *
      * @param fieldFullPath                        full path to the original field
      * @param keyedFieldFullPath                   full path to the keyed field to load doc values from
      * @param keyedIgnoredValuesFieldFullPath      full path to the keyed field that stores values that are not present in doc values
      *                                             due to ignore_above
      * @param leafName                             the name of the leaf field to use in the rendered {@code _source}
+     * @param usesBinaryDocValues                  whether the values are stored using binary or sorted set doc values
      */
-    FlattenedSortedSetDocValuesSyntheticFieldLoader(
+    FlattenedDocValuesSyntheticFieldLoader(
         String fieldFullPath,
         String keyedFieldFullPath,
         @Nullable String keyedIgnoredValuesFieldFullPath,

@@ -682,9 +682,9 @@ public class TokenService {
                 final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
                 if (keyAndCache != null) {
                     final ReleasableBytesReference encryptedTokenId;
-                    try (var rbs = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
-                        rbs.writeAllBytesFrom(in);
-                        encryptedTokenId = rbs.moveToBytesReference();
+                    try (var recyclerBytesStreamOutput = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
+                        recyclerBytesStreamOutput.writeAllBytesFrom(in);
+                        encryptedTokenId = recyclerBytesStreamOutput.moveToBytesReference();
                     }
                     getKeyAsync(decodedSalt, keyAndCache, ActionListener.releaseAfter(listener.delegateFailure((delegate, decodeKey) -> {
                         if (decodeKey != null) {

@@ -98,7 +98,7 @@ public class ResizeAllocationDeciderIT extends ESIntegTestCase {
                 return false;
             }
         });
-        final var resizeRequest = new ResizeRequest(sourceIndex, targetIndex);
+        final var resizeRequest = new ResizeRequest(targetIndex, sourceIndex);
         resizeRequest.setResizeType(ResizeType.CLONE);
         client().execute(ResizeAction.INSTANCE, resizeRequest);
         safeAwait(indexCreatedLatch);

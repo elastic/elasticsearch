@@ -32,6 +32,9 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -256,6 +259,7 @@ public class SecurityTests extends ESTestCase {
         return security.createComponents(
             client,
             threadPool,
+            new MockBigArrays(new MockPageCacheRecycler(settings), ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             clusterService,
             new FeatureService(List.of(new SecurityFeatures())),
             mock(ResourceWatcherService.class),

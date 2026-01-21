@@ -28,9 +28,9 @@ import java.io.IOException;
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     /**
      * Circuit breaker space reserved for each reader. Measured in heap dumps
-     * around from 3.5kb to 65kb. This is an intentional overestimate.
+     * around from 1.5kb. This is an intentional overestimate.
      */
-    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(5).getBytes(); // NOCOMMIT double check this one
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
 
     private final String fieldName;
 
@@ -49,7 +49,6 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
         AllReader result = null;
         try {
             result = createReader(breaker, ESTIMATED_SIZE, context.reader().getBinaryDocValues(fieldName));
-            System.err.println("ASDFADSF " + new int[Integer.MAX_VALUE]);
             return result;
         } finally {
             if (result == null) {

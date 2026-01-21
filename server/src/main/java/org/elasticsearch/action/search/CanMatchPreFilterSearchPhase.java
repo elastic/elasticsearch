@@ -32,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -500,8 +499,10 @@ final class CanMatchPreFilterSearchPhase {
         }
         Comparator<? super MinAndMax<?>> keyComparator = forciblyCast(MinAndMax.getComparator(order));
         toSort.sort((idx1, idx2) -> {
-            int res = keyComparator.compare(minAndMaxes[shardItIndexMap.get(shardsIts.get(idx1))],
-                minAndMaxes[shardItIndexMap.get(shardsIts.get(idx2))]);
+            int res = keyComparator.compare(
+                minAndMaxes[shardItIndexMap.get(shardsIts.get(idx1))],
+                minAndMaxes[shardItIndexMap.get(shardsIts.get(idx2))]
+            );
             if (res != 0) {
                 return res;
             }

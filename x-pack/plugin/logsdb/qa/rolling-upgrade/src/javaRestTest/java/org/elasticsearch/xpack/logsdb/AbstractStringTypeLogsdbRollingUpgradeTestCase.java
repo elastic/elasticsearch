@@ -68,29 +68,21 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
 
     private void verifyClusterIsRunningOldVersion() throws IOException {
         String expectedOldVersion = System.getProperty("tests.old_cluster_version");
-        if (expectedOldVersion != null) {
-            verifyOldVersion(expectedOldVersion);
-        } else {
-            String expectedServerlessOldVersion = System.getProperty("tests.serverless.bwc_stack_version");
-            verifyOldVersion(expectedServerlessOldVersion);
-            assertThat(
-                "tests.old_cluster_version or tests.serverless.bwc_stack_version system property must be set",
-                expectedServerlessOldVersion,
-                notNullValue()
-            );
-        }
-    }
 
-    private void verifyOldVersion(String expectedOldVersion) throws IOException {
+        if (expectedOldVersion == null && System.getProperty("tests.serverless.bwc_stack_version") != null) {
+            // we're running in serverless where a node's version is a commit hash rather than a release version, so skip this check
+            return;
+        }
+
         // Strip -SNAPSHOT suffix for comparison since builds from refspecs may not include it
         String normalizedExpectedVersion = expectedOldVersion.replace("-SNAPSHOT", "");
 
         Set<String> nodeVersions = readVersionsFromNodesInfo(adminClient());
 
         assertThat(
-            "All nodes should be running the old version [" + expectedOldVersion + "] but found: " + nodeVersions,
-            nodeVersions,
-            everyItem(equalTo(normalizedExpectedVersion))
+                "All nodes should be running the old version [" + expectedOldVersion + "] but found: " + nodeVersions,
+                nodeVersions,
+                everyItem(equalTo(normalizedExpectedVersion))
         );
     }
 

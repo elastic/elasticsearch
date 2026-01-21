@@ -341,7 +341,8 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
                 new EmptyRequest(),
                 threadPool.getThreadContext(),
-                out
+                out,
+                recycler // TODO use MockBytesRefRecycler
             );
             socket.getOutputStream().write(Arrays.copyOfRange(bytesReference.array(), 0, bytesReference.length()));
             socket.getOutputStream().flush();

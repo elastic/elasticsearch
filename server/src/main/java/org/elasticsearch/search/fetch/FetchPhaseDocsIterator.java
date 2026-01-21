@@ -273,43 +273,36 @@ abstract class FetchPhaseDocsIterator {
         );
 
         // Consumer completion handler
-        ActionListener<Void> consumerListener = ActionListener.wrap(
-            v -> {
-                // Check for producer
-                Throwable pError = producerError.get();
-                if (pError != null) {
-                    cleanupLastChunk(lastChunkHolder, circuitBreaker);
-                    listener.onFailure(pError instanceof Exception ? (Exception) pError : new RuntimeException(pError));
-                    return;
-                }
-
-                // Check for send failure
-                Throwable sError = sendFailure.get();
-                if (sError != null) {
-                    cleanupLastChunk(lastChunkHolder, circuitBreaker);
-                    listener.onFailure(sError instanceof Exception ? (Exception) sError : new RuntimeException(sError));
-                    return;
-                }
-
-                // Return the last chunk
-                PendingChunk lastChunk = lastChunkHolder.get();
-                if (lastChunk != null && lastChunk.bytes != null) {
-                    listener.onResponse(new IterateResult(
-                        lastChunk.bytes,
-                        lastChunk.hitCount,
-                        lastChunk.sequenceStart,
-                        lastChunk.byteSize,
-                        circuitBreaker
-                    ));
-                } else {
-                    listener.onResponse(new IterateResult(new SearchHit[0]));
-                }
-            },
-            e -> {
+        ActionListener<Void> consumerListener = ActionListener.wrap(v -> {
+            // Check for producer
+            Throwable pError = producerError.get();
+            if (pError != null) {
                 cleanupLastChunk(lastChunkHolder, circuitBreaker);
-                listener.onFailure(e);
+                listener.onFailure(pError instanceof Exception ? (Exception) pError : new RuntimeException(pError));
+                return;
             }
-        );
+
+            // Check for send failure
+            Throwable sError = sendFailure.get();
+            if (sError != null) {
+                cleanupLastChunk(lastChunkHolder, circuitBreaker);
+                listener.onFailure(sError instanceof Exception ? (Exception) sError : new RuntimeException(sError));
+                return;
+            }
+
+            // Return the last chunk
+            PendingChunk lastChunk = lastChunkHolder.get();
+            if (lastChunk != null && lastChunk.bytes != null) {
+                listener.onResponse(
+                    new IterateResult(lastChunk.bytes, lastChunk.hitCount, lastChunk.sequenceStart, lastChunk.byteSize, circuitBreaker)
+                );
+            } else {
+                listener.onResponse(new IterateResult(new SearchHit[0]));
+            }
+        }, e -> {
+            cleanupLastChunk(lastChunkHolder, circuitBreaker);
+            listener.onFailure(e);
+        });
 
         // Start consumer on a separate thread
         executor.execute(() -> consumer.execute(consumerListener));
@@ -405,14 +398,7 @@ abstract class FetchPhaseDocsIterator {
                         circuitBreaker.addEstimateBytesAndMaybeBreak(byteSize, CIRCUIT_BREAKER_LABEL);
                         reserved = true;
 
-                        PendingChunk chunk = new PendingChunk(
-                            chunkBytes,
-                            hitsInChunk,
-                            chunkStartIndex,
-                            chunkStartIndex,
-                            byteSize,
-                            isLast
-                        );
+                        PendingChunk chunk = new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, chunkStartIndex, byteSize, isLast);
 
                         if (isLast) {
                             lastChunkHolder.set(chunk);
@@ -484,24 +470,19 @@ abstract class FetchPhaseDocsIterator {
             Iterator<PendingChunk> chunkIterator = new QueueDrainingIterator(queue, isCancelled);
 
             // ThrottledIterator for backpressure control
-            ThrottledIterator.run(
-                chunkIterator,
-                (releasable, chunk) -> sendChunk(chunk, releasable),
-                maxInFlightChunks,
-                () -> {
-                    drainAndCleanup(queue, circuitBreaker);
+            ThrottledIterator.run(chunkIterator, (releasable, chunk) -> sendChunk(chunk, releasable), maxInFlightChunks, () -> {
+                drainAndCleanup(queue, circuitBreaker);
 
-                    // Completion callback - check for errors and notify listener
-                    Throwable failure = sendFailure.get();
-                    if (failure != null) {
-                        listener.onFailure(failure instanceof Exception ? (Exception) failure : new RuntimeException(failure));
-                    } else if (isCancelled.get()) {
-                        listener.onFailure(new TaskCancelledException("cancelled"));
-                    } else {
-                        listener.onResponse(null);
-                    }
+                // Completion callback - check for errors and notify listener
+                Throwable failure = sendFailure.get();
+                if (failure != null) {
+                    listener.onFailure(failure instanceof Exception ? (Exception) failure : new RuntimeException(failure));
+                } else if (isCancelled.get()) {
+                    listener.onFailure(new TaskCancelledException("cancelled"));
+                } else {
+                    listener.onResponse(null);
                 }
-            );
+            });
         }
 
         private void sendChunk(PendingChunk chunk, Releasable releasable) {
@@ -537,21 +518,18 @@ abstract class FetchPhaseDocsIterator {
                 ackListener = chunkCompletionRefs.acquire();
                 final ActionListener<Void> finalAckListener = ackListener;
 
-                writer.writeResponseChunk(responseChunk, ActionListener.wrap(
-                    ack -> {
-                        chunkToClose.close();
-                        circuitBreaker.addWithoutBreaking(-chunkByteSize);
-                        finalAckListener.onResponse(null);
-                        releasable.close();
-                    },
-                    e -> {
-                        chunkToClose.close();
-                        circuitBreaker.addWithoutBreaking(-chunkByteSize);
-                        sendFailure.compareAndSet(null, e);
-                        finalAckListener.onFailure(e);
-                        releasable.close();
-                    }
-                ));
+                writer.writeResponseChunk(responseChunk, ActionListener.wrap(ack -> {
+                    chunkToClose.close();
+                    circuitBreaker.addWithoutBreaking(-chunkByteSize);
+                    finalAckListener.onResponse(null);
+                    releasable.close();
+                }, e -> {
+                    chunkToClose.close();
+                    circuitBreaker.addWithoutBreaking(-chunkByteSize);
+                    sendFailure.compareAndSet(null, e);
+                    finalAckListener.onFailure(e);
+                    releasable.close();
+                }));
 
                 responseChunk = null; // ownership transferred
             } catch (Exception e) {
@@ -587,10 +565,7 @@ abstract class FetchPhaseDocsIterator {
         private PendingChunk nextChunk;
         private boolean exhausted = false;
 
-        QueueDrainingIterator(
-            BlockingQueue<PendingChunk> queue,
-            Supplier<Boolean> isCancelled
-        ) {
+        QueueDrainingIterator(BlockingQueue<PendingChunk> queue, Supplier<Boolean> isCancelled) {
             this.queue = queue;
             this.isCancelled = isCancelled;
         }

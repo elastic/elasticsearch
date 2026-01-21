@@ -153,8 +153,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
             @Override
-            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
-            }
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
             @Override
             protected SearchHit nextDoc(int doc) {
@@ -455,8 +454,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         AtomicInteger processedDocs = new AtomicInteger(0);
         FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
             @Override
-            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
-            }
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
             @Override
             protected SearchHit nextDoc(int doc) {
@@ -513,8 +511,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             private int count = 0;
 
             @Override
-            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
-            }
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
             @Override
             protected SearchHit nextDoc(int doc) {
@@ -699,7 +696,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         return new LuceneDocs(directory, reader, docIds);
     }
 
-    private record LuceneDocs(Directory directory, IndexReader reader, int[] docIds ) {}
+    private record LuceneDocs(Directory directory, IndexReader reader, int[] docIds) {}
 
     /**
      * Simple record to track sent chunk info
@@ -776,10 +773,8 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         }
 
         @Override
-        public void setLimitAndOverhead(long limit, double overhead) {
-        }
+        public void setLimitAndOverhead(long limit, double overhead) {}
     }
-
 
     private static class TestChunkWriter implements FetchPhaseResponseChunk.Writer {
 
@@ -804,21 +799,3 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

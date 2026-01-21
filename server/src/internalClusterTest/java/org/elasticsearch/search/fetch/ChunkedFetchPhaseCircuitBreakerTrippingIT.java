@@ -106,8 +106,8 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
                 .get();
         } catch (ElasticsearchException e) {
             exception = e;
-        } finally{
-            if(resp != null) {
+        } finally {
+            if (resp != null) {
                 resp.decRef();
             }
         }
@@ -309,7 +309,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
             } catch (ElasticsearchException e) {
                 exception = e;
             } finally {
-                if(resp != null) {
+                if (resp != null) {
                     resp.decRef();
                 }
             }

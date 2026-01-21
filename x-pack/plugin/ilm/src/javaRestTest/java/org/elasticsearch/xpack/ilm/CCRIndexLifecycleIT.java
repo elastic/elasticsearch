@@ -24,8 +24,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.SkipInFIPSMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,6 +62,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressForbidden(reason = "TemporaryFolder uses java.io.File")
 public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIndexLifecycleIT.class);
@@ -126,7 +129,10 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
         .build();
 
     @ClassRule
-    public static RuleChain ruleChain = RuleChain.outerRule(repoDir).around(leaderCluster).around(followerCluster);
+    public static RuleChain ruleChain = RuleChain.outerRule(new SkipInFIPSMode())
+        .around(repoDir)
+        .around(leaderCluster)
+        .around(followerCluster);
 
     public CCRIndexLifecycleIT(@Name("targetCluster") TargetCluster targetCluster) {
         super(targetCluster);
@@ -623,7 +629,11 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
                 // Start ILM back up and let it unfollow
                 client().performRequest(new Request("POST", "/_ilm/start"));
                 // Wait for the policy to be complete
-                assertBusy(() -> { assertILMPolicy(client(), followerIndex, policyName, "hot", "complete", "complete"); });
+                assertBusy(
+                    () -> { assertILMPolicy(client(), followerIndex, policyName, "hot", "complete", "complete"); },
+                    30,
+                    TimeUnit.SECONDS
+                );
 
                 // Ensure the "follower" index has successfully unfollowed
                 assertBusy(() -> { assertThat(getIndexSetting(client(), followerIndex, "index.xpack.ccr.following_index"), nullValue()); });

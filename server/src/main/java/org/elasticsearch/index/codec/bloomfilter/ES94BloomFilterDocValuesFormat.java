@@ -38,12 +38,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 
@@ -54,6 +56,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntSupplier;
 
+import static org.elasticsearch.common.Numbers.isPowerOfTwo;
 import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions.MurmurHash3.hash64;
 
 /**
@@ -339,6 +342,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 return;
             }
 
+            final var pageSizeInBytes = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+            final var newBloomFilterPageScratch = new BytesRef(pageSizeInBytes);
+            final var existingPageScratch = new BytesRef(pageSizeInBytes);
             for (int readerIdx = 0; readerIdx < mergeState.docValuesProducers.length; readerIdx++) {
                 final FieldInfo fieldInfo = mergeState.fieldInfos[readerIdx].fieldInfo(bloomFilterFieldName);
                 if (fieldInfo == null) {
@@ -364,11 +370,31 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                         + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
 
                 RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
-                for (int i = 0; i < bitSetSizeInBytes; i++) {
-                    var existingBloomFilterByte = bloomFilterData.readByte(i);
-                    var resultingBloomFilterByte = buffer.get(i);
-                    // TODO: Consider merging more than a byte at a time to speed up the process
-                    buffer.set(i, (byte) (existingBloomFilterByte | resultingBloomFilterByte));
+                int offset = 0;
+                while (offset < bitSetSizeInBytes) {
+                    var pageLen = Math.min(pageSizeInBytes, bitSetSizeInBytes - offset);
+                    // Read one BigArrays page at a time to amortize the cost of going through
+                    // the big arrays machinery. In most systems, this means that we'll read
+                    // 4 OS page cache pages at a time, but since we're reading it sequentially
+                    // and when we create the BloomFilterFieldReader we call madvise to prefetch
+                    // the entire bloom filter, it should be fine.
+                    buffer.get(offset, pageLen, newBloomFilterPageScratch);
+                    bloomFilterData.readBytes(offset, existingPageScratch.bytes, 0, pageLen);
+
+                    int i = 0;
+                    for (; i + Long.BYTES <= pageLen; i += Long.BYTES) {
+                        long existing = (long) BitUtil.VH_LE_LONG.get(existingPageScratch.bytes, i);
+                        long current = (long) BitUtil.VH_LE_LONG.get(newBloomFilterPageScratch.bytes, i);
+                        BitUtil.VH_LE_LONG.set(newBloomFilterPageScratch.bytes, i, existing | current);
+                    }
+
+                    // OR the remaining bytes that do not fit in a Long
+                    for (; i < pageLen; i++) {
+                        newBloomFilterPageScratch.bytes[i] |= existingPageScratch.bytes[i];
+                    }
+
+                    buffer.set(offset, newBloomFilterPageScratch.bytes, 0, pageLen);
+                    offset += pageLen;
                 }
             }
         }
@@ -646,10 +672,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             final int numOfHashFunctions = in.readVInt();
             return new BloomFilterMetadata(fileOffset, bloomFilterSizeInBits, numOfHashFunctions);
         }
-    }
-
-    private static boolean isPowerOfTwo(int value) {
-        return (value & (value - 1)) == 0;
     }
 
     private static String bloomFilterMetadataFileName(SegmentInfo segmentInfo, String segmentSuffix) {

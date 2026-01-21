@@ -171,7 +171,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -208,10 +207,6 @@ public class SnapshotResiliencyTestHelper {
         return ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).remove(node.getId()).add(node).localNodeId(node.getId()))
             .build();
-    }
-
-    public interface TransportInterceptorFactory {
-        TransportInterceptor createTransportInterceptor(DiscoveryNode node);
     }
 
     public static class TestClusterNodes {
@@ -296,32 +291,14 @@ public class SnapshotResiliencyTestHelper {
             throws IOException {
             final var testClusterNode = newNode(
                 DiscoveryNodeUtils.builder(ESTestCase.randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build(),
-                tempDir,
-                deterministicTaskQueue,
-                this,
-                transportInterceptorFactory,
-                warningConsumer
+                transportInterceptorFactory
             );
             testClusterNode.init();
             return testClusterNode;
         }
 
-        protected TestClusterNode newNode(
-            DiscoveryNode node,
-            Path tempDir,
-            DeterministicTaskQueue deterministicTaskQueue,
-            TestClusterNodes testClusterNodes,
-            TransportInterceptorFactory transportInterceptorFactory,
-            Consumer<String[]> warningConsumer
-        ) throws IOException {
-            return new TestClusterNode(
-                node,
-                tempDir,
-                deterministicTaskQueue,
-                testClusterNodes,
-                transportInterceptorFactory,
-                warningConsumer
-            );
+        protected TestClusterNode newNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) throws IOException {
+            return new TestClusterNode(node, transportInterceptorFactory);
         }
 
         public TestClusterNode randomMasterNodeSafe() {
@@ -408,459 +385,461 @@ public class SnapshotResiliencyTestHelper {
             Assert.assertTrue(master.node.isMasterNode());
             return master;
         }
-    }
 
-    public static class TestClusterNode {
-
-        protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
-
-        private final DiscoveryNode node;
-
-        private final Path tempDir;
-
-        private final TestClusterNodes testClusterNodes;
-
-        private final DeterministicTaskQueue deterministicTaskQueue;
-
-        private final Consumer<String[]> warningConsumer;
-
-        protected final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(
-            CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
-        );
-
-        private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
-        );
-
-        private final TransportInterceptorFactory transportInterceptorFactory;
-
-        protected final Environment environment;
-
-        protected final Settings settings;
-
-        protected final PluginsService pluginsService;
-
-        private TransportService transportService;
-
-        private ClusterService clusterService;
-
-        private RecoverySettings recoverySettings;
-
-        private PeerRecoverySourceService peerRecoverySourceService;
-
-        protected ShardStateAction shardStateAction;
-
-        private NodeConnectionsService nodeConnectionsService;
-
-        protected RepositoriesService repositoriesService;
-
-        private SnapshotsService snapshotsService;
-
-        private SnapshotShardsService snapshotShardsService;
-
-        protected IndicesService indicesService;
-
-        protected PeerRecoveryTargetService peerRecoveryTargetService;
-
-        private IndicesClusterStateService indicesClusterStateService;
-
-        private MasterService masterService;
-
-        protected AllocationService allocationService;
-
-        protected RerouteService rerouteService;
-
-        protected NodeClient client;
-
-        protected NodeEnvironment nodeEnv;
-
-        private DisruptableMockTransport mockTransport;
-
-        protected ThreadPool threadPool;
-
-        protected IndexNameExpressionResolver indexNameExpressionResolver;
-
-        protected BigArrays bigArrays;
-
-        private UsageService usageService;
-
-        private Coordinator coordinator;
-
-        @SuppressWarnings("this-escape")
-        public TestClusterNode(
-            DiscoveryNode node,
-            Path tempDir,
-            DeterministicTaskQueue deterministicTaskQueue,
-            TestClusterNodes testClusterNodes,
-            TransportInterceptorFactory transportInterceptorFactory,
-            Consumer<String[]> warningConsumer
-        ) throws IOException {
-            this.node = node;
-            this.tempDir = tempDir;
-            this.deterministicTaskQueue = deterministicTaskQueue;
-            this.testClusterNodes = testClusterNodes;
-            this.warningConsumer = warningConsumer;
-            this.transportInterceptorFactory = transportInterceptorFactory;
-            this.environment = createEnvironment(node.getName(), tempDir, nodeSettings());
-            this.settings = environment.settings();
-            this.pluginsService = createPluginsService(settings, environment);
+        public interface TransportInterceptorFactory {
+            TransportInterceptor createTransportInterceptor(DiscoveryNode node);
         }
 
-        protected PluginsService createPluginsService(Settings settings, Environment environment) {
-            return mock(PluginsService.class);
-        }
+        public class TestClusterNode {
 
-        public final void init() throws IOException {
-            threadPool = deterministicTaskQueue.getThreadPool(wrapRunnable());
-            masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
-            client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
-            this.usageService = new UsageService();
-            final ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettings());
-            clusterService = new ClusterService(
-                settings,
-                clusterSettings,
-                masterService,
-                new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
-                    @Override
-                    protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                        return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {
-                            @Override
-                            public void run() {
-                                try (var ignored = DeterministicTaskQueue.getLogContext('{' + node.getName() + "}{" + node.getId() + '}')) {
-                                    command.run();
-                                }
-                            }
+            protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
-                            @Override
-                            public String toString() {
-                                return "TestClusterNode.ClusterApplierService[" + command + "]";
-                            }
-                        });
-                    }
+            private final DiscoveryNode node;
 
-                    @Override
-                    protected void connectToNodesAndWait(ClusterState newClusterState) {
-                        connectToNodesAsync(newClusterState, () -> {
-                            // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService
-                            // take charge of these connections
-                        });
-                    }
-                }
+            protected final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(
+                CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
             );
-            recoverySettings = new RecoverySettings(settings, clusterSettings);
-            mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
-                @Override
-                protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
-                    if (node.equals(destination)) {
-                        return ConnectionStatus.CONNECTED;
+
+            private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
+            );
+
+            private final TransportInterceptorFactory transportInterceptorFactory;
+
+            protected final Environment environment;
+
+            protected final Settings settings;
+
+            protected final PluginsService pluginsService;
+
+            private TransportService transportService;
+
+            private ClusterService clusterService;
+
+            private RecoverySettings recoverySettings;
+
+            private PeerRecoverySourceService peerRecoverySourceService;
+
+            protected ShardStateAction shardStateAction;
+
+            private NodeConnectionsService nodeConnectionsService;
+
+            protected RepositoriesService repositoriesService;
+
+            private SnapshotsService snapshotsService;
+
+            private SnapshotShardsService snapshotShardsService;
+
+            protected IndicesService indicesService;
+
+            protected PeerRecoveryTargetService peerRecoveryTargetService;
+
+            private IndicesClusterStateService indicesClusterStateService;
+
+            private MasterService masterService;
+
+            protected AllocationService allocationService;
+
+            protected RerouteService rerouteService;
+
+            protected NodeClient client;
+
+            protected NodeEnvironment nodeEnv;
+
+            private DisruptableMockTransport mockTransport;
+
+            protected ThreadPool threadPool;
+
+            protected IndexNameExpressionResolver indexNameExpressionResolver;
+
+            protected BigArrays bigArrays;
+
+            private UsageService usageService;
+
+            private Coordinator coordinator;
+
+            @SuppressWarnings("this-escape")
+            public TestClusterNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) {
+                this.node = node;
+                this.transportInterceptorFactory = transportInterceptorFactory;
+                this.environment = createEnvironment(node.getName(), tempDir, nodeSettings());
+                this.settings = environment.settings();
+                this.pluginsService = createPluginsService(settings, environment);
+                this.threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable));
+                this.masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
+                this.client = new NodeClient(settings, threadPool, projectResolver);
+                this.usageService = new UsageService();
+            }
+
+            protected PluginsService createPluginsService(Settings settings, Environment environment) {
+                return mock(PluginsService.class);
+            }
+
+            public final void init() throws IOException {
+                final ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettings());
+                clusterService = new ClusterService(
+                    settings,
+                    clusterSettings,
+                    masterService,
+                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
+                        @Override
+                        protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                            return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {
+                                @Override
+                                public void run() {
+                                    try (
+                                        var ignored = DeterministicTaskQueue.getLogContext('{' + node.getName() + "}{" + node.getId() + '}')
+                                    ) {
+                                        command.run();
+                                    }
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "TestClusterNode.ClusterApplierService[" + command + "]";
+                                }
+                            });
+                        }
+
+                        @Override
+                        protected void connectToNodesAndWait(ClusterState newClusterState) {
+                            connectToNodesAsync(newClusterState, () -> {
+                                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService
+                                // take charge of these connections
+                            });
+                        }
                     }
-                    // Check if both nodes are still part of the cluster
-                    if (testClusterNodes.nodes().containsKey(node.getName()) == false
-                        || testClusterNodes.nodes().containsKey(destination.getName()) == false) {
-                        return ConnectionStatus.DISCONNECTED;
-                    }
-                    return testClusterNodes.disconnectedNodes().contains(node.getName())
-                        || testClusterNodes.disconnectedNodes().contains(destination.getName())
+                );
+                recoverySettings = new RecoverySettings(settings, clusterSettings);
+                mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
+                    @Override
+                    protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
+                        if (node.equals(destination)) {
+                            return ConnectionStatus.CONNECTED;
+                        }
+                        // Check if both nodes are still part of the cluster
+                        if (nodes.containsKey(node.getName()) == false || nodes.containsKey(destination.getName()) == false) {
+                            return ConnectionStatus.DISCONNECTED;
+                        }
+                        return disconnectedNodes.contains(node.getName()) || disconnectedNodes.contains(destination.getName())
                             ? ConnectionStatus.DISCONNECTED
                             : ConnectionStatus.CONNECTED;
-                }
-
-                @Override
-                protected Optional<DisruptableMockTransport> getDisruptableMockTransport(TransportAddress address) {
-                    return testClusterNodes.nodes()
-                        .values()
-                        .stream()
-                        .map(cn -> cn.mockTransport)
-                        .filter(transport -> transport.getLocalNode().getAddress().equals(address))
-                        .findAny();
-                }
-
-                @Override
-                protected void execute(Runnable runnable) {
-                    final Runnable wrappedRunnable = DeterministicTaskQueue.onNodeLog(getLocalNode(), runnable);
-                    if (maybeExecuteTransportRunnable(wrappedRunnable) == false) {
-                        scheduleNow(wrappedRunnable);
                     }
-                }
 
-                @Override
-                protected NamedWriteableRegistry writeableRegistry() {
-                    return namedWriteableRegistry;
-                }
+                    @Override
+                    protected Optional<DisruptableMockTransport> getDisruptableMockTransport(TransportAddress address) {
+                        return nodes.values()
+                            .stream()
+                            .map(cn -> cn.mockTransport)
+                            .filter(transport -> transport.getLocalNode().getAddress().equals(address))
+                            .findAny();
+                    }
 
-                @Override
-                public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                    // skip leak checks in these tests since they do indeed leak
-                    return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-                    // TODO fix these leaks and implement leak checking
-                }
-            };
-            transportService = mockTransport.createTransportService(
-                settings,
-                threadPool,
-                transportInterceptorFactory.createTransportInterceptor(node),
-                a -> node,
-                null,
-                emptySet()
-            );
-            // TODO: The indexNameExpressionResolver does not use the same threadContext and projectResolver
-            indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
-            bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
-            repositoriesService = new RepositoriesService(
-                settings,
-                clusterService,
-                Collections.singletonMap(
-                    FsRepository.TYPE,
-                    (projectId, metadata) -> new FsRepository(
-                        projectId,
-                        metadata,
-                        environment,
-                        namedXContentRegistry,
-                        clusterService,
-                        bigArrays,
-                        recoverySettings
-                    )
-                ),
-                emptyMap(),
-                threadPool,
-                client,
-                List.of(),
-                SnapshotMetrics.NOOP
-            );
-            snapshotsService = new SnapshotsService(
-                settings,
-                clusterService,
-                (reason, priority, listener) -> listener.onResponse(null),
-                indexNameExpressionResolver,
-                repositoriesService,
-                transportService,
-                EmptySystemIndices.INSTANCE,
-                false,
-                SnapshotMetrics.NOOP
-            );
-            nodeEnv = new NodeEnvironment(settings, environment);
-            final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
-            final ScriptService scriptService = new ScriptService(
-                settings,
-                emptyMap(),
-                emptyMap(),
-                () -> 1L,
-                TestProjectResolvers.singleProject(ESTestCase.randomProjectIdOrDefault())
-            );
+                    @Override
+                    protected void execute(Runnable runnable) {
+                        final Runnable wrappedRunnable = DeterministicTaskQueue.onNodeLog(getLocalNode(), runnable);
+                        if (maybeExecuteTransportRunnable(wrappedRunnable) == false) {
+                            scheduleNow(wrappedRunnable);
+                        }
+                    }
 
-            final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
-            final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
-                settings,
-                clusterService,
-                repositoriesService,
-                rerouteServiceSetOnce::get
-            );
-            allocationService = createAllocationService(
-                Settings.builder()
-                    .put(settings)
-                    .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
-                    .build(),
-                snapshotsInfoService
-            );
-            rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
-            rerouteServiceSetOnce.set(rerouteService);
-            final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-            final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+                    @Override
+                    protected NamedWriteableRegistry writeableRegistry() {
+                        return namedWriteableRegistry;
+                    }
 
-            indicesService = new IndicesServiceBuilder().settings(settings)
-                .pluginsService(pluginsService)
-                .nodeEnvironment(nodeEnv)
-                .xContentRegistry(namedXContentRegistry)
-                .analysisRegistry(
-                    new AnalysisRegistry(
-                        environment,
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap()
-                    )
-                )
-                .indexNameExpressionResolver(indexNameExpressionResolver)
-                .mapperRegistry(mapperRegistry)
-                .namedWriteableRegistry(namedWriteableRegistry)
-                .threadPool(threadPool)
-                .indexScopedSettings(indexScopedSettings)
-                .circuitBreakerService(new NoneCircuitBreakerService())
-                .bigArrays(bigArrays)
-                .scriptService(scriptService)
-                .clusterService(clusterService)
-                .projectResolver(DefaultProjectResolver.INSTANCE)
-                .client(client)
-                .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
-                .mapperMetrics(MapperMetrics.NOOP)
-                .mergeMetrics(MergeMetrics.NOOP)
-                .build();
-            final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-            snapshotShardsService = new SnapshotShardsService(
-                settings,
-                clusterService,
-                repositoriesService,
-                transportService,
-                indicesService
-            );
-            shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
-            nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
-            final ActionFilters actionFilters = new ActionFilters(emptySet());
-            Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
-            actions.put(
-                TransportUpdateSnapshotStatusAction.TYPE,
-                new TransportUpdateSnapshotStatusAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
-            );
-            actions.put(
-                GlobalCheckpointSyncAction.TYPE,
-                new GlobalCheckpointSyncAction(
+                    @Override
+                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                        // skip leak checks in these tests since they do indeed leak
+                        return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+                        // TODO fix these leaks and implement leak checking
+                    }
+                };
+                transportService = mockTransport.createTransportService(
                     settings,
-                    transportService,
+                    threadPool,
+                    transportInterceptorFactory.createTransportInterceptor(node),
+                    a -> node,
+                    null,
+                    emptySet()
+                );
+                // TODO: The indexNameExpressionResolver does not use the same threadContext and projectResolver
+                indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
+                repositoriesService = new RepositoriesService(
+                    settings,
                     clusterService,
-                    indicesService,
+                    Collections.singletonMap(
+                        FsRepository.TYPE,
+                        (projectId, metadata) -> new FsRepository(
+                            projectId,
+                            metadata,
+                            environment,
+                            namedXContentRegistry,
+                            clusterService,
+                            bigArrays,
+                            recoverySettings
+                        )
+                    ),
+                    emptyMap(),
                     threadPool,
-                    shardStateAction,
-                    actionFilters
-                )
-            );
-            actions.put(
-                VerifyNodeRepositoryAction.TYPE,
-                new VerifyNodeRepositoryAction.TransportAction(
+                    client,
+                    List.of(),
+                    SnapshotMetrics.NOOP
+                );
+                snapshotsService = new SnapshotsService(
+                    settings,
+                    clusterService,
+                    (reason, priority, listener) -> listener.onResponse(null),
+                    indexNameExpressionResolver,
+                    repositoriesService,
                     transportService,
-                    actionFilters,
-                    threadPool,
+                    EmptySystemIndices.INSTANCE,
+                    false,
+                    SnapshotMetrics.NOOP
+                );
+                nodeEnv = new NodeEnvironment(settings, environment);
+                final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
+                final ScriptService scriptService = new ScriptService(
+                    settings,
+                    emptyMap(),
+                    emptyMap(),
+                    () -> 1L,
+                    TestProjectResolvers.singleProject(ESTestCase.randomProjectIdOrDefault())
+                );
+
+                final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
+                final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
+                    settings,
                     clusterService,
                     repositoriesService,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                VerifyNodeRepositoryCoordinationAction.TYPE,
-                new VerifyNodeRepositoryCoordinationAction.LocalAction(actionFilters, transportService, clusterService, client)
-            );
-            final MetadataMappingService metadataMappingService = new MetadataMappingService(
-                clusterService,
-                indicesService,
-                IndexSettingProviders.EMPTY
-            );
+                    rerouteServiceSetOnce::get
+                );
+                allocationService = createAllocationService(
+                    Settings.builder()
+                        .put(settings)
+                        .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
+                        .build(),
+                    snapshotsInfoService
+                );
+                rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
+                rerouteServiceSetOnce.set(rerouteService);
+                final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(
+                    settings,
+                    IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
+                );
+                final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
-            peerRecoverySourceService = new PeerRecoverySourceService(
-                transportService,
-                indicesService,
-                clusterService,
-                recoverySettings,
-                PeerOnlyRecoveryPlannerService.INSTANCE
-            );
-
-            final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-            final SearchTransportService searchTransportService = new SearchTransportService(
-                transportService,
-                client,
-                SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
-            );
-            final SearchService searchService = new SearchService(
-                clusterService,
-                indicesService,
-                threadPool,
-                scriptService,
-                bigArrays,
-                new FetchPhase(Collections.emptyList()),
-                new NoneCircuitBreakerService(),
-                EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                Tracer.NOOP,
-                OnlinePrewarmingService.NOOP
-            );
-
-            final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-            peerRecoveryTargetService = new PeerRecoveryTargetService(
-                client,
-                threadPool,
-                transportService,
-                recoverySettings,
-                clusterService,
-                snapshotFilesProvider
-            );
-            indicesClusterStateService = new IndicesClusterStateService(
-                settings,
-                indicesService,
-                clusterService,
-                threadPool,
-                peerRecoveryTargetService,
-                shardStateAction,
-                repositoriesService,
-                searchService,
-                peerRecoverySourceService,
-                snapshotShardsService,
-                new PrimaryReplicaSyncer(
+                indicesService = new IndicesServiceBuilder().settings(settings)
+                    .pluginsService(pluginsService)
+                    .nodeEnvironment(nodeEnv)
+                    .xContentRegistry(namedXContentRegistry)
+                    .analysisRegistry(
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        )
+                    )
+                    .indexNameExpressionResolver(indexNameExpressionResolver)
+                    .mapperRegistry(mapperRegistry)
+                    .namedWriteableRegistry(namedWriteableRegistry)
+                    .threadPool(threadPool)
+                    .indexScopedSettings(indexScopedSettings)
+                    .circuitBreakerService(new NoneCircuitBreakerService())
+                    .bigArrays(bigArrays)
+                    .scriptService(scriptService)
+                    .clusterService(clusterService)
+                    .projectResolver(DefaultProjectResolver.INSTANCE)
+                    .client(client)
+                    .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
+                    .mapperMetrics(MapperMetrics.NOOP)
+                    .mergeMetrics(MergeMetrics.NOOP)
+                    .build();
+                final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
+                snapshotShardsService = new SnapshotShardsService(
+                    settings,
+                    clusterService,
+                    repositoriesService,
                     transportService,
-                    new TransportResyncReplicationAction(
+                    indicesService
+                );
+                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
+                nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
+                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
+                actions.put(
+                    TransportUpdateSnapshotStatusAction.TYPE,
+                    new TransportUpdateSnapshotStatusAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
+                );
+                actions.put(
+                    GlobalCheckpointSyncAction.TYPE,
+                    new GlobalCheckpointSyncAction(
                         settings,
                         transportService,
                         clusterService,
                         indicesService,
                         threadPool,
                         shardStateAction,
+                        actionFilters
+                    )
+                );
+                actions.put(
+                    VerifyNodeRepositoryAction.TYPE,
+                    new VerifyNodeRepositoryAction.TransportAction(
+                        transportService,
                         actionFilters,
-                        new IndexingPressure(settings),
-                        EmptySystemIndices.INSTANCE,
+                        threadPool,
+                        clusterService,
+                        repositoriesService,
                         TestProjectResolvers.DEFAULT_PROJECT_ONLY
                     )
-                ),
-                RetentionLeaseSyncer.EMPTY,
-                client
-            );
-            final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
-            final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
-                settings,
-                clusterService,
-                indicesService,
-                allocationService,
-                shardLimitValidator,
-                environment,
-                indexScopedSettings,
-                threadPool,
-                namedXContentRegistry,
-                EmptySystemIndices.INSTANCE,
-                false,
-                new IndexSettingProviders(getIndexSettingProviders())
-            );
-            actions.put(
-                TransportCreateIndexAction.TYPE,
-                new TransportCreateIndexAction(
+                );
+                actions.put(
+                    VerifyNodeRepositoryCoordinationAction.TYPE,
+                    new VerifyNodeRepositoryCoordinationAction.LocalAction(actionFilters, transportService, clusterService, client)
+                );
+                final MetadataMappingService metadataMappingService = new MetadataMappingService(
+                    clusterService,
+                    indicesService,
+                    IndexSettingProviders.EMPTY
+                );
+
+                peerRecoverySourceService = new PeerRecoverySourceService(
                     transportService,
+                    indicesService,
+                    clusterService,
+                    recoverySettings,
+                    PeerOnlyRecoveryPlannerService.INSTANCE
+                );
+
+                final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
+                final SearchTransportService searchTransportService = new SearchTransportService(
+                    transportService,
+                    client,
+                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
+                );
+                final SearchService searchService = new SearchService(
+                    clusterService,
+                    indicesService,
+                    threadPool,
+                    scriptService,
+                    bigArrays,
+                    new FetchPhase(Collections.emptyList()),
+                    new NoneCircuitBreakerService(),
+                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                    Tracer.NOOP,
+                    OnlinePrewarmingService.NOOP
+                );
+
+                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
+                peerRecoveryTargetService = new PeerRecoveryTargetService(
+                    client,
+                    threadPool,
+                    transportService,
+                    recoverySettings,
+                    clusterService,
+                    snapshotFilesProvider
+                );
+                indicesClusterStateService = new IndicesClusterStateService(
+                    settings,
+                    indicesService,
                     clusterService,
                     threadPool,
-                    metadataCreateIndexService,
-                    actionFilters,
+                    peerRecoveryTargetService,
+                    shardStateAction,
+                    repositoriesService,
+                    searchService,
+                    peerRecoverySourceService,
+                    snapshotShardsService,
+                    new PrimaryReplicaSyncer(
+                        transportService,
+                        new TransportResyncReplicationAction(
+                            settings,
+                            transportService,
+                            clusterService,
+                            indicesService,
+                            threadPool,
+                            shardStateAction,
+                            actionFilters,
+                            new IndexingPressure(settings),
+                            EmptySystemIndices.INSTANCE,
+                            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        )
+                    ),
+                    RetentionLeaseSyncer.EMPTY,
+                    client
+                );
+                final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+                final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
+                    settings,
+                    clusterService,
+                    indicesService,
+                    allocationService,
+                    shardLimitValidator,
+                    environment,
+                    indexScopedSettings,
+                    threadPool,
+                    namedXContentRegistry,
                     EmptySystemIndices.INSTANCE,
-                    DefaultProjectResolver.INSTANCE
-                )
-            );
-            final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
-            final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
-            mappingUpdatedAction.setClient(client);
-            actions.put(
-                TransportBulkAction.TYPE,
-                new TransportBulkAction(
-                    threadPool,
-                    transportService,
-                    clusterService,
-                    new IngestService(
+                    false,
+                    new IndexSettingProviders(getIndexSettingProviders())
+                );
+                actions.put(
+                    TransportCreateIndexAction.TYPE,
+                    new TransportCreateIndexAction(
+                        transportService,
                         clusterService,
                         threadPool,
-                        environment,
-                        scriptService,
-                        new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
-                        Collections.emptyList(),
+                        metadataCreateIndexService,
+                        actionFilters,
+                        EmptySystemIndices.INSTANCE,
+                        DefaultProjectResolver.INSTANCE
+                    )
+                );
+                final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
+                final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
+                mappingUpdatedAction.setClient(client);
+                actions.put(
+                    TransportBulkAction.TYPE,
+                    new TransportBulkAction(
+                        threadPool,
+                        transportService,
+                        clusterService,
+                        new IngestService(
+                            clusterService,
+                            threadPool,
+                            environment,
+                            scriptService,
+                            new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
+                            Collections.emptyList(),
+                            client,
+                            null,
+                            FailureStoreMetrics.NOOP,
+                            TestProjectResolvers.alwaysThrow(),
+                            new FeatureService(List.of()) {
+                                @Override
+                                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                                }
+                            },
+                            mock(SamplingService.class)
+                        ),
                         client,
-                        null,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        new IndexingPressure(settings),
+                        EmptySystemIndices.INSTANCE,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                         FailureStoreMetrics.NOOP,
-                        TestProjectResolvers.alwaysThrow(),
+                        DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                         new FeatureService(List.of()) {
                             @Override
                             public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
@@ -868,470 +847,442 @@ public class SnapshotResiliencyTestHelper {
                             }
                         },
                         mock(SamplingService.class)
-                    ),
-                    client,
-                    actionFilters,
-                    indexNameExpressionResolver,
-                    new IndexingPressure(settings),
-                    EmptySystemIndices.INSTANCE,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                    FailureStoreMetrics.NOOP,
-                    DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                    new FeatureService(List.of()) {
-                        @Override
-                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                            return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                        }
-                    },
-                    mock(SamplingService.class)
-                )
-            );
-            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
-                settings,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                mappingUpdatedAction,
-                new UpdateHelper(scriptService),
-                actionFilters,
-                indexingMemoryLimits,
-                EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                DocumentParsingProvider.EMPTY_INSTANCE
-            );
-            actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
-            final RestoreService restoreService = new RestoreService(
-                clusterService,
-                repositoriesService,
-                allocationService,
-                metadataCreateIndexService,
-                new IndexMetadataVerifier(
+                    )
+                );
+                final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
                     settings,
-                    clusterService,
-                    namedXContentRegistry,
-                    mapperRegistry,
-                    indexScopedSettings,
-                    ScriptCompiler.NONE,
-                    MapperMetrics.NOOP
-                ),
-                shardLimitValidator,
-                EmptySystemIndices.INSTANCE,
-                indicesService,
-                mock(FileSettingsService.class),
-                threadPool,
-                false,
-                IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
-            );
-            actions.put(
-                TransportPutMappingAction.TYPE,
-                new TransportPutMappingAction(
                     transportService,
                     clusterService,
-                    threadPool,
-                    metadataMappingService,
-                    actionFilters,
-                    indexNameExpressionResolver,
-                    new RequestValidators<>(Collections.emptyList()),
-                    EmptySystemIndices.INSTANCE,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportAutoPutMappingAction.TYPE,
-                new TransportAutoPutMappingAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    metadataMappingService,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                    EmptySystemIndices.INSTANCE
-                )
-            );
-
-            SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
-            actions.put(
-                TransportSearchAction.TYPE,
-                new TransportSearchAction(
-                    threadPool,
-                    new NoneCircuitBreakerService(),
-                    transportService,
-                    searchService,
-                    responseCollectorService,
-                    searchTransportService,
-                    searchPhaseController,
-                    clusterService,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                    indexNameExpressionResolver,
-                    namedWriteableRegistry,
-                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                    client,
-                    usageService
-                )
-            );
-            actions.put(
-                TransportRestoreSnapshotAction.TYPE,
-                new TransportRestoreSnapshotAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    restoreService,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportDeleteIndexAction.TYPE,
-                new TransportDeleteIndexAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    new MetadataDeleteIndexService(settings, clusterService, allocationService),
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                    indexNameExpressionResolver,
-                    new DestructiveOperations(settings, clusterSettings)
-                )
-            );
-            actions.put(
-                TransportPutRepositoryAction.TYPE,
-                new TransportPutRepositoryAction(
-                    transportService,
-                    clusterService,
-                    repositoriesService,
-                    threadPool,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportCleanupRepositoryAction.TYPE,
-                new TransportCleanupRepositoryAction(
-                    transportService,
-                    clusterService,
-                    repositoriesService,
-                    threadPool,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportCreateSnapshotAction.TYPE,
-                new TransportCreateSnapshotAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    snapshotsService,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportCloneSnapshotAction.TYPE,
-                new TransportCloneSnapshotAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    snapshotsService,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportGetSnapshotsAction.TYPE,
-                new TransportGetSnapshotsAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    repositoriesService,
-                    actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportClusterRerouteAction.TYPE,
-                new TransportClusterRerouteAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    allocationService,
-                    actionFilters,
-                    TestProjectResolvers.alwaysThrow()
-                )
-            );
-            actions.put(
-                ClusterStateAction.INSTANCE,
-                new TransportClusterStateAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    actionFilters,
-                    indexNameExpressionResolver,
-                    DefaultProjectResolver.INSTANCE,
-                    new NoOpClient(threadPool)
-                )
-            );
-            actions.put(
-                TransportIndicesShardStoresAction.TYPE,
-                new TransportIndicesShardStoresAction(
-                    transportService,
-                    clusterService,
-                    threadPool,
-                    actionFilters,
-                    indexNameExpressionResolver,
-                    client
-                )
-            );
-            actions.put(
-                TransportNodesListGatewayStartedShards.TYPE,
-                new TransportNodesListGatewayStartedShards(
-                    settings,
-                    threadPool,
-                    clusterService,
-                    transportService,
-                    actionFilters,
-                    nodeEnv,
                     indicesService,
-                    namedXContentRegistry
-                )
-            );
-            actions.put(
-                TransportDeleteSnapshotAction.TYPE,
-                new TransportDeleteSnapshotAction(
-                    transportService,
-                    clusterService,
                     threadPool,
-                    snapshotsService,
+                    shardStateAction,
+                    mappingUpdatedAction,
+                    new UpdateHelper(scriptService),
                     actionFilters,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
-                )
-            );
-            actions.put(
-                TransportClusterHealthAction.TYPE,
-                new TransportClusterHealthAction(
-                    transportService,
+                    indexingMemoryLimits,
+                    EmptySystemIndices.INSTANCE,
+                    TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                    DocumentParsingProvider.EMPTY_INSTANCE
+                );
+                actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
+                final RestoreService restoreService = new RestoreService(
                     clusterService,
-                    threadPool,
-                    actionFilters,
-                    indexNameExpressionResolver,
+                    repositoriesService,
                     allocationService,
-                    projectResolver
-                )
-            );
+                    metadataCreateIndexService,
+                    new IndexMetadataVerifier(
+                        settings,
+                        clusterService,
+                        namedXContentRegistry,
+                        mapperRegistry,
+                        indexScopedSettings,
+                        ScriptCompiler.NONE,
+                        MapperMetrics.NOOP
+                    ),
+                    shardLimitValidator,
+                    EmptySystemIndices.INSTANCE,
+                    indicesService,
+                    mock(FileSettingsService.class),
+                    threadPool,
+                    false,
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
+                );
+                actions.put(
+                    TransportPutMappingAction.TYPE,
+                    new TransportPutMappingAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        metadataMappingService,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        new RequestValidators<>(Collections.emptyList()),
+                        EmptySystemIndices.INSTANCE,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportAutoPutMappingAction.TYPE,
+                    new TransportAutoPutMappingAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        metadataMappingService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                        EmptySystemIndices.INSTANCE
+                    )
+                );
 
-            doInit(actions, actionFilters);
+                SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
+                actions.put(
+                    TransportSearchAction.TYPE,
+                    new TransportSearchAction(
+                        threadPool,
+                        new NoneCircuitBreakerService(),
+                        transportService,
+                        searchService,
+                        responseCollectorService,
+                        searchTransportService,
+                        searchPhaseController,
+                        clusterService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                        indexNameExpressionResolver,
+                        namedWriteableRegistry,
+                        EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                        new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                        client,
+                        usageService
+                    )
+                );
+                actions.put(
+                    TransportRestoreSnapshotAction.TYPE,
+                    new TransportRestoreSnapshotAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        restoreService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportDeleteIndexAction.TYPE,
+                    new TransportDeleteIndexAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        new MetadataDeleteIndexService(settings, clusterService, allocationService),
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                        indexNameExpressionResolver,
+                        new DestructiveOperations(settings, clusterSettings)
+                    )
+                );
+                actions.put(
+                    TransportPutRepositoryAction.TYPE,
+                    new TransportPutRepositoryAction(
+                        transportService,
+                        clusterService,
+                        repositoriesService,
+                        threadPool,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportCleanupRepositoryAction.TYPE,
+                    new TransportCleanupRepositoryAction(
+                        transportService,
+                        clusterService,
+                        repositoriesService,
+                        threadPool,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportCreateSnapshotAction.TYPE,
+                    new TransportCreateSnapshotAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        snapshotsService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportCloneSnapshotAction.TYPE,
+                    new TransportCloneSnapshotAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        snapshotsService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportGetSnapshotsAction.TYPE,
+                    new TransportGetSnapshotsAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        repositoriesService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportClusterRerouteAction.TYPE,
+                    new TransportClusterRerouteAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        allocationService,
+                        actionFilters,
+                        TestProjectResolvers.alwaysThrow()
+                    )
+                );
+                actions.put(
+                    ClusterStateAction.INSTANCE,
+                    new TransportClusterStateAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        DefaultProjectResolver.INSTANCE,
+                        new NoOpClient(threadPool)
+                    )
+                );
+                actions.put(
+                    TransportIndicesShardStoresAction.TYPE,
+                    new TransportIndicesShardStoresAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        client
+                    )
+                );
+                actions.put(
+                    TransportNodesListGatewayStartedShards.TYPE,
+                    new TransportNodesListGatewayStartedShards(
+                        settings,
+                        threadPool,
+                        clusterService,
+                        transportService,
+                        actionFilters,
+                        nodeEnv,
+                        indicesService,
+                        namedXContentRegistry
+                    )
+                );
+                actions.put(
+                    TransportDeleteSnapshotAction.TYPE,
+                    new TransportDeleteSnapshotAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        snapshotsService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
+                );
+                actions.put(
+                    TransportClusterHealthAction.TYPE,
+                    new TransportClusterHealthAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        allocationService,
+                        projectResolver
+                    )
+                );
 
-            client.initialize(
-                actions,
-                transportService.getTaskManager(),
-                () -> clusterService.localNode().getId(),
-                transportService.getLocalNodeConnection(),
-                transportService.getRemoteClusterService()
-            );
+                doInit(actions, actionFilters);
 
-            warningConsumer.accept(getWarningHeaders());
-        }
+                client.initialize(
+                    actions,
+                    transportService.getTaskManager(),
+                    () -> clusterService.localNode().getId(),
+                    transportService.getLocalNodeConnection(),
+                    transportService.getRemoteClusterService()
+                );
 
-        protected String[] getWarningHeaders() {
-            return new String[] {
-                "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the breaking changes documentation for the next major version." };
-        }
-
-        protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
-
-        /**
-         * Maybe execute the given transport runnable inline. If executed, return true, else return false to schedule it.
-         * @param runnable The transport layer runnable, i.e. request and response.
-         * @return true if executed, false to schedule it.
-         */
-        protected boolean maybeExecuteTransportRunnable(Runnable runnable) {
-            return false;
-        }
-
-        public void restart() {
-            restart(() -> true);
-        }
-
-        /**
-         * Restart this node by stopping, recreation and starting with the cluster state before stop.
-         * @param scheduleCondition A condition to satisfy before actually starting the node. If the condition is not satisfied,
-         *                          reschedule the start at a future time.
-         */
-        public void restart(BooleanSupplier scheduleCondition) {
-            testClusterNodes.disconnectNode(this);
-            final ClusterState oldState = this.clusterService.state();
-            stop();
-            testClusterNodes.nodes().remove(node.getName());
-
-            final Runnable startRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (scheduleCondition.getAsBoolean() == false) {
-                        TestClusterNode.this.scheduleSoon(this);
-                        return;
-                    }
-                    try {
-                        final TestClusterNode restartedNode = testClusterNodes.newNode(
-                            DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles()),
-                            tempDir,
-                            deterministicTaskQueue,
-                            testClusterNodes,
-                            transportInterceptorFactory,
-                            warningConsumer
-                        );
-                        restartedNode.init();
-                        testClusterNodes.nodes().put(node.getName(), restartedNode);
-                        restartedNode.start(oldState);
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                }
-            };
-            scheduleSoon(startRunnable);
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public NodeClient client() {
-            return client;
-        }
-
-        public RepositoriesService repositoriesService() {
-            return repositoriesService;
-        }
-
-        public ClusterService clusterService() {
-            return clusterService;
-        }
-
-        public Coordinator coordinator() {
-            return coordinator;
-        }
-
-        public TransportService transportService() {
-            return transportService;
-        }
-
-        protected Settings nodeSettings() {
-            return Settings.EMPTY;
-        }
-
-        protected Set<Setting<?>> clusterSettings() {
-            return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
-        }
-
-        protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
-            return ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
-        }
-
-        protected Function<Runnable, Runnable> wrapRunnable() {
-            return runnable -> DeterministicTaskQueue.onNodeLog(node, runnable);
-        }
-
-        protected Set<IndexSettingProvider> getIndexSettingProviders() {
-            return Set.of();
-        }
-
-        protected Supplier<CoordinationState.PersistedState> getPersistedStateSupplier(ClusterState initialState, DiscoveryNode node) {
-            final CoordinationState.PersistedState persistedState = new InMemoryPersistedState(
-                initialState.term(),
-                stateForNode(initialState, node)
-            );
-            return () -> persistedState;
-        }
-
-        protected ElectionStrategy createElectionStrategy() {
-            return ElectionStrategy.DEFAULT_INSTANCE;
-        }
-
-        protected LeaderHeartbeatService getLeaderHeartbeatService() {
-            return LeaderHeartbeatService.NO_OP;
-        }
-
-        protected Reconfigurator createReconfigurator() {
-            return new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings());
-        }
-
-        protected PreVoteCollector.Factory createPrevoteCollector() {
-            return StatefulPreVoteCollector::new;
-        }
-
-        public void stop() {
-            testClusterNodes.disconnectNode(this);
-            indicesService.close();
-            clusterService.close();
-            nodeConnectionsService.stop();
-            indicesClusterStateService.close();
-            peerRecoverySourceService.stop();
-            if (coordinator != null) {
-                coordinator.close();
+                warningConsumer.accept(getWarningHeaders());
             }
-            nodeEnv.close();
-        }
 
-        public void start(ClusterState initialState) {
-            transportService.start();
-            transportService.acceptIncomingRequests();
-            snapshotsService.start();
-            snapshotShardsService.start();
-            repositoriesService.start();
-            coordinator = new Coordinator(
-                node.getName(),
-                clusterService.getSettings(),
-                clusterService.getClusterSettings(),
-                transportService,
-                client,
-                namedWriteableRegistry,
-                allocationService,
-                masterService,
-                getPersistedStateSupplier(initialState, node),
-                hostsResolver -> testClusterNodes.nodes()
-                    .values()
-                    .stream()
-                    .filter(n -> n.node.isMasterNode())
-                    .map(n -> n.node.getAddress())
-                    .toList(),
-                clusterService.getClusterApplierService(),
-                Collections.emptyList(),
-                LuceneTestCase.random(),
-                rerouteService,
-                createElectionStrategy(),
-                () -> new StatusInfo(HEALTHY, "healthy-info"),
-                new NoneCircuitBreakerService(),
-                createReconfigurator(),
-                getLeaderHeartbeatService(),
-                createPrevoteCollector(),
-                CompatibilityVersionsUtils.staticCurrent(),
-                new FeatureService(List.of()),
-                this.clusterService
-            );
-            masterService.setClusterStatePublisher(coordinator);
-            coordinator.start();
-            clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
-            nodeConnectionsService.start();
-            clusterService.start();
-            indicesService.start();
-            indicesClusterStateService.start();
-            coordinator.startInitialJoin();
-            peerRecoverySourceService.start();
-        }
+            protected String[] getWarningHeaders() {
+                return new String[] {
+                    "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                        + "See the breaking changes documentation for the next major version." };
+            }
 
-        private void scheduleNow(Runnable runnable) {
-            deterministicTaskQueue.scheduleNow(runnable);
-        }
+            protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
 
-        private void scheduleSoon(Runnable runnable) {
-            deterministicTaskQueue.scheduleAt(
-                deterministicTaskQueue.getCurrentTimeMillis() + ESTestCase.randomLongBetween(0, 100L),
-                runnable
-            );
+            /**
+             * Maybe execute the given transport runnable inline. If executed, return true, else return false to schedule it.
+             * @param runnable The transport layer runnable, i.e. request and response.
+             * @return true if executed, false to schedule it.
+             */
+            protected boolean maybeExecuteTransportRunnable(Runnable runnable) {
+                return false;
+            }
+
+            public void restart() {
+                restart(() -> true);
+            }
+
+            /**
+             * Restart this node by stopping, recreation and starting with the cluster state before stop.
+             * @param scheduleCondition A condition to satisfy before actually starting the node. If the condition is not satisfied,
+             *                          reschedule the start at a future time.
+             */
+            public void restart(BooleanSupplier scheduleCondition) {
+                disconnectNode(this);
+                final ClusterState oldState = this.clusterService.state();
+                stop();
+                nodes().remove(node.getName());
+
+                final Runnable startRunnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        if (scheduleCondition.getAsBoolean() == false) {
+                            TestClusterNode.this.scheduleSoon(this);
+                            return;
+                        }
+                        try {
+                            final TestClusterNode restartedNode = newNode(
+                                DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles()),
+                                transportInterceptorFactory
+                            );
+                            restartedNode.init();
+                            nodes.put(node.getName(), restartedNode);
+                            restartedNode.start(oldState);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                };
+                scheduleSoon(startRunnable);
+            }
+
+            public DiscoveryNode node() {
+                return node;
+            }
+
+            public NodeClient client() {
+                return client;
+            }
+
+            public RepositoriesService repositoriesService() {
+                return repositoriesService;
+            }
+
+            public ClusterService clusterService() {
+                return clusterService;
+            }
+
+            public Coordinator coordinator() {
+                return coordinator;
+            }
+
+            public TransportService transportService() {
+                return transportService;
+            }
+
+            protected Settings nodeSettings() {
+                return Settings.EMPTY;
+            }
+
+            protected Set<Setting<?>> clusterSettings() {
+                return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+            }
+
+            protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+                return ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
+            }
+
+            protected Set<IndexSettingProvider> getIndexSettingProviders() {
+                return Set.of();
+            }
+
+            protected Supplier<CoordinationState.PersistedState> getPersistedStateSupplier(ClusterState initialState, DiscoveryNode node) {
+                final CoordinationState.PersistedState persistedState = new InMemoryPersistedState(
+                    initialState.term(),
+                    stateForNode(initialState, node)
+                );
+                return () -> persistedState;
+            }
+
+            protected ElectionStrategy createElectionStrategy() {
+                return ElectionStrategy.DEFAULT_INSTANCE;
+            }
+
+            protected LeaderHeartbeatService getLeaderHeartbeatService() {
+                return LeaderHeartbeatService.NO_OP;
+            }
+
+            protected Reconfigurator createReconfigurator() {
+                return new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings());
+            }
+
+            protected PreVoteCollector.Factory createPrevoteCollector() {
+                return StatefulPreVoteCollector::new;
+            }
+
+            public void stop() {
+                disconnectNode(this);
+                indicesService.close();
+                clusterService.close();
+                nodeConnectionsService.stop();
+                indicesClusterStateService.close();
+                peerRecoverySourceService.stop();
+                if (coordinator != null) {
+                    coordinator.close();
+                }
+                nodeEnv.close();
+            }
+
+            public void start(ClusterState initialState) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+                snapshotsService.start();
+                snapshotShardsService.start();
+                repositoriesService.start();
+                coordinator = new Coordinator(
+                    node.getName(),
+                    clusterService.getSettings(),
+                    clusterService.getClusterSettings(),
+                    transportService,
+                    client,
+                    namedWriteableRegistry,
+                    allocationService,
+                    masterService,
+                    getPersistedStateSupplier(initialState, node),
+                    hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode()).map(n -> n.node.getAddress()).toList(),
+                    clusterService.getClusterApplierService(),
+                    Collections.emptyList(),
+                    LuceneTestCase.random(),
+                    rerouteService,
+                    createElectionStrategy(),
+                    () -> new StatusInfo(HEALTHY, "healthy-info"),
+                    new NoneCircuitBreakerService(),
+                    createReconfigurator(),
+                    getLeaderHeartbeatService(),
+                    createPrevoteCollector(),
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    new FeatureService(List.of()),
+                    this.clusterService
+                );
+                masterService.setClusterStatePublisher(coordinator);
+                coordinator.start();
+                clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
+                nodeConnectionsService.start();
+                clusterService.start();
+                indicesService.start();
+                indicesClusterStateService.start();
+                coordinator.startInitialJoin();
+                peerRecoverySourceService.start();
+            }
+
+            private void scheduleNow(Runnable runnable) {
+                deterministicTaskQueue.scheduleNow(runnable);
+            }
+
+            private void scheduleSoon(Runnable runnable) {
+                deterministicTaskQueue.scheduleAt(
+                    deterministicTaskQueue.getCurrentTimeMillis() + ESTestCase.randomLongBetween(0, 100L),
+                    runnable
+                );
+            }
         }
     }
 }

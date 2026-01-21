@@ -1816,7 +1816,7 @@ public class EsqlCapabilities {
         /**
          * PromQL clamp, clamp_min, and clamp_max functions support.
          */
-        PROMQL_CLAMP(Build.current().isSnapshot()),
+        PROMQL_TECH_PREVIEW(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

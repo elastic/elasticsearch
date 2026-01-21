@@ -29,9 +29,11 @@ import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
@@ -318,12 +320,14 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                int centroidOrdinal = neighborQueue.pop();
-                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
+            public PostingMetadata nextPosting() throws IOException {
+                long centroidOrdinalAndScore = neighborQueue.popRaw();
+                int centroidOrd = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
+                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrd);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrd, score);
             }
         };
     }
@@ -357,7 +361,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 }
 
                 @Override
-                public CentroidOffsetAndLength nextPostingListOffsetAndLength() {
+                public PostingMetadata nextPosting() {
                     return null;
                 }
             };
@@ -427,18 +431,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                int centroidOrdinal = nextCentroid();
+            public PostingMetadata nextPosting() throws IOException {
+                long centroidOrdinalAndScore = nextCentroid();
+                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, score);
             }
 
-            private int nextCentroid() throws IOException {
+            private long nextCentroid() throws IOException {
                 if (currentParentQueue.size() > 0) {
                     // return next centroid and maybe add a children from the current parent queue
-                    return neighborQueue.popAndAddRaw(currentParentQueue.popRaw());
+                    return neighborQueue.popRawAndAddRaw(currentParentQueue.popRaw());
                 } else if (parentsQueue.size() > 0) {
                     // current parent queue is empty, populate it again with the next parent
                     int pop = parentsQueue.pop();
@@ -459,7 +465,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                     );
                     return nextCentroid();
                 } else {
-                    return neighborQueue.pop();
+                    return neighborQueue.popRaw();
                 }
             }
         };
@@ -649,9 +655,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         }
 
         @Override
-        public int resetPostingsScorer(long offset) throws IOException {
+        public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
             quantized = false;
-            indexInput.seek(offset);
+            indexInput.seek(metadata.offset());
             indexInput.readFloats(centroid, 0, centroid.length);
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();

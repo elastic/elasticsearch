@@ -116,7 +116,11 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
                 return Collections.emptySet();
             }
 
-            return values.stream().map(v -> v == null ? nullValue : v).filter(Objects::nonNull).collect(Collectors.toSet());
+            return values.stream()
+                .map(v -> v == null ? nullValue : v)
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .collect(Collectors.toSet());
         }
     }
 }

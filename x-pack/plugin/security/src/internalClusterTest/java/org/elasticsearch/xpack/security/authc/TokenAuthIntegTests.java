@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -407,13 +408,16 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testInvalidateNotValidRefreshTokens() throws Exception {
         final TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        final var bytesRefRecycler = internalCluster().getInstance(BigArrays.class).bytesRefRecycler();
+
         // Perform a request to invalidate a refresh token, before the tokens index is created
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> invalidateRefreshToken(
                 TokenService.prependVersionAndEncodeRefreshToken(
                     TransportVersion.current(),
-                    tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2()
+                    tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2(),
+                    bytesRefRecycler
                 )
             )
         );
@@ -423,7 +427,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             () -> invalidateRefreshToken(
                 TokenService.prependVersionAndEncodeRefreshToken(
                     MINIMUM_TRANSPORT_VERSION,
-                    tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2()
+                    tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2(),
+                    bytesRefRecycler
                 )
             )
         );
@@ -443,7 +448,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] longerRefreshToken = new byte[randomIntBetween(17, 24)];
         random().nextBytes(longerRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, longerRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, longerRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -452,7 +457,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         longerRefreshToken = new byte[randomIntBetween(25, 32)];
         random().nextBytes(longerRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), longerRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), longerRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -461,7 +466,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] shorterRefreshToken = new byte[randomIntBetween(12, 15)];
         random().nextBytes(shorterRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, shorterRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(MINIMUM_TRANSPORT_VERSION, shorterRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -470,7 +475,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         shorterRefreshToken = new byte[randomIntBetween(16, 23)];
         random().nextBytes(shorterRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), shorterRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), shorterRefreshToken, bytesRefRecycler)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -481,7 +486,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         invalidateResponse = invalidateRefreshToken(
             TokenService.prependVersionAndEncodeRefreshToken(
                 TransportVersion.current(),
-                tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2()
+                tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2(),
+                bytesRefRecycler
             )
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
@@ -491,7 +497,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         invalidateResponse = invalidateRefreshToken(
             TokenService.prependVersionAndEncodeRefreshToken(
                 MINIMUM_TRANSPORT_VERSION,
-                tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2()
+                tokenService.getRandomTokenBytes(MINIMUM_TRANSPORT_VERSION, true).v2(),
+                bytesRefRecycler
             )
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));

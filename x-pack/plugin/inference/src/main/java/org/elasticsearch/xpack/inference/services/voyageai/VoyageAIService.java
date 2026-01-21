@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -43,7 +44,9 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModelCreator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -63,7 +66,12 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     private static final String SERVICE_NAME = "Voyage AI";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
-    private static final VoyageAIModelFactory MODEL_FACTORY = new VoyageAIModelFactory();
+    private static final Map<TaskType, ModelCreator<? extends VoyageAIModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new VoyageAIEmbeddingsModelCreator(),
+        TaskType.RERANK,
+        new VoyageAIRerankModelCreator()
+    );
     private static final Integer DEFAULT_BATCH_SIZE = 7;
     private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.of(
         "voyage-multimodal-3",
@@ -190,7 +198,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -230,7 +238,13 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

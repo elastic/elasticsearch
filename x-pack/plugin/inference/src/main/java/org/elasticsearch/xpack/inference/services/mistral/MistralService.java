@@ -38,12 +38,15 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mistral.action.MistralActionCreator;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -82,7 +85,15 @@ public class MistralService extends SenderService {
         "mistral chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final MistralModelFactory MODEL_FACTORY = new MistralModelFactory();
+    private static final MistralChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new MistralChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends MistralModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new MistralEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR
+    );
 
     public MistralService(
         HttpRequestSender.Factory factory,
@@ -245,7 +256,13 @@ public class MistralService extends SenderService {
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -279,7 +296,7 @@ public class MistralService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,

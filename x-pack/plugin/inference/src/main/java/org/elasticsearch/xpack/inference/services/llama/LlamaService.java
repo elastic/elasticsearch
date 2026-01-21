@@ -37,13 +37,16 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionCreator;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -86,7 +89,15 @@ public class LlamaService extends SenderService {
         "llama chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final LlamaModelFactory MODEL_FACTORY = new LlamaModelFactory();
+    private static final LlamaChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new LlamaChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends LlamaModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new LlamaEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR
+    );
 
     /**
      * Constructor for creating a LlamaService with specified HTTP request sender factory and service components.
@@ -147,7 +158,16 @@ public class LlamaService extends SenderService {
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(inferenceId, taskType, NAME, serviceSettings, null, chunkingSettings, secretSettings, context);
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
+            inferenceId,
+            taskType,
+            NAME,
+            serviceSettings,
+            null,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -306,7 +326,13 @@ public class LlamaService extends SenderService {
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     private LlamaModel createModelFromPersistent(

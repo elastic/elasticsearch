@@ -41,13 +41,16 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionCreator;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -78,7 +81,15 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
     private static final String SERVICE_NAME = "Jina AI";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.EMBEDDING);
-    private static final JinaAIModelFactory MODEL_FACTORY = new JinaAIModelFactory();
+    private static final JinaAIEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new JinaAIEmbeddingsModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends JinaAIModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        EMBEDDINGS_MODEL_CREATOR,
+        TaskType.EMBEDDING,
+        EMBEDDINGS_MODEL_CREATOR,
+        TaskType.RERANK,
+        new JinaAIRerankModelCreator()
+    );
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
         InputType.SEARCH,
@@ -170,7 +181,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -210,7 +221,13 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

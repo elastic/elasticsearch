@@ -38,15 +38,19 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.action.NvidiaActionCreator;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -96,7 +100,17 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         "Nvidia chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final NvidiaModelFactory MODEL_FACTORY = new NvidiaModelFactory();
+    private static final NvidiaChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new NvidiaChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends NvidiaModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new NvidiaEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new NvidiaRerankModelCreator()
+    );
 
     /**
      * Constructor for creating an {@link NvidiaService} with specified HTTP request sender factory and service components.
@@ -154,7 +168,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
             inferenceId,
             taskType,
             NAME,
@@ -365,7 +379,13 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

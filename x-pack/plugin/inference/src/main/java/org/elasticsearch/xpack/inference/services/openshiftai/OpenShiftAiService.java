@@ -39,16 +39,20 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openshiftai.action.OpenShiftAiActionCreator;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.request.completion.OpenShiftAiChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -88,7 +92,17 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
         "OpenShift AI chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final OpenShiftAiModelFactory MODEL_FACTORY = new OpenShiftAiModelFactory();
+    private static final OpenShiftAiChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new OpenShiftAiChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends OpenShiftAiModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new OpenShiftAiEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new OpenShiftAiRerankModelCreator()
+    );
 
     public OpenShiftAiService(
         HttpRequestSender.Factory factory,
@@ -257,7 +271,13 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -293,7 +313,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
         ChunkingSettings chunkingSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,

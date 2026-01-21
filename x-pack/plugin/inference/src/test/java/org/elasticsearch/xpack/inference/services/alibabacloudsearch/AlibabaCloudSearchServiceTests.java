@@ -804,13 +804,13 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     }
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        ModelConfigurations modelConfigurations = new ModelConfigurations(
+        var modelConfigurations = new ModelConfigurations(
             INFERENCE_ENTITY_ID_VALUE,
             TaskType.CHAT_COMPLETION,
             AlibabaCloudSearchService.NAME,
             mock(ServiceSettings.class)
         );
-        try (InferenceService inferenceService = createInferenceService()) {
+        try (var inferenceService = createInferenceService()) {
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
@@ -870,8 +870,8 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     }
 
     private void validateModelBuilding(Model model) throws IOException {
-        try (InferenceService inferenceService = createInferenceService()) {
-            Model resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
             assertThat(resultModel, is(model));
         }
     }

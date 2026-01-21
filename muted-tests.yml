@@ -201,9 +201,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.readiness.ReadinessClusterIT
-  method: testReadinessDuringRestartsNormalOrder
-  issue: https://github.com/elastic/elasticsearch/issues/136955
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
   issue: https://github.com/elastic/elasticsearch/issues/137457
@@ -285,9 +282,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test072RunEsAsDifferentUserAndGroup
-  issue: https://github.com/elastic/elasticsearch/issues/140127
 - class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
   method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
   issue: https://github.com/elastic/elasticsearch/issues/140603
@@ -351,27 +345,9 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testReadBlobWithPrematureConnectionClose
   issue: https://github.com/elastic/elasticsearch/issues/140954
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/140941
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<small positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/140999
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<positive longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/141000
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<big positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/141001
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
-  method: testGroupingAggregate {TestCase=<small positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/141002
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
-  method: testGroupingAggregate {TestCase=<positive longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/141003
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
-  method: testGroupingAggregate {TestCase=<big positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/141004
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
+  issue: https://github.com/elastic/elasticsearch/issues/141034
 
 # Examples:
 #

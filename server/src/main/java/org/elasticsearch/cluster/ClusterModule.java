@@ -122,7 +122,7 @@ public class ClusterModule extends AbstractModule {
 
     public static final String BALANCED_ALLOCATOR = "balanced";
     public static final String DESIRED_BALANCE_ALLOCATOR = "desired_balance"; // default
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = Setting.simpleString(
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,
@@ -514,7 +514,7 @@ public class ClusterModule extends AbstractModule {
         }
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // in v10 there is only one allocator
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // in v10 there is only one allocator
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,

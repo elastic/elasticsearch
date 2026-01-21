@@ -38,13 +38,16 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionCreator;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -82,7 +85,15 @@ public class AzureOpenAiService extends SenderService {
         CHAT_COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final AzureOpenAiModelFactory MODEL_FACTORY = new AzureOpenAiModelFactory();
+    private static final AzureOpenAiCompletionModelCreator COMPLETION_MODEL_CREATOR = new AzureOpenAiCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends AzureOpenAiModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new AzureOpenAiEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR
+    );
 
     public AzureOpenAiService(
         HttpRequestSender.Factory factory,
@@ -167,7 +178,7 @@ public class AzureOpenAiService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -207,7 +218,13 @@ public class AzureOpenAiService extends SenderService {
 
     @Override
     public AzureOpenAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

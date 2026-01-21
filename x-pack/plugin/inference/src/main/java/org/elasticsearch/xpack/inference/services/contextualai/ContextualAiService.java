@@ -33,11 +33,13 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionCreator;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
+import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -57,7 +59,10 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     private static final TransportVersion CONTEXTUAL_AI_SERVICE = TransportVersion.fromName("contextual_ai_service");
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
-    private static final ContextualAiModelFactory MODEL_FACTORY = new ContextualAiModelFactory();
+    private static final Map<TaskType, ModelCreator<? extends ContextualAiModel>> MODEL_CREATORS = Map.of(
+        TaskType.RERANK,
+        new ContextualAiRerankModelCreator()
+    );
 
     public ContextualAiService(
         HttpRequestSender.Factory factory,
@@ -119,7 +124,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -154,7 +159,13 @@ public class ContextualAiService extends SenderService implements RerankingInfer
 
     @Override
     public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

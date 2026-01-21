@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -60,7 +61,13 @@ public class DeepSeekService extends SenderService {
     );
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_STREAMING = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
-    private static final DeepSeekModelFactory MODEL_FACTORY = new DeepSeekModelFactory();
+    private static final DeepSeekChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new DeepSeekChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends DeepSeekChatCompletionModel>> MODEL_CREATORS = Map.of(
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR
+    );
 
     public DeepSeekService(
         HttpRequestSender.Factory factory,
@@ -162,7 +169,16 @@ public class DeepSeekService extends SenderService {
         Map<String, Object> secretSettingsMap,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(inferenceEntityId, taskType, NAME, serviceSettingsMap, null, null, secretSettingsMap, context);
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettingsMap,
+            null,
+            null,
+            secretSettingsMap,
+            context
+        );
     }
 
     @Override
@@ -179,7 +195,13 @@ public class DeepSeekService extends SenderService {
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

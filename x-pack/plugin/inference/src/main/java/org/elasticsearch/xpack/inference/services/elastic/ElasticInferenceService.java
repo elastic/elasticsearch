@@ -39,15 +39,20 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -100,10 +105,10 @@ public class ElasticInferenceService extends SenderService {
         TaskType.TEXT_EMBEDDING
     );
 
-    private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
+    private final Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
+
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
-    private final ElasticInferenceServiceModelFactory modelFactory;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -123,11 +128,23 @@ public class ElasticInferenceService extends SenderService {
         CCMAuthenticationApplierFactory ccmAuthApplierFactory
     ) {
         super(factory, serviceComponents, clusterService);
-        this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
+        this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
+        var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
-        this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
-        this.modelFactory = new ElasticInferenceServiceModelFactory(elasticInferenceServiceComponents);
+        var completionModelCreator = new ElasticInferenceServiceCompletionModelCreator(elasticInferenceServiceComponents);
+        this.modelCreators = Map.of(
+            TaskType.TEXT_EMBEDDING,
+            new ElasticInferenceServiceDenseTextEmbeddingsModelCreator(elasticInferenceServiceComponents),
+            TaskType.SPARSE_EMBEDDING,
+            new ElasticInferenceServiceSparseEmbeddingsModelCreator(elasticInferenceServiceComponents),
+            TaskType.COMPLETION,
+            completionModelCreator,
+            TaskType.CHAT_COMPLETION,
+            completionModelCreator,
+            TaskType.RERANK,
+            new ElasticInferenceServiceRerankModelCreator(elasticInferenceServiceComponents)
+        );
     }
 
     public void init() {
@@ -368,7 +385,7 @@ public class ElasticInferenceService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return modelFactory.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(modelCreators, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -408,7 +425,13 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public ElasticInferenceServiceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return modelFactory.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            modelCreators,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

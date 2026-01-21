@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -29,6 +31,7 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -36,14 +39,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -63,6 +70,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsEndpointTypeForTask;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsTaskType;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
@@ -79,7 +88,14 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-    private static final AzureAiStudioModelFactory MODEL_FACTORY = new AzureAiStudioModelFactory();
+    private static final Map<TaskType, ModelCreator<? extends AzureAiStudioModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new AzureAiStudioEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        new AzureAiStudioChatCompletionModelCreator(),
+        TaskType.RERANK,
+        new AzureAiStudioRerankModelCreator()
+    );
 
     public AzureAiStudioService(
         HttpRequestSender.Factory factory,
@@ -219,7 +235,15 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
 
     @Override
     public AzureAiStudioModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        var model = retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
+        checkProviderAndEndpointTypeForTask(config.getTaskType(), model.provider(), model.endpointType());
+        return model;
     }
 
     @Override
@@ -269,7 +293,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        var model = retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -279,6 +303,33 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
             secretSettings,
             context
         );
+        checkProviderAndEndpointTypeForTask(taskType, model.provider(), model.endpointType());
+        return model;
+    }
+
+    private static void checkProviderAndEndpointTypeForTask(
+        TaskType taskType,
+        AzureAiStudioProvider provider,
+        AzureAiStudioEndpointType endpointType
+    ) {
+        if (providerAllowsTaskType(provider, taskType) == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format("The [%s] task type for provider [%s] is not available", taskType, provider),
+                RestStatus.BAD_REQUEST
+            );
+        }
+
+        if (providerAllowsEndpointTypeForTask(provider, taskType, endpointType) == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "The [%s] endpoint type with [%s] task type for provider [%s] is not available",
+                    endpointType,
+                    taskType,
+                    provider
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
     }
 
     private AzureAiStudioModel createModelFromPersistent(

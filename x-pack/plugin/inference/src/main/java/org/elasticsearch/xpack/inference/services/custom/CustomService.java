@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
@@ -78,7 +79,17 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         TaskType.RERANK,
         TaskType.COMPLETION
     );
-    private static final CustomModelFactory MODEL_FACTORY = new CustomModelFactory();
+    private static final CustomModelCreator MODEL_CREATOR = new CustomModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends CustomModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        MODEL_CREATOR,
+        TaskType.SPARSE_EMBEDDING,
+        MODEL_CREATOR,
+        TaskType.COMPLETION,
+        MODEL_CREATOR,
+        TaskType.RERANK,
+        MODEL_CREATOR
+    );
 
     public CustomService(
         HttpRequestSender.Factory factory,
@@ -212,7 +223,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -249,7 +260,13 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     @Override
     public CustomModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {

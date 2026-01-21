@@ -30,9 +30,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.anthropic.action.AnthropicActionCreator;
+import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -54,7 +56,10 @@ public class AnthropicService extends SenderService {
     private static final String SERVICE_NAME = "Anthropic";
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION);
-    private static final AnthropicModelFactory MODEL_FACTORY = new AnthropicModelFactory();
+    private static final Map<TaskType, ModelCreator<? extends AnthropicModel>> MODEL_CREATORS = Map.of(
+        TaskType.COMPLETION,
+        new AnthropicChatCompletionModelCreator()
+    );
 
     public AnthropicService(
         HttpRequestSender.Factory factory,
@@ -128,7 +133,7 @@ public class AnthropicService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -156,7 +161,13 @@ public class AnthropicService extends SenderService {
 
     @Override
     public AnthropicModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

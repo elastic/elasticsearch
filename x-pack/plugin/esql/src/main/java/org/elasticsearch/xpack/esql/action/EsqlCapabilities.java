@@ -1824,6 +1824,8 @@ public class EsqlCapabilities {
          */
         PROMQL_CLAMP(Build.current().isSnapshot()),
 
+        PROMQL_QUANTILE(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
+
         /**
          * KNN function adds support for k and visit_percentage options
          */
@@ -1912,6 +1914,11 @@ public class EsqlCapabilities {
         ENRICH_DENSE_VECTOR_BUGFIX,
 
         /**
+         * Support for dense_vector arithmetic operations (+, -, *, /)
+         */
+        DENSE_VECTOR_ARITHMETIC,
+
+        /**
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
@@ -1934,6 +1941,11 @@ public class EsqlCapabilities {
          * MMR result diversification command
          */
         MMR(Build.current().isSnapshot()),
+
+        /**
+         * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
+         */
+        METADATA_WILDCARDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

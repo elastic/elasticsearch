@@ -22,7 +22,6 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasValue;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -803,9 +802,19 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
             Exception e = expectThrows(
                 RuntimeException.class,
-                () -> TextStructureUtils
-                    .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10));
-            assertEquals("Field [hosts.host] has both object and non-object values - this is not supported by Elasticsearch", e.getMessage());
+                () -> TextStructureUtils.guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(input),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    10
+                )
+            );
+            assertEquals(
+                "Field [hosts.host] has both object and non-object values - this is not supported by Elasticsearch",
+                e.getMessage()
+            );
         };
 
         ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
@@ -823,7 +832,14 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
         Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
             Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-                .guessMappingsAndCalculateFieldStats(explanation, List.of(finalInput), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, inputDepth + 1);
+                .guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(finalInput),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    inputDepth + 1
+                );
 
             Map<String, Object> mappings = mappingsAndFieldStats.v1();
             assertNotNull(mappings);
@@ -847,7 +863,14 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
         Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
             Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-                .guessMappingsAndCalculateFieldStats(explanation, List.of(finalInput), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, inputDepth - 1);
+                .guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(finalInput),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    inputDepth - 1
+                );
 
             Map<String, Object> mappings = mappingsAndFieldStats.v1();
             assertNotNull(mappings);
@@ -856,7 +879,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             assertThat(
                 "Anything beyond the max depth gets serialized into 'object'",
                 mappings,
-                not(hasKey("level1.level2.level3.level4.level5.level6.level7.level8.level10")));
+                not(hasKey("level1.level2.level3.level4.level5.level6.level7.level8.level10"))
+            );
             assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
         };
 

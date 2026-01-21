@@ -69,7 +69,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
             {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
             """;
 
-        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample, true,true);
+        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample, true, true);
 
         assertKeyValue("host.id", "long", responseMap);
         assertKeyValue("host.category", "keyword", responseMap);
@@ -83,20 +83,25 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
             {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
             """;
 
-        Map<String, Object> responseMap1 = executeAndVerifyRequest(nestedJsonSample, true,false);
+        Map<String, Object> responseMap1 = executeAndVerifyRequest(nestedJsonSample, true, false);
         Map<String, Object> responseMap2 = executeAndVerifyRequest(nestedJsonSample);
 
         assertThat(
             "Setting `parse_recursively=false` is equivalent to not setting this argument at all",
             responseMap1,
-            equalTo(responseMap2));
+            equalTo(responseMap2)
+        );
     }
 
     private static Map<String, Object> executeAndVerifyRequest(String sample) throws IOException {
         return executeAndVerifyRequest(sample, false, false);
     }
 
-    private static Map<String, Object> executeAndVerifyRequest(String sample, boolean parseRecursivelyArgument, boolean parseRecursivelyValue) throws IOException {
+    private static Map<String, Object> executeAndVerifyRequest(
+        String sample,
+        boolean parseRecursivelyArgument,
+        boolean parseRecursivelyValue
+    ) throws IOException {
         Request request = new Request("POST", "/_text_structure/find_structure");
         request.setEntity(new StringEntity(sample, ContentType.APPLICATION_JSON));
 

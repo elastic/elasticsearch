@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
@@ -266,6 +267,12 @@ public class PromqlFunctionRegistry {
             Log10::new,
             "Calculates the decimal logarithm for all elements in the input vector.",
             "log10(http_requests_total)"
+        ),
+        valueTransformationFunction(
+            "ln",
+            (source, value) -> new Log(source, null, value),
+            "Calculates the natural logarithm for all elements in the input vector.",
+            "ln(http_requests_total)"
         ),
         valueTransformationFunction(
             "floor",
@@ -698,7 +705,6 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
-        "ln",
         "log2",
         "scalar",
         "sort",

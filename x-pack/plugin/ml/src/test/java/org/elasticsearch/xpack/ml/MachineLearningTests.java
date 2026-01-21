@@ -272,7 +272,6 @@ public class MachineLearningTests extends ESTestCase {
 
         public static final String[] ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS = {};
 
-        private final boolean useIlm;
         private final boolean includeNodeInfo;
         private final boolean isAnomalyDetectionEnabled;
         private final boolean isDataFrameAnalyticsEnabled;
@@ -285,16 +284,10 @@ public class MachineLearningTests extends ESTestCase {
             boolean isDataFrameAnalyticsEnabled,
             boolean isNlpEnabled
         ) {
-            this.useIlm = useIlm;
             this.includeNodeInfo = includeNodeInfo;
             this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
             this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
             this.isNlpEnabled = isNlpEnabled;
-        }
-
-        @Override
-        public boolean useIlm() {
-            return useIlm;
         }
 
         @Override

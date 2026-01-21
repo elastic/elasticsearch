@@ -89,7 +89,7 @@ class HttpExportBulk extends ExportBulk {
             if (docs != null && docs.isEmpty() == false) {
                 final BytesStreamOutput scratch = new BytesStreamOutput();
                 final CountingOutputStream countingStream;
-                try (OutputStream payload = CompressorFactory.COMPRESSOR.threadLocalOutputStream(scratch)) {
+                try (OutputStream payload = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(scratch)) {
                     countingStream = new CountingOutputStream(payload);
                     for (MonitoringDoc monitoringDoc : docs) {
                         writeDocument(monitoringDoc, countingStream);

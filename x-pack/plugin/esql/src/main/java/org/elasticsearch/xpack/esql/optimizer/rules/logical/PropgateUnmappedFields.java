@@ -38,7 +38,20 @@ public class PropgateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
             ? logicalPlan
             : logicalPlan.transformUp(
                 EsRelation.class,
-                er -> er.withAttributes(NamedExpressions.mergeOutputAttributes(new ArrayList<>(unmappedFields), er.output()))
+                er -> hasPotentiallyUnmappedKeywordEsField(er)
+                    ? er
+                    : er.withAttributes(NamedExpressions.mergeOutputAttributes(new ArrayList<>(unmappedFields), er.output()))
             );
+    }
+
+    // Checks if the EsRelation already has a PotentiallyUnmappedKeywordEsField. If true SET load_unmapped="load" is applied.
+    // This is used to practically disable the rule, since it changes the output order (mergeOutputAttributes()).
+    private static boolean hasPotentiallyUnmappedKeywordEsField(EsRelation er) {
+        for (var attr : er.output()) {
+            if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                return true;
+            }
+        }
+        return false;
     }
 }

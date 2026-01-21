@@ -2997,6 +2997,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"term":{"_tier":{"value":"data_hot","boost":0.0}}}
      */
     public void testPushDownMetadataTierInEquality() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier == "data_hot"
@@ -3015,6 +3016,58 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[...]<[],[]>
+     *       \_EsQueryExec[test], query={"terms":{"_tier":["data_hot","data_warm"],"boost":0.0}}
+     */
+    public void testPushDownMetadataTierInOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier IN ("data_hot", "data_warm")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), TermsQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.values(), containsInAnyOrder("data_hot", "data_warm"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[...]<[],[]>
+     *       \_EsQueryExec[test], query={"terms":{"_tier":["data_hot","data_warm"],"boost":0.0}}
+     */
+    public void testPushDownMetadataTierInOrOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier == "data_hot" OR _tier == "data_warm"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), TermsQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_tier"));
+        assertThat(tq.values(), containsInAnyOrder("data_hot", "data_warm"));
+    }
+
+    /*
      * LimitExec[1000[INTEGER],..]
      * \_ExchangeExec[[...],false]
      *   \_ProjectExec[[...]]
@@ -3022,6 +3075,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query={"bool":{"must_not":[{"term":{"_tier":{"value":"data_hot","boost":0.0}}}],"boost":1.0}}
      */
     public void testPushDownMetadataTierInNotEquality() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier != "data_hot"
@@ -3044,11 +3098,51 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /*
      * LimitExec[1000[INTEGER],...]
      * \_ExchangeExec[[...],false]
+     *   \_ProjectExec[[...]]
+     *     \_FieldExtractExec[...]<[],[]>
+     *       \_EsQueryExec[test], query={"bool":{"must":[
+     *       {"bool":{"must_not":[{"term":{"_tier":{"value":"data_hot","boost":0.0}}}],"boost":0.0}},
+     *       {"bool":{"must_not":[{"term":{"_tier":{"value":"data_warm","boost":0.0}}}],"boost":0.0}}
+     *     ],"boost":1.0}}
+     */
+    public void testPushDownMetadataTierInAndNotOperator() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
+        var plan = physicalPlan("""
+            from test metadata _tier
+            | where _tier != "data_hot" AND _tier != "data_warm"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.must().size(), is(2));
+        var bq1 = as(bq.must().get(0), BoolQueryBuilder.class);
+        assertThat(bq1.mustNot().size(), is(1));
+        var tq1 = as(bq1.mustNot().get(0), TermQueryBuilder.class);
+        assertThat(bq.must().size(), is(2));
+        assertThat(tq1.fieldName(), is("_tier"));
+        assertThat(tq1.value(), is("data_hot"));
+        var bq2 = as(bq.must().get(1), BoolQueryBuilder.class);
+        assertThat(bq2.mustNot().size(), is(1));
+        var tq2 = as(bq2.mustNot().get(0), TermQueryBuilder.class);
+        assertThat(tq2.fieldName(), is("_tier"));
+        assertThat(tq2.value(), is("data_warm"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER],...]
+     * \_ExchangeExec[[...],false]
      *   \_ProjectExec[[_meta_field{f}#1816, ..., _tier{m}#1808]]
      *     \_FieldExtractExec[_meta_field{f}#1816, ...]<[],[]>
      *       \_EsQueryExec[test], query={"wildcard":{"_tier":{"wildcard":"data_*","boost":0.0}}}
      */
     public void testPushDownMetadataTierInWildcard() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var plan = physicalPlan("""
             from test metadata _tier
             | where _tier like "data_*"
@@ -8422,7 +8516,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * <pre>{@code
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
-     *   |_EsqlProject[[..., long_noidx{f}#23, salary{f}#19]]
+     *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
      * }</pre>

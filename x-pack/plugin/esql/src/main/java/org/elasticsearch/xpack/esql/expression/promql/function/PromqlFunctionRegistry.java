@@ -278,7 +278,7 @@ public class PromqlFunctionRegistry {
         ),
         valueTransformationFunction(
             "ln",
-            (source, value) -> new Log(source, null, value),
+            (source, value) -> new Log(source, value, null),
             "Calculates the natural logarithm for all elements in the input vector.",
             "ln(http_requests_total)"
         ),
@@ -733,7 +733,6 @@ public class PromqlFunctionRegistry {
         "acosh",
         "asinh",
         "atanh",
-        "rad",
 
         // Time functions
         "day_of_month",

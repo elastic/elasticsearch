@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -478,12 +477,17 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType, int offset)
-        throws IOException {
-        return blockLoaderReadValuesFromColumnAtATimeReader(Settings.EMPTY, reader, fieldType, offset);
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
+        CircuitBreaker breaker,
+        DirectoryReader reader,
+        MappedFieldType fieldType,
+        int offset
+    ) throws IOException {
+        return blockLoaderReadValuesFromColumnAtATimeReader(breaker, Settings.EMPTY, reader, fieldType, offset);
     }
 
     protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
+        CircuitBreaker breaker,
         Settings settings,
         DirectoryReader reader,
         MappedFieldType fieldType,
@@ -491,7 +495,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     ) throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
         List<Object> all = new ArrayList<>();
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         for (LeafReaderContext ctx : reader.leaves()) {
             try (BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(breaker, ctx)) {
                 TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
@@ -503,12 +506,16 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return all;
     }
 
-    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(DirectoryReader reader, MappedFieldType fieldType)
-        throws IOException {
-        return blockLoaderReadValuesFromRowStrideReader(Settings.EMPTY, reader, fieldType, false);
+    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(
+        CircuitBreaker breaker,
+        DirectoryReader reader,
+        MappedFieldType fieldType
+    ) throws IOException {
+        return blockLoaderReadValuesFromRowStrideReader(breaker, Settings.EMPTY, reader, fieldType, false);
     }
 
     protected final List<Object> blockLoaderReadValuesFromRowStrideReader(
+        CircuitBreaker breaker,
         Settings settings,
         DirectoryReader reader,
         MappedFieldType fieldType,
@@ -516,7 +523,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     ) throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext(settings, fieldOnlyMappedAsRuntimeField));
         List<Object> all = new ArrayList<>();
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         for (LeafReaderContext ctx : reader.leaves()) {
             try (
                 BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(breaker, ctx);

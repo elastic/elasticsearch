@@ -250,7 +250,6 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             e.getMessage(),
             equalTo("Geometry fields do not support exact searching, use dedicated geometry queries instead: [test]")
         );
-
     }
 
     public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
@@ -345,7 +344,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true), equalTo(expected));
             }
         }
     }

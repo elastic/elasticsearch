@@ -40,8 +40,15 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            // NOCOMMIT tests for creation failing
-            return new DoubleScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
+            DoubleFieldScript script = null;
+            try {
+                script = factory.newInstance(context);
+                return new DoubleScriptBlockDocValuesReader(breaker, script, byteSize);
+            } finally {
+                if (script == null) {
+                    breaker.addWithoutBreaking(-byteSize);
+                }
+            }
         }
     }
 

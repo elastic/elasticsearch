@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.util.List;
+
 import static org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE;
 import static org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE;
 
@@ -24,6 +26,18 @@ import static org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderContext.
  * Values for cluster level settings used in physical planning.
  */
 public class PlannerSettings {
+    public static List<Setting<?>> allSettings() {
+        return List.of(
+            DEFAULT_DATA_PARTITIONING,
+            VALUES_LOADING_JUMBO_SIZE,
+            LUCENE_TOPN_LIMIT,
+            INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            REDUCTION_LATE_MATERIALIZATION,
+            BLOCK_LOADER_SIZE_ORDINALS,
+            BLOCK_LOADER_SIZE_SCRIPT
+        );
+    }
+
     public static final Setting<DataPartitioning> DEFAULT_DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,
         "esql.default_data_partitioning",

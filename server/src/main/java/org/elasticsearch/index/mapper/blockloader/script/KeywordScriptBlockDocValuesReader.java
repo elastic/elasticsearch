@@ -40,12 +40,19 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            // NOCOMMIT tests for creation failing
-            return new KeywordScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
+            StringFieldScript script = null;
+            try {
+                script = factory.newInstance(context);
+                return new KeywordScriptBlockDocValuesReader(breaker, script, byteSize);
+            } finally {
+                if (script == null) {
+                    breaker.addWithoutBreaking(-byteSize);
+                }
+            }
         }
     }
 
-    private final BytesRefBuilder bytesBuild = new BytesRefBuilder(); // NOCOMMIT breaking builder
+    private final BytesRefBuilder bytesBuild = new BytesRefBuilder(); // TODO breaking builder
     private final StringFieldScript script;
     private final long byteSize;
     private int docId;

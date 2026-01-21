@@ -278,7 +278,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             10,
             null
         );
-        PlannerSettings plannerSettings = new PlannerSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000, ByteSizeValue.ofMb(1));
+        PlannerSettings plannerSettings = new PlannerSettings(
+            DataPartitioning.AUTO,
+            ByteSizeValue.ofMb(1),
+            10_000,
+            ByteSizeValue.ofMb(1),
+            MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
+            MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE
+        );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),

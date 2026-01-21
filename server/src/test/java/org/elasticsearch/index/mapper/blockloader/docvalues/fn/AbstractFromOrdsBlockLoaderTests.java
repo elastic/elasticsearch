@@ -66,7 +66,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
     protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
 
     public void test() throws IOException {
-        test(newLimitedBreaker(ByteSizeValue.ofMb(10)), r -> r);
+        test(newLimitedBreaker(ByteSizeValue.ofMb(1)), r -> r);
     }
 
     public void testWithCrankyBreaker() throws IOException {
@@ -83,7 +83,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
     public void testWithCrankyReader() {
         try {
             test(newLimitedBreaker(ByteSizeValue.ofMb(10)), CrankyDirectoryReader::new);
-            logger.info("Cranky reader didn't break. This should be rare, but possible randomly.");
+            logger.info("Cranky reader didn't break.");
         } catch (IOException e) {
             logger.info("Cranky reader broke", e);
         }

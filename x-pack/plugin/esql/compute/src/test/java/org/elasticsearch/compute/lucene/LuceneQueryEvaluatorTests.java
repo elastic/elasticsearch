@@ -205,7 +205,9 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                             FIELD,
                             ElementType.BYTES_REF,
                             false,
-                            unused -> ValuesSourceReaderOperator.load(new BytesRefsFromOrdsBlockLoader(FIELD, randomLongBetween(1, 1000)))
+                            unused -> ValuesSourceReaderOperator.load(
+                                new BytesRefsFromOrdsBlockLoader(FIELD, ByteSizeValue.ofBytes(randomLongBetween(1, 1000)))
+                            )
                         )
                     ),
                     new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {

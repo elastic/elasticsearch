@@ -28,6 +28,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -54,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -406,6 +409,44 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), f -> f);
+    }
+
+    public void testWithCrankyBreaker() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, r -> r);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    public void testWithCrankyFactory() throws IOException {
+        try {
+            testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyLeafFactory::new);
+            logger.info("Cranky factory didn't break.");
+        } catch (IllegalStateException e) {
+            logger.info("Cranky factory broke", e);
+        }
+    }
+
+    public void testWithCrankyBreakerAndFactory() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, CrankyLeafFactory::new);
+            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
+        } catch (IllegalStateException | CircuitBreakingException e) {
+            logger.info("Cranky breaker or reader broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(
+        CircuitBreaker breaker,
+        Function<StringFieldScript.LeafFactory, StringFieldScript.LeafFactory> factoryWrapper
+    ) throws IOException {
         try (
             Directory directory = newDirectory();
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
@@ -417,14 +458,17 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
+                KeywordScriptFieldType fieldType = buildWrapped("append_param", Map.of("param", "-Suffix"), factoryWrapper);
                 assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0),
+                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
                 );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(new BytesRef("2-Suffix"))));
                 assertThat(
-                    blockLoaderReadValuesFromRowStrideReader(reader, fieldType),
+                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1),
+                    equalTo(List.of(new BytesRef("2-Suffix")))
+                );
+                assertThat(
+                    blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
                 );
             }
@@ -461,9 +505,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 var dogBytes = new BytesRef("dog");
 
                 // Assert values:
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(catBytes, dogBytes)));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(dogBytes)));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(catBytes, dogBytes)));
+                assertThat(
+                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
+                    equalTo(List.of(catBytes, dogBytes))
+                );
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(List.of(dogBytes)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(List.of(catBytes, dogBytes)));
             }
         }
     }
@@ -499,7 +546,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
                 // Assert values:
                 assertThat(
-                    blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true),
+                    blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true),
                     equalTo(List.of(new BytesRef("cat"), new BytesRef("dog")))
                 );
             }
@@ -556,6 +603,19 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
+    protected KeywordScriptFieldType buildWrapped(
+        String code,
+        Map<String, Object> params,
+        Function<StringFieldScript.LeafFactory, StringFieldScript.LeafFactory> leafFactoryWrapper
+    ) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        StringFieldScript.Factory factory = factory(script);
+        StringFieldScript.Factory wrapped = (fieldName, params1, searchLookup, onScriptError) -> leafFactoryWrapper.apply(
+            factory.newFactory(fieldName, params1, searchLookup, onScriptError)
+        );
+        return new KeywordScriptFieldType("test", wrapped, script, emptyMap(), OnScriptError.FAIL);
+    }
+
     private static StringFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
             case "read_foo" -> (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
@@ -609,5 +669,21 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
+    }
+
+    private static class CrankyLeafFactory implements StringFieldScript.LeafFactory {
+        private final StringFieldScript.LeafFactory next;
+
+        private CrankyLeafFactory(StringFieldScript.LeafFactory next) {
+            this.next = next;
+        }
+
+        @Override
+        public StringFieldScript newInstance(LeafReaderContext ctx) {
+            if (between(0, 20) == 0) {
+                throw new IllegalStateException("cranky");
+            }
+            return next.newInstance(ctx);
+        }
     }
 }

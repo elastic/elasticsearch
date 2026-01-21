@@ -49,6 +49,7 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
         AllReader result = null;
         try {
             result = createReader(breaker, ESTIMATED_SIZE, context.reader().getBinaryDocValues(fieldName));
+            System.err.println("ASDFADSF " + new int[Integer.MAX_VALUE]);
             return result;
         } finally {
             if (result == null) {

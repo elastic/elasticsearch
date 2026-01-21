@@ -39,8 +39,15 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            // NOCOMMIT tests for creation failing
-            return new LongScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
+            LongFieldScript script = null;
+            try {
+                script = factory.newInstance(context);
+                return new LongScriptBlockDocValuesReader(breaker, script, byteSize);
+            } finally {
+                if (script == null) {
+                    breaker.addWithoutBreaking(-byteSize);
+                }
+            }
         }
     }
 

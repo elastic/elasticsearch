@@ -77,8 +77,8 @@ public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCa
 
     public void testWithCrankyReader() {
         try {
-            test(newLimitedBreaker(ByteSizeValue.ofMb(10)), CrankyDirectoryReader::new);
-            logger.info("Cranky reader didn't break. This should be rare, but possible randomly.");
+            test(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyDirectoryReader::new);
+            logger.info("Cranky reader didn't break.");
         } catch (IOException e) {
             logger.info("Cranky reader broke", e);
         }

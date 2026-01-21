@@ -39,8 +39,15 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            // NOCOMMIT tests for creation failing
-            return new DateScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
+            DateFieldScript script = null;
+            try {
+                script = factory.newInstance(context);
+                return new DateScriptBlockDocValuesReader(breaker, script, byteSize);
+            } finally {
+                if (script == null) {
+                    breaker.addWithoutBreaking(-byteSize);
+                }
+            }
         }
     }
 

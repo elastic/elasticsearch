@@ -164,7 +164,7 @@ final class TimeSeriesSourcePartitioner {
             return List.of();
         }
         List<Range> filters = new ArrayList<>();
-        // round the timestamp to improve the cache
+        // round the intervals to improve caching
         var pt = (queryStartTs + selectedInterval - 1) / selectedInterval * selectedInterval;
         if (queryStartTs < pt) {
             filters.add(

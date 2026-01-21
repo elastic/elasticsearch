@@ -195,6 +195,30 @@ deg_scalar_zero:double | step:datetime
 0.0                   | 2024-05-10T00:00:00.000Z
 ;
 
+rad_scalar_180
+required_capability: promql_rad
+PROMQL index=k8s step=1h rad_scalar_180=(rad(vector(180.0)));
+
+rad_scalar_180:double | step:datetime
+3.141592653589793     | 2024-05-10T00:00:00.000Z
+;
+
+rad_scalar_90
+required_capability: promql_rad
+PROMQL index=k8s step=1h rad_scalar_90=(rad(vector(90.0)));
+
+rad_scalar_90:double | step:datetime
+1.5707963267948966    | 2024-05-10T00:00:00.000Z
+;
+
+rad_scalar_zero
+required_capability: promql_rad
+PROMQL index=k8s step=1h rad_scalar_zero=(rad(vector(0.0)));
+
+rad_scalar_zero:double | step:datetime
+0.0                    | 2024-05-10T00:00:00.000Z
+;
+
 sgn_scalar
 required_capability: promql_sgn
 PROMQL index=k8s step=1h sgn_scalar=(sgn(vector(-2.5)));

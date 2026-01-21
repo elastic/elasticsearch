@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -333,6 +334,12 @@ public class PromqlFunctionRegistry {
             ToDegrees::new,
             "Converts input values from radians to degrees for all elements in the input vector.",
             "deg(some_metric)"
+        ),
+        valueTransformationFunction(
+            "rad",
+            ToRadians::new,
+            "Converts input values from degrees to radians for all elements in the input vector.",
+            "rad(some_metric)"
         ),
         valueTransformationFunctionBinary(
             "clamp_min",

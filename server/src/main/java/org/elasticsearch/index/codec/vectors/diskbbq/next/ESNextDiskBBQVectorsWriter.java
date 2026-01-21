@@ -31,7 +31,6 @@ import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidGroups;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
@@ -131,6 +130,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
+            fieldInfo.getVectorSimilarityFunction(),
             quantEncoding,
             fieldInfo.getVectorDimension(),
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
@@ -451,6 +451,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         doWriteCentroids(fieldInfo, centroidSupplier, centroidAssignments, globalCentroid, centroidOffsetAndLength, centroidOutput);
     }
 
+    private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
+
     private void doWriteCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -504,17 +506,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        centroidOutput.writeVInt(centroidGroups.centroids().size());
+        centroidOutput.writeVInt(centroidGroups.centroids().length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
         // let's also write the raw parent centroids
         final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < centroidGroups.centroids().size(); i++) {
-            float[] centroid = centroidGroups.centroids().centroid(i);
+        for (int i = 0; i < centroidGroups.centroids().length; i++) {
+            float[] centroid = centroidGroups.centroids()[i];
             buffer.asFloatBuffer().put(centroid);
             centroidOutput.writeBytes(buffer.array(), buffer.array().length);
         }
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
-            centroidGroups.centroids(),
+            CentroidSupplier.fromArray(centroidGroups.centroids, KMeansResult.EMPTY, fieldInfo.getVectorDimension()),
             fieldInfo.getVectorDimension(),
             osq,
             globalCentroid
@@ -617,7 +619,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             final int c = clusters.assignments()[i];
             vectorsPerCentroid[c][centroidVectorCount[c]++] = i;
         }
-        return new CentroidGroups(clusters.centroidsSupplier(), vectorsPerCentroid, maxVectorsPerCentroidLength);
+        return new CentroidGroups(clusters.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
     }
 
     @Override
@@ -780,6 +782,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final float[] floatVectorScratch;
         private final ESNextDiskBBQVectorsFormat.QuantEncoding encoding;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
+        private final VectorSimilarityFunction similarityFunction;
         private float[] currentCentroid, currentParentCentroid;
         private IntToIntFunction ordTransformer = null;
         private int currOrd = -1;
@@ -787,11 +790,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
         OnHeapQuantizedVectors(
             FloatVectorValues vectorValues,
+            VectorSimilarityFunction similarityFunction,
             ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
             int dimension,
             OptimizedScalarQuantizer quantizer
         ) {
             this.vectorValues = vectorValues;
+            this.similarityFunction = similarityFunction;
             this.encoding = encoding;
             this.quantizer = quantizer;
             this.quantizedVector = new byte[encoding.getDocPackedLength(dimension)];
@@ -825,7 +830,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, encoding.bits(), currentCentroid);
             // TODO HACK, assumes asymmetric centroid quantization, adjust corrections
             if (currentParentCentroid != null) {
-                float additionalCorrection = quantizer.getSimilarityFunction() == VectorSimilarityFunction.EUCLIDEAN
+                float additionalCorrection = similarityFunction == VectorSimilarityFunction.EUCLIDEAN
                     ? VectorUtil.squareDistance(vector, currentParentCentroid)
                     : VectorUtil.dotProduct(floatVectorScratch, currentParentCentroid);
                 corrections = new OptimizedScalarQuantizer.QuantizationResult(

@@ -100,8 +100,9 @@ public class SearchLogContext extends ActionLoggerContext {
         if (opaqueId != null && (opaqueId.startsWith("kibana:") || opaqueId.contains(";kibana:"))) {
             return true;
         }
+        String[] indices = getIndexNames();
         // Request that only asks for system indices is system search
-        if (Arrays.stream(getIndexNames()).allMatch(this::isSystemIndex)) {
+        if (indices.length > 0 && Arrays.stream(indices).allMatch(this::isSystemIndex)) {
             return true;
         }
         return false;

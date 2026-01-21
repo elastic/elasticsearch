@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,6 +53,10 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         return new ReindexRequestBuilder(internalCluster().client(nodeName));
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.index.reindex:DEBUG,org.elasticsearch.node.ShutdownPrepareService:DEBUG",
+        reason = "https://github.com/elastic/elasticsearch/issues/139806"
+    )
     public void testReindexWithShutdown() throws Exception {
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -103,8 +108,8 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("Encounterd " + e.toString());
-                fail(e, "Encounterd " + e.toString());
+                logger.debug("Encountered " + e.toString());
+                fail(e, "Encountered " + e.toString());
             }
         };
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, reindexRequest, reindexListener);

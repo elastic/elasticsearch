@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -581,6 +582,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * pe{f}#15]]
      */
     public void testDuplicatedInlineAggWithFoldableIdenticalExpressions() {
+        assumeTrue("requires INLINESTATS command to be enabled", EsqlCapabilities.Cap.INLINESTATS.isEnabled());
         String query = """
                 FROM airports
                 | INLINESTATS a = 2*COUNT_DISTINCT(scalerank, 100),

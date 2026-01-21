@@ -1284,10 +1284,54 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates a valid random identifier such as node id or index name
+     * @return a valid random identifier, appropriate for use as a node name, index name, repository name or similar.
+     * @see #randomIdentifier(String) randomIdentifier(String) which allows to add a prefix.
+     * @see #randomIndexName() randomIndexName() which encodes a convention for random index names.
+     * @see #randomRepoName() randomRepoName() which encodes a convention for random repository names.
+     * @see #randomSnapshotName() randomSnapshotName() which encodes a convention for random snapshot names.
      */
     public static String randomIdentifier() {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * @return a valid random identifier with the given prefix. Makes debugging tests easier if you use {@code randomIdentifier("type1-")}
+     * for indices and {@code randomIdentifier("type2-")} and so on, keeping the identifier types visually distinct, rather than having
+     * to work out what kind of identifier you're looking at in each log message.
+     *
+     * @see #randomIndexName() randomIndexName() which encodes a convention for random index names.
+     * @see #randomRepoName() randomRepoName() which encodes a convention for random repository names.
+     * @see #randomSnapshotName() randomSnapshotName() which encodes a convention for random snapshot names.
+     */
+    public static String randomIdentifier(String prefix) {
+        return prefix + randomIdentifier();
+    }
+
+    /**
+     * @return a valid random index name of the form {@code index-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomIndexName() {
+        return randomIdentifier("index-");
+    }
+
+    /**
+     * @return a valid random repository name of the form {@code repo-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomRepoName() {
+        return randomIdentifier("repo-");
+    }
+
+    /**
+     * @return a valid random snapshot name of the form {@code snap-${RANDOM_CHARS}}. Makes debugging tests easier if you use this rather
+     * than just a bare {@code randomIdentifier()} since the resulting identifier types are visually distinct, rather than having to
+     * work out what kind of identifier you're looking at in each log message.
+     */
+    public static String randomSnapshotName() {
+        return randomIdentifier("snap-");
     }
 
     /**

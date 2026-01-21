@@ -29,7 +29,7 @@ public class FlattenedFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> stringGenerator;
 
     public FlattenedFieldDataGenerator(DataSource dataSource) {
-        this(dataSource, 2, 16);
+        this(dataSource, 2, 6);
     }
 
     public FlattenedFieldDataGenerator(DataSource dataSource, int maxObjectDepth, int maxFieldCountPerLevel) {

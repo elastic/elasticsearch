@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTi
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -326,6 +327,12 @@ public class PromqlFunctionRegistry {
             Tanh::new,
             "Calculates the hyperbolic tangent of all elements in the input vector.",
             "tanh(some_metric)"
+        ),
+        valueTransformationFunction(
+            "deg",
+            ToDegrees::new,
+            "Converts input values from radians to degrees for all elements in the input vector.",
+            "deg(some_metric)"
         ),
         valueTransformationFunctionBinary(
             "clamp_min",
@@ -714,7 +721,6 @@ public class PromqlFunctionRegistry {
         "acosh",
         "asinh",
         "atanh",
-        "deg",
         "rad",
 
         // Time functions

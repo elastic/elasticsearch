@@ -496,7 +496,6 @@ final class CanMatchPreFilterSearchPhase {
             }
         }
 
-
         if (shouldSortShards(minAndMaxes) == false) {
             return possibleShards;
         }

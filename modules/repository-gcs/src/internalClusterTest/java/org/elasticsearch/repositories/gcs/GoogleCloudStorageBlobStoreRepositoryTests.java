@@ -56,7 +56,9 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
@@ -129,13 +131,30 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         return settings.build();
     }
 
-    public void testDeleteSingleItem() throws IOException {
-        final String repoName = createRepository(randomRepositoryName());
-        final RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
-        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        repository.blobStore()
-            .blobContainer(repository.basePath())
-            .deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single("foo"));
+    public void testDeleteItems() throws IOException {
+        final var repoName = createRepository(randomRepositoryName(), false);
+        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        final var repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final var blobStore = repository.blobStore();
+        final var container = blobStore.blobContainer(repository.basePath());
+
+        final var purpose = randomPurpose();
+        final var blobNamePrefix = "delete-blob-";
+        final int numberOfBlobs = between(1, GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH * 10);
+        final List<String> blobNames = IntStream.range(0, numberOfBlobs).mapToObj(n -> blobNamePrefix + n).toList();
+
+        // randomly skips blob creation to exercise deletion if blob not exists
+        int created = 0;
+        for (var blob : blobNames) {
+            if (randomBoolean()) {
+                container.writeBlob(purpose, blob, randomBytesReference(between(1, 10)), false);
+                created += 1;
+            }
+        }
+        assertEquals("should write all blobs", created, container.listBlobsByPrefix(purpose, blobNamePrefix).size());
+
+        container.deleteBlobsIgnoringIfNotExists(purpose, blobNames.iterator());
+        assertEquals("should delete all blobs", 0, container.listBlobsByPrefix(purpose, blobNamePrefix).size());
     }
 
     public void testChunkSize() {

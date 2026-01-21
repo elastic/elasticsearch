@@ -206,6 +206,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
     private static Map<String, Object> executeAndVerifyRequest(String sample) throws IOException {
         Request request = new Request("POST", "/_text_structure/find_structure");
         request.setEntity(new StringEntity(sample, ContentType.APPLICATION_JSON));
+        request.addParameter("parse_recursively", "true");
         Response response = client().performRequest(request);
         assertOK(response);
         return entityAsMap(response);

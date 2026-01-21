@@ -62,8 +62,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
         long totalDocs,
         String minTimestampFromData,
         String maxTimestampFromData,
-        String queryStartTs,
-        String queryEndTs,
+        String filter,
         ByteSizeValue rateBufferSize,
         int taskConcurrency,
         List<QueryRange> expectedRanges
@@ -104,21 +103,12 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             timeSeriesAnalyzer,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
         );
-        String filter1 = "";
-        if (queryStartTs != null || randomBoolean()) {
-            filter1 = "| WHERE @timestamp >= \"" + (queryStartTs != null ? queryStartTs : minTimestampFromData) + "\"";
-        }
-        String filter2 = "";
-        if (queryEndTs != null || randomBoolean()) {
-            filter2 = "| WHERE @timestamp <= \"" + (queryEndTs != null ? queryEndTs : maxTimestampFromData) + "\"";
-        }
         String q = String.format(Locale.ROOT, """
             TS k8s
             %s
-            %s
             | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
             | LIMIT 10
-            """, filter1, filter2);
+            """, (filter != null ? "| WHERE " + filter : ""));
         PhysicalPlan plan = planner.physicalPlan(q, timeSeriesAnalyzer);
         plan = PlannerUtils.integrateEsFilterIntoFragment(plan, null);
         plan = planner.optimizedPlan(plan, plannerSettings, searchStats, new EsqlFlags(true));
@@ -149,7 +139,6 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
-            null,
             ByteSizeValue.ofMb(75),
             12, // 8 cpus
             List.of(
@@ -169,7 +158,6 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
-            null,
             ByteSizeValue.ofMb(75),
             6, // 4 cpus
             List.of(
@@ -186,7 +174,6 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
-            null,
             ByteSizeValue.ofMb(75),
             3, // 2 cpus
             List.of(
@@ -200,7 +187,6 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
-            null,
             ByteSizeValue.ofMb(30), // smaller buffer to more smaller slices
             3, // 2 cpus
             List.of(
@@ -213,7 +199,6 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             20_000_000L,
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
-            null,
             null,
             ByteSizeValue.ofMb(10), // smaller buffer to more smaller slices
             3, // 2 cpus
@@ -234,7 +219,6 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
-            null,
             ByteSizeValue.ofMb(10), // smaller buffer to more smaller slices
             3, // 2 cpus
             List.of(
@@ -249,7 +233,6 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             20_000_000L,
             "2023-11-20T12:15:03.360Z",
             "2023-11-20T12:59:02.250Z",
-            null,
             null,
             ByteSizeValue.ofMb(75),
             12, // 8 cpus
@@ -266,12 +249,15 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             )
         );
 
+        String filter = randomFrom(
+            "\"2023-11-20T12:16:03.360Z\" <= @timestamp AND @timestamp <= \"2023-11-20T12:57:02.250Z\"",
+            "TRANGE(\"2023-11-20T12:16:03.359Z\", \"2023-11-20T12:57:02.250Z\")"
+        );
         runTest(
             20_000_000L,
             "2023-11-20T12:15:03.360Z",
             "2023-11-20T12:59:02.250Z",
-            "2023-11-20T12:16:03.360Z",
-            "2023-11-20T12:57:02.250Z",
+            filter,
             ByteSizeValue.ofMb(75),
             12, // 8 cpus
             List.of(

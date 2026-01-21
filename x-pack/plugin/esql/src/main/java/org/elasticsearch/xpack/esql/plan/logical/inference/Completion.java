@@ -209,13 +209,6 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         if (prompt.resolved() && DataType.isString(prompt.dataType()) == false) {
             failures.add(fail(prompt, "prompt must be of type [{}] but is [{}]", TEXT.typeName(), prompt.dataType().typeName()));
         }
-
-        if (taskSettings != null) {
-            if (taskSettings.resolved() == false) {
-                failures.add(fail(taskSettings, "task_settings must be fully resolved"));
-                return;
-            }
-        }
     }
 
     @Override

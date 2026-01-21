@@ -1146,20 +1146,32 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 bCause = inequalityLevel == j ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause);
             }
 
-            // TODO: Vary only one value at a time
-            int requestId = randomIntBetween(0, Integer.MAX_VALUE);
-            String requestIndex = randomIndexName();
-            String message = randomAlphaOfLengthBetween(5, 10);
+            final int requestId = randomIntBetween(0, Integer.MAX_VALUE);
+            final String requestIndex = randomIndexName();
+            final String message = randomAlphaOfLengthBetween(5, 10);
             ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
                 requestId,
                 requestIndex,
                 new RuntimeException(message, aCause)
             );
-            ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                rarely() ? randomValueOtherThan(requestId, () -> randomIntBetween(0, Integer.MAX_VALUE)) : requestId,
-                rarely() ? randomValueOtherThan(requestIndex, ESTestCase::randomIndexName) : requestIndex,
-                inequalityLevel == 0 ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause)
-            );
+            ShardBulkInferenceActionFilter.FailureSignature bSignature = inequalityLevel == 0 ? switch (randomIntBetween(0, 2)) {
+                case 0 -> new ShardBulkInferenceActionFilter.FailureSignature(
+                    randomValueOtherThan(requestId, () -> randomIntBetween(0, Integer.MAX_VALUE)),
+                    requestIndex,
+                    new RuntimeException(message, bCause)
+                );
+                case 1 -> new ShardBulkInferenceActionFilter.FailureSignature(
+                    requestId,
+                    randomValueOtherThan(requestIndex, ESTestCase::randomIndexName),
+                    new RuntimeException(message, bCause)
+                );
+                case 2 -> new ShardBulkInferenceActionFilter.FailureSignature(
+                    requestId,
+                    requestIndex,
+                    randomDifference.apply(message, bCause)
+                );
+                default -> throw new IllegalStateException("Unhandled value");
+            } : new ShardBulkInferenceActionFilter.FailureSignature(requestId, requestIndex, new RuntimeException(message, bCause));
 
             assertThat(aSignature, not(equalTo(bSignature)));
         }

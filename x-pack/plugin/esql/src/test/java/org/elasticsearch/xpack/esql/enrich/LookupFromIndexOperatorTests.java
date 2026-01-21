@@ -375,6 +375,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        builtInClusterSettings.addAll(PlannerSettings.allSettings());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,

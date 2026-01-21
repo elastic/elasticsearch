@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -236,9 +237,6 @@ final class CanMatchPreFilterSearchPhase {
                 consumeResult(false, request);
             }
         }
-        // order matching shard by the natural order, so that search results will use that order
-        // this can possibly be pushed after filtering by data nodes, if needed
-        matchedShardLevelRequests.sort(SearchShardIterator::compareTo);
         if (matchedShardLevelRequests.isEmpty()) {
             listener.onResponse(getIterator(shardsIts));
         } else {
@@ -473,23 +471,28 @@ final class CanMatchPreFilterSearchPhase {
             possibleMatches.set(shardIndexToQuery);
         }
         int i = 0;
+        List<SearchShardIterator> possibleShards = new ArrayList<>(possibleMatches.length());
         for (SearchShardIterator iter : shardsIts) {
             iter.reset();
             boolean match = possibleMatches.get(i++);
             if (match) {
                 assert iter.skip() == false;
+                possibleShards.add(iter);
             } else {
                 iter.skip(true);
             }
         }
+        // order matching shard by the natural order, so that search results will use that order
+        possibleShards.sort(SearchShardIterator::compareTo);
+
         if (shouldSortShards(minAndMaxes) == false) {
-            return shardsIts;
+            return possibleShards;
         }
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-        return sortShards(shardsIts, minAndMaxes, fieldSort.order());
+        return sortShards(possibleShards, minAndMaxes, fieldSort.order());
     }
 
-    private static List<SearchShardIterator> sortShards(List<SearchShardIterator> shardsIts, MinAndMax<?>[] minAndMaxes, SortOrder order) {
+    private List<SearchShardIterator> sortShards(List<SearchShardIterator> shardsIts, MinAndMax<?>[] minAndMaxes, SortOrder order) {
         int bound = shardsIts.size();
         List<Integer> toSort = new ArrayList<>(bound);
         for (int i = 0; i < bound; i++) {
@@ -497,7 +500,8 @@ final class CanMatchPreFilterSearchPhase {
         }
         Comparator<? super MinAndMax<?>> keyComparator = forciblyCast(MinAndMax.getComparator(order));
         toSort.sort((idx1, idx2) -> {
-            int res = keyComparator.compare(minAndMaxes[idx1], minAndMaxes[idx2]);
+            int res = keyComparator.compare(minAndMaxes[shardItIndexMap.get(shardsIts.get(idx1))],
+                minAndMaxes[shardItIndexMap.get(shardsIts.get(idx2))]);
             if (res != 0) {
                 return res;
             }

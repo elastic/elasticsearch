@@ -20,6 +20,7 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.VectorUtil;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -1139,5 +1140,137 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return -1;
+    }
+
+    public void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
+        assert m.length == x.length;
+        assert m.length == out.length;
+        final int dim = out.length;
+        final int len = x.length;
+        final int vecLen = FLOAT_SPECIES.length();
+        final int loopBound = FLOAT_SPECIES.loopBound(len);
+
+        final int xChunks = loopBound / vecLen;
+        final FloatVector[] xVecs = xChunks > 0 ? new FloatVector[xChunks] : null;
+        for (int k = 0; k < xChunks; k++) {
+            xVecs[k] = FloatVector.fromArray(FLOAT_SPECIES, x, k * vecLen);
+        }
+
+        int row = 0;
+        // process 4 rows at a time to reuse xVecs across rows
+        for (; row + 3 < dim; row += 4) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+
+            for (int k = 0; k < xChunks; k++) {
+                int base = k * vecLen;
+                FloatVector m0 = FloatVector.fromArray(FLOAT_SPECIES, m[row], base);
+                FloatVector m1 = FloatVector.fromArray(FLOAT_SPECIES, m[row + 1], base);
+                FloatVector m2 = FloatVector.fromArray(FLOAT_SPECIES, m[row + 2], base);
+                FloatVector m3 = FloatVector.fromArray(FLOAT_SPECIES, m[row + 3], base);
+                FloatVector xv = xVecs[k];
+
+                acc0 = fma(m0, xv, acc0);
+                acc1 = fma(m1, xv, acc1);
+                acc2 = fma(m2, xv, acc2);
+                acc3 = fma(m3, xv, acc3);
+            }
+
+            float sum0 = acc0.reduceLanes(ADD);
+            float sum1 = acc1.reduceLanes(ADD);
+            float sum2 = acc2.reduceLanes(ADD);
+            float sum3 = acc3.reduceLanes(ADD);
+
+            // scalar tail
+            for (int i = loopBound; i < len; i++) {
+                float xv = x[i];
+                sum0 = fma(m[row][i], xv, sum0);
+                sum1 = fma(m[row + 1][i], xv, sum1);
+                sum2 = fma(m[row + 2][i], xv, sum2);
+                sum3 = fma(m[row + 3][i], xv, sum3);
+            }
+
+            out[row] = sum0;
+            out[row + 1] = sum1;
+            out[row + 2] = sum2;
+            out[row + 3] = sum3;
+        }
+
+        // remaining rows
+        for (; row < dim; row++) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+            for (int k = 0; k < xChunks; k++) {
+                int base = k * vecLen;
+                FloatVector mv = FloatVector.fromArray(FLOAT_SPECIES, m[row], base);
+                acc = fma(mv, xVecs[k], acc);
+            }
+            float sum = acc.reduceLanes(ADD);
+            for (int i = loopBound; i < len; i++) {
+                sum = fma(m[row][i], x[i], sum);
+            }
+            out[row] = sum;
+        }
+    }
+
+    public float dotProduct(float[] a, float[] b) {
+        int i = 0;
+        float res = 0;
+
+        // if the array size is large (> 2x platform vector size), it's worth the overhead to vectorize
+        if (a.length > 2 * FLOAT_SPECIES.length()) {
+            i += FLOAT_SPECIES.loopBound(a.length);
+            res += dotProductBody(a, b, i);
+        }
+
+        // scalar tail
+        for (; i < a.length; i++) {
+            res = fma(a[i], b[i], res);
+        }
+        return res;
+    }
+
+    /** vectorized float dot product body */
+    private float dotProductBody(float[] a, float[] b, int limit) {
+        int i = 0;
+        // vector loop is unrolled 4x (4 accumulators in parallel)
+        // we don't know how many the cpu can do at once, some can do 2, some 4
+        FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector acc4 = FloatVector.zero(FLOAT_SPECIES);
+        int unrolledLimit = limit - 3 * FLOAT_SPECIES.length();
+        for (; i < unrolledLimit; i += 4 * FLOAT_SPECIES.length()) {
+            // one
+            FloatVector va = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector vb = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+            acc1 = fma(va, vb, acc1);
+
+            // two
+            FloatVector vc = FloatVector.fromArray(FLOAT_SPECIES, a, i + FLOAT_SPECIES.length());
+            FloatVector vd = FloatVector.fromArray(FLOAT_SPECIES, b, i + FLOAT_SPECIES.length());
+            acc2 = fma(vc, vd, acc2);
+
+            // three
+            FloatVector ve = FloatVector.fromArray(FLOAT_SPECIES, a, i + 2 * FLOAT_SPECIES.length());
+            FloatVector vf = FloatVector.fromArray(FLOAT_SPECIES, b, i + 2 * FLOAT_SPECIES.length());
+            acc3 = fma(ve, vf, acc3);
+
+            // four
+            FloatVector vg = FloatVector.fromArray(FLOAT_SPECIES, a, i + 3 * FLOAT_SPECIES.length());
+            FloatVector vh = FloatVector.fromArray(FLOAT_SPECIES, b, i + 3 * FLOAT_SPECIES.length());
+            acc4 = fma(vg, vh, acc4);
+        }
+        // vector tail: less scalar computations for unaligned sizes, esp with big vector sizes
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector va = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector vb = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+            acc1 = fma(va, vb, acc1);
+        }
+        // reduce
+        FloatVector res1 = acc1.add(acc2);
+        FloatVector res2 = acc3.add(acc4);
+        return res1.add(res2).reduceLanes(ADD);
     }
 }

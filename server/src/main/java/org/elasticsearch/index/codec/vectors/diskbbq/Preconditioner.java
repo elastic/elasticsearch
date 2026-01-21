@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -126,13 +127,7 @@ public class Preconditioner {
     }
 
     private static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
-        assert m.length == x.length;
-        assert m.length == out.length;
-        int dim = out.length;
-        // TODO: write Panama version of this to do all multiplications in one pass
-        for (int i = 0; i < dim; i++) {
-            out[i] = VectorUtil.dotProduct(m[i], x);
-        }
+        ESVectorUtil.matrixVectorMultiply(m, x, out);
     }
 
     private static int[][] createPermutationMatrixRandomly(int dim, int[] dimBlocks, Random random) {

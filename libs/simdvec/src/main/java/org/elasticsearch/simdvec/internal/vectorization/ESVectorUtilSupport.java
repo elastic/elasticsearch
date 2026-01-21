@@ -71,4 +71,6 @@ public interface ESVectorUtilSupport {
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
+
+    void matrixVectorMultiply(float[][] m, float[] x, float[] out);
 }

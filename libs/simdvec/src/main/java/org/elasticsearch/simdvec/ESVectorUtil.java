@@ -437,4 +437,8 @@ public class ESVectorUtil {
         Objects.checkFromIndexSize(offset, length, bytes.length);
         return IMPL.indexOf(bytes, offset, length, marker);
     }
+
+    public static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
+        IMPL.matrixVectorMultiply(m, x, out);
+    }
 }

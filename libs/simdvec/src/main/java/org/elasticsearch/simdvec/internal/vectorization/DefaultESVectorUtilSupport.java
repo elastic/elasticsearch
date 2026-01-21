@@ -455,4 +455,14 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public int indexOf(byte[] bytes, int offset, int length, byte marker) {
         return ByteArrayUtils.indexOf(bytes, offset, length, marker);
     }
+
+    @Override
+    public void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
+        assert m.length == x.length;
+        assert m.length == out.length;
+        int dim = out.length;
+        for (int i = 0; i < dim; i++) {
+            out[i] = VectorUtil.dotProduct(m[i], x);
+        }
+    }
 }

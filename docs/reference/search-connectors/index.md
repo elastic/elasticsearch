@@ -23,7 +23,7 @@ Each connector extracts the original files, records, or objects; and transforms 
 
 These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources) repo.
 
-## Setup modes
+## Setup modes [setup-modes]
 
 You can set up content connectors in two ways: 
 - [Run them yourself](self-managed-connectors.md). This setup mode is available for any type of installation.

@@ -32,6 +32,16 @@ import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AmazonBedrockCompletionTaskSettings> {
 
+    public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
+        var settings = AmazonBedrockCompletionTaskSettings.fromMap(new HashMap<>(Map.of()));
+        assertThat(settings, is(AmazonBedrockCompletionTaskSettings.EMPTY_SETTINGS));
+    }
+
+    public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
+        var settings = AmazonBedrockCompletionTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
+        assertThat(settings, is(AmazonBedrockCompletionTaskSettings.EMPTY_SETTINGS));
+    }
+
     public void testIsEmpty() {
         var randomSettings = createRandom();
         var stringRep = Strings.toString(randomSettings);
@@ -52,7 +62,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.7, (double) updatedSettings.temperature(), 0.001);
+        assertEquals(0.7, updatedSettings.temperature(), 0.001);
         assertEquals(initialSettings.topP(), updatedSettings.topP());
         assertEquals(initialSettings.topK(), updatedSettings.topK());
         assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
@@ -64,7 +74,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.8, (double) updatedSettings.topP(), 0.001);
+        assertEquals(0.8, updatedSettings.topP(), 0.001);
         assertEquals(initialSettings.temperature(), updatedSettings.temperature());
         assertEquals(initialSettings.topK(), updatedSettings.topK());
         assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
@@ -76,7 +86,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.9, (double) updatedSettings.topK(), 0.001);
+        assertEquals(0.9, updatedSettings.topK(), 0.001);
         assertEquals(initialSettings.temperature(), updatedSettings.temperature());
         assertEquals(initialSettings.topP(), updatedSettings.topP());
         assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
@@ -88,7 +98,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(256, (double) updatedSettings.maxNewTokens(), 0.001);
+        assertEquals(256, updatedSettings.maxNewTokens(), 0.001);
         assertEquals(initialSettings.temperature(), updatedSettings.temperature());
         assertEquals(initialSettings.topP(), updatedSettings.topP());
         assertEquals(initialSettings.topK(), updatedSettings.topK());
@@ -100,10 +110,10 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.7, (double) updatedSettings.temperature(), 0.001);
-        assertEquals(0.8, (double) updatedSettings.topP(), 0.001);
-        assertEquals(0.9, (double) updatedSettings.topK(), 0.001);
-        assertEquals(256, (int) updatedSettings.maxNewTokens(), 0.001);
+        assertEquals(0.7, updatedSettings.temperature(), 0.001);
+        assertEquals(0.8, updatedSettings.topP(), 0.001);
+        assertEquals(0.9, updatedSettings.topK(), 0.001);
+        assertEquals(256, updatedSettings.maxNewTokens(), 0.001);
     }
 
     public void testFromMap_AllValues() {
@@ -175,34 +185,34 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
         var settings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockCompletionTaskSettings.of(settings, AmazonBedrockCompletionRequestTaskSettings.EMPTY_SETTINGS);
+        var overrideSettings = AmazonBedrockCompletionTaskSettings.of(settings, AmazonBedrockCompletionTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overrideSettings, is(settings));
     }
 
     public void testOverrideWith_UsesTemperatureOverride() {
         var settings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockCompletionRequestTaskSettings.fromMap(getChatCompletionTaskSettingsMap(0.3, null, null, null));
+        var overrideSettings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(0.3, null, null, null));
         var overriddenTaskSettings = AmazonBedrockCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockCompletionTaskSettings(0.3, 0.5, 0.6, 512)));
     }
 
     public void testOverrideWith_UsesTopPOverride() {
         var settings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockCompletionRequestTaskSettings.fromMap(getChatCompletionTaskSettingsMap(null, 0.2, null, null));
+        var overrideSettings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(null, 0.2, null, null));
         var overriddenTaskSettings = AmazonBedrockCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockCompletionTaskSettings(1.0, 0.2, 0.6, 512)));
     }
 
     public void testOverrideWith_UsesDoSampleOverride() {
         var settings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockCompletionRequestTaskSettings.fromMap(getChatCompletionTaskSettingsMap(null, null, 0.1, null));
+        var overrideSettings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(null, null, 0.1, null));
         var overriddenTaskSettings = AmazonBedrockCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockCompletionTaskSettings(1.0, 0.5, 0.1, 512)));
     }
 
     public void testOverrideWith_UsesMaxNewTokensOverride() {
         var settings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockCompletionRequestTaskSettings.fromMap(getChatCompletionTaskSettingsMap(null, null, null, 128));
+        var overrideSettings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(null, null, null, 128));
         var overriddenTaskSettings = AmazonBedrockCompletionTaskSettings.of(settings, overrideSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AmazonBedrockCompletionTaskSettings(1.0, 0.5, 0.6, 128)));
     }

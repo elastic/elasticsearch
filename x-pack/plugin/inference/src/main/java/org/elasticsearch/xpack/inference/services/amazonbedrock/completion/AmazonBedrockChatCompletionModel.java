@@ -28,7 +28,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
             return completionModel;
         }
 
-        var requestTaskSettings = AmazonBedrockCompletionRequestTaskSettings.fromMap(taskSettings);
+        var requestTaskSettings = AmazonBedrockCompletionTaskSettings.fromMap(taskSettings);
         var taskSettingsToUse = AmazonBedrockCompletionTaskSettings.of(completionModel.getTaskSettings(), requestTaskSettings);
 
         // If the task settings didn't change, then return the same model

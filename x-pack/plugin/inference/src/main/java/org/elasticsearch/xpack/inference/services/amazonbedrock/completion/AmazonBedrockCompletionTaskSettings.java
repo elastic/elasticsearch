@@ -32,12 +32,9 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 
 public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "amazon_bedrock_chat_completion_task_settings";
-    private static final AmazonBedrockCompletionTaskSettings EMPTY_SETTINGS = new AmazonBedrockCompletionTaskSettings(
-        null,
-        null,
-        null,
-        null
-    );
+
+    // Default for testing
+    static final AmazonBedrockCompletionTaskSettings EMPTY_SETTINGS = new AmazonBedrockCompletionTaskSettings(null, null, null, null);
 
     public static AmazonBedrockCompletionTaskSettings fromMap(Map<String, Object> settings) {
         if (settings.isEmpty()) {
@@ -86,7 +83,7 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
 
     public static AmazonBedrockCompletionTaskSettings of(
         AmazonBedrockCompletionTaskSettings originalSettings,
-        AmazonBedrockCompletionRequestTaskSettings requestSettings
+        AmazonBedrockCompletionTaskSettings requestSettings
     ) {
         var temperature = requestSettings.temperature() == null ? originalSettings.temperature() : requestSettings.temperature();
         var topP = requestSettings.topP() == null ? originalSettings.topP() : requestSettings.topP();
@@ -205,9 +202,7 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AmazonBedrockCompletionRequestTaskSettings requestSettings = AmazonBedrockCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        var requestSettings = AmazonBedrockCompletionTaskSettings.fromMap(new HashMap<>(newSettings));
         return of(this, requestSettings);
     }
 }

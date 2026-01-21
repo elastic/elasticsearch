@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.SystemContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlock;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
@@ -29,6 +30,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.c
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.convertChatCompletionMessagesToConverse;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FUNCTION_TYPE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -679,7 +681,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
     public void testToDocument_UnsupportedTypeReturnsEmptyMapDocument() {
         var unsupported = new Object();
-        var doc = AmazonBedrockConverseUtils.toDocument(unsupported);
-        assertThat(doc, is(Document.mapBuilder().build()));
+        var exception = expectThrows(IllegalArgumentException.class, () -> AmazonBedrockConverseUtils.toDocument(unsupported));
+        assertThat(exception.getMessage(), containsString(Strings.format("Unsupported type: %s", unsupported.getClass().getSimpleName())));
     }
 }

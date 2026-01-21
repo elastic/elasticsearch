@@ -101,6 +101,13 @@ public class MockResponse {
     }
 
     /**
+     * @return the function used to generate the body from a request
+     */
+    Function<MockRequest, String> getBodyGenerator() {
+        return bodyGenerator;
+    }
+
+    /**
      * @return The HTTP status code
      */
     int getStatusCode() {

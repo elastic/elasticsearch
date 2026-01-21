@@ -145,7 +145,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
 
     public void testPartition() {
         runTest(
-            4000_000L,
+            20_000_000L,
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
@@ -165,7 +165,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             )
         );
         runTest(
-            4000_000L,
+            20_000_000L,
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
@@ -182,7 +182,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
         );
 
         runTest(
-            4000_000L,
+            20_000_000L,
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
@@ -196,7 +196,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
         );
 
         runTest(
-            4000_000L,
+            20_000_000L,
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
@@ -210,7 +210,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             )
         );
         runTest(
-            4000_000L,
+            20_000_000L,
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
@@ -230,7 +230,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             )
         );
         runTest(
-            1000_000L, // less docs
+            5_000_000L, // less docs
             "2023-10-20T12:15:03.360Z",
             "2023-10-20T12:59:02.250Z",
             null,
@@ -246,7 +246,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
 
     public void testPartitionWithQuery() {
         runTest(
-            4000_000L,
+            20_000_000L,
             "2023-11-20T12:15:03.360Z",
             "2023-11-20T12:59:02.250Z",
             null,
@@ -267,7 +267,7 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
         );
 
         runTest(
-            4000_000L,
+            20_000_000L,
             "2023-11-20T12:15:03.360Z",
             "2023-11-20T12:59:02.250Z",
             "2023-11-20T12:16:03.360Z",

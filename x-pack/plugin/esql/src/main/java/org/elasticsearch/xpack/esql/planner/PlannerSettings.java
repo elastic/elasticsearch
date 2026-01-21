@@ -38,8 +38,8 @@ public class PlannerSettings {
     );
 
     public static final Setting<ByteSizeValue> RATE_BUFFER_SIZE = new Setting<>("esql.rate_buffer_size", settings -> {
-        long oneThird = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 2;
-        return ByteSizeValue.ofBytes(Math.max(oneThird, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
+        long oneTenth = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 10;
+        return ByteSizeValue.ofBytes(Math.max(oneTenth, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
     },
         s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.rate_buffer_size"),
         Setting.Property.NodeScope,

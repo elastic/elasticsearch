@@ -136,7 +136,11 @@ final class TimeSeriesSourcePartitioner {
         long maxRateBufferBytes = ctx.plannerSettings().getRateBufferSize().getBytes();
         int taskConcurrency = ctx.configuration().pragmas().taskConcurrency();
         long queryInterval = queryEndTs - queryStartTs;
-        long queryDocs = ctx.searchStats().count() * queryInterval / dataInterval;
+        // The number of data points should be based on the number of docs with the counter field, not the total docs.
+        // Here we estimate that by assuming the counter field appears in 10% of documents on average.
+        // TODO: access the TSDB codec for the accurate estimate
+        long totalDocs = ctx.searchStats().count() / 10;
+        long queryDocs = totalDocs * queryInterval / dataInterval;
         long selectedInterval = -1;
         long selectedSlices = -1;
         // TODO: retrieve this from planner settings instead
@@ -146,10 +150,7 @@ final class TimeSeriesSourcePartitioner {
             long numSlices = Math.ceilDiv(queryInterval, sliceInterval);
             long docPerSlice = queryDocs / numSlices;
             long requiredBytes = docPerSlice * 2 * Long.BYTES * Math.min(availableProcessors, numSlices);
-            // The number of data points should be based on the number of docs with the counter field,
-            // not just the timestamp field or total docs.
-            // Assume the counter field appears in 50% of documents on average to avoid expensive over-partitioning.
-            if (requiredBytes <= maxRateBufferBytes * 2.0) {
+            if (requiredBytes <= maxRateBufferBytes) {
                 if (selectedInterval == -1
                     || numSlices <= availableProcessors
                     || (selectedSlices < availableProcessors && numSlices <= taskConcurrency)) {

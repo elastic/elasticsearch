@@ -1837,6 +1837,11 @@ public class EsqlCapabilities {
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
+        /**
+         * Fixes reset calculation in rates where partitioning data into multiple slices can lead to incorrect results.
+         */
+        RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

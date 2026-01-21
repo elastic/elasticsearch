@@ -461,7 +461,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
-            final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier);
+            final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier.secondLevelClusters());
             {
                 // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
                 // to the ordinals on the parent / child structure.
@@ -601,8 +601,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         return hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
     }
 
-    private CentroidGroups buildCentroidGroups(CentroidSupplier centroidSupplier) throws IOException {
-        final Clusters clusters = centroidSupplier.secondLevelClusters();
+    private CentroidGroups buildCentroidGroups(Clusters clusters) {
         final int[] centroidVectorCount = new int[clusters.centroidsSupplier().size()];
         for (int i = 0; i < clusters.assignments().length; i++) {
             centroidVectorCount[clusters.assignments()[i]]++;

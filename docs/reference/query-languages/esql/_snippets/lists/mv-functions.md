@@ -6,7 +6,7 @@
 * [`MV_DEDUPE`](../../functions-operators/mv-functions.md#esql-mv_dedupe)
 * [`MV_FIRST`](../../functions-operators/mv-functions.md#esql-mv_first)
 * [`MV_INTERSECTION`](../../functions-operators/mv-functions.md#esql-mv_intersection) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
-* [`MV_OVERLAPS`](../../functions-operators/mv-functions.md#esql-mv_overlaps) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`MV_OVERLAPS`](../../functions-operators/mv-functions.md#esql-mv_overlaps) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_LAST`](../../functions-operators/mv-functions.md#esql-mv_last)
 * [`MV_MAX`](../../functions-operators/mv-functions.md#esql-mv_max)
 * [`MV_MEDIAN`](../../functions-operators/mv-functions.md#esql-mv_median)

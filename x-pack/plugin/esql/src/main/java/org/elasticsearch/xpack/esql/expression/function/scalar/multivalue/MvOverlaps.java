@@ -208,17 +208,60 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         };
     }
 
+    /*
+     * process method, approach:
+     *
+     * for comparable values excluding boolean, is:
+     * If quick equals reference check succeeds then they overlap and return true. If any side is ordered than
+     * we can do something better than linear scanning. If only one side is ordered then we linear scan the other
+     * side and call block#hasValue(..) which might perform a binary search. We call the process method again with
+     * params reversed to ensure the ordered one is on the right.
+     * If both sides are ordered we do a stepwise comparison.
+     *
+     * for booleans we scan for the first flip.
+     */
+
     @Evaluator(extraName = "Int", allNullsIsNull = false)
     static boolean process(@Position int position, IntBlock left, IntBlock right) {
         if (left == right) {
             return true;
         }
-
-        final var valueCount = right.getValueCount(position);
-        final var startIndex = right.getFirstValueIndex(position);
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            var value = right.getInt(valueIndex);
-            if (left.hasValue(position, value)) {
+        final var leftStartIndex = left.getFirstValueIndex(position);
+        final var leftEndIndex = leftStartIndex + left.getValueCount(position);
+        if(left.mvSortedAscending()) {
+            if(right.mvSortedAscending() == false) {
+                return process(position, right, left);
+            }
+            var rightStartIndex = right.getFirstValueIndex(position);
+            var rightEndIndex = rightStartIndex + right.getValueCount(position);
+            var leftIndex = leftStartIndex;
+            var rightIndex = rightStartIndex;
+            if (leftIndex >= leftEndIndex || rightIndex >= rightEndIndex) {
+                return false;
+            }
+            var leftValue = left.getInt(leftIndex);
+            var rightValue = right.getInt(rightIndex);
+            while (true) {
+                if (leftValue == rightValue) {
+                    return true;
+                } else if (leftValue < rightValue) {
+                    leftIndex++;
+                    if (leftIndex >= leftEndIndex) {
+                        return false;
+                    }
+                    leftValue = left.getInt(leftIndex);
+                } else {
+                    rightIndex++;
+                    if (rightIndex >= rightEndIndex) {
+                        return false;
+                    }
+                    rightValue = right.getInt(rightIndex);
+                }
+            }
+        }
+        for (int valueIndex = leftStartIndex; valueIndex < leftEndIndex; valueIndex++) {
+            var value = left.getInt(valueIndex);
+            if (right.hasValue(position, value)) {
                 return true;
             }
         }
@@ -230,16 +273,18 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
-
-        final var valueCount = right.getValueCount(position);
-        final var startIndex = right.getFirstValueIndex(position);
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            var value = right.getBoolean(valueIndex);
-            if (left.hasValue(position, value)) {
+        if(left.getValueCount(position)<right.getValueCount(position)) {
+            boolean value = right.getBoolean(right.getFirstValueIndex(position));
+            if(left.hasValue(position, value)) {
                 return true;
             }
+            return right.hasValue(position, value == false);
         }
-        return false;
+        boolean value = left.getBoolean(right.getFirstValueIndex(position));
+        if(right.hasValue(position, value)) {
+            return true;
+        }
+        return left.hasValue(position, value == false);
     }
 
     @Evaluator(extraName = "Long", allNullsIsNull = false)
@@ -247,12 +292,42 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
-
-        final var valueCount = right.getValueCount(position);
-        final var startIndex = right.getFirstValueIndex(position);
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            var value = right.getLong(valueIndex);
-            if (left.hasValue(position, value)) {
+        final var leftStartIndex = left.getFirstValueIndex(position);
+        final var leftEndIndex = leftStartIndex + left.getValueCount(position);
+        if(left.mvSortedAscending()) {
+            if(right.mvSortedAscending() == false) {
+                return process(position, right, left);
+            }
+            var rightStartIndex = right.getFirstValueIndex(position);
+            var rightEndIndex = rightStartIndex + right.getValueCount(position);
+            var leftIndex = leftStartIndex;
+            var rightIndex = rightStartIndex;
+            if (leftIndex >= leftEndIndex || rightIndex >= rightEndIndex) {
+                return false;
+            }
+            var leftValue = left.getLong(leftIndex);
+            var rightValue = right.getLong(rightIndex);
+            while (true) {
+                if (leftValue == rightValue) {
+                    return true;
+                } else if (leftValue < rightValue) {
+                    leftIndex++;
+                    if (leftIndex >= leftEndIndex) {
+                        return false;
+                    }
+                    leftValue = left.getLong(leftIndex);
+                } else {
+                    rightIndex++;
+                    if (rightIndex >= rightEndIndex) {
+                        return false;
+                    }
+                    rightValue = right.getLong(rightIndex);
+                }
+            }
+        }
+        for (int valueIndex = leftStartIndex; valueIndex < leftEndIndex; valueIndex++) {
+            var value = left.getLong(valueIndex);
+            if (right.hasValue(position, value)) {
                 return true;
             }
         }
@@ -264,12 +339,42 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
-
-        final var valueCount = right.getValueCount(position);
-        final var startIndex = right.getFirstValueIndex(position);
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            var value = right.getDouble(valueIndex);
-            if (left.hasValue(position, value)) {
+        final var leftStartIndex = left.getFirstValueIndex(position);
+        final var leftEndIndex = leftStartIndex + left.getValueCount(position);
+        if(left.mvSortedAscending()) {
+            if(right.mvSortedAscending() == false) {
+                return process(position, right, left);
+            }
+            var rightStartIndex = right.getFirstValueIndex(position);
+            var rightEndIndex = rightStartIndex + right.getValueCount(position);
+            var leftIndex = leftStartIndex;
+            var rightIndex = rightStartIndex;
+            if (leftIndex >= leftEndIndex || rightIndex >= rightEndIndex) {
+                return false;
+            }
+            var leftValue = left.getDouble(leftIndex);
+            var rightValue = right.getDouble(rightIndex);
+            while (true) {
+                if (leftValue == rightValue) {
+                    return true;
+                } else if (leftValue < rightValue) {
+                    leftIndex++;
+                    if (leftIndex >= leftEndIndex) {
+                        return false;
+                    }
+                    leftValue = left.getDouble(leftIndex);
+                } else {
+                    rightIndex++;
+                    if (rightIndex >= rightEndIndex) {
+                        return false;
+                    }
+                    rightValue = right.getDouble(rightIndex);
+                }
+            }
+        }
+        for (int valueIndex = leftStartIndex; valueIndex < leftEndIndex; valueIndex++) {
+            var value = left.getDouble(valueIndex);
+            if (right.hasValue(position, value)) {
                 return true;
             }
         }
@@ -282,14 +387,51 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
             return true;
         }
 
-        final var valueCount = right.getValueCount(position);
-        final var startIndex = right.getFirstValueIndex(position);
-        var value = new BytesRef();
-        var scratch = new BytesRef();
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+        final var leftStartIndex = left.getFirstValueIndex(position);
+        final var leftEndIndex = leftStartIndex + left.getValueCount(position);
+        var leftValue = new BytesRef();
+        var rightValue = new BytesRef();
+
+        if(left.mvSortedAscending()) {
+            if(right.mvSortedAscending() == false) {
+                return process(position, right, left);
+            }
+            var rightStartIndex = right.getFirstValueIndex(position);
+            var rightEndIndex = rightStartIndex + right.getValueCount(position);
+            var leftIndex = leftStartIndex;
+            var rightIndex = rightStartIndex;
+
+            if (leftIndex >= leftEndIndex || rightIndex >= rightEndIndex) {
+                return false;
+            }
+
+            leftValue  = left.getBytesRef(leftIndex, leftValue);
+            rightValue = right.getBytesRef(rightIndex, rightValue);
+
+            while (true) {
+                int compare = leftValue.compareTo(rightValue);
+                if (compare == 0) {
+                    return true;
+                } else if (compare < 0) {
+                    leftIndex++;
+                    if (leftIndex >= leftEndIndex) {
+                        return false;
+                    }
+                    leftValue = left.getBytesRef(leftIndex, leftValue);
+                } else {
+                    rightIndex++;
+                    if (rightIndex >= rightEndIndex) {
+                        return false;
+                    }
+                    rightValue = right.getBytesRef(rightIndex, rightValue);
+                }
+            }
+        }
+
+        for (int valueIndex = leftStartIndex; valueIndex < leftEndIndex; valueIndex++) {
             // we pass in a reference, but sometimes we only get a return value, see ConstantBytesRefVector.getBytesRef
-            value = right.getBytesRef(valueIndex, value);
-            if (left.hasValue(position, value, scratch)) {
+            leftValue = left.getBytesRef(valueIndex, leftValue);
+            if (right.hasValue(position, leftValue, rightValue)) {
                 return true;
             }
         }

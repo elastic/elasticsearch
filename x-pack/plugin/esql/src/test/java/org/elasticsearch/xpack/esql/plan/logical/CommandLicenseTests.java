@@ -124,7 +124,9 @@ public class CommandLicenseTests extends ESTestCase {
             "Stats",
             "Aggregate",
             "Join",
-            "LookupJoin"
+            "LookupJoin",
+            "Mmr",
+            "MMR"
         );
         Map<String, String> commandNameMapper = Map.of(
             "ChangePoint",
@@ -137,7 +139,7 @@ public class CommandLicenseTests extends ESTestCase {
             "INLINE_STATS"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
-        Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row", "Mmr");
+        Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");
 
         for (Method method : EsqlBaseParserVisitor.class.getMethods()) {
             String methodName = method.getName();

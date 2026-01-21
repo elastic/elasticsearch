@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -44,7 +45,7 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
         this.templateIdDocValues = templateIdDocValues;
     }
 
-    static PatternTextCompositeValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
+    static BinaryDocValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
         SortedSetDocValues templateIdDocValues = DocValues.getSortedSet(leafReader, fieldType.templateIdFieldName());
         if (templateIdDocValues.getValueCount() == 0) {
             return null;
@@ -57,6 +58,12 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
             fieldType.argsInfoFieldName(),
             fieldType.useBinaryDocValuesArgs()
         );
+        FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(fieldType.storedNamed());
+        if (fieldInfo == null) {
+            // If there is no stored subfield (either binary doc values or stored field),
+            // then there is no need to use PatternTextCompositeValues
+            return docValues;
+        }
         StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
         LeafStoredFieldLoader storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
         return new PatternTextCompositeValues(storedTemplateLoader, fieldType.storedNamed(), docValues, templateIdDocValues);

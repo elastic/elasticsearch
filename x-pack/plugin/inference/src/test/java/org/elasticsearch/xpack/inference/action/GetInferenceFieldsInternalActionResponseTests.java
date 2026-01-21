@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResultsTests;
@@ -30,9 +30,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.generateRandomChunkingSettings;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 
-public class GetInferenceFieldsActionResponseTests extends AbstractBWCWireSerializationTestCase<GetInferenceFieldsAction.Response> {
+public class GetInferenceFieldsInternalActionResponseTests extends AbstractBWCWireSerializationTestCase<
+    GetInferenceFieldsInternalAction.Response> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -40,36 +41,43 @@ public class GetInferenceFieldsActionResponseTests extends AbstractBWCWireSerial
     }
 
     @Override
-    protected Writeable.Reader<GetInferenceFieldsAction.Response> instanceReader() {
-        return GetInferenceFieldsAction.Response::new;
+    protected Writeable.Reader<GetInferenceFieldsInternalAction.Response> instanceReader() {
+        return GetInferenceFieldsInternalAction.Response::new;
     }
 
     @Override
-    protected GetInferenceFieldsAction.Response createTestInstance() {
-        return new GetInferenceFieldsAction.Response(randomInferenceFieldsMap(), randomInferenceResultsMap());
+    protected GetInferenceFieldsInternalAction.Response createTestInstance() {
+        return new GetInferenceFieldsInternalAction.Response(randomInferenceFieldsMap(), randomInferenceResultsMap());
     }
 
     @Override
-    protected GetInferenceFieldsAction.Response mutateInstance(GetInferenceFieldsAction.Response instance) throws IOException {
+    protected GetInferenceFieldsInternalAction.Response mutateInstance(GetInferenceFieldsInternalAction.Response instance)
+        throws IOException {
         return switch (between(0, 1)) {
-            case 0 -> new GetInferenceFieldsAction.Response(
-                randomValueOtherThan(instance.getInferenceFieldsMap(), GetInferenceFieldsActionResponseTests::randomInferenceFieldsMap),
+            case 0 -> new GetInferenceFieldsInternalAction.Response(
+                randomValueOtherThan(
+                    instance.getInferenceFieldsMap(),
+                    GetInferenceFieldsInternalActionResponseTests::randomInferenceFieldsMap
+                ),
                 instance.getInferenceResultsMap()
             );
-            case 1 -> new GetInferenceFieldsAction.Response(
+            case 1 -> new GetInferenceFieldsInternalAction.Response(
                 instance.getInferenceFieldsMap(),
-                randomValueOtherThan(instance.getInferenceResultsMap(), GetInferenceFieldsActionResponseTests::randomInferenceResultsMap)
+                randomValueOtherThan(
+                    instance.getInferenceResultsMap(),
+                    GetInferenceFieldsInternalActionResponseTests::randomInferenceResultsMap
+                )
             );
             default -> throw new AssertionError("Invalid value");
         };
     }
 
-    private static Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> randomInferenceFieldsMap() {
-        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> map = new HashMap<>();
+    private static Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> randomInferenceFieldsMap() {
+        Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> map = new HashMap<>();
         int numIndices = randomIntBetween(0, 5);
         for (int i = 0; i < numIndices; i++) {
             String indexName = randomIdentifier();
-            List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> fields = new ArrayList<>();
+            List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata> fields = new ArrayList<>();
             int numFields = randomIntBetween(0, 5);
             for (int j = 0; j < numFields; j++) {
                 fields.add(randomeExtendedInferenceFieldMetadata());
@@ -81,20 +89,23 @@ public class GetInferenceFieldsActionResponseTests extends AbstractBWCWireSerial
 
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        TransportVersion minVersion = TransportVersion.max(TransportVersion.minimumCompatible(), GET_INFERENCE_FIELDS_ACTION_TV);
+        TransportVersion minVersion = TransportVersion.max(
+            TransportVersion.minimumCompatible(),
+            GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV
+        );
         return TransportVersionUtils.allReleasedVersions().tailSet(minVersion, true);
     }
 
     @Override
-    protected GetInferenceFieldsAction.Response mutateInstanceForVersion(
-        GetInferenceFieldsAction.Response instance,
+    protected GetInferenceFieldsInternalAction.Response mutateInstanceForVersion(
+        GetInferenceFieldsInternalAction.Response instance,
         TransportVersion version
     ) {
         return instance;
     }
 
-    private static GetInferenceFieldsAction.ExtendedInferenceFieldMetadata randomeExtendedInferenceFieldMetadata() {
-        return new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(randomInferenceFieldMetadata(), randomFloat());
+    private static GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata randomeExtendedInferenceFieldMetadata() {
+        return new GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata(randomInferenceFieldMetadata(), randomFloat());
     }
 
     private static InferenceFieldMetadata randomInferenceFieldMetadata() {

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -15,6 +17,8 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,7 +57,38 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
+    public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
+        "unmapped_fields",
+        DataType.KEYWORD,
+        false,
+        true,
+        false,
+        "Defines how unmapped fields are treated. Possible values are: "
+            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
+            + "\"NULLIFY\" - treats unmapped fields as null values. ",
+        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
+        (value) -> {
+            String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
+            try {
+                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled() == false) {
+                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
+                }
+                return res;
+            } catch (Exception exc) {
+                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+                    ? UnmappedResolution.values()
+                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
+
+                throw new IllegalArgumentException(
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
+                );
+            }
+        },
+        UnmappedResolution.FAIL
+    );
+
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(UNMAPPED_FIELDS, PROJECT_ROUTING, TIME_ZONE)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
@@ -111,6 +146,7 @@ public class QuerySettings {
         Parser<T> parser,
         T defaultValue
     ) {
+
         /**
          * Constructor with a default validator that delegates to the parser.
          */

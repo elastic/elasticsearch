@@ -1,0 +1,7 @@
+pr: 140069
+summary: "Aggs: Fix class cast exceptions in pipeline aggs"
+area: Aggregations
+type: bug
+issues:
+ - 137624
+ - 136173

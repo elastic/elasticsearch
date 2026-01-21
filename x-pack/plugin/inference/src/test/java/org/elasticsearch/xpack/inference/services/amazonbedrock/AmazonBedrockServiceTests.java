@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
@@ -1536,7 +1535,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         ModelConfigurations modelConfigurations = new ModelConfigurations(
             INFERENCE_ID_VALUE,
             TaskType.CHAT_COMPLETION,
-            AlibabaCloudSearchService.NAME,
+            AmazonBedrockService.NAME,
             mock(ServiceSettings.class)
         );
         try (InferenceService inferenceService = createInferenceService()) {
@@ -1552,8 +1551,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                             Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
                             Please delete and add the service again""",
                         INFERENCE_ID_VALUE,
-                        AlibabaCloudSearchService.NAME,
-                        AlibabaCloudSearchService.NAME,
+                        AmazonBedrockService.NAME,
+                        AmazonBedrockService.NAME,
                         TaskType.CHAT_COMPLETION
                     )
                 )

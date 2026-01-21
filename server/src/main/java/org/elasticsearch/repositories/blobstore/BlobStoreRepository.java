@@ -95,7 +95,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -1951,8 +1950,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // We don't yet have this version of the metadata so we write it
                                     metaUUID = UUIDs.base64UUID();
                                     IndexMetadata adjustedMetadata = adjustIndexMetadataIfNeeded(
+                                        index,
                                         indexMetaData,
-                                        finalizeSnapshotContext.allShards()
+                                        finalizeSnapshotContext.updatedShardGenerations().liveIndices()
                                     );
                                     INDEX_METADATA_FORMAT.write(adjustedMetadata, indexContainer(index), metaUUID, compress);
                                     metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
@@ -1960,8 +1960,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 metadataWriteResult.indexMetas().put(index, identifiers);
                             } else {
                                 IndexMetadata adjustedMetadata = adjustIndexMetadataIfNeeded(
+                                    index,
                                     clusterMetadata.getProject(getProjectId()).index(index.getName()),
-                                    finalizeSnapshotContext.allShards()
+                                    finalizeSnapshotContext.updatedShardGenerations().liveIndices()
                                 );
                                 INDEX_METADATA_FORMAT.write(adjustedMetadata, indexContainer(index), snapshotId.getUUID(), compress);
                             }
@@ -2041,8 +2042,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /// This is a no-op for majority of indices since the shards in the snapshot will always match index metadata.
     ///
     /// Visible for tests.
-    static IndexMetadata adjustIndexMetadataIfNeeded(IndexMetadata indexMetadata, Set<ShardId> allShards) {
-        int numberOfShardsAccordingToSnapshot = calculateNumberOfShardsAccordingToSnapshot(allShards, indexMetadata.getIndex());
+    static IndexMetadata adjustIndexMetadataIfNeeded(IndexId index, IndexMetadata indexMetadata, ShardGenerations liveShardGenerations) {
+        int numberOfShardsAccordingToSnapshot = calculateNumberOfShardsAccordingToSnapshot(liveShardGenerations, index);
         // We currently only expect resharding to increase the number of shards.
         assert numberOfShardsAccordingToSnapshot <= indexMetadata.getNumberOfShards() : "Snapshot shards diverge from index metadata";
 
@@ -2093,17 +2094,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * It is in theory possible that multiple reshard operations were executed during the snapshot, and therefore
      * we can't make any assumptions here and calculate it based on the index metadata.
      */
-    private static int calculateNumberOfShardsAccordingToSnapshot(Set<ShardId> snapshotShards, Index index) {
-        int maxPresentShardId = 0;
-        assert snapshotShards.contains(new ShardId(index, 0));
+    private static int calculateNumberOfShardsAccordingToSnapshot(ShardGenerations liveShardGenerations, IndexId index) {
+        var indexGenerations = liveShardGenerations.getGens(index);
+        assert indexGenerations.isEmpty() == false : "An index should have at least one shard";
 
-        int i = 1;
-        while (snapshotShards.contains(new ShardId(index, i))) {
-            maxPresentShardId = i;
-            i++;
-        }
-
-        return maxPresentShardId + 1;
+        /// `indexGenerations` has an entry for every shard id even if the shard snapshot failed.
+        /// In that case it just contains `null` generation.
+        /// See [SnapshotsServiceUtils.buildGenerations].
+        /// The line below relies on that assumption to be correct.
+        return indexGenerations.size();
     }
 
     // Delete all old shard gen and root level index blobs that aren't referenced any longer as a result from moving to updated

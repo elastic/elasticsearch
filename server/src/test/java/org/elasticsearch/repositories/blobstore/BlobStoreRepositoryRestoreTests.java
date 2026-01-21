@@ -55,9 +55,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -153,13 +151,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         final IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         final ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 0);
 
-        IndexShard shard = newShard(
-            true,
-            shardId,
-            Settings.builder().put(SETTING_INDEX_UUID, indexId.getId()).build(),
-            new InternalEngineFactory(),
-            Collections.emptyList()
-        );
+        IndexShard shard = newShard(shardId, true);
         try {
             // index documents in the shards
             final int numDocs = scaledRandomIntBetween(1, 500);
@@ -207,7 +199,6 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         IndexVersion.current(),
-                        Set.of(shardId),
                         listener,
                         () -> {}
                     )

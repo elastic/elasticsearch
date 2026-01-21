@@ -88,7 +88,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -395,7 +394,6 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         IndexVersion.current(),
-                        Set.of(shard.shardId()),
                         ActionTestUtils.assertNoFailureListener(ignored -> finishedLatch.countDown()),
                         finishedLatch::countDown
                     )

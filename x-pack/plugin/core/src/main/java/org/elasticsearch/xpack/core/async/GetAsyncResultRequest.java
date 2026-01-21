@@ -22,7 +22,10 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
     private TimeValue keepAlive = TimeValue.MINUS_ONE;
     private boolean returnPartialResults = true;
 
-    private static final TransportVersion RETURN_PARTIAL_RESULTS_VERSION = TransportVersion.fromName("return_async_partial_results_query_param");
+    private static final TransportVersion RETURN_PARTIAL_RESULTS_VERSION = TransportVersion.fromName(
+        "return_async_partial_results_query_param"
+    );
+
     /**
      * Creates a new request
      *

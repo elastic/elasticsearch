@@ -753,7 +753,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         private void handleInferenceFailures(BulkItemRequest item, List<Exception> failures) {
             for (Exception failure : failures) {
-                // Generate a signature for the failure to deduplicate on the most important properties
+                // Generate a signature for the failure to deduplicate on the most important properties.
+                // Deduplicate on BulkItemRequest ID because each BulkItemRequest can have only one BulkItemResponse.Failure, which in turn
+                // has only one primary cause. All other causes are added as suppressed exceptions. Sharing cause instances across
+                // BulkItemRequests can lead to long suppressed exception lists, due to the shared primary cause acting as a global
+                // accumulator of suppressed exceptions.
                 FailureSignature failureSignature = new FailureSignature(item.id(), item.index(), failure);
 
                 Exception existing = deduplicatedFailures.putIfAbsent(failureSignature, failure);

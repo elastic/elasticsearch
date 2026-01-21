@@ -93,7 +93,9 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
                 );
         }
 
-        int maxRecursionDepth = overrides.getShouldParseRecursively() ? DEFAULT_RECURSION_DEPTH : NO_RECURSION_DEPTH;
+        int maxRecursionDepth = (overrides.getShouldParseRecursively() != null && overrides.getShouldParseRecursively())
+            ? DEFAULT_RECURSION_DEPTH
+            : NO_RECURSION_DEPTH;
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
             .guessMappingsAndCalculateFieldStats(
                 explanation,

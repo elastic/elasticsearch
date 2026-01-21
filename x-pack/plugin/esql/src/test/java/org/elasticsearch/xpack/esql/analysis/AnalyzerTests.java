@@ -5884,6 +5884,86 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(nanosCast.configuration(), is(configuration));
     }
 
+    public void testMetadataWildcards() {
+        var query = """
+            from test METADATA _inde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testMetadataWildcardsWithRepetitions() {
+        var query = """
+            from test METADATA  _index, _inde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testMetadataWildcardsWithRepetitionsWildcardFirst() {
+        var query = """
+            from test METADATA  _inde*, _index
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index_mode", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index", DataType.KEYWORD);
+    }
+
+    public void testMetadataLeadingAndTrailingWildcards() {
+        var query = """
+            from test METADATA *nde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
     private void verifyNameAndTypeAndMultiTypeEsField(
         String actualName,
         DataType actualType,

@@ -682,6 +682,7 @@ public class CsvTests extends ESTestCase {
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
             null,
+            null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);

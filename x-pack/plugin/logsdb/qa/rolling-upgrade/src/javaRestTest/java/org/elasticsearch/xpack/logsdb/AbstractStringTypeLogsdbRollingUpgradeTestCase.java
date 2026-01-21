@@ -68,8 +68,20 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
 
     private void verifyClusterIsRunningOldVersion() throws IOException {
         String expectedOldVersion = System.getProperty("tests.old_cluster_version");
-        assertThat("tests.old_cluster_version system property must be set", expectedOldVersion, notNullValue());
+        if (expectedOldVersion != null) {
+            verifyOldVersion(expectedOldVersion);
+        } else {
+            String expectedServerlessOldVersion = System.getProperty("tests.serverless.bwc_stack_version");
+            verifyOldVersion(expectedServerlessOldVersion);
+            assertThat(
+                "tests.old_cluster_version or tests.serverless.bwc_stack_version system property must be set",
+                expectedServerlessOldVersion,
+                notNullValue()
+            );
+        }
+    }
 
+    private void verifyOldVersion(String expectedOldVersion) throws IOException {
         // Strip -SNAPSHOT suffix for comparison since builds from refspecs may not include it
         String normalizedExpectedVersion = expectedOldVersion.replace("-SNAPSHOT", "");
 

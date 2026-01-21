@@ -169,9 +169,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     new EnrichResolution(),
                     InferenceResolution.EMPTY,
                     version,
-                    UnmappedResolution.FAIL,
-                    false,
-                    false
+                    UnmappedResolution.FAIL
                 ),
                 TEST_VERIFIER
             );

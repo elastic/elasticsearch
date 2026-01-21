@@ -123,9 +123,7 @@ public class QueryPlanningBenchmark {
                 new EnrichResolution(),
                 InferenceResolution.EMPTY,
                 minimumVersion,
-                UNMAPPED_FIELDS.defaultValue(),
-                false,
-                false
+                UNMAPPED_FIELDS.defaultValue()
             ),
             new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );

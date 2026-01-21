@@ -579,9 +579,7 @@ public final class EsqlTestUtils {
             enrichResolution,
             inferenceResolution,
             randomMinimumVersion(),
-            unmappedResolution,
-            false,
-            false
+            unmappedResolution
         );
     }
 

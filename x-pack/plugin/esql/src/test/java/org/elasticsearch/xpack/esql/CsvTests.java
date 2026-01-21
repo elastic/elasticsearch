@@ -586,9 +586,7 @@ public class CsvTests extends ESTestCase {
                 enrichPolicies,
                 emptyInferenceResolution(),
                 minimumVersion,
-                parsed.setting(UNMAPPED_FIELDS),
-                false,
-                false
+                parsed.setting(UNMAPPED_FIELDS)
             ),
             TEST_VERIFIER
         );
@@ -687,6 +685,7 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
+            null,
             null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );

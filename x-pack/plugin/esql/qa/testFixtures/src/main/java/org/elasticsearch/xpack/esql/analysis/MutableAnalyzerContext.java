@@ -34,9 +34,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         TransportVersion minimumVersion,
-        UnmappedResolution unmappedResolution,
-        boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported
+        UnmappedResolution unmappedResolution
     ) {
         super(
             configuration,
@@ -46,13 +44,11 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             enrichResolution,
             inferenceResolution,
             minimumVersion,
-            unmappedResolution,
-            useAggregateMetricDoubleWhenNotSupported,
-            useDenseVectorWhenNotSupported
+            unmappedResolution
         );
         this.currentVersion = minimumVersion;
-        this.currentUseAggregateMetricDoubleWhenNotSupported = useAggregateMetricDoubleWhenNotSupported;
-        this.currentUseDenseVectorWhenNotSupported = useDenseVectorWhenNotSupported;
+        this.currentUseAggregateMetricDoubleWhenNotSupported = false;
+        this.currentUseDenseVectorWhenNotSupported = false;
     }
 
     @Override

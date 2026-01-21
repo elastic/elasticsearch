@@ -185,9 +185,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                 emptyPolicyResolution(),
                 emptyInferenceResolution(),
                 minimumVersion,
-                UNMAPPED_FIELDS.defaultValue(),
-                false,
-                false
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );

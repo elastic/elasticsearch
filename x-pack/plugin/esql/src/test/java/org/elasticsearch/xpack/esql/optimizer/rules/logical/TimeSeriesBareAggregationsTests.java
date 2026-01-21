@@ -66,9 +66,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
                 enrichResolution,
                 emptyInferenceResolution(),
                 TransportVersion.minimumCompatible(),
-                UNMAPPED_FIELDS.defaultValue(),
-                false,
-                false
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );

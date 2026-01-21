@@ -99,9 +99,7 @@ public class FilterTests extends ESTestCase {
                 EsqlTestUtils.emptyPolicyResolution(),
                 emptyInferenceResolution(),
                 minimumVersion,
-                UNMAPPED_FIELDS.defaultValue(),
-                false,
-                false
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );

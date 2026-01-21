@@ -76,9 +76,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
             new EnrichResolution(),
             EsqlTestUtils.emptyInferenceResolution(),
             TransportVersion.current(),
-            QuerySettings.UNMAPPED_FIELDS.defaultValue(),
-            false,
-            false
+            QuerySettings.UNMAPPED_FIELDS.defaultValue()
         ),
         TEST_VERIFIER
     );

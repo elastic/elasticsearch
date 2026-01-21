@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -162,6 +163,7 @@ public class EsqlSession {
     private boolean explainMode;
     private String parsedPlanString;
     private String optimizedLogicalPlanString;
+    private final ProjectMetadata projectMetadata;
 
     public EsqlSession(
         String sessionId,
@@ -175,6 +177,7 @@ public class EsqlSession {
         Verifier verifier,
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
+        ProjectMetadata projectMetadata,
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -195,6 +198,7 @@ public class EsqlSession {
         this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.projectMetadata = projectMetadata;
     }
 
     public String sessionId() {
@@ -1148,7 +1152,13 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        AnalyzerContext analyzerContext = new AnalyzerContext(configuration, functionRegistry, parsed.setting(UNMAPPED_FIELDS), r);
+        AnalyzerContext analyzerContext = new AnalyzerContext(
+            configuration,
+            functionRegistry,
+            parsed.setting(UNMAPPED_FIELDS),
+            projectMetadata,
+            r
+        );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed.plan());
         plan.setAnalyzed();

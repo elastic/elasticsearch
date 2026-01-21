@@ -70,7 +70,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
@@ -147,7 +146,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -179,6 +177,9 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotResiliencyTestHelper {
@@ -290,7 +291,7 @@ public class SnapshotResiliencyTestHelper {
         protected TestClusterNode newNode(String nodeName, DiscoveryNodeRole role, TransportInterceptorFactory transportInterceptorFactory)
             throws IOException {
             final var testClusterNode = newNode(
-                DiscoveryNodeUtils.builder(ESTestCase.randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build(),
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build(),
                 transportInterceptorFactory
             );
             testClusterNode.init();
@@ -313,7 +314,7 @@ public class SnapshotResiliencyTestHelper {
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName()))
                 .toList();
-            return masterNodes.isEmpty() ? Optional.empty() : Optional.of(ESTestCase.randomFrom(masterNodes));
+            return masterNodes.isEmpty() ? Optional.empty() : Optional.of(randomFrom(masterNodes));
         }
 
         public void stopNode(TestClusterNode node) {
@@ -335,7 +336,7 @@ public class SnapshotResiliencyTestHelper {
                 }
                 return true;
             }).sorted(Comparator.comparing(n -> n.node.getName())).toList();
-            return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(ESTestCase.randomFrom(dataNodes));
+            return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(randomFrom(dataNodes));
         }
 
         public void disconnectNode(TestClusterNode node) {
@@ -384,6 +385,14 @@ public class SnapshotResiliencyTestHelper {
             Assert.assertNotNull(master);
             Assert.assertTrue(master.node.isMasterNode());
             return master;
+        }
+
+        protected Settings nodeSettings(DiscoveryNode node) {
+            return Settings.EMPTY;
+        }
+
+        protected PluginsService createPluginsService(Settings settings, Environment environment) {
+            return mock(PluginsService.class);
         }
 
         public interface TransportInterceptorFactory {
@@ -436,43 +445,38 @@ public class SnapshotResiliencyTestHelper {
 
             private IndicesClusterStateService indicesClusterStateService;
 
-            private MasterService masterService;
+            private final MasterService masterService;
 
             protected AllocationService allocationService;
 
             protected RerouteService rerouteService;
 
-            protected NodeClient client;
+            protected final NodeClient client;
 
             protected NodeEnvironment nodeEnv;
 
             private DisruptableMockTransport mockTransport;
 
-            protected ThreadPool threadPool;
+            protected final ThreadPool threadPool;
 
             protected IndexNameExpressionResolver indexNameExpressionResolver;
 
             protected BigArrays bigArrays;
 
-            private UsageService usageService;
+            private final UsageService usageService;
 
             private Coordinator coordinator;
 
-            @SuppressWarnings("this-escape")
             public TestClusterNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) {
                 this.node = node;
                 this.transportInterceptorFactory = transportInterceptorFactory;
-                this.environment = createEnvironment(node.getName(), tempDir, nodeSettings());
+                this.environment = createEnvironment(node.getName(), tempDir, nodeSettings(node));
                 this.settings = environment.settings();
                 this.pluginsService = createPluginsService(settings, environment);
                 this.threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable));
                 this.masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 this.client = new NodeClient(settings, threadPool, projectResolver);
                 this.usageService = new UsageService();
-            }
-
-            protected PluginsService createPluginsService(Settings settings, Environment environment) {
-                return mock(PluginsService.class);
             }
 
             public final void init() throws IOException {
@@ -563,8 +567,7 @@ public class SnapshotResiliencyTestHelper {
                     null,
                     emptySet()
                 );
-                // TODO: The indexNameExpressionResolver does not use the same threadContext and projectResolver
-                indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+                indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext(), projectResolver);
                 bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 repositoriesService = new RepositoriesService(
                     settings,
@@ -600,13 +603,7 @@ public class SnapshotResiliencyTestHelper {
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
-                final ScriptService scriptService = new ScriptService(
-                    settings,
-                    emptyMap(),
-                    emptyMap(),
-                    () -> 1L,
-                    TestProjectResolvers.singleProject(ESTestCase.randomProjectIdOrDefault())
-                );
+                final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap(), () -> 1L, projectResolver);
 
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
@@ -657,7 +654,7 @@ public class SnapshotResiliencyTestHelper {
                     .bigArrays(bigArrays)
                     .scriptService(scriptService)
                     .clusterService(clusterService)
-                    .projectResolver(DefaultProjectResolver.INSTANCE)
+                    .projectResolver(projectResolver)
                     .client(client)
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
@@ -699,7 +696,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         clusterService,
                         repositoriesService,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -771,7 +768,7 @@ public class SnapshotResiliencyTestHelper {
                             actionFilters,
                             new IndexingPressure(settings),
                             EmptySystemIndices.INSTANCE,
-                            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                            projectResolver
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
@@ -801,7 +798,7 @@ public class SnapshotResiliencyTestHelper {
                         metadataCreateIndexService,
                         actionFilters,
                         EmptySystemIndices.INSTANCE,
-                        DefaultProjectResolver.INSTANCE
+                        projectResolver
                     )
                 );
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
@@ -837,7 +834,7 @@ public class SnapshotResiliencyTestHelper {
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                        projectResolver,
                         FailureStoreMetrics.NOOP,
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                         new FeatureService(List.of()) {
@@ -861,7 +858,7 @@ public class SnapshotResiliencyTestHelper {
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
-                    TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                    projectResolver,
                     DocumentParsingProvider.EMPTY_INSTANCE
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
@@ -898,7 +895,7 @@ public class SnapshotResiliencyTestHelper {
                         indexNameExpressionResolver,
                         new RequestValidators<>(Collections.emptyList()),
                         EmptySystemIndices.INSTANCE,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -909,7 +906,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         metadataMappingService,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                        projectResolver,
                         EmptySystemIndices.INSTANCE
                     )
                 );
@@ -927,7 +924,7 @@ public class SnapshotResiliencyTestHelper {
                         searchPhaseController,
                         clusterService,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                        projectResolver,
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
@@ -944,7 +941,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         restoreService,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -955,7 +952,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         new MetadataDeleteIndexService(settings, clusterService, allocationService),
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                        projectResolver,
                         indexNameExpressionResolver,
                         new DestructiveOperations(settings, clusterSettings)
                     )
@@ -968,7 +965,7 @@ public class SnapshotResiliencyTestHelper {
                         repositoriesService,
                         threadPool,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -979,7 +976,7 @@ public class SnapshotResiliencyTestHelper {
                         repositoriesService,
                         threadPool,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -990,7 +987,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         snapshotsService,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -1001,7 +998,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         snapshotsService,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -1012,7 +1009,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         repositoriesService,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -1023,7 +1020,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         allocationService,
                         actionFilters,
-                        TestProjectResolvers.alwaysThrow()
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -1034,7 +1031,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         actionFilters,
                         indexNameExpressionResolver,
-                        DefaultProjectResolver.INSTANCE,
+                        projectResolver,
                         new NoOpClient(threadPool)
                     )
                 );
@@ -1070,7 +1067,7 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         snapshotsService,
                         actionFilters,
-                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -1129,7 +1126,7 @@ public class SnapshotResiliencyTestHelper {
                 disconnectNode(this);
                 final ClusterState oldState = this.clusterService.state();
                 stop();
-                nodes().remove(node.getName());
+                nodes.remove(node.getName());
 
                 final Runnable startRunnable = new Runnable() {
                     @Override
@@ -1176,10 +1173,6 @@ public class SnapshotResiliencyTestHelper {
 
             public TransportService transportService() {
                 return transportService;
-            }
-
-            protected Settings nodeSettings() {
-                return Settings.EMPTY;
             }
 
             protected Set<Setting<?>> clusterSettings() {
@@ -1278,10 +1271,7 @@ public class SnapshotResiliencyTestHelper {
             }
 
             private void scheduleSoon(Runnable runnable) {
-                deterministicTaskQueue.scheduleAt(
-                    deterministicTaskQueue.getCurrentTimeMillis() + ESTestCase.randomLongBetween(0, 100L),
-                    runnable
-                );
+                deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), runnable);
             }
         }
     }

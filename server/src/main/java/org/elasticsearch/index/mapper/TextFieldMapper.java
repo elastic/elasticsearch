@@ -1142,7 +1142,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // 1. check if we can load from a synthetic source delegate
+            // Check if we can load from a synthetic source delegate
             if (canUseSyntheticSourceDelegateForLoading()) {
                 return new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
@@ -1151,9 +1151,22 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                 };
             }
+            BlockLoader fallbackLoader = nonDelegateBlockLoader(blContext);
+            if (syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored()) {
+                DelegatingBlockLoader preferLoader = new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
+                    @Override
+                    public String delegatingTo() {
+                        return syntheticSourceDelegate.get().name();
+                    }
+                };
+                return new ConditionalBlockLoaderWithIgnoreField(syntheticSourceDelegate.get().name(), preferLoader, fallbackLoader);
+            }
+            return fallbackLoader;
+        }
 
-            // 2. check if we can load from a parent field
+        private BlockLoader nonDelegateBlockLoader(BlockLoaderContext blContext) {
             /*
+             * Check if we can load from a parent field
              * If this is a sub-text field try and return the parent's loader. Text
              * fields will always be slow to load and if the parent is exact then we
              * should use that instead.
@@ -1174,19 +1187,19 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             }
 
-            // 3. bwc - check if we need to load from ignored source (aka fallback synthetic source)
+            // Bwc - check if we need to load from ignored source (aka fallback synthetic source)
             if (wasIndexCreatedWhenTextFieldsWereStoredInIgnoredSource()) {
                 if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null && isStored() == false) {
                     return fallbackSyntheticSourceBlockLoader(blContext);
                 }
             }
 
-            // 4. check if we can load from a stored field
+            // Check if we can load from a stored field
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // 5. check if we can load from a fallback field
+            // Check if we can load from a fallback field
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 if (usesBinaryDocValues) {
                     return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
@@ -1194,7 +1207,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
             }
 
-            // 6. load directly from _source (synthetic or not)
+            // Load directly from _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }

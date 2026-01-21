@@ -50,8 +50,6 @@ import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationSe
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;

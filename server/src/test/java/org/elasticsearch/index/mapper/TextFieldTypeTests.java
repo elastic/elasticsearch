@@ -540,6 +540,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             "field",
             true,
             false,
+            false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
             false,
@@ -578,6 +579,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             "field",
             true,
             false,
+            false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
             false,
@@ -614,6 +616,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = new TextFieldType(
             "field",
             true,
+            false,
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,

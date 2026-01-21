@@ -178,6 +178,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
+        // doc_values is a no-op for text fields - no conflict check needed
         checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
         checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
@@ -495,6 +496,55 @@ public class TextFieldMapperTests extends MapperTestCase {
         FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
 
         assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testDocValuesIsNoOp() throws IOException {
+        // doc_values parameter should be accepted but have no effect on text fields
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("doc_values", true);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "test value")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+
+        // Verify that doc_values are NOT enabled despite setting doc_values=true
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        assertFalse(textMapper.fieldType().hasDocValues());
+    }
+
+    public void testDocValuesNotSerialized() throws IOException {
+        // doc_values is a no-op for text fields and should not be serialized
+        DocumentMapper mapperWithTrue = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("doc_values", true);
+        }));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        mapperWithTrue.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String mappingString = Strings.toString(builder);
+
+        // The mapping should NOT contain doc_values
+        assertFalse(mappingString.contains("doc_values"));
+
+        // Same for doc_values: false
+        DocumentMapper mapperWithFalse = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("doc_values", false);
+        }));
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        mapperWithFalse.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        mappingString = Strings.toString(builder);
+
+        assertFalse(mappingString.contains("doc_values"));
     }
 
     public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiField() throws IOException {

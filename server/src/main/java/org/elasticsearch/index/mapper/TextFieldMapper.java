@@ -101,6 +101,11 @@ public final class TextFieldMapper extends FieldMapper {
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
     private static final String FAST_PREFIX_SUFFIX = "._index_prefix";
 
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        false,
+        DocValuesParameter.Values.Cardinality.LOW
+    );
+
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;
         public static final double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
@@ -250,6 +255,12 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
+        // doc_values parameter is a no-op for text fields - it can be configured but has no effect
+        final DocValuesParameter docValuesParameters = new DocValuesParameter(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> ((TextFieldMapper) m).docValuesParameters
+        );
+
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
@@ -394,11 +405,17 @@ public final class TextFieldMapper extends FieldMapper {
             return this;
         }
 
+        public TextFieldMapper.Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
+            this.docValuesParameters.setValue(new DocValuesParameter.Values(false, cardinality));
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 index,
                 store,
+                docValuesParameters,
                 indexOptions,
                 norms,
                 termVectors,
@@ -440,6 +457,7 @@ public final class TextFieldMapper extends FieldMapper {
                     context.buildFullName(leafName()),
                     index.getValue(),
                     store.getValue(),
+                    docValuesParameters.getValue().enabled(),
                     tsi,
                     context.isSourceSynthetic(),
                     isWithinMultiField(),
@@ -521,6 +539,7 @@ public final class TextFieldMapper extends FieldMapper {
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
+                () -> docValuesParameters.getValue().enabled(),
                 indexOptions,
                 // legacy indices do not have access to norms
                 indexCreatedVersion().isLegacyIndexVersion() ? () -> false : norms,
@@ -733,6 +752,7 @@ public final class TextFieldMapper extends FieldMapper {
             String name,
             boolean indexed,
             boolean stored,
+            boolean hasDocValues,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
             boolean isWithinMultiField,
@@ -743,7 +763,17 @@ public final class TextFieldMapper extends FieldMapper {
             IndexVersion indexCreatedVersion,
             boolean usesBinaryDocValues
         ) {
-            super(name, indexed ? IndexType.terms(true, false) : IndexType.NONE, stored, tsi, meta, isSyntheticSource, isWithinMultiField);
+            super(
+                name,
+                indexed ? IndexType.terms(true, hasDocValues) : IndexType.NONE,
+                stored,
+                tsi,
+                meta,
+                isSyntheticSource,
+                isWithinMultiField
+            );
+            assert hasDocValues == false : "doc_values are not supported on text fields";
+
             this.fielddata = false;
             // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
@@ -769,6 +799,7 @@ public final class TextFieldMapper extends FieldMapper {
                 name,
                 indexed,
                 stored,
+                false,  // no-op
                 tsi,
                 isSyntheticSource,
                 isWithinMultiField,
@@ -1361,7 +1392,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, false, null, meta, false, false, IndexVersion.current(), false);
+            super(name, indexed, stored, false, tsi, false, false, null, meta, false, false, IndexVersion.current(), false);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1464,6 +1495,8 @@ public final class TextFieldMapper extends FieldMapper {
     private final IndexMode indexMode;
     private final boolean index;
     private final boolean store;
+    // doc_values is a no-op parameter for text fields
+    private final DocValuesParameter.Values docValuesParameters;
     private final String indexOptions;
     private final boolean norms;
     private final String termVectors;
@@ -1508,6 +1541,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
@@ -1754,6 +1788,7 @@ public final class TextFieldMapper extends FieldMapper {
         final Builder b = (Builder) getMergeBuilder();
         b.index.toXContent(builder, includeDefaults);
         b.store.toXContent(builder, includeDefaults);
+        // doc_values is not serialized for text fields (it's a no-op parameter)
         multiFields().toXContent(builder, params);
         copyTo().toXContent(builder);
         if (sourceKeepMode().isPresent()) {

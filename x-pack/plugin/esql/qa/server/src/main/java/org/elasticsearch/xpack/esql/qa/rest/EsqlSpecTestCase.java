@@ -265,15 +265,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private static final Set<String> FROM_STAR_TESTS = Set.of(
-        "QueryThatWillNotBeDeterministicWithViews",
         "FieldsInOtherIndicesBug",
-        "MultipleBatchesWithSort",
-        "MultipleBatchesWithMvExpand",
-        "EnrichLookupStatsBug",
-        "MultipleBatchesWithAggregate1",
-        "MultipleBatchesWithAggregate2",
-        "MultipleBatchesWithAggregate3",
-        "InlineStatsAfterPruningAggregate6"
+        "EnrichLookupStatsBug"
     );
 
     private static final Set<String> AIRPORTS_STAR_TESTS = Set.of("LucenePushdownMixOrAnd", "LucenePushdownMultipleIndices");

@@ -579,6 +579,27 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
     }
 
+    public void testGetAbsentBytesWithin() {
+        final int length = between(100, 2048);
+        var tracker = new SparseFileTracker(getTestName(), length);
+        long begin = randomLongBetween(0, length);
+        long end = randomLongBetween(begin, length);
+        long amount = end-begin;
+
+        for (int i = 0; i < 10; ++i) {
+            assertThat(tracker.getAbsentBytesWithin(ByteRange.of(begin, end)), equalTo(amount));
+            long start = randomLongBetween(0, length);
+            ByteRange range = ByteRange.of(start, randomLongBetween(start, length));
+            List<SparseFileTracker.Gap> gaps = tracker.waitForRange(range, range, ActionListener.noop());
+            assertThat(tracker.getAbsentBytesWithin(ByteRange.of(begin, end)), equalTo(amount));
+            long sum = gaps.stream().mapToLong(g -> Math.max(Math.min(g.end(), end) - Math.max(g.start(), begin), 0)).sum();
+            gaps.forEach(g -> g.onCompletion());
+            amount -= sum;
+            assertThat(tracker.getAbsentBytesWithin(ByteRange.of(begin, end)), equalTo(amount));
+        }
+    }
+
+
     private static void checkRandomAbsentRange(byte[] fileContents, SparseFileTracker sparseFileTracker, boolean expectExact) {
         final long checkStart = randomLongBetween(0, fileContents.length - 1);
         final long checkEnd = randomLongBetween(checkStart, fileContents.length);

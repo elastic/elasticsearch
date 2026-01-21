@@ -427,17 +427,31 @@ public class SparseFileTracker {
         final long start = range.start();
         final long end = range.end();
         synchronized (ranges) {
-            // Find the first absent byte in the range
-            final Range startRange = new Range(start, start, null);
-            final Range lastStartRange = ranges.floor(startRange);
-            return ranges.subSet(
-                lastStartRange == null || lastStartRange.end <= start ? startRange : lastStartRange,
-                new Range(end, end, null)
-            ).stream().filter(r -> r.isPending()).mapToLong(r -> {
-                long l = Math.min(r.end, end) - Math.max(r.start, start);
-                assert l >= 0 : range + ", " + r;
-                return l;
-            }).sum();
+            if (ranges.isEmpty()) {
+                return end - start;
+            } else {
+                // Find the first absent byte in the range
+                final Range startRange = new Range(start, start, null);
+                final Range lastStartRange = ranges.floor(startRange);
+                long sum = ranges.subSet(
+                    lastStartRange == null || lastStartRange.end <= start ? startRange : lastStartRange,
+                    new Range(end, end, null)
+                ).stream().filter(r -> r.isPending()).mapToLong(r -> {
+                    long l = Math.min(r.end, end) - Math.max(r.start, start);
+                    assert l >= 0 : range + ", " + r;
+                    return l;
+                }).sum();
+                if (lastStartRange == null) {
+                    Range first = ranges.first();
+                    assert first.start > start;
+                    sum += first.start - start;
+                }
+                Range last = ranges.last();
+                if (last.end < end) {
+                    sum += end - last.end;
+                }
+                return sum;
+            }
         }
     }
 

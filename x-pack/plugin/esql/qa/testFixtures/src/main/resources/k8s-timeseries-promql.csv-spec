@@ -247,6 +247,38 @@ log2_scalar_two:double | step:datetime
 1.0                    | 2024-05-10T00:00:00.000Z
 ;
 
+deg_scalar_pi
+required_capability: promql_deg
+PROMQL index=k8s step=1h deg_scalar_pi=(deg(vector(pi())));
+
+deg_scalar_pi:double | step:datetime
+180.0                | 2024-05-10T00:00:00.000Z
+;
+
+deg_scalar_two_pi
+required_capability: promql_deg
+PROMQL index=k8s step=1h deg_scalar_two_pi=(deg(vector(2*pi())));
+
+deg_scalar_two_pi:double | step:datetime
+360.0                    | 2024-05-10T00:00:00.000Z
+;
+
+deg_scalar_pi_over_two
+required_capability: promql_deg
+PROMQL index=k8s step=1h deg_scalar_pi_over_two=(deg(vector(pi()/2)));
+
+deg_scalar_pi_over_two:double | step:datetime
+90.0                          | 2024-05-10T00:00:00.000Z
+;
+
+deg_scalar_zero
+required_capability: promql_deg
+PROMQL index=k8s step=1h deg_scalar_zero=(deg(vector(0.0)));
+
+deg_scalar_zero:double | step:datetime
+0.0                   | 2024-05-10T00:00:00.000Z
+;
+
 sgn_scalar
 required_capability: promql_command_v0
 required_capability: promql_math_v1

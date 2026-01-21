@@ -79,10 +79,16 @@ public class EsqlCCSUtils {
      * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
      */
     abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
+        private final Configuration configuration;
         private final EsqlExecutionInfo executionInfo;
         private final ActionListener<Versioned<Result>> listener;
 
-        CssPartialErrorsActionListener(EsqlExecutionInfo executionInfo, ActionListener<Versioned<Result>> listener) {
+        CssPartialErrorsActionListener(
+            Configuration configuration,
+            EsqlExecutionInfo executionInfo,
+            ActionListener<Versioned<Result>> listener
+        ) {
+            this.configuration = configuration;
             this.executionInfo = executionInfo;
             this.listener = listener;
         }
@@ -93,7 +99,7 @@ public class EsqlCCSUtils {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
                     new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo),
+                        new Result(Analyzer.NO_FIELDS, Collections.emptyList(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
                         TransportVersion.current()
                     )
                 );

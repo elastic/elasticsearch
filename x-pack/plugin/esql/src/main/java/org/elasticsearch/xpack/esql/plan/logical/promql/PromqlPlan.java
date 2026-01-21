@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 /**
@@ -52,10 +53,11 @@ public interface PromqlPlan {
         return getReturnType(plan) == PromqlDataType.SCALAR;
     }
 
-    static PromqlDataType getReturnType(LogicalPlan plan) {
-        if (plan instanceof PromqlPlan promqlPlan) {
-            return promqlPlan.returnType();
-        }
-        throw new IllegalArgumentException("Logical plan " + plan.getClass().getSimpleName() + " is not a PromqlPlan");
+    static PromqlDataType getReturnType(@Nullable LogicalPlan plan) {
+        return switch (plan) {
+            case PromqlPlan promqlPlan -> promqlPlan.returnType();
+            case null -> null;
+            default -> throw new IllegalArgumentException("Logical plan " + plan.getClass().getSimpleName() + " is not a PromqlPlan");
+        };
     }
 }

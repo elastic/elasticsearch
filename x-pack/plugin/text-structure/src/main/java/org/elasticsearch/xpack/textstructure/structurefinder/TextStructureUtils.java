@@ -353,7 +353,9 @@ public final class TextStructureUtils {
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        List<Map<String, Object>> flattenedRecords = sampleRecords.stream().map(record -> flattenRecord(record, timeoutChecker, maxDepth)).toList();
+        List<Map<String, Object>> flattenedRecords = sampleRecords.stream()
+            .map(record -> flattenRecord(record, timeoutChecker, maxDepth))
+            .toList();
         Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
 
         for (String fieldName : uniqueFieldNames) {
@@ -398,7 +400,14 @@ public final class TextStructureUtils {
         return flattened;
     }
 
-    private static void flattenRecordRecursive(String prefix, Map<String, ?> record, Map<String, Object> flattenedResult, TimeoutChecker timeoutChecker, int currentDepth, int maxDepth) {
+    private static void flattenRecordRecursive(
+        String prefix,
+        Map<String, ?> record,
+        Map<String, Object> flattenedResult,
+        TimeoutChecker timeoutChecker,
+        int currentDepth,
+        int maxDepth
+    ) {
         timeoutChecker.check("record flattening");
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
@@ -432,7 +441,14 @@ public final class TextStructureUtils {
      * @param depth The current recursion depth.
      * @param maxDepth The max recursion depth.
      */
-    private static void flattenListValues(String prefix, List<Object> list, Map<String, Object> flattenedResult, TimeoutChecker timeoutChecker, int depth, int maxDepth) {
+    private static void flattenListValues(
+        String prefix,
+        List<Object> list,
+        Map<String, Object> flattenedResult,
+        TimeoutChecker timeoutChecker,
+        int depth,
+        int maxDepth
+    ) {
         timeoutChecker.check("record flattening");
         boolean hasNestedMaps = list.stream().anyMatch(item -> item instanceof Map);
         if (hasNestedMaps == false) {
@@ -456,8 +472,7 @@ public final class TextStructureUtils {
                 if (depth >= maxDepth) {
                     // Max depth reached - will be mapped as "object" type
                     flattenedResult.put(prefix, Collections.emptyMap());
-                }
-                else {
+                } else {
                     flattenRecordRecursive("", nestedMap, flattenedItem, timeoutChecker, depth + 1, maxDepth);
                 }
                 for (Map.Entry<String, Object> entry : flattenedItem.entrySet()) {

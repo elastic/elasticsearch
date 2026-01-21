@@ -303,7 +303,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             window,
             extraParams
         );
-        // This can happen when trying to provide a counter to a function that doesn't support it  e.g. avg_over_time on a counter
+        // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
         // This is essentially a bug since this limitation doesn't exist in PromQL itself.
         // Throwing an error here to avoid generating invalid plans with obscure errors downstream.
         Expression.TypeResolution typeResolution = function.typeResolved();

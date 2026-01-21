@@ -1674,6 +1674,13 @@ public class EsqlCapabilities {
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
+         * this allows for type conversion functions with no further computation to be
+         * evaluated inside default wrapping _over_time functions.
+         */
+        ALLOW_CASTING_IN_DEFAULT_TS_AGGS,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1813,6 +1820,11 @@ public class EsqlCapabilities {
         PROMQL_MULTIPLE_FILTERS_FOR_SAME_LABEL(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
 
         /**
+         * PromQL clamp, clamp_min, and clamp_max functions support.
+         */
+        PROMQL_CLAMP(Build.current().isSnapshot()),
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
@@ -1898,6 +1910,11 @@ public class EsqlCapabilities {
          * Enrich works with dense_vector fields
          */
         ENRICH_DENSE_VECTOR_BUGFIX,
+
+        /**
+         * Support for dense_vector arithmetic operations (+, -, *, /)
+         */
+        DENSE_VECTOR_ARITHMETIC,
 
         /**
          * Dense_vector aggregation functions

@@ -351,14 +351,10 @@ public class SnapshotResiliencyTestHelper {
             disconnectedNodes.forEach(nodeName -> {
                 if (nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = nodes.get(nodeName).node;
-                    nodes.values()
-                        .forEach(
-                            n -> n.transportService.openConnection(
-                                node,
-                                null,
-                                ActionTestUtils.assertNoFailureListener(c -> logger.debug("--> Connected [{}] to [{}]", n.node, node))
-                            )
-                        );
+                    nodes.values().forEach(n -> n.transportService.openConnection(node, null, ActionTestUtils.assertNoFailureListener(c -> {
+                        logger.debug("--> Connected [{}] to [{}]", n.node, node);
+                        n.mockTransport.deliverBlackholedRequests();
+                    })));
                 }
             });
         }

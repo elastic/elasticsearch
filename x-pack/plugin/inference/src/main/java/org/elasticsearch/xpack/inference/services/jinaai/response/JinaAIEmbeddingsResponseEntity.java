@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.response;
 
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -18,6 +19,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
@@ -39,14 +44,15 @@ import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaA
 public class JinaAIEmbeddingsResponseEntity {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in JinaAI embeddings response";
 
-    private static final Map<String, CheckedFunction<XContentParser, InferenceServiceResults, IOException>> EMBEDDING_PARSERS = Map.of(
-        toLowerCase(JinaAIEmbeddingType.FLOAT),
-        JinaAIEmbeddingsResponseEntity::parseFloatDataObject,
-        toLowerCase(JinaAIEmbeddingType.BIT),
-        JinaAIEmbeddingsResponseEntity::parseBitDataObject,
-        toLowerCase(JinaAIEmbeddingType.BINARY),
-        JinaAIEmbeddingsResponseEntity::parseBitDataObject
-    );
+    private static final Map<String, CheckedBiFunction<XContentParser, TaskType, InferenceServiceResults, IOException>> EMBEDDING_PARSERS =
+        Map.of(
+            toLowerCase(JinaAIEmbeddingType.FLOAT),
+            JinaAIEmbeddingsResponseEntity::parseFloatDataObject,
+            toLowerCase(JinaAIEmbeddingType.BIT),
+            JinaAIEmbeddingsResponseEntity::parseBitDataObject,
+            toLowerCase(JinaAIEmbeddingType.BINARY),
+            JinaAIEmbeddingsResponseEntity::parseBitDataObject
+        );
     private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();
 
     private static String supportedEmbeddingTypes() {
@@ -112,6 +118,7 @@ public class JinaAIEmbeddingsResponseEntity {
             );
         }
 
+        var taskType = embeddingsRequest.getTaskType();
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
@@ -121,20 +128,26 @@ public class JinaAIEmbeddingsResponseEntity {
 
             positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            return embeddingValueParser.apply(jsonParser);
+            return embeddingValueParser.apply(jsonParser, taskType);
         }
     }
 
-    private static InferenceServiceResults parseFloatDataObject(XContentParser jsonParser) throws IOException {
-        List<DenseEmbeddingFloatResults.Embedding> embeddingList = parseList(
+    private static InferenceServiceResults parseFloatDataObject(XContentParser jsonParser, TaskType taskType) throws IOException {
+        List<EmbeddingFloatResults.Embedding> embeddingList = parseList(
             jsonParser,
             JinaAIEmbeddingsResponseEntity::parseFloatEmbeddingObject
         );
 
-        return new DenseEmbeddingFloatResults(embeddingList);
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            return new DenseEmbeddingFloatResults(embeddingList);
+        } else if (taskType == TaskType.EMBEDDING) {
+            return new GenericDenseEmbeddingFloatResults(embeddingList);
+        } else {
+            throw new IllegalArgumentException("Invalid taskType: " + taskType);
+        }
     }
 
-    private static DenseEmbeddingFloatResults.Embedding parseFloatEmbeddingObject(XContentParser parser) throws IOException {
+    private static EmbeddingFloatResults.Embedding parseFloatEmbeddingObject(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -143,19 +156,25 @@ public class JinaAIEmbeddingsResponseEntity {
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
-        return DenseEmbeddingFloatResults.Embedding.of(embeddingValuesList);
+        return EmbeddingFloatResults.Embedding.of(embeddingValuesList);
     }
 
-    private static InferenceServiceResults parseBitDataObject(XContentParser jsonParser) throws IOException {
+    private static InferenceServiceResults parseBitDataObject(XContentParser jsonParser, TaskType taskType) throws IOException {
         List<DenseEmbeddingByteResults.Embedding> embeddingList = parseList(
             jsonParser,
             JinaAIEmbeddingsResponseEntity::parseBitEmbeddingObject
         );
 
-        return new DenseEmbeddingBitResults(embeddingList);
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            return new DenseEmbeddingBitResults(embeddingList);
+        } else if (taskType == TaskType.EMBEDDING) {
+            return new GenericDenseEmbeddingBitResults(embeddingList);
+        } else {
+            throw new IllegalArgumentException("Invalid taskType: " + taskType);
+        }
     }
 
-    private static DenseEmbeddingByteResults.Embedding parseBitEmbeddingObject(XContentParser parser) throws IOException {
+    private static EmbeddingByteResults.Embedding parseBitEmbeddingObject(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -164,7 +183,7 @@ public class JinaAIEmbeddingsResponseEntity {
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
-        return DenseEmbeddingByteResults.Embedding.of(embeddingList);
+        return EmbeddingByteResults.Embedding.of(embeddingList);
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {

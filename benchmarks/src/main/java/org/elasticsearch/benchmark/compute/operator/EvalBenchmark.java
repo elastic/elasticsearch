@@ -95,7 +95,7 @@ public class EvalBenchmark {
 
     private static final int BLOCK_LENGTH = 8 * 1024;
 
-    static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
+    static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
     static {
         LogConfigurator.configureESLogging();

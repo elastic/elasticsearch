@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,6 +24,8 @@ import org.junit.AfterClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -91,20 +95,39 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testValidate_UnmappedFields() {
+    public void testValidate_UnmappedFields_techPreview() {
+        assumeFalse("Requires no snapshot", Build.current().isSnapshot());
+
+        validateUnmappedFields("FAIL", "NULLIFY");
+        var settingName = QuerySettings.UNMAPPED_FIELDS.name();
+        assertInvalid(
+            settingName,
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("UNKNOWN"),
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY]"
+        );
+    }
+
+    public void testValidate_UnmappedFields_allValues() {
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
+    }
+
+    private void validateUnmappedFields(String... values) {
         var setting = QuerySettings.UNMAPPED_FIELDS;
 
         assertDefault(setting, equalTo(UnmappedResolution.FAIL));
 
-        assertValid(setting, of(randomizeCase("fail")), equalTo(UnmappedResolution.FAIL));
-        assertValid(setting, of(randomizeCase("nullify")), equalTo(UnmappedResolution.NULLIFY));
-        assertValid(setting, of(randomizeCase("load")), equalTo(UnmappedResolution.LOAD));
+        for (String value : values) {
+            assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));
+        }
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
         assertInvalid(
             setting.name(),
             of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY, LOAD]"
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                + Arrays.toString(values)
         );
     }
 
@@ -114,16 +137,6 @@ public class QuerySettingsTests extends ESTestCase {
             setting.name(),
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
             of("UTC"),
-            "Setting [" + setting.name() + "] is only available in snapshot builds"
-        );
-    }
-
-    public void testValidate_UnmappedFields_nonSnapshot() {
-        var setting = QuerySettings.UNMAPPED_FIELDS;
-        assertInvalid(
-            setting.name(),
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("LOAD"),
             "Setting [" + setting.name() + "] is only available in snapshot builds"
         );
     }
@@ -231,7 +244,10 @@ public class QuerySettingsTests extends ESTestCase {
 
     @AfterClass
     public static void generateDocs() throws Exception {
-        for (QuerySettings.QuerySettingDef<?> def : QuerySettings.SETTINGS_BY_NAME.values()) {
+        List<QuerySettings.QuerySettingDef<?>> settings = new ArrayList<>(QuerySettings.SETTINGS_BY_NAME.values());
+        settings.remove(QuerySettings.PROJECT_ROUTING); // TODO this is non-snapshot, but we don't want to expose it yet
+
+        for (QuerySettings.QuerySettingDef<?> def : settings) {
             DocsV3Support.SettingsDocsSupport settingsDocsSupport = new DocsV3Support.SettingsDocsSupport(
                 def,
                 QuerySettingsTests.class,
@@ -239,5 +255,12 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
+
+        DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
+            settings,
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
+        toc.renderDocs();
     }
 }

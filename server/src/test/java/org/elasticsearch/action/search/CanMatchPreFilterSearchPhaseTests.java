@@ -181,7 +181,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         } else if (shard1 == false && shard2 == false) {
             assertFalse(result.get().get(0).skip());
-            assertEquals(1, result.get().size());
+            assertEquals(2, result.get().size());
         } else {
             assertEquals(shard1 ? 0 : 1, result.get().get(0).shardId().id());
         }
@@ -273,7 +273,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             assertEquals(0, result.get().get(0).shardId().id());
             assertEquals(1, result.get().get(1).shardId().id());
         } else {
-            assertEquals(shard1 ? 2 : 1, result.get().size());
+            assertEquals(2, result.get().size());
         }
         assertFalse(result.get().get(0).skip()); // never skip the failure
     }
@@ -375,9 +375,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
             int pos = 0;
             for (SearchShardIterator i : result.get()) {
-                while (shardToSkip.contains(expected[pos])) {
-                    pos++;
-                }
                 assertEquals(expected[pos++], i.shardId());
             }
         }
@@ -473,10 +470,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 while (shardToSkip.stream().map(ShardId::id).toList().contains(shardId)) {
                     shardId++;
                 }
-                assertThat(i.shardId().id(), equalTo(shardId++));
-                assertEquals(false, i.skip());
+                if (i.skip() == false) {
+                    assertThat(i.shardId().id(), equalTo(shardId++));
+                }
+                // assertEquals(false, i.skip());
             }
-            assertThat(result.get().size(), equalTo(numShards - shardToSkip.size()));
+            assertThat(result.get().size(), equalTo(numShards));
         }
     }
 
@@ -580,8 +579,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 assertThat(allRequestMadeToHotIndices, equalTo(true));
                 int prevShardId = -1;
                 for (SearchShardIterator shardIt : updatedSearchShardIterators) {
-                    assertThat(shardIt.shardId().id(), greaterThanOrEqualTo(prevShardId));
-                    prevShardId = shardIt.shardId().id();
+                    if (shardIt.skip() == false) {
+                        assertThat(shardIt.shardId().id(), greaterThanOrEqualTo(prevShardId));
+                        prevShardId = shardIt.shardId().id();
+                    }
                 }
             }
         );

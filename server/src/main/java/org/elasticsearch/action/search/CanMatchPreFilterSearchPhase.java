@@ -483,6 +483,19 @@ final class CanMatchPreFilterSearchPhase {
         }
         // order matching shard by the natural order, so that search results will use that order
         possibleShards.sort(SearchShardIterator::compareTo);
+        // add skipped shards
+        i = 0;
+        for (SearchShardIterator iter : shardsIts) {
+            iter.reset();
+            boolean match = possibleMatches.get(i++);
+            if (match) {
+                assert iter.skip() == false;
+            } else {
+                iter.skip(true);
+                possibleShards.add(iter);
+            }
+        }
+
 
         if (shouldSortShards(minAndMaxes) == false) {
             return possibleShards;

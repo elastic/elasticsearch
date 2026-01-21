@@ -79,6 +79,9 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
             .toList();
     }
 
+    /**
+     * Removes empty maps and lists from a flattened value. Required to match synthetic source.
+     */
     private static Object filterEmptyCollections(Object value) {
         if (value instanceof Map<?, ?> mapValue) {
             Map<String, Object> filtered = new TreeMap<>();

@@ -420,7 +420,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -445,13 +445,13 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#DONE} for
      * {@link SnapshotsInProgress.ShardState#SUCCESS}. No other API fields are validated for correctness in this test
      */
-    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsDoneForSuccessfulShards() {
+    public void testSuccessfulSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
         final var shardGeneration = new ShardGeneration("gen");
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -482,13 +482,13 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#STARTED} for
      * {@link SnapshotsInProgress.ShardState#INIT}. No other API fields are validated for correctness in this test
      */
-    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsStartedForInitialisingShards() {
+    public void testInitialisedSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
 
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -513,13 +513,13 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#STARTED} for
      * {@link SnapshotsInProgress.ShardState#WAITING}. No other API fields are validated for correctness in this test
      */
-    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsStartedForWaitingShards() {
+    public void testWaitingSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
 
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -544,13 +544,13 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#STARTED} for
      * {@link SnapshotsInProgress.ShardState#PAUSED_FOR_NODE_REMOVAL}. No other API fields are validated for correctness in this test
      */
-    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsStartedForPausedForRemovalShards() {
+    public void testPausedForNodeRemovalSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
 
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -578,13 +578,13 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#FAILURE} for
      * {@link SnapshotsInProgress.ShardState#FAILED}. No other API fields are validated for correctness in this test
      */
-    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsFailureForFailedShards() {
+    public void testFailedSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
 
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -612,13 +612,13 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#FAILURE} for
      * {@link SnapshotsInProgress.ShardState#ABORTED}. No other API fields are validated for correctness in this test
      */
-    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsFailureForAbortedShards() {
+    public void testAbortedSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
 
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -646,13 +646,13 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#FAILURE} for
      * {@link SnapshotsInProgress.ShardState#MISSING}. No other API fields are validated for correctness in this test
      */
-    public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsFailureForMissingShards() {
+    public void testMissingSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
 
-        snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -676,7 +676,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
         );
     }
 
-    private void snapshotStatusAPIReportsCorrectSnapshotIndexShardStageValueInternal(
+    private void snapshotInProgressShardStateInternal(
         SnapshotsInProgress.Entry snapshotsInProgress,
         SnapshotsInProgress.State snapshotInProgressState,
         SnapshotIndexShardStage snapshotIndexShardStage

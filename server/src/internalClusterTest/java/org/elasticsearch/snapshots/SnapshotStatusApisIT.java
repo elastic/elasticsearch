@@ -733,7 +733,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
      * snapshot 1 and snapshot 2 to be in progress, and on the node where snapshot 1 has not finished snapshotting yet, we expect the
      * shard for snapshot 2 to be in the INIT state while it waits for snapshot 1 to complete.
      */
-    public void testSnapshotStatusAPIReturnsSnapshotIndexShardStageAsInitWhenOneSnapshotIsQueuedBehindAnother() throws Exception {
+    public void testOneSnapshotQueuedBehindAnother() throws Exception {
         String repoName = "test-repo";
         createRepository(repoName, "mock");
         String indexName = "test-idx";
@@ -788,7 +788,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
      * Starts a snapshot which is expected to succeed. When calling the snapshot status API, we expect
      * <i>every</i> snapshot shard status to be {@link SnapshotIndexShardStage#DONE}
      */
-    public void testSnapshotStatusAPIReturnsSnapshotIndexShardStageAsDone() {
+    public void testSuccessfulSnapshot() {
         String repoName = "test-repo";
         createRepository(repoName, "mock");
         String indexName = "test-idx";
@@ -810,7 +810,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
      * we expect a minimum of one snapshot shard status to be {@link SnapshotIndexShardStage#STARTED}
      * @throws Exception if something goes wrong starting the snapshot, or waiting for the block
      */
-    public void testSnapshotStatusAPIReturnsSnapshotIndexShardStageAsStartedWhenTheSnapshotIsInitialised() throws Exception {
+    public void testInitialisedSnapshot() throws Exception {
         String repoName = "test-repo";
         createRepository(repoName, "mock");
         String indexName = "test-idx";
@@ -837,7 +837,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
      * Starts a snapshot which is expected to fail on a single node. When calling the snapshot status API, we expect
      * at least one snapshot shard status to be {@link SnapshotIndexShardStage#FAILURE}
      */
-    public void testSnapshotStatusAPIReturnsSnapshotIndexShardStageAsFailedWhenSnapshotFails() throws Exception {
+    public void testFailedSnapshot() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
 

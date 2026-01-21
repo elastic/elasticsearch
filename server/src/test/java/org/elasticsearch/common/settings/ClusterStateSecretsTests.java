@@ -11,80 +11,79 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<ClusterSecrets> {
 
-    private static final String MOUNTED_SETTINGS = """
+    private static final String SECRETS = """
         {
-            "metadata": {
-                "version": "1",
-                "compatibility": "8.7.0"
-            },
-            "secrets": {
+            "string_secrets": {
                 "foo": "bar",
                 "goo": "baz"
             }
         }
         """;
 
-    private LocallyMountedSecrets locallyMountedSecrets;
+    private static final String OTHER_SECRETS = """
+        {
+            "string_secrets": {
+                "foo": "other",
+                "goo": "other"
+            }
+        }
+        """;
+
+    private SecureClusterStateSettings secureClusterStateSettings;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-
-        Environment environment = newEnvironment();
-        writeTestFile(environment.configDir().resolve("secrets").resolve("secrets.json"), MOUNTED_SETTINGS);
-        locallyMountedSecrets = new LocallyMountedSecrets(environment);
+        secureClusterStateSettings = parseSecrets(SECRETS);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        locallyMountedSecrets.close();
+        secureClusterStateSettings.close();
     }
 
-    public void testGetSettings() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
+    public void testGetSettings() {
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, secureClusterStateSettings);
 
-        assertThat(clusterStateSecrets.getSettings().getSettingNames(), containsInAnyOrder("foo", "goo"));
-        assertThat(clusterStateSecrets.getSettings().getString("foo").toString(), equalTo("bar"));
-        assertThat(clusterStateSecrets.getSettings().getString("goo").toString(), equalTo("baz"));
+        SecureSettings settings = clusterStateSecrets.getSettings();
+        assertThat(settings.getSettingNames(), containsInAnyOrder("foo", "goo"));
+        assertThat(settings.getString("foo").toString(), equalTo("bar"));
+        assertThat(settings.getString("goo").toString(), equalTo("baz"));
 
-        locallyMountedSecrets.close();
+        secureClusterStateSettings.close();
 
-        assertThat(clusterStateSecrets.getSettings().getSettingNames(), containsInAnyOrder("foo", "goo"));
-        assertThat(clusterStateSecrets.getSettings().getString("foo").toString(), equalTo("bar"));
-        assertThat(clusterStateSecrets.getSettings().getString("goo").toString(), equalTo("baz"));
+        assertThat(settings.getSettingNames(), containsInAnyOrder("foo", "goo"));
+        assertThat(settings.getString("foo").toString(), equalTo("bar"));
+        assertThat(settings.getString("goo").toString(), equalTo("baz"));
     }
 
     public void testFileSettings() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, secureClusterStateSettings);
 
         assertThat(clusterStateSecrets.getSettings().getFile("foo").readAllBytes(), equalTo("bar".getBytes(StandardCharsets.UTF_8)));
     }
 
     public void testSerialize() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, secureClusterStateSettings);
 
         final BytesStreamOutput out = new BytesStreamOutput();
         clusterStateSecrets.writeTo(out);
@@ -100,20 +99,28 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
     }
 
     public void testToXContentChunked() {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, secureClusterStateSettings);
 
         // we never serialize anything to x-content
         assertFalse(clusterStateSecrets.toXContentChunked(EMPTY_PARAMS).hasNext());
     }
 
     public void testToString() {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, secureClusterStateSettings);
 
         assertThat(clusterStateSecrets.toString(), equalTo("ClusterStateSecrets{[all secret]}"));
     }
 
+    public void testContainsSettings() throws IOException {
+        ClusterSecrets clusterSecrets = new ClusterSecrets(1, secureClusterStateSettings);
+
+        assertTrue("containsSecureSettings expected to be true", clusterSecrets.containsSecureSettings(secureClusterStateSettings));
+        assertTrue("containsSecureSettings expected to be true", clusterSecrets.containsSecureSettings(clusterSecrets.getSettings()));
+        assertFalse("containsSecureSettings expected to be false", clusterSecrets.containsSecureSettings(parseSecrets(OTHER_SECRETS)));
+    }
+
     public void testClose() throws Exception {
-        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, new SecureClusterStateSettings(locallyMountedSecrets));
+        ClusterSecrets clusterStateSecrets = new ClusterSecrets(1, secureClusterStateSettings);
 
         SecureSettings settings = clusterStateSecrets.getSettings();
         assertThat(settings.getSettingNames(), containsInAnyOrder("foo", "goo"));
@@ -124,8 +131,8 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
 
         // we can close the copy
         assertThat(settings.getSettingNames(), containsInAnyOrder("foo", "goo"));
-        assertThat(settings.getString("foo"), nullValue());
-        assertThat(settings.getString("goo"), nullValue());
+        assertThrows(IllegalStateException.class, () -> settings.getString("foo"));
+        assertThrows(IllegalStateException.class, () -> settings.getString("goo"));
 
         // fetching again returns a fresh object
         SecureSettings settings2 = clusterStateSecrets.getSettings();
@@ -136,17 +143,18 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
 
     @Override
     protected ClusterSecrets createTestInstance() {
-        return new ClusterSecrets(
-            randomLong(),
-            new SecureClusterStateSettings(
-                randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(15).getBytes(Charset.defaultCharset())))
-            )
-        );
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        long version = randomLong();
+        int size = randomIntBetween(0, 3);
+        for (int i = 0; i < size; i++) {
+            secureSettings.setFile(randomAlphaOfLength(10), randomAlphaOfLength(15).getBytes(StandardCharsets.UTF_8));
+        }
+        return new ClusterSecrets(version, secureSettings.toSecureClusterStateSettings());
     }
 
     @Override
     protected ClusterSecrets mutateInstance(ClusterSecrets instance) throws IOException {
-        return new ClusterSecrets(instance.getVersion() + 1L, new SecureClusterStateSettings(instance.getSettings()));
+        return new ClusterSecrets(instance.getVersion() + 1L, (SecureClusterStateSettings) instance.getSettings());
     }
 
     @Override
@@ -161,11 +169,9 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
         return ClusterSecrets.class;
     }
 
-    private void writeTestFile(Path path, String contents) throws IOException {
-        Path tempFilePath = createTempFile();
-
-        Files.writeString(tempFilePath, contents);
-        Files.createDirectories(path.getParent());
-        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
+    private static SecureClusterStateSettings parseSecrets(String secrets) throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, secrets)) {
+            return SecureClusterStateSettings.fromXContent(parser);
+        }
     }
 }

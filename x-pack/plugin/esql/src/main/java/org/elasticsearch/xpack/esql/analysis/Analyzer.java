@@ -1733,7 +1733,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            return logicalPlan.transformUp(Fork.class, fork -> addImplicitLimitToForkSubQueries(fork, context));
+            if (context.configuration().pragmas().forkImplicitLimit()) {
+                return logicalPlan.transformUp(Fork.class, fork -> addImplicitLimitToForkSubQueries(fork, context));
+            }
+            return logicalPlan;
         }
 
         private LogicalPlan addImplicitLimitToForkSubQueries(Fork fork, AnalyzerContext ctx) {

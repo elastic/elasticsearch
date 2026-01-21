@@ -1860,6 +1860,11 @@ public class EsqlCapabilities {
         PROMQL_COMMAND_V0,
 
         /**
+         * PromQL acosh function support.
+         */
+        PROMQL_ACOSH(Build.current().isSnapshot()),
+
+        /**
          * Bundle flag for PromQL math functions.
          */
         PROMQL_MATH_V0,

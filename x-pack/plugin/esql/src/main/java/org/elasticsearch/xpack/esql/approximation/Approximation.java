@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.approximation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -415,17 +413,7 @@ public class Approximation {
      * Computes approximate results for the logical plan.
      */
     public void approximate(ActionListener<Result> listener) {
-        // Try to execute the query if it translates to an ES stats query. Results for
-        // them come from Lucene's metadata and are computed fast. Approximation would
-        // only slow things down in that case. When the query is not an ES stats query,
-        // an exception is thrown and approximation is attempted.
-        runner.run(
-            toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
-            configuration.throwOnNonEsStatsQuery(true),
-            foldContext,
-            planTimeProfile,
-            approximateListener(listener)
-        );
+        runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, planTimeProfile, sourceCountListener(listener));
     }
 
     /**
@@ -477,53 +465,6 @@ public class Approximation {
         return settings.confidenceLevel() != null ? settings.confidenceLevel() : DEFAULT_CONFIDENCE_LEVEL;
     }
 
-    private ActionListener<Result> approximateListener(ActionListener<Result> listener) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Result result) {
-                boolean esStatsQueryExecuted = result.executionInfo() != null
-                    && result.executionInfo().clusterInfo.values()
-                        .stream()
-                        .noneMatch(cluster -> cluster.getFailures().stream().anyMatch(Approximation::isCausedByUnsupported));
-                if (esStatsQueryExecuted) {
-                    logger.debug("stats query succeeded; returning exact result");
-                    listener.onResponse(result);
-                } else {
-                    result.pages().forEach(Page::close);
-                    runner.reset();
-                    runner.run(
-                        toPhysicalPlan.apply(sourceCountPlan()),
-                        configuration,
-                        foldContext,
-                        planTimeProfile,
-                        sourceCountListener(listener)
-                    );
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (isCausedByUnsupported(e)) {
-                    runner.reset();
-                    runner.run(
-                        toPhysicalPlan.apply(sourceCountPlan()),
-                        configuration,
-                        foldContext,
-                        planTimeProfile,
-                        sourceCountListener(listener)
-                    );
-                } else {
-                    logger.debug("stats query failed; returning error", e);
-                    listener.onFailure(e);
-                }
-            }
-        };
-    }
-
-    private static boolean isCausedByUnsupported(Exception ex) {
-        return ExceptionsHelper.unwrapCausesAndSuppressed(ex, e -> e.toString().contains("not executing query of type")).isPresent();
-    }
-
     /**
      * Plan that counts the number of rows in the source index.
      * This is the ES|QL query:
@@ -558,7 +499,6 @@ public class Approximation {
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
-                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
                     configuration,
@@ -571,7 +511,6 @@ public class Approximation {
             double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
-                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(approximationPlan(sampleProbability)),
                     configuration,
@@ -583,7 +522,6 @@ public class Approximation {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
-                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
                     configuration,
@@ -594,7 +532,6 @@ public class Approximation {
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
                 sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
-                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(countPlan(sampleProbability)),
                     configuration,
@@ -658,7 +595,6 @@ public class Approximation {
             if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
-                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
                     configuration,
@@ -669,7 +605,6 @@ public class Approximation {
             } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
                 newSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
-                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
                     configuration,
@@ -678,7 +613,6 @@ public class Approximation {
                     countListener(newSampleProbability, countListener)
                 );
             } else {
-                runner.reset();
                 runner.run(
                     toPhysicalPlan.apply(approximationPlan(newSampleProbability)),
                     configuration,

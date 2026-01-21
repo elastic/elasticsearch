@@ -19,7 +19,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -686,7 +685,6 @@ public class SearchTransportService {
             }
 
             FetchPhaseResponseChunk.Writer chunkWriter = null;
-
 
             // Decides whether to use chunked or traditional fetch based on:
             // 1. Feature flag enabled on this node (fetchPhaseChunkedEnabled)

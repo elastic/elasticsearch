@@ -59,7 +59,7 @@ public class WriteLoadConstraintMonitor {
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private volatile long lastRerouteTimeMillis = 0;
-    private volatile Map<DiscoveryNode, Long> hotspotNodeStartTimes = Map.of();
+    private volatile Map<NodeIdName, Long> hotspotNodeStartTimes = Map.of();
     private long hotspotNodeStartTimesLastTerm = -1L;
 
     private final AtomicLong hotspotNodesCount = new AtomicLong(-1L); // metrics source of hotspotting node count
@@ -205,10 +205,10 @@ public class WriteLoadConstraintMonitor {
 
     private void recordHotspotStartTimes(ClusterState state, Set<String> nodeIds, long startTimestamp) {
         if (nodeIds.size() > 0) {
-            Map<DiscoveryNode, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
+            Map<NodeIdName, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
             DiscoveryNodes nodes = state.nodes();
             for (String nodeId : nodeIds) {
-                hotspotNodeStartTimesUpdate.put(nodes.get(nodeId), startTimestamp);
+                hotspotNodeStartTimesUpdate.put(NodeIdName.nodeIdName(nodes.get(nodeId)), startTimestamp);
             }
             hotspotNodeStartTimes = hotspotNodeStartTimesUpdate;
         }
@@ -222,18 +222,24 @@ public class WriteLoadConstraintMonitor {
             hotspotNodeStartTimes = Map.of();
         }
 
-        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet().stream().map(node -> node.getId()).collect(Collectors.toSet());
+        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet()
+            .stream()
+            .map(nodeIdName -> nodeIdName.nodeId())
+            .collect(Collectors.toSet());
         Set<String> staleHotspotNodes = Sets.difference(lastHotspotNodes, currentHotspotNodes);
         DiscoveryNodes nodes = state.nodes();
         if (staleHotspotNodes.size() > 0) {
-            Map<DiscoveryNode, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
+            Map<NodeIdName, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
             for (String nodeId : staleHotspotNodes) {
-                DiscoveryNode node = nodes.get(nodeId);
-                assert hotspotNodeStartTimesUpdate.containsKey(node) : "Map should contain key from its own subset";
-                long hotspotStartTime = hotspotNodeStartTimesUpdate.remove(node);
+                NodeIdName nodeIdName = NodeIdName.nodeIdName(nodes.get(nodeId));
+                assert hotspotNodeStartTimesUpdate.containsKey(nodeIdName) : "Map should contain key from its own subset";
+                long hotspotStartTime = hotspotNodeStartTimesUpdate.remove(nodeIdName);
                 long hotspotDuration = hotspotEndTime - hotspotStartTime;
                 assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
-                hotspotDurationHistogram.record(hotspotDuration / 1000.0, Map.of("es_node_name", node.getName(), "es_node_id", nodeId));
+                hotspotDurationHistogram.record(
+                    hotspotDuration / 1000.0,
+                    Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName())
+                );
             }
             hotspotNodeStartTimes = hotspotNodeStartTimesUpdate;
         }
@@ -253,12 +259,20 @@ public class WriteLoadConstraintMonitor {
     }
 
     private Collection<LongWithAttributes> getHotspottingNodeFlags() {
-        final Map<DiscoveryNode, Long> hotspotNodeStartTimesView = hotspotNodeStartTimes;
+        final Map<NodeIdName, Long> hotspotNodeStartTimesView = hotspotNodeStartTimes;
         List<LongWithAttributes> hotspottingNodeFlags = new ArrayList<>(hotspotNodeStartTimesView.size());
-        for (DiscoveryNode node : hotspotNodeStartTimesView.keySet()) {
-            hotspottingNodeFlags.add(new LongWithAttributes(1L, Map.of("es_node_name", node.getName(), "es_node_id", node.getId())));
+        for (NodeIdName nodeIdName : hotspotNodeStartTimesView.keySet()) {
+            hotspottingNodeFlags.add(
+                new LongWithAttributes(1L, Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName()))
+            );
         }
         return hotspottingNodeFlags;
+    }
+
+    public record NodeIdName(String nodeId, String nodeName) {
+        public static NodeIdName nodeIdName(DiscoveryNode node) {
+            return new NodeIdName(node.getId(), node.getName());
+        }
     }
 
     private static String nodeSummary(Set<String> nodeIds) {

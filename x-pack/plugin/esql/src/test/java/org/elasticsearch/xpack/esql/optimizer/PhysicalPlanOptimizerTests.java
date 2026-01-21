@@ -9511,4 +9511,53 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             return value.length() < 4;
         }
     };
+
+    /**
+     * ProjectExec[[first_name{f}#10, last_name{f}#13, salary{f}#14, languages{f}#12]]
+     * \_TopNExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],null]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     *          TopN[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],false]
+     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]]]
+     **/
+    public void testSortWithGrouping() {
+        String query = """
+             FROM test
+            | SORT salary DESC NULLS LAST
+            | LIMIT 5 PER_🐔 languages
+            | KEEP first_name, last_name, salary, languages""";
+        PhysicalPlan plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+
+        var topN = as(project.child(), TopNExec.class);
+        assertThat(as(as(topN.limit(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topN.groupings(), hasSize(1));
+        var fieldAttr = as(topN.groupings().get(0), FieldAttribute.class);
+        assertThat(fieldAttr.name(), equalTo("languages"));
+
+        var topNOrder = topN.order();
+        assertThat(topNOrder.size(), equalTo(1));
+        var order = as(topNOrder.get(0), Order.class);
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        var exchangeExec = as(topN.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topNFragment = as(fragmentExec.fragment(), TopN.class);
+
+        assertThat(as(as(topNFragment.limit(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topNFragment.groupings(), hasSize(1));
+        assertThat(as(topNFragment.groupings().get(0), FieldAttribute.class).name(), equalTo("languages"));
+
+        var topNFragmentOrder = topNFragment.order();
+        assertThat(topNFragmentOrder.size(), equalTo(1));
+        var fragmentOrder = as(topNFragmentOrder.get(0), Order.class);
+        assertThat(as(fragmentOrder.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(fragmentOrder.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(fragmentOrder.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        as(topNFragment.child(), EsRelation.class);
+    }
 }

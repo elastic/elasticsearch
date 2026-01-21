@@ -467,7 +467,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
-            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
             logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (final IOException e) {

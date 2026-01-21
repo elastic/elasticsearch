@@ -480,7 +480,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
         } else {
             List<Expression> extraParams = params.stream()
-                .skip(1) // skip first param (child)
+                .skip(1) // skip the first param (child)
                 .map(Expression.class::cast)
                 .toList();
             plan = switch (metadata.functionType()) {

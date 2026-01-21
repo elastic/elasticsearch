@@ -40,14 +40,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.EnumSet;
@@ -80,7 +84,17 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
         "IBM watsonx chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final IbmWatsonxModelFactory MODEL_FACTORY = new IbmWatsonxModelFactory();
+    private static final IbmWatsonxChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new IbmWatsonxChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends IbmWatsonxModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new IbmWatsonxEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new IbmWatsonxRerankModelCreator()
+    );
 
     public static final String NAME = "watsonxai";
 
@@ -155,7 +169,7 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -195,7 +209,13 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

@@ -33,12 +33,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModelCreator;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelCreator;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -71,7 +77,19 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
         "hugging face chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final HuggingFaceModelFactory MODEL_FACTORY = new HuggingFaceModelFactory();
+    private static final HuggingFaceChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new HuggingFaceChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends HuggingFaceModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new HuggingFaceEmbeddingsModelCreator(),
+        TaskType.SPARSE_EMBEDDING,
+        new HuggingFaceElserModelCreator(),
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new HuggingFaceRerankModelCreator()
+    );
 
     public HuggingFaceService(
         HttpRequestSender.Factory factory,
@@ -87,21 +105,28 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
 
     @Override
     protected HuggingFaceModel createModel(HuggingFaceModelParameters params) {
-        return MODEL_FACTORY.createFromMaps(
-            params.inferenceEntityId(),
-            params.taskType(),
-            NAME,
-            params.serviceSettings(),
-            params.taskSettings(),
-            params.chunkingSettings(),
-            params.secretSettings(),
-            params.context()
-        );
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, params.inferenceEntityId(), params.taskType(), NAME, params.context())
+            .createFromMaps(
+                params.inferenceEntityId(),
+                params.taskType(),
+                NAME,
+                params.serviceSettings(),
+                params.taskSettings(),
+                params.chunkingSettings(),
+                params.secretSettings(),
+                params.context()
+            );
     }
 
     @Override
     public HuggingFaceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override

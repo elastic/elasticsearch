@@ -36,10 +36,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelFactory;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelParameters;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -53,7 +53,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 public class HuggingFaceElserService extends HuggingFaceBaseService {
@@ -61,7 +60,10 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     private static final String SERVICE_NAME = "Hugging Face ELSER";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
-    private static final HuggingFaceModelFactory MODEL_FACTORY = new HuggingFaceModelFactory();
+    private static final Map<TaskType, ModelCreator<? extends HuggingFaceModel>> MODEL_CREATORS = Map.of(
+        TaskType.SPARSE_EMBEDDING,
+        new HuggingFaceElserModelCreator()
+    );
 
     public HuggingFaceElserService(
         HttpRequestSender.Factory factory,
@@ -82,34 +84,28 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     @Override
     public HuggingFaceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        if (SUPPORTED_TASK_TYPES.contains(config.getTaskType())) {
-            return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
-        } else {
-            throw createInvalidTaskTypeException(
-                config.getInferenceEntityId(),
-                NAME,
-                config.getTaskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-        }
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
-    protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
-        if (SUPPORTED_TASK_TYPES.contains(input.taskType())) {
-            return MODEL_FACTORY.createFromMaps(
-                input.inferenceEntityId(),
-                input.taskType(),
+    protected HuggingFaceModel createModel(HuggingFaceModelParameters params) {
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, params.inferenceEntityId(), params.taskType(), NAME, params.context())
+            .createFromMaps(
+                params.inferenceEntityId(),
+                params.taskType(),
                 NAME,
-                input.serviceSettings(),
-                input.taskSettings(),
-                input.chunkingSettings(),
-                input.secretSettings(),
-                input.context()
+                params.serviceSettings(),
+                params.taskSettings(),
+                params.chunkingSettings(),
+                params.secretSettings(),
+                params.context()
             );
-        } else {
-            throw createInvalidTaskTypeException(input.inferenceEntityId(), NAME, input.taskType(), input.context());
-        }
     }
 
     @Override

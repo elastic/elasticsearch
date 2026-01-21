@@ -38,11 +38,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -80,7 +83,12 @@ public class GoogleAiStudioService extends SenderService {
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-    private static final GoogleAiStudioModelFactory MODEL_FACTORY = new GoogleAiStudioModelFactory();
+    private static final Map<TaskType, ModelCreator<? extends GoogleAiStudioModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new GoogleAiStudioEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        new GoogleAiStudioCompletionModelCreator()
+    );
 
     public GoogleAiStudioService(
         HttpRequestSender.Factory factory,
@@ -147,7 +155,7 @@ public class GoogleAiStudioService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -187,7 +195,13 @@ public class GoogleAiStudioService extends SenderService {
 
     @Override
     public GoogleAiStudioModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     private static GoogleAiStudioModel createModelFromPersistent(

@@ -34,12 +34,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreator;
 import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
@@ -65,7 +67,10 @@ public class GroqService extends SenderService {
         GroqActionCreator.COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final GroqModelFactory MODEL_FACTORY = new GroqModelFactory();
+    private static final Map<TaskType, ModelCreator<? extends GroqModel>> MODEL_CREATORS = Map.of(
+        TaskType.CHAT_COMPLETION,
+        new GroqChatCompletionModelCreator()
+    );
 
     public GroqService(
         HttpRequestSender.Factory factory,
@@ -152,7 +157,13 @@ public class GroqService extends SenderService {
 
     @Override
     public GroqModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -171,7 +182,7 @@ public class GroqService extends SenderService {
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,

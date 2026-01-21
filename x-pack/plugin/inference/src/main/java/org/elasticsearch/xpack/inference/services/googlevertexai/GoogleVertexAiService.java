@@ -38,14 +38,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.EnumSet;
@@ -86,7 +90,18 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-    private static final GoogleVertexAiModelFactory MODEL_FACTORY = new GoogleVertexAiModelFactory();
+    private static final GoogleVertexAiChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR =
+        new GoogleVertexAiChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends GoogleVertexAiModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new GoogleVertexAiEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new GoogleVertexAiRerankModelCreator()
+    );
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
@@ -176,7 +191,13 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
     @Override
     public GoogleVertexAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return MODEL_FACTORY.createFromModelConfigurationsAndSecrets(config, secrets);
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -350,7 +371,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return MODEL_FACTORY.createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,

@@ -108,4 +108,3 @@ string
 comparisonOperator
     : EQ | NEQ | LT | LTE | GT | GTE
     ;
-

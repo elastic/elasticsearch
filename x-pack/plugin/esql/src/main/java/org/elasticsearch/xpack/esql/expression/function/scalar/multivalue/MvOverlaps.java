@@ -80,7 +80,7 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
     public MvOverlaps(
         Source source,
         @Param(
-            name = "superset",
+            name = "field1",
             type = {
                 "boolean",
                 "cartesian_point",
@@ -103,7 +103,7 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
             description = "Multivalue expression."
         ) Expression superset,
         @Param(
-            name = "subset",
+            name = "field2",
             type = {
                 "boolean",
                 "cartesian_point",

@@ -2,9 +2,9 @@
 
 **Parameters**
 
-`superset`
+`field1`
 :   Multivalue expression.
 
-`subset`
+`field2`
 :   Multivalue expression.
 

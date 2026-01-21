@@ -7,13 +7,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "boolean",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "boolean",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -25,13 +25,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "cartesian_point",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "cartesian_point",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -43,13 +43,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "cartesian_shape",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "cartesian_shape",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -61,13 +61,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "date",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "date",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -79,13 +79,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "date_nanos",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "date_nanos",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -97,13 +97,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "double",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "double",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -115,13 +115,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -133,13 +133,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "geo_shape",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "geo_shape",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -151,13 +151,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "geohash",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "geohash",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -169,13 +169,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "geohex",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "geohex",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -187,13 +187,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "geotile",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "geotile",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -205,13 +205,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "integer",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "integer",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -223,13 +223,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "ip",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "ip",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -241,13 +241,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "keyword",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "keyword",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -259,13 +259,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "keyword",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "text",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -277,13 +277,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "long",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "long",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -295,13 +295,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "text",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "keyword",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -313,13 +313,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "text",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "text",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -331,13 +331,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "unsigned_long",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "unsigned_long",
           "optional" : false,
           "description" : "Multivalue expression."
@@ -349,13 +349,13 @@
     {
       "params" : [
         {
-          "name" : "superset",
+          "name" : "field1",
           "type" : "version",
           "optional" : false,
           "description" : "Multivalue expression."
         },
         {
-          "name" : "subset",
+          "name" : "field2",
           "type" : "version",
           "optional" : false,
           "description" : "Multivalue expression."

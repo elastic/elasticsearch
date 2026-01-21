@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| superset | subset | result |
+| field1 | field2 | result |
 | --- | --- | --- |
 | boolean | boolean | boolean |
 | cartesian_point | cartesian_point | boolean |

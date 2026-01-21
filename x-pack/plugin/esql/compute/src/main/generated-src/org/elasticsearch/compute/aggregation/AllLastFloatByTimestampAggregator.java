@@ -274,7 +274,7 @@ public class AllLastFloatByTimestampAggregator {
 
         @Override
         public void close() {
-            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
+            Releasables.close(observed, hasTimestamp, timestamps, Releasables.wrap(values), values, super::close);
         }
 
         @Override

@@ -337,12 +337,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
 
         @Override
         public void close() {
-            $if(BytesRef)$
-            for (long i = 0; i < values.size(); i++) {
-                Releasables.close(values.get(i));
-            }
-            $endif$
-            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
+            Releasables.close(observed, hasTimestamp, timestamps, Releasables.wrap(values), values, super::close);
         }
 
         @Override

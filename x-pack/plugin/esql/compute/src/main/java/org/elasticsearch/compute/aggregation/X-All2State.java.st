@@ -75,7 +75,11 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         return v2;
     }
 
-    void v2($if(v2_boolean)$ByteArray$else$$v2_Type$Array$endif$ v2) {
+    $if(v2_boolean)$
+    void v2(ByteArray v2) {
+    $else$
+    void v2($v2_Type$Array v2) {
+    $endif$
         this.v2 = v2;
     }
 

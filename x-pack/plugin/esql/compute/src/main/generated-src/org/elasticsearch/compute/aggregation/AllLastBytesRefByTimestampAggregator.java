@@ -287,10 +287,7 @@ public class AllLastBytesRefByTimestampAggregator {
 
         @Override
         public void close() {
-            for (long i = 0; i < values.size(); i++) {
-                Releasables.close(values.get(i));
-            }
-            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
+            Releasables.close(observed, hasTimestamp, timestamps, Releasables.wrap(values), values, super::close);
         }
 
         @Override

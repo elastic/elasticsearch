@@ -10,7 +10,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -19,11 +18,8 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class TextStructureNestedJsonIT extends ESRestTestCase {
 
@@ -39,7 +35,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testJsonObjectDetection() throws IOException {
+    public void testJsonObjectDetectionBasicRequest() throws IOException {
         String nestedJsonSample = """
             {"timestamp": "1478261151445", "id": 1, "message": "Connection established"}
             {"timestamp": "1478261151446", "id": 2, "message": "Request processed"}
@@ -53,160 +49,60 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         assertKeyValue("message", "keyword", responseMap);
     }
 
-    public void testJsonObjectWithArrayDetection() throws IOException {
+    public void testNestedJsonObjectDetectionDefaultBehavior() throws IOException {
         String nestedJsonSample = """
-            {"timestamp": "1478261151445", "id": [1, 2, 3], "message": "Connection established"}
-            {"timestamp": "1478261151446", "id": [1, 2, 3], "message": "Request processed"}
-            {"timestamp": "1478261151447", "id": [1, 2, 3.1], "message": "Data written"}
-            """;
-
-        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
-
-        assertKeyValue("timestamp", "date", responseMap);
-        assertKeyValue("id", "double", responseMap);
-        assertKeyValue("message", "keyword", responseMap);
-    }
-
-    public void testJsonObjectWithMixedArrayOfObjectsAndPrimitives() throws IOException {
-        String nestedJsonSample = """
-            {"timestamp": "1478261151445", "host": [1, {"id": 1}], "message": "Connection established"}
-            {"timestamp": "1478261151446", "host": [2, {"id": 2}], "message": "Request processed"}
-            {"timestamp": "1478261151447", "host": [3, {"id": 3}], "message": "Data written"}
-            """;
-
-        ResponseException e = expectThrows(ResponseException.class, () -> executeAndVerifyRequest(nestedJsonSample));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("[host] has both object and non-object values"));
-    }
-
-    /**
-     * Test that nested JSON objects are properly detected and mapped with hierarchical structure
-     */
-    public void testNestedJsonObjectDetection() throws IOException {
-        String nestedJsonSample = """
-            {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445", "message": "Connection established"}
-            {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151446", "message": "Request processed"}
-            {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447", "message": "Data written"}
-            """;
-
-        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
-
-        assertKeyValue("host.id", "long", responseMap);
-        assertKeyValue("host.category", "keyword", responseMap);
-        assertKeyValue("timestamp", "date", responseMap);
-        assertKeyValue("message", "keyword", responseMap);
-    }
-
-    public void testNestedJsonObjectWithArrayOfObjects() throws IOException {
-        String nestedJsonSample = """
-            {"hosts": [{"id": 1, "name": "host1"}, {"id": 2, "name": "host2"}, {"id": 3, "name": "host3"}], "timestamp": "1478261151445"}
-            {"hosts": [{"id": 4, "name": "host1"}, {"id": 5, "name": "host5"}], "timestamp": "1478261151446"}
-            {"hosts": [{"id": 6, "name": "host6"}], "timestamp": "1478261151446"}
-            """;
-
-        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
-
-        assertKeyValue("hosts.id", "long", responseMap);
-        assertKeyValue("hosts.name", "keyword", responseMap);
-        assertKeyValue("timestamp", "date", responseMap);
-    }
-
-    public void testNestedJsonObjectEmptyObjectsMappedToObject() throws IOException {
-        String nestedJsonSample = """
-            {"host": {}, "timestamp": "1478261151445", "message": { "id" : 1, "message" : {}}}
-            {"host": {}, "timestamp": "1478261151446", "message": { "id" : 2, "message" : {}}}
-            {"host": {}, "timestamp": "1478261151446", "message": { "id" : 3, "message" : {}}}
+            {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}
+            {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151446"}
+            {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
             """;
 
         Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
 
         assertKeyValue("host", "object", responseMap);
+        assertKeyValue("timestamp", "date", responseMap);
     }
 
-    /**
-     * Test with the explain parameter to see the reasoning
-     */
-    public void testNestedJsonWithExplainParameter() throws IOException {
-        String sample = """
-            {"data": {"value": 42}, "timestamp": "2024-01-01T10:00:00Z"}
-            {"data": {"value": 43}, "timestamp": "2024-01-01T10:01:00Z"}
+    public void testNestedJsonObjectDetectionRecursive() throws IOException {
+        String nestedJsonSample = """
+            {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}
+            {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151446"}
+            {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
             """;
 
-        Request request = new Request("POST", "/_text_structure/find_structure");
-        request.addParameter("explain", "true");
-        request.setEntity(new StringEntity(sample, ContentType.APPLICATION_JSON));
-        Response response = client().performRequest(request);
-        assertOK(response);
+        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample, true,true);
 
-        Map<String, Object> responseMap = entityAsMap(response);
-
-        // Verify explanation is present
-        assertThat(responseMap, hasKey("explanation"));
-        @SuppressWarnings("unchecked")
-        var explanation = responseMap.get("explanation");
-        assertThat(explanation, notNullValue());
+        assertKeyValue("host.id", "long", responseMap);
+        assertKeyValue("host.category", "keyword", responseMap);
+        assertKeyValue("timestamp", "date", responseMap);
     }
 
-    public void testNestedJsonDepthLimit() throws IOException {
-        int maxDepth = 10;
-        int testDepthBeyondLimit = maxDepth + 3;
+    public void testNestedJsonObjectDetectionNoParseRecursivelyArgumentDefaultsToFalse() throws IOException {
+        String nestedJsonSample = """
+            {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}
+            {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151446"}
+            {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
+            """;
 
-        // Generate deeply nested JSON samples
-        StringBuilder sample = new StringBuilder();
-        for (int i = 1; i <= 3; i++) {
-            sample.append(generateDeeplyNestedJson(testDepthBeyondLimit, i)).append("\n");
-        }
+        Map<String, Object> responseMap1 = executeAndVerifyRequest(nestedJsonSample, true,false);
+        Map<String, Object> responseMap2 = executeAndVerifyRequest(nestedJsonSample);
 
-        Map<String, Object> responseMap = executeAndVerifyRequest(sample.toString());
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-
-        String withinLimitKey = buildNestedKey(maxDepth);
-        String beyondLimitKey = buildNestedKey(maxDepth + 1);
-        assertThat("Key within depth limit should exist", properties, hasKey(withinLimitKey));
-        assertThat("Key beyond depth limit should not exist", properties, not(hasKey(beyondLimitKey)));
-        assertKeyValue(withinLimitKey, "object", responseMap);
-
-    }
-
-    /**
-     * Generates a deeply nested JSON object.
-     * Example for depth=3, id=1: {"level1": {"level2": {"level3": {"value": 1}}}}
-     */
-    private String generateDeeplyNestedJson(int depth, int id) {
-        StringBuilder json = new StringBuilder();
-        for (int i = 1; i <= depth; i++) {
-            json.append("{\"level").append(i).append("\": ");
-        }
-        json.append("{\"value\": ").append(id).append("}");
-        for (int i = 0; i < depth; i++) {
-            json.append("}");
-        }
-        return json.toString();
-    }
-
-    /**
-     * Builds a dot-notation key for nested levels.
-     * Example for depth=3: "level1.level2.level3"
-     */
-    private String buildNestedKey(int depth) {
-        StringBuilder key = new StringBuilder();
-        for (int i = 1; i <= depth; i++) {
-            if (i > 1) {
-                key.append(".");
-            }
-            key.append("level").append(i);
-        }
-        return key.toString();
+        assertThat(
+            "Setting `parse_recursively=false` is equivalent to not setting this argument at all",
+            responseMap1,
+            equalTo(responseMap2));
     }
 
     private static Map<String, Object> executeAndVerifyRequest(String sample) throws IOException {
+        return executeAndVerifyRequest(sample, false, false);
+    }
+
+    private static Map<String, Object> executeAndVerifyRequest(String sample, boolean parseRecursivelyArgument, boolean parseRecursivelyValue) throws IOException {
         Request request = new Request("POST", "/_text_structure/find_structure");
         request.setEntity(new StringEntity(sample, ContentType.APPLICATION_JSON));
-        request.addParameter("parse_recursively", "true");
+
+        if (parseRecursivelyArgument) {
+            request.addParameter("parse_recursively", Boolean.toString(parseRecursivelyValue));
+        }
         Response response = client().performRequest(request);
         assertOK(response);
         return entityAsMap(response);

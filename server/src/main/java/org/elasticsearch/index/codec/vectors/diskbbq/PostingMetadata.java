@@ -17,5 +17,4 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
  * @param centroidOrdinal The ordinal of the centroid.
  * @param centroidScore   The score of the centroid.
  */
-public record PostingMetadata(long offset, long length, int centroidOrdinal, float centroidScore) {
-}
+public record PostingMetadata(long offset, long length, int centroidOrdinal, float centroidScore) {}

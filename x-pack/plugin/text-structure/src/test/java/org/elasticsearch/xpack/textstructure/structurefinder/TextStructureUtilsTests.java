@@ -726,6 +726,41 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
+     *  "hosts": [
+     *      [{"id": 1, "name": "host1"}],
+     *      [{"id": 1, "name": "host1"}],
+     *      [{"id": 1, "name": "host1"}]
+     *  ],
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveGivenNestedLists() {
+        Map<String, Object> nestedObject = new LinkedHashMap<>();
+        nestedObject.put("id", 1);
+        nestedObject.put("name", "host1");
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("host", List.of(List.of(nestedObject), List.of(nestedObject), List.of(nestedObject)));
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            // No support for list of lists
+            assertKeyAndMappedType(mappings, "host", "object");
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
      *  "host": {},
      *  "message" : { "content" : {}}
      *  "timestamp": "1478261151445"

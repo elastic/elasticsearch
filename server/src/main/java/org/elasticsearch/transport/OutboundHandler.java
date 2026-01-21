@@ -374,7 +374,7 @@ public final class OutboundHandler {
             }
         } finally {
             // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
-            // are written.
+            // are written. But note that the inner stream is wrapped in a noCloseStream() so it remains open.
             if (toClose1 != null) {
                 if (toClose2 == null) {
                     IOUtils.close(toClose1);

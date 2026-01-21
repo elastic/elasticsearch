@@ -820,7 +820,7 @@ public class SnapshotResiliencyTestHelper {
                             client,
                             null,
                             FailureStoreMetrics.NOOP,
-                            TestProjectResolvers.alwaysThrow(),
+                            projectResolver,
                             new FeatureService(List.of()) {
                                 @Override
                                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {

@@ -64,6 +64,8 @@ setup:
   - match: { id: $taskId }
   # cancelled is not serialized to tasks index, so returns default boolean value (yes, confusing.)
   - match: { cancelled: false }
+  - match: { status.canceled: "by user request" }
+
 
 ---
 "Cancelling task on nonexisting node returns 404":

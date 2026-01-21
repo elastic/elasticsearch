@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -36,7 +37,9 @@ public class QuerySettings {
         description = "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled."
+        // TODO add a link to CPS docs when available
     )
+    @Example(file = "from", tag = "project-routing", description = "Routes the query to the specified project.")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
@@ -53,6 +56,7 @@ public class QuerySettings {
         type = { "keyword" },
         description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC"
     )
+    @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
         "time_zone",
         DataType.KEYWORD,
@@ -73,11 +77,13 @@ public class QuerySettings {
     @Param(
         name = "unmapped_fields",
         type = { "keyword" },
+        since = "9.3+",
         description = "Defines how unmapped fields are treated. Possible values are: "
             + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
             + "\"NULLIFY\" - treats unmapped fields as null values. "
         // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
     )
+    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",
         DataType.KEYWORD,
@@ -113,6 +119,9 @@ public class QuerySettings {
             @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
     )
     @SuppressWarnings("unchecked")
+    // TODO add examples when approximate is implemented, eg.
+    // @Example(file = "approximate", tag = "approximate-with-boolean")
+    // @Example(file = "approximate", tag = "approximate-with-map")
     public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
         "approximate",
         null,

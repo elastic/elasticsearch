@@ -42,7 +42,7 @@ public class MetadataAttribute extends TypedAttribute {
         MetadataAttribute::readFrom
     );
 
-    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = createMetadataAttributes(
+    public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = createMetadataAttributes(
         List.of(
             Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
             Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
@@ -163,9 +163,13 @@ public class MetadataAttribute extends TypedAttribute {
         return searchable;
     }
 
-    public static MetadataAttribute create(Source source, String name) {
+    public static NamedExpression create(Source source, String name) {
         var t = ATTRIBUTES_MAP.get(name);
-        return t != null ? new MetadataAttribute(source, name, t.dataType(), t.searchable()) : null;
+        if (t != null) {
+            return new MetadataAttribute(source, name, t.dataType(), t.searchable());
+        }
+
+        return new UnresolvedMetadataAttributeExpression(source, name);
     }
 
     public static DataType dataType(String name) {

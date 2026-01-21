@@ -1,6 +1,5 @@
 simpleKeep
 required_capability: optional_fields_nullify_tech_preview
-
 SET unmapped_fields="nullify"\;
 FROM employees
 | KEEP foo
@@ -95,15 +94,19 @@ null                      | null
 keepWithPattern
 required_capability: optional_fields_nullify_tech_preview
 
+// tag::unmapped-nullify-simple-keep[]
 SET unmapped_fields="nullify"\;
 FROM employees
 | KEEP emp_*, foo
 | SORT emp_no
 | LIMIT 1
+// end::unmapped-nullify-simple-keep[]
 ;
 
+// tag::unmapped-nullify-simple-keep-result[]
 emp_no:integer|foo:null
 10001         |null
+// end::unmapped-nullify-simple-keep-result[]
 ;
 
 rowKeep

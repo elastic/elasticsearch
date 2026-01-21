@@ -21,7 +21,7 @@ false                    | two         | 2024-05-10T00:22:00.000Z
 ;
 
 absent_over_time_events_received_promql-Ignore
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=2m is_absent=(max by (pod) (absent_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step | LIMIT 10;
@@ -50,7 +50,7 @@ false             | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 absent_over_time_of_long_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.bytes_in[10m])))
 | SORT cluster, step | LIMIT 10;
@@ -84,7 +84,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 absent_over_time_of_boolean_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -166,7 +166,7 @@ false                  | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 absent_over_time_of_integer_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.eth0.currently_connected_clients[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -313,7 +313,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 absent_over_time_with_filtering_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.bytes_in{pod!="three"}[10m])))
 | SORT step, cluster | LIMIT 10;

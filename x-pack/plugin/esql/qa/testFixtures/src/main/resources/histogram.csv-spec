@@ -60,6 +60,48 @@ min:double | max:double | p90:double | sum:double  | avg:double
 
 // -----------------------------------------
 
+Core supported t-digest aggs on histogram field, without grouping (TS mode)
+required_capability: histogram_release_version
+required_capability: ts_command_v0
+
+
+TS histogram_timeseries_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | EVAL digest = to_tdigest(responseTime)
+ | STATS min = MIN(digest),
+         max = MAX(digest),
+         p90 = PERCENTILE(digest,90),
+         sum = SUM(digest),
+         avg = AVG(digest) 
+ | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP min, max, p90, sum, avg
+;
+
+min:double | max:double | p90:double | sum:double  | avg:double
+2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
+;
+
+// -----------------------------------------
+
+Test in line conversion to tdigest (TS mode)
+required_capability: histogram_release_version
+required_capability: allow_casting_in_default_ts_aggs
+required_capability: ts_command_v0
+
+
+TS histogram_timeseries_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS avg = AVG(to_tdigest(responseTime)) 
+ | EVAL avg = ROUND(avg, 7)
+ | KEEP avg
+;
+
+avg:double
+0.0993245
+;
+
+// -----------------------------------------
+
 Core supported T-digest aggs on Histogram field, with grouping
 required_capability: histogram_release_version
 

@@ -15,7 +15,6 @@ import org.elasticsearch.TransportVersion;
 
 import java.util.Collections;
 import java.util.NavigableSet;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -51,25 +50,20 @@ public class TransportVersionUtils {
         return ESTestCase.randomFrom(allReleasedVersions().stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
-    /** Returns a random {@link TransportVersion} from all available versions. */
-    public static TransportVersion randomVersion(Random random) {
-        return RandomPicks.randomFrom(random, allReleasedVersions());
-    }
-
     /**
      * Returns a random {@link TransportVersion} which supports the given version. Effectively, this returns a version equal to, or "later"
      * than the given version.
      */
-    public static TransportVersion randomVersionSupporting(Random random, TransportVersion minVersion) {
-        return RandomPicks.randomFrom(random, RELEASED_VERSIONS.stream().filter(v -> v.supports(minVersion)).toList());
+    public static TransportVersion randomVersionSupporting(TransportVersion minVersion) {
+        return RandomPicks.randomFrom(random(), RELEASED_VERSIONS.stream().filter(v -> v.supports(minVersion)).toList());
     }
 
     /**
      * Returns a random {@link TransportVersion} which does not supports the given version. Effectively, this returns a version "before"
      * the given version.
      */
-    public static TransportVersion randomVersionNotSupporting(Random random, TransportVersion version) {
-        return RandomPicks.randomFrom(random, RELEASED_VERSIONS.stream().filter(v -> v.supports(version) == false).toList());
+    public static TransportVersion randomVersionNotSupporting(TransportVersion version) {
+        return RandomPicks.randomFrom(random(), RELEASED_VERSIONS.stream().filter(v -> v.supports(version) == false).toList());
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version) {
@@ -113,14 +107,14 @@ public class TransportVersionUtils {
     }
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
-    public static TransportVersion randomCompatibleVersion(Random random) {
-        return randomCompatibleVersion(random, true);
+    public static TransportVersion randomCompatibleVersion() {
+        return randomCompatibleVersion(true);
     }
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
-    public static TransportVersion randomCompatibleVersion(Random random, boolean includePatches) {
+    public static TransportVersion randomCompatibleVersion(boolean includePatches) {
         return RandomPicks.randomFrom(
-            random,
+            random(),
             (includePatches ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).stream().filter(TransportVersion::isCompatible).toList()
         );
     }

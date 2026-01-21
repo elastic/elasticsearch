@@ -11,6 +11,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -270,7 +271,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
         } else {
@@ -289,7 +300,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
         } else {
@@ -371,7 +392,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertNull(getResult);
         // But normal get would still work!
         getResult = primary.getService()
-            .get(indexResult.getId(), new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                indexResult.getId(),
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNotNull(getResult);
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);

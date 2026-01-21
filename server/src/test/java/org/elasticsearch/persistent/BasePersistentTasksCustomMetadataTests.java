@@ -198,7 +198,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
     @SuppressWarnings("unchecked")
     public void testMinVersionSerialization() throws IOException {
         PersistentTasks.Builder<?> tasks = builder();
-        TransportVersion streamVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
+        TransportVersion streamVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,

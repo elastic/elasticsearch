@@ -22,19 +22,26 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongMultiplyExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 
-public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+public class Mul extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mul", Mul::new);
 
-    @FunctionInfo(
-        operator = "*",
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Multiply two numbers together. "
-            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
-    )
+    @FunctionInfo(operator = "*", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
+        Multiply two values together. For numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
+        then the result is `null`. For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate
+        null result.
+        """)
     public Mul(
         Source source,
-        @Param(name = "lhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression left,
-        @Param(name = "rhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression right
+        @Param(
+            name = "lhs",
+            description = "A numeric value or dense_vector",
+            type = { "double", "integer", "long", "unsigned_long", "dense_vector" }
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            description = "A numeric value or dense_vector",
+            type = { "double", "integer", "long", "unsigned_long", "dense_vector" }
+        ) Expression right
     ) {
         super(
             source,
@@ -44,7 +51,8 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
             MulIntsEvaluator.Factory::new,
             MulLongsEvaluator.Factory::new,
             MulUnsignedLongsEvaluator.Factory::new,
-            MulDoublesEvaluator.Factory::new
+            MulDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.MulFactory::new
         );
     }
 
@@ -55,7 +63,8 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
             MulIntsEvaluator.Factory::new,
             MulLongsEvaluator.Factory::new,
             MulUnsignedLongsEvaluator.Factory::new,
-            MulDoublesEvaluator.Factory::new
+            MulDoublesEvaluator.Factory::new,
+            DenseVectorsEvaluator.MulFactory::new
         );
     }
 

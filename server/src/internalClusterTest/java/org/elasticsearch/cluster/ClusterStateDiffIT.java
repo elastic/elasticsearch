@@ -236,7 +236,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     private DiscoveryNode randomNode(String nodeId) {
-        Version nodeVersion = VersionUtils.randomVersion(random());
+        Version nodeVersion = VersionUtils.randomVersion();
         IndexVersion indexVersion = randomVersion();
         return DiscoveryNodeUtils.builder(nodeId)
             .roles(emptySet())

@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-similarity-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,11 @@ products:
 
 Use a Painless script to create a [similarity](/reference/elasticsearch/index-settings/similarity.md) equation for scoring documents in a query.
 
-**Variables**
+:::{tip}
+This is an advanced feature for customizing how document relevance scores are calculated during search. For comprehensive information about similarity functions and their implementation, refer to the [similarity documentation](/reference/elasticsearch/index-settings/similarity.md).
+:::
+
+## Variables
 
 `weight` (`float`, read-only)
 :   The weight as calculated by a [weight script](/reference/scripting-languages/painless/painless-weight-context.md)
@@ -42,12 +49,40 @@ Note that the `query`, `field`, and `term` variables are also available to the [
 
 For queries that contain multiple terms, the script is called once for each term with that term’s calculated weight, and the results are summed. Note that some terms might have a `doc.freq` value of `0` on a document, for example if a query uses synonyms.
 
-**Return**
+## Return
 
 `double`
 :   The similarity score for the current document.
 
-**API**
+## API
 
 The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) is available.
 
+## Example
+
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+
+The following request creates a new index named `ecommerce_rare_terms` with a custom `similarity` equation called `rare_boost`. This similarity function modifies how document relevance scores are calculated during search by giving more weight to rare terms. 
+
+This can be used if you want to customize how documents are matched and scored against query terms, for example to boost products with unique or uncommon attributes in search results.
+
+```json
+PUT kibana_sample_data_ecommerce-rare_terms
+{
+  "settings": {
+    "similarity": {
+      "rare_boost": {
+        "type": "scripted",
+        "script": {
+          "source": """
+            double tf = Math.sqrt(doc.freq);
+            double idf = Math.log((field.docCount + 1)/(term.docFreq + 1)); // If the term appears in less than 5% of the documents, it will be boosted
+            double rareBoost = term.docFreq < (field.docCount * 0.05) ? 2 : 1;
+            return query.boost * tf * idf * rareBoost;
+          """
+        }
+      }
+    }
+  }
+}
+```

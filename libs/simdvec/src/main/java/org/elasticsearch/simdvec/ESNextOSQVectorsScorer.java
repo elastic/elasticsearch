@@ -21,7 +21,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
 public class ESNextOSQVectorsScorer {
 
-    public static final int BULK_SIZE = 16;
+    public static final int BULK_SIZE = 32;
 
     protected static final float[] BIT_SCALES = new float[] {
         1f,
@@ -40,14 +40,14 @@ public class ESNextOSQVectorsScorer {
     protected final byte indexBits;
     protected final int length;
     protected final int dimensions;
+    protected final int bulkSize;
 
-    protected final float[] lowerIntervals = new float[BULK_SIZE];
-    protected final float[] upperIntervals = new float[BULK_SIZE];
-    protected final int[] targetComponentSums = new int[BULK_SIZE];
-    protected final float[] additionalCorrections = new float[BULK_SIZE];
+    protected final float[] lowerIntervals;
+    protected final float[] upperIntervals;
+    protected final int[] targetComponentSums;
+    protected final float[] additionalCorrections;
 
-    /** Sole constructor, called by sub-classes. */
-    public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
+    public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
         if (queryBits != 4 || (indexBits != 1 && indexBits != 2 && indexBits != 4)) {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1, 2 or 4-bit index supported");
         }
@@ -56,6 +56,15 @@ public class ESNextOSQVectorsScorer {
         this.indexBits = indexBits;
         this.dimensions = dimensions;
         this.length = dataLength;
+        this.lowerIntervals = new float[bulkSize];
+        this.upperIntervals = new float[bulkSize];
+        this.targetComponentSums = new int[bulkSize];
+        this.additionalCorrections = new float[bulkSize];
+        this.bulkSize = bulkSize;
+    }
+
+    public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
+        this(in, queryBits, indexBits, dimensions, dataLength, BULK_SIZE);
     }
 
     /**
@@ -210,7 +219,7 @@ public class ESNextOSQVectorsScorer {
      * compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      *
-     * <p>The number of vectors to score is defined by {@link #BULK_SIZE}. The expected format of the
+     * <p>The number of vectors to score is defined by {@link #bulkSize}. The expected format of the
      * input is as follows: First the quantized vectors are read from the input,then all the lower
      * intervals as floats, then all the upper intervals as floats, then all the target component sums
      * as shorts, and finally all the additional corrections as floats.
@@ -227,15 +236,15 @@ public class ESNextOSQVectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScoreBulk(q, BULK_SIZE, scores);
-        in.readFloats(lowerIntervals, 0, BULK_SIZE);
-        in.readFloats(upperIntervals, 0, BULK_SIZE);
-        for (int i = 0; i < BULK_SIZE; i++) {
+        quantizeScoreBulk(q, bulkSize, scores);
+        in.readFloats(lowerIntervals, 0, bulkSize);
+        in.readFloats(upperIntervals, 0, bulkSize);
+        for (int i = 0; i < bulkSize; i++) {
             targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
         }
-        in.readFloats(additionalCorrections, 0, BULK_SIZE);
+        in.readFloats(additionalCorrections, 0, bulkSize);
         float maxScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < BULK_SIZE; i++) {
+        for (int i = 0; i < bulkSize; i++) {
             scores[i] = score(
                 queryLowerInterval,
                 queryUpperInterval,

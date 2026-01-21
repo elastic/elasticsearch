@@ -199,7 +199,7 @@ public class EsqlQueryGenerator {
         if (result == null) {
             return null;
         }
-        if (randomBoolean() && result.contains("*") == false) {
+        if (randomBoolean() && result.contains("*") == false && result.startsWith("`") == false) {
             result = "`" + result + "`";
         }
         return result;

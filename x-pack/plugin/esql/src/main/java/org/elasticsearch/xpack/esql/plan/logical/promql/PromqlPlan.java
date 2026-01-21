@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 /**
@@ -27,7 +28,7 @@ public interface PromqlPlan {
      * @throws IllegalArgumentException if the plan is not a PromqlPlan
      */
     static boolean returnsRangeVector(LogicalPlan plan) {
-        return getReturnType(plan) == PromqlDataType.RANGE_VECTOR;
+        return getType(plan) == PromqlDataType.RANGE_VECTOR;
     }
 
     /**
@@ -38,7 +39,7 @@ public interface PromqlPlan {
      * @throws IllegalArgumentException if the plan is not a PromqlPlan
      */
     static boolean returnsInstantVector(LogicalPlan plan) {
-        return getReturnType(plan) == PromqlDataType.INSTANT_VECTOR;
+        return getType(plan) == PromqlDataType.INSTANT_VECTOR;
     }
 
     /**
@@ -49,13 +50,14 @@ public interface PromqlPlan {
      * @throws IllegalArgumentException if the plan is not a PromqlPlan
      */
     static boolean returnsScalar(LogicalPlan plan) {
-        return getReturnType(plan) == PromqlDataType.SCALAR;
+        return getType(plan) == PromqlDataType.SCALAR;
     }
 
-    static PromqlDataType getReturnType(LogicalPlan plan) {
-        if (plan instanceof PromqlPlan promqlPlan) {
-            return promqlPlan.returnType();
-        }
-        throw new IllegalArgumentException("Logical plan " + plan.getClass().getSimpleName() + " is not a PromqlPlan");
+    static PromqlDataType getType(@Nullable LogicalPlan plan) {
+        return switch (plan) {
+            case PromqlPlan promqlPlan -> promqlPlan.returnType();
+            case null -> null;
+            default -> throw new IllegalArgumentException("Logical plan " + plan.getClass().getSimpleName() + " is not a PromqlPlan");
+        };
     }
 }

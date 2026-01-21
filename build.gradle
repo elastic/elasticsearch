@@ -342,9 +342,9 @@ allprojects {
     if (project.path == ':') {
       resolveJavaToolChain = true
     }
-    // ensure we have best possible caching of bwc builds
+    // we run the packer script for all active branches. so we should be able to skip bwc here
     if(project.path.startsWith(":distribution:bwc:")) {
-      dependsOn project.tasks.matching { it.name == 'buildBwcLinuxTar' }
+      enabled = false
     }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)

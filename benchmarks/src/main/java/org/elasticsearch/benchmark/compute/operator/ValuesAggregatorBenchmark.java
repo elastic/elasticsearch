@@ -363,7 +363,7 @@ public class ValuesAggregatorBenchmark {
     }
 
     static DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
     }
 
     static int blockLength(int groups) {

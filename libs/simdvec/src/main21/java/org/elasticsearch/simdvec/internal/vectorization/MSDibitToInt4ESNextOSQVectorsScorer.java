@@ -32,8 +32,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private static final float TWO_BIT_SCALE = 1f / ((1 << 2) - 1);
 
-    MSDibitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, MemorySegment memorySegment) {
-        super(in, dimensions, dataLength, memorySegment);
+    MSDibitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, dataLength, bulkSize, memorySegment);
     }
 
     @Override
@@ -275,8 +275,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScore128Bulk(q, BULK_SIZE, scores);
-        int limit = FLOAT_SPECIES_128.loopBound(BULK_SIZE);
+        quantizeScore128Bulk(q, bulkSize, scores);
+        int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
         int i = 0;
         long offset = in.getFilePointer();
         float ay = queryLowerInterval;
@@ -288,19 +288,19 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 4 * BULK_SIZE + i * Float.BYTES,
+                offset + 4 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax).mul(TWO_BIT_SCALE);
             var targetComponentSums = ShortVector.fromMemorySegment(
                 SHORT_SPECIES_128,
                 memorySegment,
-                offset + 8 * BULK_SIZE + i * Short.BYTES,
+                offset + 8 * bulkSize + i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 10 * BULK_SIZE + i * Float.BYTES,
+                offset + 10 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
@@ -336,7 +336,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 }
             }
         }
-        in.seek(offset + 14L * BULK_SIZE);
+        in.seek(offset + 14L * bulkSize);
         return maxScore;
     }
 
@@ -350,8 +350,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScore256Bulk(q, BULK_SIZE, scores);
-        int limit = FLOAT_SPECIES_256.loopBound(BULK_SIZE);
+        quantizeScore256Bulk(q, bulkSize, scores);
+        int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
         int i = 0;
         long offset = in.getFilePointer();
         float ay = queryLowerInterval;
@@ -363,19 +363,19 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 4 * BULK_SIZE + i * Float.BYTES,
+                offset + 4 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax).mul(TWO_BIT_SCALE);
             var targetComponentSums = ShortVector.fromMemorySegment(
                 SHORT_SPECIES_256,
                 memorySegment,
-                offset + 8 * BULK_SIZE + i * Short.BYTES,
+                offset + 8 * bulkSize + i * Short.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 10 * BULK_SIZE + i * Float.BYTES,
+                offset + 10 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
@@ -411,7 +411,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 }
             }
         }
-        in.seek(offset + 14L * BULK_SIZE);
+        in.seek(offset + 14L * bulkSize);
         return maxScore;
     }
 }

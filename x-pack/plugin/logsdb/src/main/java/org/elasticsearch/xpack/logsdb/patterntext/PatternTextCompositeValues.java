@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -47,7 +49,7 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
         this.rawTextDocValues = rawTextDocValues;
     }
 
-    static PatternTextCompositeValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
+    static BinaryDocValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
         SortedSetDocValues templateIdDocValues = DocValues.getSortedSet(leafReader, fieldType.templateIdFieldName());
         if (templateIdDocValues.getValueCount() == 0) {
             return null;
@@ -61,16 +63,26 @@ public final class PatternTextCompositeValues extends BinaryDocValues {
             fieldType.useBinaryDocValuesArgs()
         );
 
-        // load binary doc values (for newer indices that store raw values in binary doc values)
-        BinaryDocValues rawBinaryDocValues = leafReader.getBinaryDocValues(fieldType.storedNamed());
-        if (rawBinaryDocValues == null) {
-            // use an empty object here to avoid making null checks later
-            rawBinaryDocValues = DocValues.emptyBinary();
+        FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(fieldType.storedNamed());
+        if (fieldInfo == null) {
+            // If there is no stored subfield (either binary doc values or stored field),
+            // then there is no need to use PatternTextCompositeValues
+            return docValues;
         }
 
-        // load stored field loader (for older indices that store raw values in stored fields)
-        StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
-        LeafStoredFieldLoader storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
+        // load binary doc values (for newer indices that store raw values in binary doc values)
+        LeafStoredFieldLoader storedTemplateLoader;
+        BinaryDocValues rawBinaryDocValues;
+        if (fieldInfo.getDocValuesType() == DocValuesType.BINARY) {
+            rawBinaryDocValues = leafReader.getBinaryDocValues(fieldType.storedNamed());
+            storedTemplateLoader = StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
+        } else {
+            // use an empty object here to avoid making null checks later
+            rawBinaryDocValues = DocValues.emptyBinary();
+            // load stored field loader (for older indices that store raw values in stored fields)
+            StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
+            storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
+        }
 
         return new PatternTextCompositeValues(
             storedTemplateLoader,

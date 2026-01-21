@@ -20,8 +20,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
 
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, bulkSize, memorySegment);
     }
 
     @Override

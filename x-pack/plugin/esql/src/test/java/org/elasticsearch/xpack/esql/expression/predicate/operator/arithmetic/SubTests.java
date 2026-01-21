@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BinaryOperator;
@@ -35,10 +36,12 @@ import java.util.function.ToLongBiFunction;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -251,6 +254,54 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
             )
         );
 
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> left = randomDenseVector(dimensions);
+            List<Float> right = randomDenseVector(dimensions);
+            List<Float> expected = subVectors(left, right);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(expected)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            List<Float> left = randomDenseVector(64);
+            List<Float> right = randomDenseVector(128);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(null)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: dense_vector dimensions do not match");
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            List<Float> left = randomDenseVector(64);
+            List<Float> right = randomDenseVector(64);
+            left.set(32, -Float.MAX_VALUE);
+            right.set(32, Float.MAX_VALUE);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(null)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity");
+        }));
+
         // Set the timezone to UTC for test cases up to here
         suppliers = TestCaseSupplier.mapTestCases(
             suppliers,
@@ -284,7 +335,7 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
 
     private static String subErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         if (types.get(1) == DataType.DATETIME) {
-            if (types.get(0).isNumeric() || DataType.isMillisOrNanos(types.get(0))) {
+            if (types.get(0).isNumeric() || DataType.isMillisOrNanos(types.get(0)) || types.get(0) == DENSE_VECTOR) {
                 return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [datetime]";
             }
             if (DataType.isNull(types.get(0))) {
@@ -293,7 +344,7 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
         }
 
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime or numeric");
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime, numeric or dense_vector");
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
@@ -365,5 +416,13 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
         return DateUtils.toLong(
             Instant.from(ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).minus(period))
         );
+    }
+
+    private static List<Float> subVectors(List<Float> left, List<Float> right) {
+        List<Float> result = new ArrayList<>();
+        for (int i = 0; i < left.size(); i++) {
+            result.add(left.get(i) - right.get(i));
+        }
+        return result;
     }
 }

@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.StandardOpenOption;
 
+import static org.elasticsearch.common.Numbers.isPowerOfTwo;
 import static org.elasticsearch.nativeaccess.lib.PosixCLibrary.POSIX_MADV_WILLNEED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -111,9 +112,5 @@ public class PosixCLibraryTests extends ESTestCase {
         byte[] buffer = new byte[size];
         random().nextBytes(buffer);
         return buffer;
-    }
-
-    private static boolean isPowerOfTwo(int value) {
-        return (value & (value - 1)) == 0;
     }
 }

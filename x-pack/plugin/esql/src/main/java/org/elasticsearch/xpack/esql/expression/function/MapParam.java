@@ -32,6 +32,9 @@ public @interface MapParam {
 
     boolean optional() default false;
 
+    // version since which the parameter is available
+    String since() default "";
+
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)
     @interface MapParamEntry {

@@ -23,22 +23,25 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
  * */
 public class ES92Int7VectorsScorer {
 
-    public static final int BULK_SIZE = 16;
     protected static final float SEVEN_BIT_SCALE = 1f / ((1 << 7) - 1);
 
     /** The wrapper {@link IndexInput}. */
     protected final IndexInput in;
     protected final int dimensions;
 
-    private final float[] lowerIntervals = new float[BULK_SIZE];
-    private final float[] upperIntervals = new float[BULK_SIZE];
-    private final int[] targetComponentSums = new int[BULK_SIZE];
-    private final float[] additionalCorrections = new float[BULK_SIZE];
+    private final float[] lowerIntervals;
+    private final float[] upperIntervals;
+    private final int[] targetComponentSums;
+    private final float[] additionalCorrections;
 
     /** Sole constructor, called by sub-classes. */
-    public ES92Int7VectorsScorer(IndexInput in, int dimensions) {
+    public ES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         this.in = in;
         this.dimensions = dimensions;
+        lowerIntervals = new float[bulkSize];
+        upperIntervals = new float[bulkSize];
+        targetComponentSums = new int[bulkSize];
+        additionalCorrections = new float[bulkSize];
     }
 
     /**
@@ -123,7 +126,6 @@ public class ES92Int7VectorsScorer {
         float[] scores,
         int bulkSize
     ) throws IOException {
-        assert bulkSize <= BULK_SIZE : "bulkSize must be <= " + BULK_SIZE;
         int7DotProductBulk(q, bulkSize, scores);
         in.readFloats(lowerIntervals, 0, bulkSize);
         in.readFloats(upperIntervals, 0, bulkSize);

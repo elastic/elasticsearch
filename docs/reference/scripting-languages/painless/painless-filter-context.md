@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-filter-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,7 @@ products:
 
 Use a Painless script as a [filter](/reference/query-languages/query-dsl/query-dsl-script-query.md) in a query to include and exclude documents.
 
-**Variables**
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -17,38 +20,38 @@ Use a Painless script as a [filter](/reference/query-languages/query-dsl/query-d
 `doc` (`Map`, read-only)
 :   Contains the fields of the current document where each field is a `List` of values.
 
-**Return**
+## Return
 
 `boolean`
 :   Return `true` if the current document should be returned as a result of the query, and `false` otherwise.
 
-**API**
+## API
 
 The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) is available.
 
-**Example**
+## Example
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-This script finds all unsold documents that cost less than $25.
+This example filters documents where the average price per item in an order exceeds a minimum threshold of 30\.
 
-```painless
-doc['sold'].value == false && doc['cost'].value < 25
-```
+:::{tip}
+Filters answer the question “Does this document match?” with a simple “Yes or No” response. Use filter context for all conditions that don’t need scoring. Refer to [Query and filter context](/reference/query-languages/query-dsl/query-filter-context.md) to learn more.
+:::
 
-Defining `cost` as a script parameter enables the cost to be configured in the script query request. For example, the following request finds all available theatre seats for evening performances that are under $25.
-
-```console
-GET seats/_search
+```json
+GET kibana_sample_data_ecommerce/_search
 {
   "query": {
     "bool": {
       "filter": {
         "script": {
           "script": {
-            "source": "doc['sold'].value == false && doc['cost'].value < params.cost",
+            "source": """
+                (doc['taxful_total_price'].value / doc['total_quantity'].value) > params.min_avg_price
+            """,
             "params": {
-              "cost": 25
+              "min_avg_price": 30
             }
           }
         }
@@ -57,4 +60,3 @@ GET seats/_search
   }
 }
 ```
-% TEST[setup:seats]

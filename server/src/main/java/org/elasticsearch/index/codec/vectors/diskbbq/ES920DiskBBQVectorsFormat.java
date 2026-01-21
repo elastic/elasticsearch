@@ -62,6 +62,8 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_DIRECT_IO = 1;
     public static final int VERSION_CURRENT = VERSION_DIRECT_IO;
 
+    static final int BULK_SIZE = 16;
+
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );

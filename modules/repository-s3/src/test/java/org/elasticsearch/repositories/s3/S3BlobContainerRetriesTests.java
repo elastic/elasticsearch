@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -51,7 +52,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -96,8 +96,10 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
@@ -1505,16 +1507,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
     }
 
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return BlobStoreTestUtil.randomRetryingPurpose();
-    }
-
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
-    }
-
     private void assertMetricsForOpeningStream() {
         final long numberOfOperations = getOperationMeasurements();
         // S3 client sdk internally also retries within the configured maxRetries for retryable errors.
@@ -1593,7 +1585,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     /**
      * Asserts that an InputStream is fully consumed, or aborted, when it is closed
      */
-    private static class AssertingInputStream extends FilterInputStream {
+    private static class AssertingInputStream extends FilterInputStream implements RetryingInputStreamUnwrappable {
 
         private final String blobName;
         private final boolean range;
@@ -1647,6 +1639,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }
+        }
+
+        @Override
+        public RetryingInputStream<?> unwrap() {
+            return in instanceof RetryingInputStream<?> retryingInputStream ? retryingInputStream : null;
         }
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -575,22 +576,22 @@ public class EsqlSession {
                     failureCollector.unwrapAndCollect(failure.getException());
                 }
             } else if (cluster.getFailures().isEmpty()) {
-                var shardFailures = e.getValue()
-                    .stream()
-                    .map(f -> new ShardSearchFailure(f.getException(), getCause(clusterAlias, f)))
-                    .toList();
+                var shardFailures = e.getValue().stream().map(f -> {
+                    ShardId shardId = null;
+                    if (ExceptionsHelper.unwrapCause(f.getException()) instanceof ElasticsearchException es) {
+                        shardId = es.getShardId();
+                    }
+                    return new ShardSearchFailure(
+                        f.getException(),
+                        shardId != null ? new SearchShardTarget(null, shardId, clusterAlias) : null
+                    );
+                }).toList();
                 executionInfo.swapCluster(
                     clusterAlias,
                     (k, curr) -> new EsqlExecutionInfo.Cluster.Builder(cluster).addFailures(shardFailures).build()
                 );
             }
         }
-    }
-
-    private static SearchShardTarget getCause(String clusterAlias, FieldCapabilitiesFailure failure) {
-        return ExceptionsHelper.unwrapCause(failure.getException()) instanceof ElasticsearchException es
-            ? new SearchShardTarget(null, es.getShardId(), clusterAlias)
-            : null;
     }
 
     public void analyzedPlan(

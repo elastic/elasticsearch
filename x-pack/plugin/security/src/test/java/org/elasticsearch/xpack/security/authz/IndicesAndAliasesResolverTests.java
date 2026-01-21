@@ -3541,7 +3541,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
         var targetIndex = randomFrom(".hidden-open", ".hidden-closed");
         var request = new SearchRequest().indices(targetIndex);
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         var resolvedIndices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
 
         assertThat(resolvedIndices.getLocal(), contains(targetIndex));

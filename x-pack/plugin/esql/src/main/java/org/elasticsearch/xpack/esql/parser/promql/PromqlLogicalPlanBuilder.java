@@ -436,31 +436,29 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         LogicalPlan child = null;
         List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
         List<PromqlFunctionRegistry.ParamInfo> functionParams = metadata.params();
-        for (int i = 0; i < functionParams.size(); i++) {
+        for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
             PromqlFunctionRegistry.ParamInfo expectedParam = functionParams.get(i);
-            if (params.size() > i) {
-                LogicalPlan providedParam = switch (params.get(i)) {
-                    case LogicalPlan plan -> plan;
-                    case Literal literal -> new LiteralSelector(source, literal);
-                    case Node n -> throw new IllegalStateException("Unexpected value: " + n);
-                };
-                PromqlDataType actualType = PromqlPlan.getType(providedParam);
-                PromqlDataType expectedType = expectedParam.type();
-                if (actualType != expectedType) {
-                    throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
-                }
-                if (expectedParam.child()) {
-                    child = providedParam;
-                } else if (providedParam instanceof LiteralSelector literalSelector) {
-                    extraParams.add(literalSelector.literal());
-                } else {
-                    throw new ParsingException(
-                        source,
-                        "expected literal parameter in call to function [{}], got {}",
-                        name,
-                        providedParam.nodeName()
-                    );
-                }
+            LogicalPlan providedParam = switch (params.get(i)) {
+                case LogicalPlan plan -> plan;
+                case Literal literal -> new LiteralSelector(source, literal);
+                case Node n -> throw new IllegalStateException("Unexpected value: " + n);
+            };
+            PromqlDataType actualType = PromqlPlan.getType(providedParam);
+            PromqlDataType expectedType = expectedParam.type();
+            if (actualType != expectedType) {
+                throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
+            }
+            if (expectedParam.child()) {
+                child = providedParam;
+            } else if (providedParam instanceof LiteralSelector literalSelector) {
+                extraParams.add(literalSelector.literal());
+            } else {
+                throw new ParsingException(
+                    source,
+                    "expected literal parameter in call to function [{}], got {}",
+                    name,
+                    providedParam.nodeName()
+                );
             }
         }
 

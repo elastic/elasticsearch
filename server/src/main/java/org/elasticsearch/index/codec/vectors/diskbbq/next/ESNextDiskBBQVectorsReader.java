@@ -552,21 +552,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 centroidSlice.getFilePointer(),
                 (long) numParents * fieldInfo.getVectorDimension() * Float.BYTES
             );
-            queryQuantizer = new QueryQuantizer(
-                quantEncoding,
-                fieldInfo,
-                target,
-                parentsSlice,
-                entry.globalCentroid()
-            );
+            queryQuantizer = new QueryQuantizer(quantEncoding, fieldInfo, target, parentsSlice, entry.globalCentroid());
         } else {
-            queryQuantizer = new QueryQuantizer(
-                quantEncoding,
-                fieldInfo,
-                target,
-                null,
-                entry.globalCentroid()
-            );
+            queryQuantizer = new QueryQuantizer(quantEncoding, fieldInfo, target, null, entry.globalCentroid());
         }
 
         return new MemorySegmentPostingsVisitor(queryQuantizer, quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
@@ -613,13 +601,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 } else {
                     queryCentroid = globalCentroid;
                 }
-                queryCorrections = quantizer.scalarQuantize(
-                    target,
-                    scratch,
-                    quantizationScratch,
-                    quantEncoding.queryBits(),
-                    queryCentroid
-                );
+                queryCorrections = quantizer.scalarQuantize(target, scratch, quantizationScratch, quantEncoding.queryBits(), queryCentroid);
                 quantEncoding.packQuery(quantizationScratch, quantizedQueryScratch);
                 currentCentroidOrdinal = centroidOrdinal;
             }
@@ -633,7 +615,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             return quantizedQueryScratch;
         }
     }
-
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {

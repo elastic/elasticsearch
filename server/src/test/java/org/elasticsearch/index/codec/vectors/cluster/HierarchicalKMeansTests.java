@@ -39,7 +39,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
 
         float[][] centroids = result.centroids();
         int[] assignments = result.assignments();
-        int[] soarAssignments = result.secondaryAssignments();
+        int[] soarAssignments = result.soarAssignments();
 
         assertEquals(Math.min(nClusters, nVectors), centroids.length, 10);
         assertEquals(nVectors, assignments.length);
@@ -74,7 +74,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
             KMeansResult resultConcurrency = hkmeans.cluster(vectors, targetSize);
             assertArrayEquals(result.centroids(), resultConcurrency.centroids());
             assertArrayEquals(result.assignments(), resultConcurrency.assignments());
-            assertArrayEquals(result.secondaryAssignments(), resultConcurrency.secondaryAssignments());
+            assertArrayEquals(result.soarAssignments(), resultConcurrency.soarAssignments());
         }
     }
 
@@ -128,7 +128,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
 
         float[][] centroids = result.centroids();
         int[] assignments = result.assignments();
-        int[] soarAssignments = result.secondaryAssignments();
+        int[] soarAssignments = result.soarAssignments();
 
         int[] counts = new int[centroids.length];
         for (int i = 0; i < assignments.length; i++) {

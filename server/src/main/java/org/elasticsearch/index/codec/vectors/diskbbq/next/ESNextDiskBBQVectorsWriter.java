@@ -661,7 +661,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             logger.debug("final centroid count: {}", centroids.length);
         }
         int[] assignments = kMeansResult.assignments();
-        int[] soarAssignments = kMeansResult.secondaryAssignments();
+        int[] soarAssignments = kMeansResult.soarAssignments();
         return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
     }
 

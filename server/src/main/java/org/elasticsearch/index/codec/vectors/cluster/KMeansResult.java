@@ -35,7 +35,7 @@ public class KMeansResult {
         }
 
         @Override
-        public int[] secondaryAssignments() {
+        public int[] soarAssignments() {
             return new int[0];
         }
     };
@@ -77,7 +77,7 @@ public class KMeansResult {
         this.soarAssignments = soarAssignments;
     }
 
-    public int[] secondaryAssignments() {
+    public int[] soarAssignments() {
         return soarAssignments;
     }
 }

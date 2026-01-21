@@ -605,9 +605,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      *
      * @param snapshot       snapshot
      * @param snapshotStatus snapshot status
-     * @param maximumShardIdForIndexInTheSnapshot maximum shardId of the same index (by {@link ShardId#id()}) existing in this snapshot.
-     *                                            This is needed to detect resharding happening during a snapshot.
-     *                                            See {@link IndexReshardService#isShardSnapshotImpactedByResharding}.
      */
     private void snapshot(
         final ShardId shardId,

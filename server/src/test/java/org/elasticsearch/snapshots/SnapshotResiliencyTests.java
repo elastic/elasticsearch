@@ -127,7 +127,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     protected DeterministicTaskQueue deterministicTaskQueue;
 
-    protected SnapshotResiliencyTestHelper.TestClusterNodes testClusterNodes;
+    protected TestClusterNodes testClusterNodes;
 
     protected Path tempDir;
 
@@ -2003,7 +2003,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
-        testClusterNodes = new SnapshotResiliencyTestHelper.TestClusterNodes(
+        testClusterNodes = new TestClusterNodes(
             masterNodes,
             dataNodes,
             tempDir,

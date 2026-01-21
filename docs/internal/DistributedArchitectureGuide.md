@@ -780,7 +780,7 @@ Cloud storage backed (S3, GCS, Azure) repositories requires network access to th
 they have concept of clients which manages the network requests. At least the `default` client must be
 configured for a cluster which is used by a repository if no client is explicitly specified. Multiple
 clients can be added, via `elasticsecrh.yml` to the same cluster and used by different repositories to
-spread snapshots to difficult locations if so desired.
+spread snapshots to different locations if so desired.
 
 We allow different implementations of the same cloud storage type to be used as long as they are compatible
 in both APIs and performance characteristics. For example, many storage service claims S3 compatibility.
@@ -836,24 +836,26 @@ used to keep concurrent running shard snapshots under control.
 
 The lifecycle of each shard snapshot is also tracked in-memory on the data node with `IndexShardSnapshotStatus`.
 The status is indicated by `IndexShardSnapshotStatus#Stage` which is updated at various points during the process.
-When a shard snapshot task runs, it first writes a new shard level generation file (`index-<UUID>.data`). This
-is basically a shard level catalog file pointing to all the valid shard snapshots. Each snapshot creates a new
-one. The UUID is used to avoid name collision. Previous shard generation files are not deleted because they
-may still be needed if the current shard snapshot fails. It then copies shard level data files to the repository
-with `BlobStoreRepository#doSnapshotShard`, `BlobStoreRepository#snapshotFile` etc. After all data files are
-uploaded, it writes a shard level snapshot file (`snap-<UUID>.dat`) indicating what data files should be included
-in this shard snapshot. Note the data file's physical name is replaced with double underscore (`__`) followed by
-an UUID to avoid name collision. The actual name is mapped and stored in the shard level snapshot file.
+When a shard snapshot task runs, it first acquires commit of the shard so that the files to be copied remain
+available throughout the shard snapshot process without being deleted by ongoing indexing activities. It then
+writes a new shard level generation file (`index-<UUID>.data`). This is basically a shard level catalog file
+pointing to all the valid shard snapshots. Each snapshot creates a new one. The UUID is used to avoid name collision.
+Previous shard generation files are not deleted because they may still be needed if the current shard snapshot fails.
+Following that, shard level data files are copied to the repository with `BlobStoreRepository#doSnapshotShard`,
+`BlobStoreRepository#snapshotFile` etc.
+After all data files are uploaded, it writes a shard level snapshot file (`snap-<UUID>.dat`) indicating what data files
+should be included in this shard snapshot. Note the data file's physical name is replaced with double underscore (`__`)
+followed by an UUID to avoid name collision. The actual name is mapped and stored in the shard level snapshot file.
 
-Once the shard snapshot is completed successfully, the data node sends a transport request
-(`UpdateIndexShardSnapshotStatusRequest`) with the new shard generation (`ShardGeneration`) to the master node
-to update its shard status (`SnapshotsInProgress#ShardState`) in the cluster state. If there is any
+Once the shard snapshot is completed successfully, the data node releases the previously acquired index commit and
+sends a transport request(`UpdateIndexShardSnapshotStatusRequest`) with the new shard generation (`ShardGeneration`)
+to the master node to update its shard status (`SnapshotsInProgress#ShardState`) in the cluster state. If there is any
 `QUEUED` shard snapshot for the same shard, the master node (`SnapshotsService`) update one such shard snapshot
 status to `INIT` so that it can run. The master responds to the data node only after the cluster state is published.
 
 When all shards in a snapshot are completed, the master node performs a finalization step
 (`SnapshotsService#SnapshotFinalization` and `BlobStoreRepository#finalizeSnapshot`) which does the following:
-1. Creates a `SnapshotInfo` object representing the completed snapshot for serialization.
+1. Create a `SnapshotInfo` object representing the completed snapshot for serialization.
 2. Collect and write the latest `Metadata` and `IndexMetadata` relevant to this snapshot.
 3. Write the snapshot metadata file `snap-<UUID>.dat`.
 4. Create a new root blob (repository generation file, `index-N`) with incremented generation number
@@ -861,9 +863,9 @@ When all shards in a snapshot are completed, the master node performs a finaliza
    generation as the current/safe (`BlobStoreRepository#writeIndexGen`).
 
 Step 4 is the most critical one. The root blob is intentionally written at the very last so that
-failure before it only leaves some redundant files in the repository which will be cleaned up in due time.
-A snapshot is not successfully until the root blob is successfully updated. To ensure consistency,
-it is a 3-steps process leveraging cluster consensus:
+any prior failure only leaves some redundant files in the repository which will be cleaned up in due time.
+A snapshot is not completed until the root blob is successfully updated. To ensure consistency,
+updating the root blob is a 3-steps process leveraging cluster consensus:
 1. Picks a new pending repository generation number which is greater than the current pending generation
    and publishes a cluster state update for it.
 2. If previous step is successful, writes the new root blob with the pending generation number.
@@ -886,9 +888,51 @@ time in a repository. Repository clean up is cluster wide exclusive and must run
 
 #### Shard snapshot pausing
 
+When a node is shutting down, it must vacate all shards via relocation. Since shards being snapshotted
+(shard snapshot status `INIT`) cannot relocate, we need a way to transit these shards out of the
+`INIT` state to avoid stall the shutdown process. This is where the shard snapshot pausing mechanism
+comes into play.
+
+When a node shutdown is initiated, `SnapshotsService` reacts to the new shutdown metadata by updating
+`SnapshotsInProgress#nodesIdsForRemoval` which tracks the node IDs for the shutting down node. When
+this change is published and observed by the shutting down data node (`SnapshotShardsService`), it pauses
+its shard snapshots by first setting the shard snapshot status `PAUSING`, which is checked regularly
+by the file uploading process (`BlobStoreRepository#snapshotFile`) and leads to a `PausedSnapshotException`
+to be thrown to abort the shard snapshot. The data node then notifies the master node about the status
+change with the same status update request (`UpdateIndexShardSnapshotStatusRequest`) in the happy path.
+The master node updates the shard state to `PAUSED_FOR_NODE_REMOVAL` upon receiving the notification.
+From this point on, the shard can relocate as normal. When the shard is started on the target node,
+`SnapshotsService` will observe the shard state changes and transition the shard snapshot status back to
+`INIT`.
+
+If a node is already being shutdown when a new snapshot creation request arrives, the relevant
+shard snapshot will be created with `PAUSED_FOR_NODE_REMOVAL` as its initial state. This assumes there
+is no ongoing shard snapshot that is already `PAUSED_FOR_NODE_REMOVAL`, in which case the new shard
+snapshot will start out as `QUEUED`.
+
+When the node shutdown completes and its associated shutdown metadata is removed from the cluster state,
+`SnapshotsService` will also remove the node ID from `SnapshotsInProgress#nodesIdsForRemoval`.
+
 ### Deletion of a Snapshot
 
+Both completed snapshots and ongoing snapshots can be deleted. Unless the snapshot being deleted has not
+started yet, e.g. all its shards are in `QUEUED` state, which means it can be deleted right away from the
+cluster state without touch the repository content, deletion must run exclusively in a repository.
+
+If the deletion requires any file removal in the repository, `SnapshotsService` creates/updates the
+`SnapshotDeletionsInProgress` in the cluster state to track the new deletion. If the snapshot is
+currently running, it also updates any incomplete shard snapshots to `ShardState.ABORTED` for the
+data node (`SnapshotShardsService`) to react once the cluster state is published. The data node goes through
+a similar process to the shard snapshot pausing but with a different exception (`AbortedSnapshotException`)
+to interrupt the shard snapshot process and sends a request back to the master node to update the
+corresponding status (`ShardState.FAILED`) tracked in the cluster state. Once all shard snapshots
+stop, deletion will proceed to remove relevant files from the repository as well as create a new
+root blob (`index-N`) with the same mechanism described in the snapshot creation section.
+File deletions (`BlobStoreRepository#SnapshotsDeletion`) happen entirely on the master node.
+
 ### Clone of a Snapshot
+
+TODO: Clone is not used in Elastic Cloud Serverless.
 
 ### Restoring a Snapshot
 
@@ -900,6 +944,11 @@ recovery process kicks in and eventually calls into `IndexShard#restoreFromSnaps
 [RestoreService]: https://github.com/elastic/elasticsearch/blob/1b7e99ee7a4ec92d20846be639fa4c3d15f20abc/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L149
 
 ### Detecting Multiple Writers to a Single Repository
+
+This is a best effort attempt to prevent repository corruption due to concurrent writes from multiple clusters.
+When updating the root blob (`index-N`), we cross compare the cached and expected repository generation
+(see `BlobStoreRepository#latestKnownRepoGen` and `BlobStoreRepository#latestKnownRepositoryData`)
+to the generation physically found in the repository. A `RepositoryException` is thrown on any mismatch.
 
 # Task Management / Tracking
 

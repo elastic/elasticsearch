@@ -397,6 +397,7 @@ public final class TextStructureUtils {
     }
 
     private static void flattenRecordRecursive(String prefix, Map<String, ?> record, Map<String, Object> flattenedResult, int depth, int maxDepth) {
+        // TODO add timeout check here
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();

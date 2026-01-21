@@ -39,6 +39,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
     public static final ParseField DELIMITER = TextStructure.DELIMITER;
     public static final ParseField QUOTE = TextStructure.QUOTE;
     public static final ParseField SHOULD_TRIM_FIELDS = TextStructure.SHOULD_TRIM_FIELDS;
+    public static final ParseField SHOULD_PARSE_RECURSIVELY = new ParseField("parse_recursively");
     public static final ParseField GROK_PATTERN = TextStructure.GROK_PATTERN;
     // This one is plural in FileStructure, but singular in FileStructureOverrides
     public static final ParseField TIMESTAMP_FORMAT = new ParseField("timestamp_format");
@@ -60,6 +61,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
     private Character delimiter;
     private Character quote;
     private Boolean shouldTrimFields;
+    private Boolean shouldParseRecursively;
     private String grokPattern;
     private String ecsCompatibility;
     private String timestampFormat;
@@ -79,6 +81,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
+        shouldParseRecursively = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
         ecsCompatibility = in.readOptionalString();
         timestampFormat = in.readOptionalString();
@@ -191,6 +194,14 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
 
     public void setShouldTrimFields(Boolean shouldTrimFields) {
         this.shouldTrimFields = shouldTrimFields;
+    }
+
+    public Boolean getShouldParseRecursively() {
+        return shouldParseRecursively;
+    }
+
+    public void setShouldParseRecursively(Boolean shouldParseRecursively) {
+        this.shouldParseRecursively = shouldParseRecursively;
     }
 
     public String getGrokPattern() {
@@ -321,6 +332,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             out.writeVInt(quote);
         }
         out.writeOptionalBoolean(shouldTrimFields);
+        out.writeOptionalBoolean(shouldParseRecursively);
         out.writeOptionalString(grokPattern);
         out.writeOptionalString(ecsCompatibility);
         out.writeOptionalString(timestampFormat);
@@ -338,6 +350,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             columnNames,
             hasHeaderRow,
             delimiter,
+            quote, // TODO were these two missing?
+            shouldTrimFields,
+            shouldParseRecursively,
             grokPattern,
             ecsCompatibility,
             timestampFormat,
@@ -362,6 +377,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             && Objects.equals(this.columnNames, that.columnNames)
             && Objects.equals(this.hasHeaderRow, that.hasHeaderRow)
             && Objects.equals(this.delimiter, that.delimiter)
+            && Objects.equals(this.quote, that.quote)
+            && Objects.equals(this.shouldTrimFields, that.shouldTrimFields)
+            && Objects.equals(this.shouldParseRecursively, that.shouldParseRecursively)
             && Objects.equals(this.grokPattern, that.grokPattern)
             && Objects.equals(this.ecsCompatibility, that.ecsCompatibility)
             && Objects.equals(this.timestampFormat, that.timestampFormat)

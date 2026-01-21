@@ -438,13 +438,9 @@ public final class TextStructureUtils {
 
         boolean hasNonMaps = list.stream().anyMatch(item -> item != null && (item instanceof Map) == false);
         if (hasNestedMaps && hasNonMaps) {
-            // Mixed content - this will be caught later as an error
-            // TODO maybe throw here
             throw new IllegalArgumentException(
                 "Field [" + prefix + "] has both object and non-object values - this is not supported by Elasticsearch"
             );
-            // flattenedResult.put(prefix, list);
-            // return;
         }
 
         Map<String, List<Object>> collectedValues = new LinkedHashMap<>();
@@ -453,7 +449,8 @@ public final class TextStructureUtils {
                 @SuppressWarnings("unchecked")
                 Map<String, ?> nestedMap = (Map<String, ?>) item;
                 Map<String, Object> flattenedItem = new LinkedHashMap<>();
-                if (depth >= maxDepth) { // TODO: repeats twice - move up?
+                if (depth >= maxDepth) {
+                    // Max depth reached - will be mapped as "object" type
                     flattenedResult.put(prefix, Collections.emptyMap());
                 }
                 else {
@@ -539,9 +536,6 @@ public final class TextStructureUtils {
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {
                 return new Tuple<>(Collections.singletonMap(MAPPING_TYPE_SETTING, "object"), null);
             }
-            // throw new IllegalArgumentException(
-            // "Field [" + fieldName + "] has both object and non-object values - this is not supported by Elasticsearch"
-            // );
         }
 
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {

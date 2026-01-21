@@ -303,7 +303,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't load metrics in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_TECH_PREVIEW.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName())
             );
             assumeFalse(
                 "can't use QSTR function in csv tests",
@@ -359,7 +359,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use PromQL in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_TECH_PREVIEW.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {

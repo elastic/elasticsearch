@@ -1809,14 +1809,9 @@ public class EsqlCapabilities {
         LIKE_PARAMETER_SUPPORT,
 
         /**
-         * PromQL support in ESQL, in the state it was when first released as tech preview.
+         * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
          */
-        PROMQL_TECH_PREVIEW,
-
-        /**
-         * PromQL clamp, clamp_min, and clamp_max functions support.
-         */
-        PROMQL_TECH_PREVIEW(Build.current().isSnapshot()),
+        PROMQL_COMMAND_V0,
 
         /**
          * KNN function adds support for k and visit_percentage options

@@ -66,6 +66,15 @@ cost:double | step:datetime            | cluster:keyword
 10277.0     | 2024-05-10T00:00:00.000Z | prod
 ;
 
+filter_same_label_multiple_times
+required_capability: promql_pre_tech_preview_v14
+required_capability: promql_multiple_filters_for_same_label
+PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod",cluster!="qa"}));
+
+cost:double | step:datetime            | cluster:keyword
+7403.0      | 2024-05-10T00:00:00.000Z | staging
+;
+
 range_selector_different_from_step
 required_capability: promql_pre_tech_preview_v14
 required_capability: time_series_window_v1
@@ -209,4 +218,72 @@ PROMQL index=k8s step=1h result=(tanh(vector(0.0)));
 
 result:double | step:datetime
 0.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_scalar
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp(vector(5.0), 0, 10));
+
+result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_scalar_below_min
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp(vector(-5.0), 0, 10));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_scalar_above_max
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp(vector(15.0), 0, 10));
+
+result:double | step:datetime
+10.0          | 2024-05-10T00:00:00.000Z
+;
+
+clamp_min_scalar
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_min(vector(-5.0), 0));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_min_scalar_above
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_min(vector(5.0), 0));
+
+result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
+;
+
+clamp_max_scalar
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_max(vector(15.0), 10));
+
+result:double | step:datetime
+10.0          | 2024-05-10T00:00:00.000Z
+;
+
+clamp_max_scalar_below
+required_capability: promql_clamp
+PROMQL index=k8s step=1h result=(clamp_max(vector(5.0), 10));
+
+result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
+;
+
+quantile
+required_capability: promql_pre_tech_preview_v14
+required_capability: promql_quantile
+PROMQL index=k8s step=1h quantile=(round(quantile by (cluster) (0.5, quantile_over_time(0.5, network.bytes_in[1h])), 0.001))
+| SORT cluster;
+
+quantile:double | step:datetime            | cluster:keyword
+0.395           | 2024-05-10T00:00:00.000Z | prod
+1.289           | 2024-05-10T00:00:00.000Z | qa
+1.248           | 2024-05-10T00:00:00.000Z | staging
 ;

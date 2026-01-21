@@ -716,6 +716,36 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
+        assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
+
+    public void testRound() {
+        assertConstantResult("round(vector(pi()))", equalTo(3.0)); // round down to nearest integer
+        assertConstantResult("round(vector(pi()), 1)", equalTo(3.0)); // same as above but with explicit argument
+        assertConstantResult("round(vector(pi()), 0.01)", equalTo(3.14)); // round down 2 decimal places
+        assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
+        assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
+        assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
+    public void testClamp() {
+        assertConstantResult("clamp(vector(5), 0, 10)", equalTo(5.0));
+        assertConstantResult("clamp(vector(-5), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(15), 0, 10)", equalTo(10.0));
+        assertConstantResult("clamp(vector(0), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
+    }
+
+    public void testClampMin() {
+        assertConstantResult("clamp_min(vector(5), 0)", equalTo(5.0));
+        assertConstantResult("clamp_min(vector(-5), 0)", equalTo(0.0));
+        assertConstantResult("clamp_min(vector(0), 0)", equalTo(0.0));
+    }
+
+    public void testClampMax() {
+        assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
+        assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
+        assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
     }
 
     private void assertConstantResult(String query, Matcher<Double> matcher) {

@@ -53,10 +53,9 @@ class AbstractRateGroupingFunction {
         }
 
         final void prepareSlicesOnly(int groupId, long firstTimestamp) {
-            if (lastGroupId == groupId) {
-                assert valueCount > 0 : "last_group_id = " + lastGroupId + ", value_count = " + valueCount;
+            if (lastGroupId == groupId && valueCount > 0) {
                 if (timestamps.get(valueCount - 1) > firstTimestamp) {
-                    return;
+                    return; // continue with the current slice
                 }
             }
             // start a new slice

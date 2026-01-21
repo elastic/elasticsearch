@@ -359,8 +359,13 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    public PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs)
-        throws IOException {
+    public PostingVisitor getPostingVisitor(
+        FieldInfo fieldInfo,
+        IndexInput indexInput,
+        float[] target,
+        Bits acceptDocs,
+        IndexInput centroidSlice
+    ) throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         // max postings list size, no longer utilized
         indexInput.readVInt();
@@ -418,9 +423,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         @Override
-        public int resetPostingsScorer(long offset, float score) throws IOException {
+        public int resetPostingsScorer(CentroidOffsetAndLength postingsMetadata) throws IOException {
             quantized = false;
-            indexInput.seek(offset);
+            indexInput.seek(postingsMetadata.offset());
             indexInput.readFloats(centroid, 0, centroid.length);
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();

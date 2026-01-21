@@ -507,6 +507,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         centroidOutput.writeVInt(centroidGroups.centroids().size());
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
+        // let's also write the raw parent centroids
+        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < centroidGroups.centroids().size(); i++) {
+            float[] centroid = centroidGroups.centroids().centroid(i);
+            buffer.asFloatBuffer().put(centroid);
+            centroidOutput.writeBytes(buffer.array(), buffer.array().length);
+        }
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
             centroidGroups.centroids(),
             fieldInfo.getVectorDimension(),
@@ -532,11 +539,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             bulkWriter.writeVectors(childrenQuantizeCentroid, null);
         }
         // write the centroid offsets at the end of the file
+        int parentOrd = 0;
         for (int[] centroidVectors : centroidGroups.vectors()) {
             for (int assignment : centroidVectors) {
                 centroidOutput.writeLong(centroidOffsetAndLength.offsets().get(assignment));
                 centroidOutput.writeLong(centroidOffsetAndLength.lengths().get(assignment));
+                centroidOutput.writeInt(parentOrd);
             }
+            parentOrd++;
         }
     }
 

@@ -1830,6 +1830,8 @@ public class EsqlCapabilities {
          */
         PROMQL_CLAMP(Build.current().isSnapshot()),
 
+        PROMQL_QUANTILE(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
+
         /**
          * KNN function adds support for k and visit_percentage options
          */

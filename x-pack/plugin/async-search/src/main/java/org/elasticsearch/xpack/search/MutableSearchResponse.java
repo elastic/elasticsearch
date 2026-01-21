@@ -283,13 +283,13 @@ class MutableSearchResponse extends AbstractRefCounted {
                     reducedAggsSource = () -> reducedAggs;
                     SearchResponse partialAggsSearchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
                     try {
-                        searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse, returnPartialResultsInResponse);
+                        searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse);
                     } finally {
                         partialAggsSearchResponse.decRef();
                     }
                 } else {
                     // For CCS MRT=true when the local cluster has reported back full results (via updateResponseMinimizeRoundtrips)
-                    searchResponse = getMergedResponse(searchResponseMerger, returnPartialResultsInResponse);
+                    searchResponse = getMergedResponse(searchResponseMerger);
                 }
             } finally {
                 if (searchResponseMerger != null) {
@@ -333,15 +333,11 @@ class MutableSearchResponse extends AbstractRefCounted {
         return task.getSearchResponseMergerSupplier().get();
     }
 
-    private SearchResponse getMergedResponse(SearchResponseMerger merger, boolean returnPartialResultsInResponse) {
-        return getMergedResponse(merger, null, returnPartialResultsInResponse);
+    private SearchResponse getMergedResponse(SearchResponseMerger merger) {
+        return getMergedResponse(merger, null);
     }
 
-    private SearchResponse getMergedResponse(
-        SearchResponseMerger merger,
-        SearchResponse localPartialAggsOnly,
-        boolean returnPartialResultsInResponse
-    ) {
+    private SearchResponse getMergedResponse(SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
         if (clusterResponses != null) {
             for (SearchResponse response : clusterResponses) {
                 merger.add(response);
@@ -350,7 +346,7 @@ class MutableSearchResponse extends AbstractRefCounted {
         if (localPartialAggsOnly != null) {
             merger.add(localPartialAggsOnly);
         }
-        return merger.getMergedResponse(clusters, returnPartialResultsInResponse);
+        return merger.getMergedResponse(clusters);
     }
 
     /**

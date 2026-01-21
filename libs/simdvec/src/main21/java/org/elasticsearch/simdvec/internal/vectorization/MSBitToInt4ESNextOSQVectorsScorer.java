@@ -22,7 +22,9 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
@@ -35,6 +37,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     // TODO: split Panama and Native implementations
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
@@ -60,9 +63,18 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     private long nativeQuantizeScore(byte[] q) throws IOException {
         long offset = in.getFilePointer();
-        var queryMemorySegment = MemorySegment.ofArray(q);
         var datasetMemorySegment = memorySegment.asSlice(offset, length);
-        long qScore = dotProductI1I4(datasetMemorySegment, queryMemorySegment, length);
+
+        final long qScore;
+        if (SUPPORTS_HEAP_SEGMENTS) {
+            var queryMemorySegment = MemorySegment.ofArray(q);
+            qScore = dotProductI1I4(datasetMemorySegment, queryMemorySegment, length);
+        } else {
+            try (var arena = Arena.ofConfined()) {
+                var queryMemorySegment = arena.allocate(q.length, 32);
+                qScore = dotProductI1I4(datasetMemorySegment, queryMemorySegment, length);
+            }
+        }
         in.skipBytes(length);
         return qScore;
     }
@@ -221,10 +233,21 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     private void nativeQuantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
         long initialOffset = in.getFilePointer();
-        var queryMemorySegment = MemorySegment.ofArray(q);
-        var scoresSegment = MemorySegment.ofArray(scores);
         var datasetLengthInBytes = (long) length * count;
-        dotProductI1I4Bulk(memorySegment.asSlice(initialOffset, datasetLengthInBytes), queryMemorySegment, length, count, scoresSegment);
+        MemorySegment datasetSegment = memorySegment.asSlice(initialOffset, datasetLengthInBytes);
+
+        if (SUPPORTS_HEAP_SEGMENTS) {
+            var queryMemorySegment = MemorySegment.ofArray(q);
+            var scoresSegment = MemorySegment.ofArray(scores);
+            dotProductI1I4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
+        } else {
+            try (var arena = Arena.ofConfined()) {
+                var queryMemorySegment = arena.allocate(q.length, 32);
+                var scoresSegment = arena.allocate((long) scores.length * Float.BYTES, 32);
+                dotProductI1I4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
+                MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
+            }
+        }
         in.skipBytes(datasetLengthInBytes);
     }
 

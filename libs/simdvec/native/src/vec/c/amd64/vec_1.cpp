@@ -541,12 +541,8 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
 EXPORT int64_t vec_dot_int1_int4(
     const int8_t* a_ptr,
     const int8_t* query_ptr,
-//    const int8_t* a_address,
-//    const int8_t* query_address,
     const int32_t length
 ) {
-    //const int8_t* a = a_ptr != NULL ? a_ptr : a_address;
-    //const int8_t* query = query_ptr != NULL ? query_ptr : query_address;
     return dot_int1_int4_inner(a_ptr, query_ptr, length);
 }
 

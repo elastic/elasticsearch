@@ -70,8 +70,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
             pack(unpackedIndexVectors[i], indexVectors[i], indexBits, indexVectorBytes);
             pack(unpackedQueryVectors[i], queryVectors[i], queryBits, indexVectorBytes);
 
-            MemorySegment.copy(MemorySegment.ofArray(indexVectors[i]), 0L, indexSegment, (long) i * indexVectorBytes, indexVectorBytes);
-            MemorySegment.copy(MemorySegment.ofArray(queryVectors[i]), 0L, querySegment, (long) i * queryVectorBytes, queryVectorBytes);
+            MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexVectorBytes, indexVectorBytes);
+            MemorySegment.copy(queryVectors[i], 0, querySegment, ValueLayout.JAVA_BYTE, (long) i * queryVectorBytes, queryVectorBytes);
         }
 
         final int loopTimes = 1000;
@@ -98,10 +98,32 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    public void testInt4Bulk() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
+    private record TestData(
+        byte[] unpackedQueryVector,
+        byte[] queryVector,
+        MemorySegment querySegment,
+        int queryVectorBytes,
+        byte[][] unpackedIndexVectors,
+        MemorySegment indexSegment,
+        int indexVectorBytes
+    ) {}
+
+    private record TestOffsets(int[] offsets, MemorySegment offsetsSegment) {}
+
+    static TestOffsets createTestOffsets(final int numVecs) {
+        var offsets = new int[numVecs];
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+
+        for (int i = 0; i < numVecs; i++) {
+            offsets[i] = randomInt(numVecs - 1);
+            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
+        }
+        return new TestOffsets(offsets, offsetsSegment);
+    }
+
+    static TestData createTestData(final int numVecs, final int dims, final byte indexBits, final long extraData) {
+        final byte maxQueryValue = (1 << queryBits) - 1;
+        final byte maxIndexValue = (byte) ((1 << indexBits) - 1);
 
         int discretizedDimensions = discretizedDimensions(dims, indexBits);
         final int indexVectorBytes = getPackedLength(discretizedDimensions, indexBits);
@@ -114,78 +136,81 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         var indexVectors = new byte[numVecs][indexVectorBytes];
         var queryVector = new byte[queryVectorBytes];
 
-        var querySegment = arena.allocate((long) queryVectorBytes);
-        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
+        // Mimics extra data at the end
+        var indexLineLength = indexVectorBytes + extraData;
+
+        var querySegment = arena.allocate(queryVectorBytes);
+        var indexSegment = arena.allocate(indexLineLength * numVecs);
 
         randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
         pack(unpackedQueryVector, queryVector, queryBits, indexVectorBytes);
-        MemorySegment.copy(MemorySegment.ofArray(queryVector), 0L, querySegment, 0L, queryVectorBytes);
+        MemorySegment.copy(queryVector, 0, querySegment, ValueLayout.JAVA_BYTE, 0L, queryVectorBytes);
 
         for (int i = 0; i < numVecs; i++) {
             randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
             pack(unpackedIndexVectors[i], indexVectors[i], indexBits, indexVectorBytes);
-            MemorySegment.copy(MemorySegment.ofArray(indexVectors[i]), 0L, indexSegment, (long) i * indexVectorBytes, indexVectorBytes);
+            MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexLineLength, indexVectorBytes);
         }
 
+        return new TestData(
+            unpackedQueryVector,
+            queryVector,
+            querySegment,
+            queryVectorBytes,
+            unpackedIndexVectors,
+            indexSegment,
+            indexVectorBytes
+        );
+    }
+
+    static TestData createTestData(final int numVecs, final int dims, final byte indexBits) {
+        return createTestData(numVecs, dims, indexBits, 0);
+    }
+
+    public void testInt4Bulk() {
+        assumeTrue(notSupportedMsg(), supported());
+
+        final int numVecs = randomIntBetween(2, 101);
+        final TestData testData = createTestData(numVecs, size, indexBits);
+
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulk(unpackedQueryVector, unpackedIndexVectors, expectedScores);
+        scalarSimilarityBulk(testData.unpackedQueryVector, testData.unpackedIndexVectors, expectedScores);
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-        nativeSimilarityBulk(indexSegment, querySegment, indexVectorBytes, numVecs, bulkScoresSeg);
+        nativeSimilarityBulk(testData.indexSegment, testData.querySegment, testData.indexVectorBytes, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
 
         if (supportsHeapSegments()) {
             float[] bulkScores = new float[numVecs];
-            nativeSimilarityBulk(indexSegment, querySegment, indexVectorBytes, numVecs, MemorySegment.ofArray(bulkScores));
+            nativeSimilarityBulk(
+                testData.indexSegment,
+                testData.querySegment,
+                testData.indexVectorBytes,
+                numVecs,
+                MemorySegment.ofArray(bulkScores)
+            );
             assertArrayEquals(expectedScores, bulkScores, 0f);
         }
     }
 
     public void testInt4BulkWithOffsets() {
         assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
+
         final int numVecs = randomIntBetween(2, 101);
-
-        int discretizedDimensions = discretizedDimensions(dims, indexBits);
-        final int indexVectorBytes = getPackedLength(discretizedDimensions, indexBits);
-
-        final int queryVectorBytes = indexVectorBytes * (queryBits / indexBits);
-
-        var unpackedIndexVectors = new byte[numVecs][dims];
-        var unpackedQueryVector = new byte[dims];
-
-        var indexVectors = new byte[numVecs][indexVectorBytes];
-        var queryVector = new byte[queryVectorBytes];
-        var offsets = new int[numVecs];
-
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        var querySegment = arena.allocate((long) queryVectorBytes);
-        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
-
-        randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
-        pack(unpackedQueryVector, queryVector, queryBits, indexVectorBytes);
-        MemorySegment.copy(MemorySegment.ofArray(queryVector), 0L, querySegment, 0L, queryVectorBytes);
-
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-
-            randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
-            pack(unpackedIndexVectors[i], indexVectors[i], indexBits, indexVectorBytes);
-            MemorySegment.copy(MemorySegment.ofArray(indexVectors[i]), 0L, indexSegment, (long) i * indexVectorBytes, indexVectorBytes);
-        }
+        final TestData testData = createTestData(numVecs, size, indexBits);
+        final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(unpackedQueryVector, unpackedIndexVectors, offsets, expectedScores);
+        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
         nativeSimilarityBulkWithOffsets(
-            indexSegment,
-            querySegment,
-            indexVectorBytes,
-            indexVectorBytes,
-            offsetsSegment,
+            testData.indexSegment,
+            testData.querySegment,
+            testData.indexVectorBytes,
+            testData.indexVectorBytes,
+            testOffsets.offsetsSegment,
             numVecs,
             bulkScoresSeg
         );
@@ -194,47 +219,26 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
     public void testInt4BulkWithOffsetsAndPitch() {
         assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
+
         final int numVecs = randomIntBetween(2, 101);
 
-        int discretizedDimensions = discretizedDimensions(dims, indexBits);
-        final int indexVectorBytes = getPackedLength(discretizedDimensions, indexBits);
-
-        final int queryVectorBytes = indexVectorBytes * (queryBits / indexBits);
-
-        var unpackedIndexVectors = new byte[numVecs][dims];
-        var unpackedQueryVector = new byte[dims];
-
-        var indexVectors = new byte[numVecs][indexVectorBytes];
-        var queryVector = new byte[queryVectorBytes];
-        var offsets = new int[numVecs];
-
-        // Mimics extra data at the end
-        var pitch = indexVectorBytes + Float.BYTES;
-
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        var querySegment = arena.allocate(queryVectorBytes);
-        var indexSegment = arena.allocate((long) pitch * numVecs);
-
-        randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
-        pack(unpackedQueryVector, queryVector, queryBits, indexVectorBytes);
-        MemorySegment.copy(MemorySegment.ofArray(queryVector), 0L, querySegment, 0L, queryVectorBytes);
-
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-
-            randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
-            pack(unpackedIndexVectors[i], indexVectors[i], indexBits, indexVectorBytes);
-            MemorySegment.copy(MemorySegment.ofArray(indexVectors[i]), 0L, indexSegment, (long) i * pitch, indexVectorBytes);
-        }
+        final TestData testData = createTestData(numVecs, size, indexBits, Float.BYTES);
+        final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(unpackedQueryVector, unpackedIndexVectors, offsets, expectedScores);
+        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
-        nativeSimilarityBulkWithOffsets(indexSegment, querySegment, indexVectorBytes, pitch, offsetsSegment, numVecs, bulkScoresSeg);
+        nativeSimilarityBulkWithOffsets(
+            testData.indexSegment,
+            testData.querySegment,
+            testData.indexVectorBytes,
+            testData.indexVectorBytes + Float.BYTES,
+            testOffsets.offsetsSegment,
+            numVecs,
+            bulkScoresSeg
+        );
         assertScoresEquals(expectedScores, bulkScoresSeg);
     }
 
@@ -242,44 +246,22 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         assumeTrue(notSupportedMsg(), supported());
         assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
         assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
+
         final int numVecs = randomIntBetween(2, 101);
 
-        int discretizedDimensions = discretizedDimensions(dims, indexBits);
-        final int indexVectorBytes = getPackedLength(discretizedDimensions, indexBits);
-
-        final int queryVectorBytes = indexVectorBytes * (queryBits / indexBits);
-
-        var unpackedIndexVectors = new byte[numVecs][dims];
-        var unpackedQueryVector = new byte[dims];
-
-        var indexVectors = new byte[numVecs][indexVectorBytes];
-        var queryVector = new byte[queryVectorBytes];
-        var offsets = new int[numVecs];
-
-        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
-
-        randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
-        pack(unpackedQueryVector, queryVector, queryBits, indexVectorBytes);
-
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-
-            randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
-            pack(unpackedIndexVectors[i], indexVectors[i], indexBits, indexVectorBytes);
-            MemorySegment.copy(MemorySegment.ofArray(indexVectors[i]), 0L, indexSegment, (long) i * indexVectorBytes, indexVectorBytes);
-        }
+        final TestData testData = createTestData(numVecs, size, indexBits);
+        final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(unpackedQueryVector, unpackedIndexVectors, offsets, expectedScores);
+        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
 
         float[] bulkScores = new float[numVecs];
         nativeSimilarityBulkWithOffsets(
-            indexSegment,
-            MemorySegment.ofArray(queryVector),
-            indexVectorBytes,
-            indexVectorBytes,
-            MemorySegment.ofArray(offsets),
+            testData.indexSegment,
+            MemorySegment.ofArray(testData.queryVector),
+            testData.indexVectorBytes,
+            testData.indexVectorBytes,
+            MemorySegment.ofArray(testOffsets.offsets),
             numVecs,
             MemorySegment.ofArray(bulkScores)
         );
@@ -317,7 +299,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    private void pack(byte[] unpackedVector, byte[] packedVector, byte elementBits, int pitch) {
+    private static void pack(byte[] unpackedVector, byte[] packedVector, byte elementBits, int pitch) {
         for (int i = 0; i < unpackedVector.length; i++) {
             var value = unpackedVector[i];
             var packedIndex = i / 8;

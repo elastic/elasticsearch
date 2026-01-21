@@ -21,6 +21,7 @@ import java.util.Map;
  */
 public class CompletionOperator extends InferenceOperator {
     private final Map<String, Object> taskSettings;
+
     /**
      * Constructs a new {@code CompletionOperator}.
      *
@@ -53,9 +54,12 @@ public class CompletionOperator extends InferenceOperator {
     /**
      * Factory for creating {@link CompletionOperator} instances.
      */
-    public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory, Map<String, Object> taskSettings)
-        implements
-            OperatorFactory {
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        ExpressionEvaluator.Factory promptEvaluatorFactory,
+        Map<String, Object> taskSettings
+    ) implements OperatorFactory {
 
         @Override
         public String describe() {
@@ -64,7 +68,13 @@ public class CompletionOperator extends InferenceOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new CompletionOperator(driverContext, inferenceService, inferenceId, promptEvaluatorFactory.get(driverContext), taskSettings);
+            return new CompletionOperator(
+                driverContext,
+                inferenceService,
+                inferenceId,
+                promptEvaluatorFactory.get(driverContext),
+                taskSettings
+            );
         }
     }
 }

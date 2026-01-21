@@ -54,10 +54,9 @@ public class InferenceFunctionEvaluator {
      * Creates a new inference function evaluator with a custom operator provider.
      * This constructor is primarily used for testing to inject mock operator providers.
      *
-     * @param foldContext               the fold context containing circuit breakers and evaluation settings
      * @param inferenceOperatorProvider custom provider for creating inference operators
      */
-    InferenceFunctionEvaluator(FoldContext foldContext, InferenceOperatorProvider inferenceOperatorProvider) {
+    InferenceFunctionEvaluator(InferenceOperatorProvider inferenceOperatorProvider) {
         this.inferenceOperatorProvider = inferenceOperatorProvider;
     }
 
@@ -111,7 +110,7 @@ public class InferenceFunctionEvaluator {
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
 
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
 
         // Create the inference operator for the specific function type using the provider
         try {
@@ -146,11 +145,11 @@ public class InferenceFunctionEvaluator {
                     } catch (Exception e) {
                         l.onFailure(e);
                     } finally {
-                        Releasables.close(inferenceOperator);
+                        Releasables.closeExpectNoException(inferenceOperator);
                     }
                 }));
             } catch (Exception e) {
-                Releasables.close(inferenceOperator);
+                Releasables.closeExpectNoException(inferenceOperator);
                 listener.onFailure(e);
             }
         } catch (Exception e) {
@@ -200,7 +199,7 @@ public class InferenceFunctionEvaluator {
          * @return a new instance of {@link InferenceFunctionEvaluator}
          */
         public InferenceFunctionEvaluator create(FoldContext foldContext, InferenceService inferenceService) {
-            return new InferenceFunctionEvaluator(foldContext, createInferenceOperatorProvider(foldContext, inferenceService));
+            return new InferenceFunctionEvaluator(createInferenceOperatorProvider(foldContext, inferenceService));
         }
 
         /**

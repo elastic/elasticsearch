@@ -84,11 +84,6 @@ abstract class FetchPhaseDocsIterator {
     static final String CIRCUIT_BREAKER_LABEL = "fetch_phase_streaming_chunks";
 
     /**
-     * Sentinel value indicating the producer has finished producing chunks.
-     */
-    private static final PendingChunk POISON_PILL = new PendingChunk(null, 0, 0, 0, 0, true);
-
-    /**
      * Accounts for FetchPhase memory usage.
      * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
      */
@@ -221,7 +216,7 @@ abstract class FetchPhaseDocsIterator {
      * <p>
      * <b>Coordination:</b>
      * <ul>
-     *   <li>A poison pill signals producer completion to the consumer</li>
+     *   <li>A COMPLETE chunk signals producer completion to the consumer</li>
      *   <li>Send failures are captured and checked by both producer and consumer</li>
      *   <li>The last chunk is held back and returned via the listener</li>
      * </ul>
@@ -262,7 +257,6 @@ abstract class FetchPhaseDocsIterator {
         int totalDocs = docIds.length;
 
         BlockingQueue<PendingChunk> chunkQueue = new LinkedBlockingQueue<>();
-        //AtomicBoolean producerDone = new AtomicBoolean(false);
         AtomicReference<PendingChunk> lastChunkHolder = new AtomicReference<>();
         AtomicReference<Throwable> producerError = new AtomicReference<>();
 
@@ -317,10 +311,9 @@ abstract class FetchPhaseDocsIterator {
             }
         );
 
-        // Start consumer on separate thread
-        executor.execute(() -> consumer.start(consumerListener));
+        // Start consumer on a separate thread
+        executor.execute(() -> consumer.execute(consumerListener));
 
-        // Producer runs on this thread (Lucene thread-affinity)
         try {
             produceChunks(
                 indexReader,
@@ -337,9 +330,8 @@ abstract class FetchPhaseDocsIterator {
             producerError.set(e);
             drainAndCleanup(chunkQueue, circuitBreaker);
         } finally {
-            //producerDone.set(true);
             // Signal consumer that production is complete
-            chunkQueue.offer(POISON_PILL);
+            chunkQueue.offer(PendingChunk.COMPLETE);
         }
     }
 
@@ -410,7 +402,6 @@ abstract class FetchPhaseDocsIterator {
                     boolean reserved = false;
 
                     try {
-                        // Reserve memory on circuit breaker - may throw
                         circuitBreaker.addEstimateBytesAndMaybeBreak(byteSize, CIRCUIT_BREAKER_LABEL);
                         reserved = true;
 
@@ -435,7 +426,6 @@ abstract class FetchPhaseDocsIterator {
                             hitsInChunk = 0;
                         }
                     } catch (Exception e) {
-                        // We created chunkBytes; if we fail before handing it off, we MUST close it.
                         Releasables.closeWhileHandlingException(chunkBytes);
                         if (reserved) {
                             circuitBreaker.addWithoutBreaking(-byteSize);
@@ -489,11 +479,11 @@ abstract class FetchPhaseDocsIterator {
             this.isCancelled = isCancelled;
         }
 
-        void start(ActionListener<Void> listener) {
-            // Create an iterator that pulls from the queue
+        void execute(ActionListener<Void> listener) {
+            // Iterator that pulls from the queue
             Iterator<PendingChunk> chunkIterator = new QueueDrainingIterator(queue, isCancelled);
 
-            // Use ThrottledIterator for backpressure control
+            // ThrottledIterator for backpressure control
             ThrottledIterator.run(
                 chunkIterator,
                 (releasable, chunk) -> sendChunk(chunk, releasable),
@@ -515,14 +505,12 @@ abstract class FetchPhaseDocsIterator {
         }
 
         private void sendChunk(PendingChunk chunk, Releasable releasable) {
-            // Check for cancellation before sending
             if (isCancelled.get()) {
                 releaseChunk(chunk);
                 releasable.close();
                 return;
             }
 
-            // Check for prior send failure
             Throwable failure = sendFailure.get();
             if (failure != null) {
                 releaseChunk(chunk);
@@ -531,6 +519,7 @@ abstract class FetchPhaseDocsIterator {
             }
 
             FetchPhaseResponseChunk responseChunk = null;
+            ActionListener<Void> ackListener = null;
             try {
                 responseChunk = new FetchPhaseResponseChunk(
                     System.currentTimeMillis(),
@@ -545,23 +534,22 @@ abstract class FetchPhaseDocsIterator {
 
                 final FetchPhaseResponseChunk chunkToClose = responseChunk;
                 final long chunkByteSize = chunk.byteSize;
-                ActionListener<Void> ackListener = chunkCompletionRefs.acquire();
+                ackListener = chunkCompletionRefs.acquire();
+                final ActionListener<Void> finalAckListener = ackListener;
 
                 writer.writeResponseChunk(responseChunk, ActionListener.wrap(
                     ack -> {
                         chunkToClose.close();
-                        // Release circuit breaker memory after successful send
                         circuitBreaker.addWithoutBreaking(-chunkByteSize);
-                        ackListener.onResponse(null);
-                        releasable.close();  // Signal ThrottledIterator that this item is done
+                        finalAckListener.onResponse(null);
+                        releasable.close();
                     },
                     e -> {
                         chunkToClose.close();
-                        // Release circuit breaker memory even on failure
                         circuitBreaker.addWithoutBreaking(-chunkByteSize);
                         sendFailure.compareAndSet(null, e);
-                        ackListener.onFailure(e);
-                        releasable.close();  // Signal ThrottledIterator that this item is done
+                        finalAckListener.onFailure(e);
+                        releasable.close();
                     }
                 ));
 
@@ -569,13 +557,17 @@ abstract class FetchPhaseDocsIterator {
             } catch (Exception e) {
                 if (responseChunk != null) {
                     responseChunk.close();
-                    // Release circuit breaker memory
                     circuitBreaker.addWithoutBreaking(-chunk.byteSize);
                 } else {
                     releaseChunk(chunk);
                 }
                 sendFailure.compareAndSet(null, e);
-                releasable.close();  // Signal ThrottledIterator that this item is done
+
+                if (ackListener != null) {
+                    ackListener.onFailure(e);
+                }
+
+                releasable.close();
             }
         }
 
@@ -587,7 +579,7 @@ abstract class FetchPhaseDocsIterator {
 
     /**
      * Iterator that drains chunks from the queue, blocking when empty but not done.
-     * Returns null (ending iteration) when the poison pill is received or cancelled.
+     * Returns null (ending iteration) when the COMPLETE signal is received, or cancelled.
      */
     private static class QueueDrainingIterator implements Iterator<PendingChunk> {
         private final BlockingQueue<PendingChunk> queue;
@@ -622,8 +614,7 @@ abstract class FetchPhaseDocsIterator {
 
                     nextChunk = queue.poll(100, TimeUnit.MILLISECONDS);
 
-                    // Check for poison pill
-                    if (nextChunk == POISON_PILL) {
+                    if (nextChunk == PendingChunk.COMPLETE) {
                         exhausted = true;
                         nextChunk = null;
                         return false;
@@ -649,8 +640,7 @@ abstract class FetchPhaseDocsIterator {
     }
 
     /**
-     * Represents a chunk ready to be sent.
-     * Tracks byte size for circuit breaker accounting.
+     * Represents a chunk ready to be sent. Tracks byte size for circuit breaker accounting.
      */
     private static class PendingChunk implements AutoCloseable {
         final ReleasableBytesReference bytes;
@@ -659,6 +649,9 @@ abstract class FetchPhaseDocsIterator {
         final long sequenceStart;
         final long byteSize;
         final boolean isLast;
+
+        // This is a completion signal for the consumer
+        public static PendingChunk COMPLETE = new PendingChunk(null, 0, 0, 0, 0, true);
 
         PendingChunk(ReleasableBytesReference bytes, int hitCount, int fromIndex, long sequenceStart, long byteSize, boolean isLast) {
             this.bytes = bytes;
@@ -688,7 +681,7 @@ abstract class FetchPhaseDocsIterator {
     private static void drainAndCleanup(BlockingQueue<PendingChunk> queue, CircuitBreaker circuitBreaker) {
         PendingChunk chunk;
         while ((chunk = queue.poll()) != null) {
-            if (chunk != POISON_PILL) {
+            if (chunk != PendingChunk.COMPLETE) {
                 chunk.close();
                 if (chunk.byteSize > 0) {
                     circuitBreaker.addWithoutBreaking(-chunk.byteSize);
@@ -749,11 +742,11 @@ abstract class FetchPhaseDocsIterator {
      */
     static class IterateResult implements AutoCloseable {
         final SearchHit[] hits;  // Non-streaming mode only
-        final ReleasableBytesReference lastChunkBytes;  // Streaming mode only
+        final ReleasableBytesReference lastChunkBytes;
         final int lastChunkHitCount;
         final long lastChunkSequenceStart;
-        final long lastChunkByteSize;  // For circuit breaker release
-        final CircuitBreaker circuitBreaker;  // For releasing last chunk bytes
+        final long lastChunkByteSize;
+        final CircuitBreaker circuitBreaker;
         private boolean closed = false;
         private boolean bytesOwnershipTransferred = false;
 
@@ -787,21 +780,6 @@ abstract class FetchPhaseDocsIterator {
         ReleasableBytesReference takeLastChunkBytes() {
             bytesOwnershipTransferred = true;
             return lastChunkBytes;
-        }
-
-        /**
-         * Returns the byte size of the last chunk for circuit breaker accounting.
-         * Caller must release this from the circuit breaker after sending.
-         */
-        long getLastChunkByteSize() {
-            return lastChunkByteSize;
-        }
-
-        /**
-         * Returns the circuit breaker used for this result's memory accounting.
-         */
-        CircuitBreaker getCircuitBreaker() {
-            return circuitBreaker;
         }
 
         @Override

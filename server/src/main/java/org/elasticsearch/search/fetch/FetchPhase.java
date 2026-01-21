@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -50,12 +51,15 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
+import org.elasticsearch.indices.ExecutorNames;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
@@ -460,6 +464,14 @@ public final class FetchPhase {
             // completing until we explicitly signal success/failure after iteration finishes.
             final ActionListener<Void> mainBuildListener = chunkCompletionRefs.acquire();
 
+            // Ensure fetch work runs on the appropriate executor: system indices must execute on a system
+            // thread pool to preserve system-thread semantics now that this work is scheduled asynchronously.
+            final var indexMetadata = context.indexShard().indexSettings().getIndexMetadata();
+            final String executorName = indexMetadata.isSystem()
+                ? ThreadPool.Names.SYSTEM_READ
+                : ThreadPool.Names.SEARCH;
+            final Executor executor = context.indexShard().getThreadPool().executor(executorName);
+
             docsIterator.iterateAsync(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
@@ -471,7 +483,7 @@ public final class FetchPhase {
                 context.circuitBreaker(),
                 sendFailure,
                 context::isCancelled,
-                context.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH),
+                executor,
                 new ActionListener<>() {
                     @Override
                     public void onResponse(FetchPhaseDocsIterator.IterateResult result) {

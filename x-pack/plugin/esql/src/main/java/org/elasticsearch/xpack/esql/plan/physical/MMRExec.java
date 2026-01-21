@@ -7,22 +7,17 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class MMRExec extends UnaryExec {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(PhysicalPlan.class, "MMRExec", MMRExec::new);
-
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVector;
@@ -44,18 +39,6 @@ public class MMRExec extends UnaryExec {
         this.queryVector = queryVector;
         this.options = options;
         this.lambdaValue = lambdaValue;
-    }
-
-    private MMRExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(Attribute.class),
-            in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalDouble()
-        );
     }
 
     public Attribute diversifyField() {
@@ -89,19 +72,13 @@ public class MMRExec extends UnaryExec {
     }
 
     @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(child());
-        out.writeNamedWriteable(this.diversifyField);
-        out.writeNamedWriteable(limit);
-        out.writeOptionalNamedWriteable(queryVector);
-        out.writeOptionalNamedWriteable(options);
-        out.writeOptionalDouble(lambdaValue);
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override

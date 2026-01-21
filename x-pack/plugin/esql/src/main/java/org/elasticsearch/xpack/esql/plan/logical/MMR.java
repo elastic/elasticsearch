@@ -180,16 +180,11 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         Map<String, Expression> optionsMap = ((MapExpression) options).keyFoldedMap();
 
         Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-        if (lambdaValueExpression != null) {
-            if (lambdaValueExpression instanceof Literal litLambdaValue) {
-                this.lambdaValue = (Double) litLambdaValue.value();
 
-                if (this.lambdaValue == null || this.lambdaValue < 0.0 || this.lambdaValue > 1.0) {
-                    failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
-                }
-            } else {
-                failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
-            }
+        try {
+            this.lambdaValue = extractLambdaFromMMROptions(lambdaValueExpression);
+        } catch (RuntimeException rtEx) {
+            failures.add(fail(this, rtEx.getMessage()));
         }
 
         if (optionsMap.isEmpty() == false) {
@@ -202,5 +197,19 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
                 )
             );
         }
+    }
+
+    public static Double extractLambdaFromMMROptions(Expression lambdaExpression) {
+        if (lambdaExpression != null) {
+            if (lambdaExpression instanceof Literal litLambdaValue) {
+                Double retValue = (Double) litLambdaValue.value();
+                if (retValue != null && retValue >= 0.0 && retValue <= 1.0) {
+                    return retValue;
+                }
+            }
+            throw new RuntimeException("MMR lambda value must be a number between 0.0 and 1.0");
+        }
+
+        return null;
     }
 }

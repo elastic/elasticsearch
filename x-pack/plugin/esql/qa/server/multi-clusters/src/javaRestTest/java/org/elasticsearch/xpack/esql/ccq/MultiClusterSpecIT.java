@@ -433,6 +433,19 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
+    protected boolean supportsHistogramDataType() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()))
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
     protected boolean supportsBFloat16ElementType() {
         try {
             return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()))

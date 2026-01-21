@@ -25,6 +25,10 @@ setup:
 
 ---
 "id query returns error above max result window":
+  - requires:
+      cluster_features: ["ids_query_limit_max_ids"]
+      reason: "Ensure a limited number if ids can be supplied to ids query"
+
   - do:
       catch: bad_request
       search:

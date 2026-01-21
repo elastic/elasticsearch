@@ -141,7 +141,7 @@ log10_scalar:double | step:datetime
 
 ln_scalar_one
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h ln_scalar_one=(ln(vector(1)));
 
 ln_scalar_one:double | step:datetime
@@ -150,7 +150,7 @@ ln_scalar_one:double | step:datetime
 
 ln_scalar_e
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h ln_scalar_e=(ln(vector(2.718281828459045)));
 
 ln_scalar_e:double | step:datetime
@@ -159,7 +159,7 @@ ln_scalar_e:double | step:datetime
 
 deg_scalar_pi
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h deg_scalar_pi=(deg(vector(pi())));
 
 deg_scalar_pi:double | step:datetime
@@ -168,7 +168,7 @@ deg_scalar_pi:double | step:datetime
 
 deg_scalar_two_pi
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h deg_scalar_two_pi=(deg(vector(6.283185307179586)));
 
 deg_scalar_two_pi:double | step:datetime
@@ -177,7 +177,7 @@ deg_scalar_two_pi:double | step:datetime
 
 deg_scalar_pi_over_two
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h deg_scalar_pi_over_two=(deg(vector(1.5707963267948966)));
 
 deg_scalar_pi_over_two:double | step:datetime
@@ -186,7 +186,7 @@ deg_scalar_pi_over_two:double | step:datetime
 
 deg_scalar_zero
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h deg_scalar_zero=(deg(vector(0)));
 
 deg_scalar_zero:double | step:datetime
@@ -195,7 +195,7 @@ deg_scalar_zero:double | step:datetime
 
 rad_scalar_180
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h rad_scalar_180=(rad(vector(180)));
 
 rad_scalar_180:double | step:datetime
@@ -204,7 +204,7 @@ rad_scalar_180:double | step:datetime
 
 rad_scalar_90
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h rad_scalar_90=(rad(vector(90)));
 
 rad_scalar_90:double | step:datetime
@@ -213,7 +213,7 @@ rad_scalar_90:double | step:datetime
 
 rad_scalar_zero
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h rad_scalar_zero=(rad(vector(0)));
 
 rad_scalar_zero:double | step:datetime
@@ -222,7 +222,7 @@ rad_scalar_zero:double | step:datetime
 
 log2_scalar_eight
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h log2_scalar_eight=(log2(vector(8)));
 
 log2_scalar_eight:double | step:datetime
@@ -231,7 +231,7 @@ log2_scalar_eight:double | step:datetime
 
 log2_scalar_one
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h log2_scalar_one=(log2(vector(1)));
 
 log2_scalar_one:double | step:datetime
@@ -240,7 +240,7 @@ log2_scalar_one:double | step:datetime
 
 log2_scalar_two
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h log2_scalar_two=(log2(vector(2)));
 
 log2_scalar_two:double | step:datetime
@@ -249,7 +249,7 @@ log2_scalar_two:double | step:datetime
 
 sgn_scalar
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h sgn_scalar=(sgn(vector(-2.5)));
 
 sgn_scalar:double | step:datetime
@@ -258,7 +258,7 @@ sgn_scalar:double | step:datetime
 
 sgn_scalar_positive
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h sgn_scalar_positive=(sgn(vector(7.25)));
 
 sgn_scalar_positive:double | step:datetime
@@ -267,7 +267,7 @@ sgn_scalar_positive:double | step:datetime
 
 sgn_scalar_zero
 required_capability: promql_command_v0
-required_capability: promql_math_v0
+required_capability: promql_math_v1
 PROMQL index=k8s step=1h sgn_scalar_zero=(sgn(vector(0)));
 
 sgn_scalar_zero:double | step:datetime

@@ -44,7 +44,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         final var count = getValueCount(position);
         final var startIndex = getFirstValueIndex(position);
         final var BINARYSEARCH_THRESHOLD = 16;
-        if(count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
             return binarySearch(this, position, count, value) >= 0;
         }
 
@@ -73,12 +73,9 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
             int mid = (low + high) >>> 1;
             long midVal = block.getLong(mid);
 
-            if (midVal < value)
-                low = mid + 1;
-            else if (midVal > value)
-                high = mid - 1;
-            else
-                return mid; // key found
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
         }
         return -(low + 1);  // key not found.
     }

@@ -228,8 +228,8 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         }
         final var leftStartIndex = left.getFirstValueIndex(position);
         final var leftEndIndex = leftStartIndex + left.getValueCount(position);
-        if(left.mvSortedAscending()) {
-            if(right.mvSortedAscending() == false) {
+        if (left.mvSortedAscending()) {
+            if (right.mvSortedAscending() == false) {
                 return process(position, right, left);
             }
             var rightStartIndex = right.getFirstValueIndex(position);
@@ -273,15 +273,15 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
-        if(left.getValueCount(position)<right.getValueCount(position)) {
+        if (left.getValueCount(position) < right.getValueCount(position)) {
             boolean value = right.getBoolean(right.getFirstValueIndex(position));
-            if(left.hasValue(position, value)) {
+            if (left.hasValue(position, value)) {
                 return true;
             }
             return right.hasValue(position, value == false);
         }
         boolean value = left.getBoolean(right.getFirstValueIndex(position));
-        if(right.hasValue(position, value)) {
+        if (right.hasValue(position, value)) {
             return true;
         }
         return left.hasValue(position, value == false);
@@ -294,8 +294,8 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         }
         final var leftStartIndex = left.getFirstValueIndex(position);
         final var leftEndIndex = leftStartIndex + left.getValueCount(position);
-        if(left.mvSortedAscending()) {
-            if(right.mvSortedAscending() == false) {
+        if (left.mvSortedAscending()) {
+            if (right.mvSortedAscending() == false) {
                 return process(position, right, left);
             }
             var rightStartIndex = right.getFirstValueIndex(position);
@@ -341,8 +341,8 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         }
         final var leftStartIndex = left.getFirstValueIndex(position);
         final var leftEndIndex = leftStartIndex + left.getValueCount(position);
-        if(left.mvSortedAscending()) {
-            if(right.mvSortedAscending() == false) {
+        if (left.mvSortedAscending()) {
+            if (right.mvSortedAscending() == false) {
                 return process(position, right, left);
             }
             var rightStartIndex = right.getFirstValueIndex(position);
@@ -392,8 +392,8 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         var leftValue = new BytesRef();
         var rightValue = new BytesRef();
 
-        if(left.mvSortedAscending()) {
-            if(right.mvSortedAscending() == false) {
+        if (left.mvSortedAscending()) {
+            if (right.mvSortedAscending() == false) {
                 return process(position, right, left);
             }
             var rightStartIndex = right.getFirstValueIndex(position);
@@ -405,7 +405,7 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
                 return false;
             }
 
-            leftValue  = left.getBytesRef(leftIndex, leftValue);
+            leftValue = left.getBytesRef(leftIndex, leftValue);
             rightValue = right.getBytesRef(rightIndex, rightValue);
 
             while (true) {

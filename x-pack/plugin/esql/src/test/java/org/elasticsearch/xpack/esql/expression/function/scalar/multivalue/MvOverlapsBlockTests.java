@@ -44,7 +44,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         IntBlock right;
-        var size = randomIntBetween(4,12);
+        var size = randomIntBetween(4, 12);
         try (var builder = TestBlockFactory.getNonBreakingInstance().newIntBlockBuilder(values.size() * size)) {
             for (var multiValues : values) {
                 builder.beginPositionEntry();
@@ -61,7 +61,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
             right = builder.build();
         }
 
-        for(var i=0;i<values.size();i++) {
+        for (var i = 0; i < values.size(); i++) {
             assertTrue(MvOverlaps.process(i, left, right));
         }
     }
@@ -81,7 +81,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         LongBlock right;
-        var size = randomIntBetween(4,12);
+        var size = randomIntBetween(4, 12);
         try (var builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(values.size() * size)) {
             for (var multiValues : values) {
                 builder.beginPositionEntry();
@@ -98,7 +98,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
             right = builder.build();
         }
 
-        for(var i=0;i<values.size();i++) {
+        for (var i = 0; i < values.size(); i++) {
             assertTrue(MvOverlaps.process(i, left, right));
         }
     }
@@ -118,7 +118,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         DoubleBlock right;
-        var size = randomIntBetween(4,12);
+        var size = randomIntBetween(4, 12);
         try (var builder = TestBlockFactory.getNonBreakingInstance().newDoubleBlockBuilder(values.size() * size)) {
             for (var multiValues : values) {
                 builder.beginPositionEntry();
@@ -135,13 +135,13 @@ public class MvOverlapsBlockTests extends ESTestCase {
             right = builder.build();
         }
 
-        for(var i=0;i<values.size();i++) {
+        for (var i = 0; i < values.size(); i++) {
             assertTrue(MvOverlaps.process(i, left, right));
         }
     }
 
     public void testWithOrderedPointMultivalueBlocks() {
-        var values = randomListSortedList(() -> new BytesRef(randomAlphaOfLengthBetween(4,8)));
+        var values = randomListSortedList(() -> new BytesRef(randomAlphaOfLengthBetween(4, 8)));
 
         BytesRefBlock left;
         try (var builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(values.size())) {
@@ -155,7 +155,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         BytesRefBlock right;
-        var size = randomIntBetween(4,12);
+        var size = randomIntBetween(4, 12);
         try (var builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(values.size() * size)) {
             for (var multiValues : values) {
                 builder.beginPositionEntry();
@@ -172,14 +172,19 @@ public class MvOverlapsBlockTests extends ESTestCase {
             right = builder.build();
         }
 
-        for(var position=0;position<values.size();position++) {
-            if(MvOverlaps.process(position, left, right)) {
+        for (var position = 0; position < values.size(); position++) {
+            if (MvOverlaps.process(position, left, right)) {
                 continue;
             }
-            fail("At position '" + position + "':\n"
-                + toString(left, position) + "\n"
-                + "was expected to overlap / intersect with:\n"
-                + toString(right, position));
+            fail(
+                "At position '"
+                    + position
+                    + "':\n"
+                    + toString(left, position)
+                    + "\n"
+                    + "was expected to overlap / intersect with:\n"
+                    + toString(right, position)
+            );
         }
     }
 
@@ -188,7 +193,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         var start = block.getFirstValueIndex(position);
         var end = block.getValueCount(position);
         var scratch = new BytesRef();
-        for(var index = start;index < start+end; index++) {
+        for (var index = start; index < start + end; index++) {
             scratch = block.getBytesRef(index, scratch);
             strings.add(scratch.utf8ToString());
         }
@@ -196,19 +201,15 @@ public class MvOverlapsBlockTests extends ESTestCase {
     }
 
     private Stream<BytesRef> randomStringBasedByteRefs() {
-        return Stream.generate(() -> new BytesRef(randomAlphaOfLengthBetween(4,8)));
+        return Stream.generate(() -> new BytesRef(randomAlphaOfLengthBetween(4, 8)));
     }
 
     private static <Type extends Comparable<? super Type>> List<List<Type>> randomListSortedList(Supplier<Type> supplier) {
-        return randomList(
-            2,
-            10,
-            () -> {
-                List<Type> list = randomList(32,64, supplier);
-                Collections.sort(list);
-                return list;
-            }
-        );
+        return randomList(2, 10, () -> {
+            List<Type> list = randomList(32, 64, supplier);
+            Collections.sort(list);
+            return list;
+        });
     }
 
 }

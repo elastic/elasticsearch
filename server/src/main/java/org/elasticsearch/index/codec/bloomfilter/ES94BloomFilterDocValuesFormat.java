@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntSupplier;
 
+import static org.elasticsearch.common.Numbers.isPowerOfTwo;
 import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions.MurmurHash3.hash64;
 
 /**
@@ -650,10 +651,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             outputs[i] = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
         }
         return outputs;
-    }
-
-    private static boolean isPowerOfTwo(int value) {
-        return (value & (value - 1)) == 0;
     }
 
     private static String bloomFilterMetadataFileName(SegmentInfo segmentInfo, String segmentSuffix) {

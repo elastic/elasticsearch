@@ -217,7 +217,7 @@ public class InferenceFunctionEvaluator {
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(completion.prompt(), foldContext),
-                        completion.taskSettings() == null ? Map.of() : completion.taskSettings().toFoldedMap(foldContext)
+                        completion.taskSettings().toFoldedMap(foldContext)
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };

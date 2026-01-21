@@ -56,6 +56,12 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     private final Expression prompt;
     private final Attribute targetField;
+    /**
+     * Model-specific task settings passed to the inference endpoint.
+     * Common settings include temperature, max_tokens, top_p, etc.
+     * Settings are validated by the inference service, not at parse time.
+     * Never null - defaults to empty map if not provided.
+     */
     private final MapExpression taskSettings;
     private List<Attribute> lazyOutput;
 

@@ -56,7 +56,11 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
     }
 
     private MapExpression randomTaskSettings() {
-        int numEntries = randomIntBetween(0, 5);
+        return randomTaskSettings(0);
+    }
+
+    private MapExpression randomTaskSettings(int depth) {
+        int numEntries = randomIntBetween(0, depth > 2 ? 2 : 5);
         if (numEntries == 0) {
             return new MapExpression(Source.EMPTY, List.of());
         }
@@ -64,14 +68,35 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
         List<Expression> entries = new ArrayList<>();
         for (int i = 0; i < numEntries; i++) {
             Expression key = Literal.keyword(Source.EMPTY, randomIdentifier());
-            Expression value = randomBoolean() ? Literal.keyword(Source.EMPTY, randomIdentifier())
-                : randomBoolean() ? Literal.fromDouble(Source.EMPTY, randomDouble())
-                : new Literal(Source.EMPTY, randomInt(), org.elasticsearch.xpack.esql.core.type.DataType.INTEGER);
+            Expression value = randomTaskSettingsValue(depth);
             entries.add(key);
             entries.add(value);
         }
 
         return new MapExpression(Source.EMPTY, entries);
+    }
+
+    private Expression randomTaskSettingsValue(int depth) {
+        // Limit nesting depth to avoid stack overflow
+        if (depth >= 4) {
+            return randomPrimitiveValue();
+        }
+
+        int choice = randomIntBetween(0, 4);
+        return switch (choice) {
+            case 0 -> Literal.keyword(Source.EMPTY, randomIdentifier());
+            case 1 -> Literal.fromDouble(Source.EMPTY, randomDouble());
+            case 2 -> new Literal(Source.EMPTY, randomInt(), org.elasticsearch.xpack.esql.core.type.DataType.INTEGER);
+            case 3 -> randomBoolean() ? Literal.TRUE : Literal.FALSE;
+            case 4 -> randomTaskSettings(depth + 1); // Nested map
+            default -> randomPrimitiveValue();
+        };
+    }
+
+    private Expression randomPrimitiveValue() {
+        return randomBoolean() ? Literal.keyword(Source.EMPTY, randomIdentifier())
+            : randomBoolean() ? Literal.fromDouble(Source.EMPTY, randomDouble())
+            : new Literal(Source.EMPTY, randomInt(), org.elasticsearch.xpack.esql.core.type.DataType.INTEGER);
     }
 
     private Literal randomInferenceId() {

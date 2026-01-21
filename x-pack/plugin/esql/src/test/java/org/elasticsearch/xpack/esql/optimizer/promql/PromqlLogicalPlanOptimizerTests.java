@@ -727,6 +727,33 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
     }
 
+    public void testClamp() {
+        assertScalarFunctionResult("clamp(vector(5), 0, 10)", 5.0);
+        assertScalarFunctionResult("clamp(vector(-5), 0, 10)", 0.0);
+        assertScalarFunctionResult("clamp(vector(15), 0, 10)", 10.0);
+        assertScalarFunctionResult("clamp(vector(0), 0, 10)", 0.0);
+        assertScalarFunctionResult("clamp(vector(10), 0, 10)", 10.0);
+    }
+
+    public void testClampMin() {
+        assertScalarFunctionResult("clamp_min(vector(5), 0)", 5.0);
+        assertScalarFunctionResult("clamp_min(vector(-5), 0)", 0.0);
+        assertScalarFunctionResult("clamp_min(vector(0), 0)", 0.0);
+    }
+
+    public void testClampMax() {
+        assertScalarFunctionResult("clamp_max(vector(5), 10)", 5.0);
+        assertScalarFunctionResult("clamp_max(vector(15), 10)", 10.0);
+        assertScalarFunctionResult("clamp_max(vector(10), 10)", 10.0);
+    }
+
+    private void assertScalarFunctionResult(String promqlExpr, double expectedValue) {
+        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m result=(" + promqlExpr + ")");
+        Eval eval = plan.collect(Eval.class).getFirst();
+        Literal literal = as(eval.fields().getFirst().child(), Literal.class);
+        assertThat(literal.value(), equalTo(expectedValue));
+    }
+
     private void assertConstantResult(String query, Matcher<Double> matcher) {
         var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m " + query);
         Eval eval = plan.collect(Eval.class).getFirst();

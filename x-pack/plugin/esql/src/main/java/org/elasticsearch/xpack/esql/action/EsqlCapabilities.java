@@ -1834,6 +1834,11 @@ public class EsqlCapabilities {
         PROMQL_RAD(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
 
         /**
+         * PromQL binary logarithm function support.
+         */
+        PROMQL_LOG2(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,

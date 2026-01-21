@@ -271,6 +271,12 @@ public class PromqlFunctionRegistry {
             "log10(http_requests_total)"
         ),
         valueTransformationFunction(
+            "log2",
+            (source, value) -> new Log(source, Literal.fromDouble(source, 2d), value),
+            "Calculates the binary logarithm (base 2) for all elements in the input vector.",
+            "log2(http_requests_total)"
+        ),
+        valueTransformationFunction(
             "ln",
             (source, value) -> new Log(source, null, value),
             "Calculates the natural logarithm for all elements in the input vector.",
@@ -719,7 +725,6 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
-        "log2",
         "scalar",
         "sort",
         "sort_desc",

@@ -128,8 +128,8 @@ public final class SearchResponseMerger implements Releasable {
      *
      * @param clusters The Clusters object for the search to report on the status of each cluster
      *                 involved in the cross-cluster search
-     * @param includeResults        Whether to merge aggs, hits, etc. or just progress information. Can be used to elide partial results when
-     *                              the query is still running.
+     * @param includeResults        Whether to merge aggs, hits, etc. or just progress information. Can be used to elide partial results
+     *                              when the query is still running.
      * @return merged response
      */
     public SearchResponse getMergedResponse(Clusters clusters, boolean includeResults) {

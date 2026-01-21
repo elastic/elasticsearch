@@ -91,7 +91,8 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
                 threadPool,
                 task,
                 listener,
-                timeout
+                timeout,
+                returnPartialResults
             ),
             transportService.getTaskManager(),
             clusterService

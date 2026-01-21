@@ -25,9 +25,14 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-You can set up content connectors in two ways: 
-- [Run them yourself](self-managed-connectors.md). This setup mode is available for any type of installation.
-- Let Elastic run them within your {{ech}} deployments or Serverless projects. This setup mode is exclusively available on {{ecloud}}, for specific solution use cases. Refer to [Elastic Security solution > Content connectors](docs-content://solutions/security/get-started/content-connectors.md) to know more about the Elastic managed mode for content connectors and its requirements.
+You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page. 
+
+| | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
+|---|---|---|
+| **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
+| **Availability** | Any Elastic environment | {{ecloud}} only ({{ech}}/Serverless), for [{{product.security}}y]((docs-content://solutions/security/get-started/content-connectors.md)) |
+| **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
+| **Customization** | Supported | Not supported |
 
 ## Available connectors
 

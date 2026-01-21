@@ -1923,6 +1923,10 @@ public class EsqlCapabilities {
          */
         MMR(Build.current().isSnapshot()),
 
+        /**
+         * Enables the bucketing in the LIMIT command (in conjunction with SORT)
+         */
+        SORT_PER_LIMIT,
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

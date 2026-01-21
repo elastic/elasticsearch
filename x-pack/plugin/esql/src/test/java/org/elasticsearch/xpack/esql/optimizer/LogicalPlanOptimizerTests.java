@@ -10950,4 +10950,18 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var esRelation = as(groupedTopN.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("employees"));
     }
+
+    public void testTopNWithGroupingsFailsWithoutSort() {
+        var query = """
+            FROM employees
+            | LIMIT 5 PER_🐔 languages
+            """;
+
+        assertThrows(
+            "When PER is used in LIMIT, the query needs to have a SORT before the LIMIT",
+            IllegalStateException.class,
+            () -> optimizedPlan(query)
+        );
+    }
+
 }

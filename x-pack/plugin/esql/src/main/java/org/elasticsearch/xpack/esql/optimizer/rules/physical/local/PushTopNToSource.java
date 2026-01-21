@@ -138,14 +138,16 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         LucenePushdownPredicates lucenePushdownPredicates
     ) {
         PhysicalPlan child = topNExec.child();
-        if (child instanceof EsQueryExec queryExec
+        if (topNExec.groupings().isEmpty()
+            && child instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
             && canPushDownOrders(topNExec.order(), lucenePushdownPredicates)
             && canPushLimit(topNExec, plannerSettings)) {
             // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
         }
-        if (child instanceof EvalExec evalExec
+        if (topNExec.groupings().isEmpty()
+            && child instanceof EvalExec evalExec
             && evalExec.child() instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
             && canPushLimit(topNExec, plannerSettings)) {

@@ -28,7 +28,10 @@ public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRul
             } else {
                 p = new TopN(o.source(), o.child(), o.order(), limit.limit(), limit.groupings(), false);
             }
+        } else if (limit.groupings().isEmpty() == false) {
+            throw new IllegalStateException("When PER is used in LIMIT, the query needs to have a SORT before the LIMIT");
         }
+
         return p;
     }
 }

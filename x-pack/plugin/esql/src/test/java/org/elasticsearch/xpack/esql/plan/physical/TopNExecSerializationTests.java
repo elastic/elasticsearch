@@ -24,7 +24,8 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
         List<Order> order = randomList(1, 10, OrderSerializationTests::randomOrder);
         Expression limit = new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER);
         Integer estimatedRowSize = randomEstimatedRowSize();
-        return new TopNExec(source, child, order, limit, estimatedRowSize);
+        List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
+        return new TopNExec(source, child, order, limit, groupings, estimatedRowSize);
     }
 
     @Override
@@ -38,7 +39,8 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
         List<Order> order = instance.order();
         Expression limit = instance.limit();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 3)) {
+        List<Expression> groupings = instance.groupings();
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> order = randomValueOtherThan(order, () -> randomList(1, 10, OrderSerializationTests::randomOrder));
             case 2 -> limit = randomValueOtherThan(limit, () -> new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER));
@@ -46,9 +48,13 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
+            case 4 -> groupings = randomValueOtherThan(
+                groupings,
+                () -> randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList()
+            );
             default -> throw new UnsupportedOperationException();
         }
-        return new TopNExec(instance.source(), child, order, limit, estimatedRowSize);
+        return new TopNExec(instance.source(), child, order, limit, groupings, estimatedRowSize);
     }
 
     @Override

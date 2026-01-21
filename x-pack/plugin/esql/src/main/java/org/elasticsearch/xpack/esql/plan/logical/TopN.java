@@ -26,7 +26,7 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
 
     private final List<Order> order;
     private final Expression limit;
-    protected final List<Expression> groupings;
+    private final List<Expression> groupings;
 
     /**
      * Local topn is not a pipeline breaker, and is applied only to the local node's data.

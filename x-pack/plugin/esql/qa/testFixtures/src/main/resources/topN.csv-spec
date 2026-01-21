@@ -185,3 +185,20 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 1007                  | 2024-05-10T00:19:48.000Z | prod            | two
 1006                  | 2024-05-10T00:13:50.000Z | qa              | one
 ;
+
+sortPerLimit
+required_capability: sort_per_limit
+
+ FROM employees
+| SORT salary DESC
+| LIMIT 5 PER_🐔 languages
+| KEEP first_name, last_name, salary, languages
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer
+Otmar              | Herbst            | 74999          | null
+Moss               | Shanbhogue        | 74970          | 3
+Tzvetan            | Zielinski         | 74572          | 4
+Divier             | Reistad           | 73851          | null
+Lillian            | Haddadi           | 73717          | 1
+;

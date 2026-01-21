@@ -2288,7 +2288,14 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         // emulate a rule that adds a missing attribute
         FieldAttribute missingAttr = getFieldAttribute("missing attr");
         List<Order> orders = List.of(new Order(plan.source(), missingAttr, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
-        TopNExec topNExec = new TopNExec(plan.source(), plan, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
+        TopNExec topNExec = new TopNExec(
+            plan.source(),
+            plan,
+            orders,
+            new Literal(Source.EMPTY, limit, INTEGER),
+            List.of(),
+            randomEstimatedRowSize()
+        );
 
         // We want to verify that the localOptimize detects the missing attribute.
         // However, it also throws an error in one of the rules before we get to the verifier.

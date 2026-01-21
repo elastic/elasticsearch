@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Evaluator for inference functions that performs constant folding by executing inference operations

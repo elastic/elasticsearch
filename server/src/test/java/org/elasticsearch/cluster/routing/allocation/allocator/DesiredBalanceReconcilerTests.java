@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAlloc
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.TestAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
@@ -544,7 +545,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(clusterSettings),
-            new ReplicaAfterPrimaryActiveAllocationDecider()
+            new ReplicaAfterPrimaryActiveAllocationDecider(),
+            new TestAllocationDecider(() -> randomFrom(Decision.YES, Decision.NOT_PREFERRED))
         );
 
         ClusterState reroutedState = clusterState;

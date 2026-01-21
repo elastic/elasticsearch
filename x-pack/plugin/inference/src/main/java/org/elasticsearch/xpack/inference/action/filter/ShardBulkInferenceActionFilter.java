@@ -756,8 +756,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // Generate a signature for the failure to deduplicate on the most important properties
                 FailureSignature failureSignature = new FailureSignature(item.request().id(), item.index(), failure);
 
-                Exception deduplicatedFailure = deduplicatedFailures.computeIfAbsent(failureSignature, k -> failure);
-                item.abort(item.index(), deduplicatedFailure);
+                Exception existing = deduplicatedFailures.putIfAbsent(failureSignature, failure);
+                if (existing == null) {
+                    // new failure for this request - mark as aborted
+                    item.abort(item.index(), failure);
+                }
             }
         }
 

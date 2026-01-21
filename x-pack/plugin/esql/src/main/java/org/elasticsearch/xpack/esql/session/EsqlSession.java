@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -565,36 +564,33 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         Map<String, List<FieldCapabilitiesFailure>> failures,
         FailureCollector failureCollector
-    ) throws Exception {
+    ) {
         for (var e : failures.entrySet()) {
             String clusterAlias = e.getKey();
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
             if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                 assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
-                continue;
-            }
-            if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+            } else if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                 for (FieldCapabilitiesFailure failure : e.getValue()) {
                     failureCollector.unwrapAndCollect(failure.getException());
                 }
             } else if (cluster.getFailures().isEmpty()) {
-                var shardFailures = e.getValue().stream().map(f -> {
-                    ShardId shardId = null;
-                    if (ExceptionsHelper.unwrapCause(f.getException()) instanceof ElasticsearchException es) {
-                        shardId = es.getShardId();
-                    }
-                    if (shardId != null) {
-                        return new ShardSearchFailure(f.getException(), new SearchShardTarget(null, shardId, clusterAlias));
-                    } else {
-                        return new ShardSearchFailure(f.getException());
-                    }
-                }).toList();
+                var shardFailures = e.getValue()
+                    .stream()
+                    .map(f -> new ShardSearchFailure(f.getException(), getCause(clusterAlias, f)))
+                    .toList();
                 executionInfo.swapCluster(
                     clusterAlias,
                     (k, curr) -> new EsqlExecutionInfo.Cluster.Builder(cluster).addFailures(shardFailures).build()
                 );
             }
         }
+    }
+
+    private static SearchShardTarget getCause(String clusterAlias, FieldCapabilitiesFailure failure) {
+        return ExceptionsHelper.unwrapCause(failure.getException()) instanceof ElasticsearchException es
+            ? new SearchShardTarget(null, es.getShardId(), clusterAlias)
+            : null;
     }
 
     public void analyzedPlan(
@@ -1052,9 +1048,9 @@ public class EsqlSession {
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
-                EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
-                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(
                     result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())

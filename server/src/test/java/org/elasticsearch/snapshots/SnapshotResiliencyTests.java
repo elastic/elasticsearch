@@ -258,6 +258,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
         assertNotNull(safeResult(createSnapshotResponseListener));
+        assertNotNull(safeResult(restoreSnapshotResponseListener));
         assertTrue(documentCountVerified.get());
         assertTrue(SnapshotsInProgress.get(masterNode.clusterService().state()).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);

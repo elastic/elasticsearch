@@ -825,10 +825,10 @@ can be in different `ShardState` depending on the shard's status and snapshot ac
   snapshot creation is always issued with `partial=true` in Elastic Cloud so that snapshot does not fail
   entirely for temporary shard unavailability.
 * If the node hosting the shard is being shutdown, the shard state is set to `PAUSED_FOR_NODE_REMOVAL`.
-  This state will be updated once the node finishes the shutdown process.
+  This state will be updated when the node finishes the shutdown process or the shard state changes.
 
 When a data node (`SnapshotShardsService`) receives the updated cluster state with a new snapshot entry,
-it takes the shards with the `INIT` state and hosted on itself and creates a shard snapshot task for each
+it takes the shards with the `INIT` state and hosted on itself to create a shard snapshot task for each
 of them. The shard state is computed for all shards involved in the snapshot at once when the snapshot entry
 is created. A large snapshot can easily have thousands of shards with `INIT` state indicating ready to be snapshotted.
 To avoid overwhelming the data nodes, a dedicated snapshot thread pool as well as `ThrottledTaskRunner` are
@@ -836,7 +836,7 @@ used to keep concurrent running shard snapshots under control.
 
 The lifecycle of each shard snapshot is also tracked in-memory on the data node with `IndexShardSnapshotStatus`.
 The status is indicated by `IndexShardSnapshotStatus#Stage` which is updated at various points during the process.
-When a shard snapshot task runs, it first acquires commit of the shard so that the files to be copied remain
+When a shard snapshot task runs, it first acquires an index commit of the shard so that the files to be copied remain
 available throughout the shard snapshot process without being deleted by ongoing indexing activities. It then
 writes a new shard level generation file (`index-<UUID>.data`). This is basically a shard level catalog file
 pointing to all the valid shard snapshots. Each snapshot creates a new one. The UUID is used to avoid name collision.

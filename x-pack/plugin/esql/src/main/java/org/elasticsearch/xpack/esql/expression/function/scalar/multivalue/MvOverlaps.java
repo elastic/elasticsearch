@@ -226,6 +226,9 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
+        if(left.isNull(position) || right.isNull(position)) {
+            return false;
+        }
         final var leftStartIndex = left.getFirstValueIndex(position);
         final var leftEndIndex = leftStartIndex + left.getValueCount(position);
         if (left.mvSortedAscending()) {
@@ -273,6 +276,9 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
+        if(left.isNull(position) || right.isNull(position)) {
+            return false;
+        }
         if (left.getValueCount(position) < right.getValueCount(position)) {
             boolean value = right.getBoolean(right.getFirstValueIndex(position));
             if (left.hasValue(position, value)) {
@@ -291,6 +297,9 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
     static boolean process(@Position int position, LongBlock left, LongBlock right) {
         if (left == right) {
             return true;
+        }
+        if(left.isNull(position) || right.isNull(position)) {
+            return false;
         }
         final var leftStartIndex = left.getFirstValueIndex(position);
         final var leftEndIndex = leftStartIndex + left.getValueCount(position);
@@ -339,6 +348,9 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
+        if(left.isNull(position) || right.isNull(position)) {
+            return false;
+        }
         final var leftStartIndex = left.getFirstValueIndex(position);
         final var leftEndIndex = leftStartIndex + left.getValueCount(position);
         if (left.mvSortedAscending()) {
@@ -386,7 +398,9 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         if (left == right) {
             return true;
         }
-
+        if(left.isNull(position) || right.isNull(position)) {
+            return false;
+        }
         final var leftStartIndex = left.getFirstValueIndex(position);
         final var leftEndIndex = leftStartIndex + left.getValueCount(position);
         var leftValue = new BytesRef();

@@ -224,6 +224,7 @@ instance-2       | null       | null       | null       | null       | 0.008197
 // -----------------------------------------
 
 Core supported aggs on histogram with non-existant filter group
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "idontexist" ,

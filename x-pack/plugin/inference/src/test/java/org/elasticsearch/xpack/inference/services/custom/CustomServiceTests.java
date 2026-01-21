@@ -23,6 +23,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -77,6 +78,8 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class CustomServiceTests extends AbstractInferenceServiceTests {
+
+    public static final String INFERENCE_ID_VALUE = "inference_id";
 
     public CustomServiceTests() {
         super(createTestConfiguration());
@@ -1182,6 +1185,73 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
             assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_SparseEmbedding() throws IOException {
+        var model = createTestModel(TaskType.SPARSE_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ID_VALUE,
+            TaskType.CHAT_COMPLETION,
+            CustomService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                CoreMatchers.is(
+                    org.elasticsearch.core.Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ID_VALUE,
+                        CustomService.NAME,
+                        CustomService.NAME,
+                        TaskType.CHAT_COMPLETION
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return CustomModelTests.createModel(
+            INFERENCE_ID_VALUE,
+            taskType,
+            CustomServiceSettingsTests.createRandom(),
+            CustomTaskSettingsTests.createRandom(),
+            CustomSecretSettingsTests.createRandom()
+        );
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, CoreMatchers.is(model));
         }
     }
 }

@@ -350,7 +350,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             columnNames,
             hasHeaderRow,
             delimiter,
-            quote, // TODO were these two missing?
+            quote,
             shouldTrimFields,
             shouldParseRecursively,
             grokPattern,

@@ -56,13 +56,22 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
             actualSettings,
             expectedMappings,
             expectedSettings,
-            actual.stream().map(o -> (Map<String, Object>) o).toList(),
-            expected.stream().map(o -> (Map<String, Object>) o).toList(),
+            normalize(actual),
+            normalize(expected),
             true,
             nullValue
         );
 
         return matcher.match();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> normalize(List<Object> values) {
+        if (values == null) {
+            return Collections.emptyList();
+        }
+
+        return values.stream().map(o -> (Map<String, Object>) o).filter(m -> m.isEmpty() == false).toList();
     }
 
     private static class FlattenedSourceMatcher extends SourceMatcher {

@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
@@ -65,7 +66,7 @@ public class ReadonlyActionIT extends IlmESRestTestCase {
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.getKey()), nullValue());
             assertThat(settings.get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()), equalTo("true"));
-        });
+        }, 30, SECONDS);
     }
 
     public void testReadOnlyInTheHotPhase() throws Exception {
@@ -101,6 +102,6 @@ public class ReadonlyActionIT extends IlmESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), originalIndex);
             assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-        });
+        }, 30, SECONDS);
     }
 }

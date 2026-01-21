@@ -451,7 +451,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
                     .field("type", "fs")
                     .startObject("settings")
                     .field("compress", randomBoolean())
-                    .field("location", repoDir.getRoot().getAbsolutePath())
+                    .field("location", getAbsoluteRepoPath())
                     .field("max_snapshot_bytes_per_sec", "256b")
                     .endObject()
                     .endObject()

@@ -428,8 +428,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 indexId,
                 snapshotStatus,
                 entry.version(),
-                entry.startTime(),
-                calculateMaximumShardIdForIndexInTheSnapshot(shardId, entry)
+                entry.startTime()
             );
             snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
             startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
@@ -502,8 +501,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final IndexId indexId,
         final IndexShardSnapshotStatus snapshotStatus,
         final IndexVersion entryVersion,
-        final long entryStartTime,
-        final int maximumShardIdInTheSnapshot
+        final long entryStartTime
     ) {
         Consumer<String> postMasterNotificationAction = (outcomeInfoString) -> {
             snapshotStatus.updateStatusDescription("Data node shard snapshot finished. Remote master update outcome: " + outcomeInfoString);
@@ -575,7 +573,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             snapshotStatus,
             entryVersion,
             entryStartTime,
-            maximumShardIdInTheSnapshot,
+            clusterService,
             decTrackerRunsBeforeResultListener
         );
     }
@@ -618,7 +616,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final IndexShardSnapshotStatus snapshotStatus,
         IndexVersion version,
         final long entryStartTime,
-        final int maximumShardIdForIndexInTheSnapshot,
+        final ClusterService clusterService,
         ActionListener<ShardSnapshotResult> resultListener
     ) {
         ActionListener.run(resultListener, listener -> {
@@ -645,7 +643,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
                 snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
 
-                // This check is needed to handle shard snapshots during resharding.
+                // The check below is needed to handle shard snapshots during resharding.
                 // Resharding changes the number of shards in the index and moves data between shards.
                 // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data movements)
                 // or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
@@ -655,6 +653,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 // to correctly propagate this failure to SnapshotsService using existing listener
                 // in case resharding starts in the middle of the snapshot.
                 // Marking shard as failed directly in the cluster state would bypass parts of SnapshotsService logic.
+
+                // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
+                // The information that we are interested in (the shards map keys) doesn't change so this is fine.
+                SnapshotsInProgress.Entry snapshotEntry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
+                // The snapshot is deleted, there is no reason to proceed.
+                if (snapshotEntry == null) {
+                    throw new IndexShardSnapshotFailedException(shardId, "snapshot is deleted");
+                }
+
+                int maximumShardIdForIndexInTheSnapshot = calculateMaximumShardIdForIndexInTheSnapshot(shardId, snapshotEntry);
                 if (IndexReshardService.isShardSnapshotImpactedByResharding(
                     indexShard.indexSettings().getIndexMetadata(),
                     maximumShardIdForIndexInTheSnapshot
@@ -699,13 +707,15 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     }
 
     private static int calculateMaximumShardIdForIndexInTheSnapshot(ShardId shardIdStartingASnapshot, SnapshotsInProgress.Entry entry) {
-        int aboveMaximum = shardIdStartingASnapshot.id();
+        int maximum = shardIdStartingASnapshot.id();
+        int i = maximum + 1;
 
-        while (entry.shards().containsKey(new ShardId(shardIdStartingASnapshot.getIndex(), aboveMaximum))) {
-            aboveMaximum += 1;
+        while (entry.shards().containsKey(new ShardId(shardIdStartingASnapshot.getIndex(), i))) {
+            maximum = i;
+            i += 1;
         }
 
-        return aboveMaximum - 1;
+        return maximum;
     }
 
     private static ActionListener<IndexShardSnapshotStatus.AbortStatus> makeAbortListener(

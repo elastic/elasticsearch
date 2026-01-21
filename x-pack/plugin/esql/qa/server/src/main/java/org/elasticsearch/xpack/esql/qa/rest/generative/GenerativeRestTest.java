@@ -284,8 +284,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();
         // we don't have key info from the dataset loader, let's hardcode it for now
-        result.add(new LookupIdx("languages_lookup", List.of(new LookupIdxColumn("language_code", "integer"))));
-        result.add(new LookupIdx("message_types_lookup", List.of(new LookupIdxColumn("message", "keyword"))));
+        result.add(
+            new LookupIdx(
+                "languages_lookup",
+                List.of(new LookupIdxColumn("language_code", "integer"), new LookupIdxColumn("language_name", "keyword"))
+            )
+        );
+        result.add(
+            new LookupIdx(
+                "message_types_lookup",
+                List.of(new LookupIdxColumn("message", "keyword"), new LookupIdxColumn("type", "keyword"))
+            )
+        );
         List<LookupIdxColumn> multiColumnJoinableLookupKeys = List.of(
             new LookupIdxColumn("id_int", "integer"),
             new LookupIdxColumn("name_str", "keyword"),

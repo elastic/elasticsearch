@@ -93,10 +93,10 @@ public class Sort {
                     low++;
                 } else {
                     int c = Double.compare(vi, pivotValue);
-                    if ( c > 0 || (c == 0 && pi > pv)){
+                    if (c > 0 || (c == 0 && pi > pv)) {
                         high--;
                         swap(order, i, high);
-                    } else{
+                    } else {
                         // vi < pivotValue || (vi == pivotValue && pi < pv)
                         i++;
                     }

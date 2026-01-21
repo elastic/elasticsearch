@@ -24,7 +24,6 @@ import org.junit.AfterClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -240,7 +239,8 @@ public class QuerySettingsTests extends ESTestCase {
 
     @AfterClass
     public static void generateDocs() throws Exception {
-        List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values().stream()
+        List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
+            .stream()
             // TODO this is non-snapshot, but we don't want to expose it yet
             .filter(def -> def != QuerySettings.PROJECT_ROUTING)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))

@@ -125,7 +125,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        TransportVersion version = TransportVersionUtils.randomVersion(random());
+        TransportVersion version = TransportVersionUtils.randomVersion();
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());

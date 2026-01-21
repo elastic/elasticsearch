@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
@@ -220,6 +221,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         return switch (p) {
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
             case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context);
+            case ScalarFunction functionCall -> mapScalarFunction(functionCall);
             case VectorBinaryArithmetic vectorBinaryArithmetic -> mapVectorBinaryArithmetic(
                 promqlCommand,
                 vectorBinaryArithmetic,
@@ -293,7 +295,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         }
 
         List<Expression> extraParams = functionCall.parameters();
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             functionCall.functionName(),
             functionCall.source(),
             target,
@@ -301,6 +303,18 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             window,
             extraParams
         );
+        // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
+        // This is essentially a bug since this limitation doesn't exist in PromQL itself.
+        // Throwing an error here to avoid generating invalid plans with obscure errors downstream.
+        Expression.TypeResolution typeResolution = function.typeResolved();
+        if (typeResolution.unresolved()) {
+            throw new QlIllegalArgumentException("Could not resolve type for function [{}]: {}", function, typeResolution.message());
+        }
+        return function;
+    }
+
+    private static Expression mapScalarFunction(ScalarFunction function) {
+        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function.functionName(), function.source(), null, null, null, List.of());
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {

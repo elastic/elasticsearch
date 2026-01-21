@@ -353,7 +353,7 @@ public final class TextStructureUtils {
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        List<Map<String, Object>> flattenedRecords = sampleRecords.stream().map(record -> flattenRecord(record, maxDepth)).toList();
+        List<Map<String, Object>> flattenedRecords = sampleRecords.stream().map(record -> flattenRecord(record, timeoutChecker, maxDepth)).toList();
         Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
 
         for (String fieldName : uniqueFieldNames) {
@@ -386,34 +386,36 @@ public final class TextStructureUtils {
     /**
      * Flattens a map with nested objects into a flat map with dot-notation keys.
      * For example, {"host": {"id": 1}, "name": "test"} becomes {"host.id": 1, "name": "test"}
-     * @param record The record with potentially nested objects.
-     * @param maxDepth The max recursion depth.
+     *
+     * @param record         The record with potentially nested objects.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param maxDepth       The max recursion depth.
      * @return A flattened map with dot-notation keys.
      */
-    private static Map<String, Object> flattenRecord(Map<String, ?> record, int maxDepth) {
+    private static Map<String, Object> flattenRecord(Map<String, ?> record, TimeoutChecker timeoutChecker, int maxDepth) {
         Map<String, Object> flattened = new LinkedHashMap<>();
-        flattenRecordRecursive("", record, flattened, 1, maxDepth);
+        flattenRecordRecursive("", record, flattened, timeoutChecker, 1, maxDepth);
         return flattened;
     }
 
-    private static void flattenRecordRecursive(String prefix, Map<String, ?> record, Map<String, Object> flattenedResult, int depth, int maxDepth) {
-        // TODO add timeout check here
+    private static void flattenRecordRecursive(String prefix, Map<String, ?> record, Map<String, Object> flattenedResult, TimeoutChecker timeoutChecker, int currentDepth, int maxDepth) {
+        timeoutChecker.check("record flattening");
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, ?> nestedMap = (Map<String, ?>) value;
-                if (nestedMap.isEmpty() || depth >= maxDepth) {
+                if (nestedMap.isEmpty() || currentDepth >= maxDepth) {
                     // Empty nested objects or max depth reached - will be mapped as "object" type
                     flattenedResult.put(key, Collections.emptyMap());
                 } else {
-                    flattenRecordRecursive(key, nestedMap, flattenedResult, depth + 1, maxDepth);
+                    flattenRecordRecursive(key, nestedMap, flattenedResult, timeoutChecker, currentDepth + 1, maxDepth);
                 }
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
-                flattenListValues(key, list, flattenedResult, depth, maxDepth);
+                flattenListValues(key, list, flattenedResult, timeoutChecker, currentDepth, maxDepth);
             } else {
                 flattenedResult.put(key, value);
             }
@@ -426,10 +428,12 @@ public final class TextStructureUtils {
      * @param prefix The current field prefix for dot notation.
      * @param list The list to process.
      * @param flattenedResult The output map to add flattened fields to.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @param depth The current recursion depth.
      * @param maxDepth The max recursion depth.
      */
-    private static void flattenListValues(String prefix, List<Object> list, Map<String, Object> flattenedResult, int depth, int maxDepth) {
+    private static void flattenListValues(String prefix, List<Object> list, Map<String, Object> flattenedResult, TimeoutChecker timeoutChecker, int depth, int maxDepth) {
+        timeoutChecker.check("record flattening");
         boolean hasNestedMaps = list.stream().anyMatch(item -> item instanceof Map);
         if (hasNestedMaps == false) {
             flattenedResult.put(prefix, list);
@@ -454,7 +458,7 @@ public final class TextStructureUtils {
                     flattenedResult.put(prefix, Collections.emptyMap());
                 }
                 else {
-                    flattenRecordRecursive("", nestedMap, flattenedItem, depth + 1, maxDepth);
+                    flattenRecordRecursive("", nestedMap, flattenedItem, timeoutChecker, depth + 1, maxDepth);
                 }
                 for (Map.Entry<String, Object> entry : flattenedItem.entrySet()) {
                     String fieldKey = prefix + "." + entry.getKey();

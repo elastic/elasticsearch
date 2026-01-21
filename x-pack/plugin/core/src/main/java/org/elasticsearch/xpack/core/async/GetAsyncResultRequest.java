@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,6 +22,7 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
     private TimeValue keepAlive = TimeValue.MINUS_ONE;
     private boolean returnPartialResults = true;
 
+    private static final TransportVersion RETURN_PARTIAL_RESULTS_VERSION = TransportVersion.fromName("return_async_partial_results_query_param");
     /**
      * Creates a new request
      *
@@ -35,8 +37,9 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         this.id = in.readString();
         this.waitForCompletionTimeout = TimeValue.timeValueMillis(in.readLong());
         this.keepAlive = in.readTimeValue();
-        // TODO handle transport versions
-        this.returnPartialResults = in.readBoolean();
+        if (in.getTransportVersion().supports(RETURN_PARTIAL_RESULTS_VERSION)) {
+            this.returnPartialResults = in.readBoolean();
+        }
     }
 
     @Override
@@ -45,8 +48,9 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         out.writeString(id);
         out.writeLong(waitForCompletionTimeout.millis());
         out.writeTimeValue(keepAlive);
-        // TODO handle transport versions
-        out.writeBoolean(returnPartialResults);
+        if (out.getTransportVersion().supports(RETURN_PARTIAL_RESULTS_VERSION)) {
+            out.writeBoolean(returnPartialResults);
+        }
     }
 
     @Override

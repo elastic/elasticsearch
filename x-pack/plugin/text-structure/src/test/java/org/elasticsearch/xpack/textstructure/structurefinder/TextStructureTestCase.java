@@ -96,7 +96,10 @@ public abstract class TextStructureTestCase extends ESTestCase {
 
     // This doesn't need closing because it has an infinite timeout
     protected static final TimeoutChecker NOOP_TIMEOUT_CHECKER = new TimeoutChecker("unit test", null, null);
-    protected static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    protected static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(
+        Settings.EMPTY,
+        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+    );
 
     protected List<String> explanation;
 

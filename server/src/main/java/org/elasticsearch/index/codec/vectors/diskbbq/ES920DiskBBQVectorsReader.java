@@ -171,14 +171,14 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
+            public PostingMetadata nextPosting() throws IOException {
                 long centroidOrdinalAndScore = neighborQueue.popRaw();
                 int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
                 float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength, score);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, score);
             }
         };
     }
@@ -246,14 +246,14 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
+            public PostingMetadata nextPosting() throws IOException {
                 long centroidOrdinalAndScore = nextCentroid();
                 int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
                 float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength, score);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, score);
             }
 
             private long nextCentroid() throws IOException {
@@ -423,9 +423,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         @Override
-        public int resetPostingsScorer(CentroidOffsetAndLength postingsMetadata) throws IOException {
+        public int resetPostingsScorer(PostingMetadata postingMetadata) throws IOException {
             quantized = false;
-            indexInput.seek(postingsMetadata.offset());
+            indexInput.seek(postingMetadata.offset());
             indexInput.readFloats(centroid, 0, centroid.length);
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();

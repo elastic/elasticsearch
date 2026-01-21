@@ -1674,6 +1674,13 @@ public class EsqlCapabilities {
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/140670">140670</a>,
+         * this allows for type conversion functions with no further computation to be
+         * evaluated inside default wrapping _over_time functions.
+         */
+        ALLOW_CASTING_IN_DEFAULT_TS_AGGS,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1802,15 +1809,9 @@ public class EsqlCapabilities {
         LIKE_PARAMETER_SUPPORT,
 
         /**
-         * PromQL support in ESQL, before it is released into tech preview.
-         * When implementing new functionality or breaking changes,
-         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "PROMQL_TECH_PREVIEW" one.
-         * At this point, we need to add new capabilities for any further changes.
+         * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
          */
-        PROMQL_PRE_TECH_PREVIEW_V14(Build.current().isSnapshot()),
-
-        PROMQL_MULTIPLE_FILTERS_FOR_SAME_LABEL(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
+        PROMQL_COMMAND_V0,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1900,6 +1901,11 @@ public class EsqlCapabilities {
         ENRICH_DENSE_VECTOR_BUGFIX,
 
         /**
+         * Support for dense_vector arithmetic operations (+, -, *, /)
+         */
+        DENSE_VECTOR_ARITHMETIC,
+
+        /**
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
@@ -1922,6 +1928,11 @@ public class EsqlCapabilities {
          * MMR result diversification command
          */
         MMR(Build.current().isSnapshot()),
+
+        /**
+         * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
+         */
+        METADATA_WILDCARDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

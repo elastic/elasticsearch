@@ -28,8 +28,10 @@ import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -274,14 +276,14 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                long centroidOrdAndScore = neighborQueue.popRaw();
-                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdAndScore);
-                float score = neighborQueue.decodeScore(centroidOrdAndScore);
-                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
+            public PostingMetadata nextPosting() throws IOException {
+                long centroidOrdinalAndScore = neighborQueue.popRaw();
+                int centroidOrd = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
+                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrd);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength, score);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrd, score);
             }
         };
     }
@@ -316,7 +318,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 }
 
                 @Override
-                public CentroidOffsetAndLength nextPostingListOffsetAndLength() {
+                public PostingMetadata nextPosting() {
                     return null;
                 }
             };
@@ -387,15 +389,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                long centroidOrdAndScore = nextCentroid();
-                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdAndScore);
-                float score = neighborQueue.decodeScore(centroidOrdAndScore);
+            public PostingMetadata nextPosting() throws IOException {
+                long centroidOrdinalAndScore = nextCentroid();
+                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
                 centroids.seek(childrenFileOffsets + (long) (Long.BYTES * 2 + Integer.BYTES) * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
                 int parentOrd = centroids.readInt();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength, parentOrd, score);
+                return new PostingMetadata(postingListOffset, postingListLength, parentOrd, score);
             }
 
             private long nextCentroid() throws IOException {
@@ -677,17 +679,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         @Override
-        public int resetPostingsScorer(CentroidOffsetAndLength postingsMetadata) throws IOException {
-            float score = postingsMetadata.score();
-            indexInput.seek(postingsMetadata.offset());
-            // TODO ASYMMETRIC THIS IS SQR
+        public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
+            float score = metadata.centroidScore();
+            indexInput.seek(metadata.offset());
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();
             docEncoding = indexInput.readByte();
             docBase = 0;
             slicePos = indexInput.getFilePointer();
             centroidDistance = similarityFunction == EUCLIDEAN ? ((1 / score) - 1) - centroidDp : score - 1;
-            centroidOrd = postingsMetadata.parentOrd();
+            centroidOrd = metadata.centroidOrdinal();
             return vectors;
         }
 

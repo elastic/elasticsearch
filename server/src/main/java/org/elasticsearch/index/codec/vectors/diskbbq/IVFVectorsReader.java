@@ -325,8 +325,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-            expectedDocs += scorer.resetPostingsScorer(offsetAndLength);
+            PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+            expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -338,8 +338,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-                scorer.resetPostingsScorer(offsetAndLength);
+                PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+                scorer.resetPostingsScorer(postingMetadata);
                 actualDocs += scorer.visit(knnCollector);
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -470,21 +470,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IndexInput centroidSlice
     ) throws IOException;
 
-    public record CentroidOffsetAndLength(long offset, long length, int parentOrd, float score) {
-        public CentroidOffsetAndLength(long offset, long length, float score) {
-            this(offset, length, -1, score);
-        }
-    }
-
-    public interface CentroidIterator {
-        boolean hasNext();
-
-        CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
-    }
-
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
-        int resetPostingsScorer(CentroidOffsetAndLength postingsMetadata) throws IOException;
+        int resetPostingsScorer(PostingMetadata metadata) throws IOException;
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;

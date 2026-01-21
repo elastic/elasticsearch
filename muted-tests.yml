@@ -331,9 +331,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
-- class: org.elasticsearch.readiness.ReadinessClusterIT
-  method: testReadinessDuringRestartsNormalOrder
-  issue: https://github.com/elastic/elasticsearch/issues/142440
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {stats.StatsByMvFieldAggExpr}
   issue: https://github.com/elastic/elasticsearch/issues/141835

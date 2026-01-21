@@ -81,7 +81,7 @@ completionWithTaskSettings
 required_capability: completion
 
 ROW prompt="test prompt"
-| COMPLETION completion WITH { "inference_id": "test_completion", "task_settings": {"temperature": 1.0} }
+| COMPLETION completion = prompt WITH { "inference_id": "test_completion", "task_settings": {"temperature": 1} }
 | KEEP completion
 ;
 

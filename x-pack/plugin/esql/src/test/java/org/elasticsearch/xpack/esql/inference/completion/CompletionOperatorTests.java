@@ -113,7 +113,8 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
         Operator.OperatorFactory factory = new CompletionOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
-            evaluatorFactory(inputChannel)
+            evaluatorFactory(inputChannel),
+            Map.of()
         );
 
         DriverContext driverContext = driverContext();

@@ -40,7 +40,7 @@ public class CompletionOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new CompletionRequestIterator.Factory(inferenceId, promptEvaluator),
+            new CompletionRequestIterator.Factory(inferenceId, promptEvaluator, taskSettings),
             new CompletionOutputBuilder(driverContext.blockFactory())
         );
         this.taskSettings = taskSettings;

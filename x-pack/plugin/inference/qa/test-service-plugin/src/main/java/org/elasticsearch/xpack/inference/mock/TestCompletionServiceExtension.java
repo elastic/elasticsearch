@@ -169,12 +169,12 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
             List<ChatCompletionResults.Result> results = new ArrayList<>();
             boolean reverseOutput = false;
 
-            // Check if temperature == 1.0, then reverse the output
+            // Check if temperature == 1, then reverse the output
             if (taskSettings != null && taskSettings.containsKey("temperature")) {
                 Object tempValue = taskSettings.get("temperature");
                 if (tempValue instanceof Number) {
-                    double temperature = ((Number) tempValue).doubleValue();
-                    if (temperature == 1.0) {
+                    int temperature = ((Number) tempValue).intValue();
+                    if (temperature == 1) {
                         reverseOutput = true;
                     }
                 }

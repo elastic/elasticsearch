@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationRes
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
+import org.elasticsearch.xpack.security.support.SecureBytesRefRecycler;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
@@ -259,7 +260,7 @@ public class TokenService {
         this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
-        this.bytesRefRecycler = bytesRefRecycler;
+        this.bytesRefRecycler = new SecureBytesRefRecycler(bytesRefRecycler);
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);

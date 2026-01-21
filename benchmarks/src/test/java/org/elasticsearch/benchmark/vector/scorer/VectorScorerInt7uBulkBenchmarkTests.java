@@ -24,10 +24,12 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsH
 
 public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
 
+    private final VectorSimilarityType function;
     private final float delta = 1e-3f;
     private final int dims;
 
-    public VectorScorerInt7uBulkBenchmarkTests(int dims) {
+    public VectorScorerInt7uBulkBenchmarkTests(VectorSimilarityType function, int dims) {
+        this.function = function;
         this.dims = dims;
     }
 
@@ -36,13 +38,13 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
-    public void testDotProductSequential() throws Exception {
+    public void testSequential() throws Exception {
         for (int i = 0; i < 100; i++) {
             VectorScorerInt7uBulkBenchmark.VectorData vectorData = new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200);
             float[] expected = null;
-            for (var impl : VectorScorerInt7uBulkBenchmark.Implementation.values()) {
+            for (var impl : VectorImplementation.values()) {
                 var bench = new VectorScorerInt7uBulkBenchmark();
-                bench.function = VectorSimilarityType.DOT_PRODUCT;
+                bench.function = function;
                 bench.implementation = impl;
                 bench.dims = dims;
                 bench.numVectors = 1000;
@@ -52,7 +54,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 try {
                     float[] result = bench.scoreMultipleSequential();
                     if (expected == null) {
-                        assert impl == VectorScorerInt7uBulkBenchmark.Implementation.SCALAR;
+                        assert impl == VectorImplementation.SCALAR;
                         expected = result;
                         continue;
                     }
@@ -66,13 +68,13 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
         }
     }
 
-    public void testDotProductRandom() throws Exception {
+    public void testRandom() throws Exception {
         for (int i = 0; i < 100; i++) {
             VectorScorerInt7uBulkBenchmark.VectorData vectorData = new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200);
             float[] expected = null;
-            for (var impl : VectorScorerInt7uBulkBenchmark.Implementation.values()) {
+            for (var impl : VectorImplementation.values()) {
                 var bench = new VectorScorerInt7uBulkBenchmark();
-                bench.function = VectorSimilarityType.DOT_PRODUCT;
+                bench.function = function;
                 bench.implementation = impl;
                 bench.dims = dims;
                 bench.numVectors = 1000;
@@ -82,7 +84,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 try {
                     float[] result = bench.scoreMultipleRandom();
                     if (expected == null) {
-                        assert impl == VectorScorerInt7uBulkBenchmark.Implementation.SCALAR;
+                        assert impl == VectorImplementation.SCALAR;
                         expected = result;
                         continue;
                     }
@@ -96,17 +98,14 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
         }
     }
 
-    public void testQueryDotProductRandom() throws Exception {
+    public void testQueryRandom() throws Exception {
         assumeTrue("Only test with heap segments", supportsHeapSegments());
         for (int i = 0; i < 100; i++) {
             VectorScorerInt7uBulkBenchmark.VectorData vectorData = new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200);
             float[] expected = null;
-            for (var impl : List.of(
-                VectorScorerInt7uBulkBenchmark.Implementation.LUCENE,
-                VectorScorerInt7uBulkBenchmark.Implementation.NATIVE
-            )) {
+            for (var impl : List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE)) {
                 var bench = new VectorScorerInt7uBulkBenchmark();
-                bench.function = VectorSimilarityType.DOT_PRODUCT;
+                bench.function = function;
                 bench.implementation = impl;
                 bench.dims = dims;
                 bench.numVectors = 1000;
@@ -116,7 +115,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 try {
                     float[] result = bench.scoreQueryMultipleRandom();
                     if (expected == null) {
-                        assert impl == VectorScorerInt7uBulkBenchmark.Implementation.LUCENE;
+                        assert impl == VectorImplementation.LUCENE;
                         expected = result;
                         continue;
                     }
@@ -133,8 +132,13 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            var params = VectorScorerInt7uBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
+            String[] dims = VectorScorerInt7uBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
+            String[] functions = VectorScorerInt7uBulkBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0].value();
+            return () -> Arrays.stream(dims)
+                .map(Integer::parseInt)
+                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
+
+                .iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
         }

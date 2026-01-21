@@ -304,17 +304,20 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         List<RateRange> allRates = allTimeseries.get(offset).stream().map(timeseries -> {
             timeseries = new ArrayList<>(timeseries); // Copy time series to add adjacent tuples without affecting results.
             timeseries.sort(Comparator.comparing(t -> t.v2().v1())); // Sort the timeseries by timestamp
+
+            boolean addedLowerBoundary = false;
+            boolean addedUpperBoundary = false;
             if (deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE)) {
                 if (offset > 0) {
                     var previousWindow = allTimeseries.get(offset - 1);
                     if (previousWindow.isEmpty() == false) {
-                        addBoundaryTuple(timeseries, previousWindow, true);
+                        addedLowerBoundary = addBoundaryTuple(timeseries, previousWindow, secondsInWindow, true);
                     }
                 }
                 if (offset < allTimeseries.size() - 1) {
                     var nextWindow = allTimeseries.get(offset + 1);
                     if (nextWindow.isEmpty() == false) {
-                        addBoundaryTuple(timeseries, nextWindow, false);
+                        addedUpperBoundary = addBoundaryTuple(timeseries, nextWindow, secondsInWindow, false);
                     }
                 }
             }
@@ -372,21 +375,23 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
                 lastValue = currentValue; // Update last value for next iteration
             }
-            if (deltaAgg.equals(DeltaAgg.INCREASE)) {
-                return new RateRange(
-                    counterGrowth * 0.5, // INCREASE is RATE multiplied by the window size
-                    // Upper bound is extrapolated to the window size
-                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.5
-                );
-            } else {
-                // TODO: get tighter bounds.
-                double smaller = Math.min(secondsInWindow, tsDurationSeconds);
-                double larger = Math.max(secondsInWindow, tsDurationSeconds);
-                double lowBound = counterGrowth / larger * 0.1;
-                if (lowBound < 1.0) {
-                    lowBound = 0.0;
+
+            // Account for extrapolation in case there are no adjacent buckets.
+            if (timeseries.size() > 2) {
+                if (addedLowerBoundary && addedUpperBoundary == false) {
+                    firstTs = timeseries.get(1).v2().v1();
+                } else if (addedLowerBoundary == false && addedUpperBoundary) {
+                    lastTs = timeseries.get(timeseries.size() - 2).v2().v1();
                 }
-                double highBound = counterGrowth / smaller * 4.0;
+                tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
+            }
+
+            if (deltaAgg.equals(DeltaAgg.INCREASE)) {
+                // TODO: get tighter bounds by applying interpolation instead of median between adjacent buckets
+                return new RateRange(counterGrowth * 0.9, counterGrowth * secondsInWindow / tsDurationSeconds * 1.1);
+            } else {
+                double lowBound = counterGrowth / secondsInWindow * 0.9;
+                double highBound = counterGrowth / tsDurationSeconds * 1.1;
                 return new RateRange(lowBound, highBound);
             }
         }).filter(Objects::nonNull).toList();
@@ -405,17 +410,25 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    private static void addBoundaryTuple(
+    private static boolean addBoundaryTuple(
         List<Tuple<String, Tuple<Instant, Double>>> timeseries,
         Collection<List<Tuple<String, Tuple<Instant, Double>>>> otherWindow,
+        int secondsInWindow,
         boolean isLowerBoundary
     ) {
         String timeseriesId = timeseries.getFirst().v1();
         var referenceTuple = isLowerBoundary ? timeseries.getFirst().v2() : timeseries.getLast().v2();
+        if (isLowerBoundary && referenceTuple.v1().toEpochMilli() % (secondsInWindow * 1000L) == 0) {
+            // The reference tuple is already on the boundary.
+            return true;
+        }
         Tuple<Instant, Double> otherTuple = null;
         long otherTimestamp = 0;
         for (var doc : otherWindow) {
             for (var tuple : doc) {
+                if (instantsInAdjacentWindows(tuple.v2().v1(), referenceTuple.v1(), secondsInWindow) == false) {
+                    return false;
+                }
                 String id = tuple.v1();
                 if (timeseriesId.equals(id)) {
                     long timestamp = tuple.v2().v1().toEpochMilli();
@@ -429,36 +442,66 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
         if (otherTuple != null) {
-            final long timeDelta = Math.abs(referenceTuple.v1().toEpochMilli() - otherTuple.v1().toEpochMilli());
             if (isLowerBoundary) {
-                final double valueDelta;
-                final double baseValue;
-                if (referenceTuple.v2() > otherTuple.v2()) {
-                    valueDelta = referenceTuple.v2() - otherTuple.v2();
-                    baseValue = otherTuple.v2();
-                } else {
-                    valueDelta = referenceTuple.v2();
-                    baseValue = 0;
-                }
-                var boundaryTuple = new Tuple<>(
-                    timeseriesId,
-                    new Tuple<>(otherTuple.v1().plusMillis(timeDelta / 2), baseValue + valueDelta / 2)
-                );
-                timeseries.addFirst(boundaryTuple);
+                var valueAtLowerBoundary = valueAtLowerBoundary(otherTuple, referenceTuple, secondsInWindow);
+                timeseries.addFirst(new Tuple<>(timeseriesId, valueAtLowerBoundary));
             } else {
-                final double valueDelta;
-                if (otherTuple.v2() > referenceTuple.v2()) {
-                    valueDelta = otherTuple.v2() - referenceTuple.v2();
-                } else {
-                    valueDelta = otherTuple.v2();
-                }
-                var boundaryTuple = new Tuple<>(
-                    timeseriesId,
-                    new Tuple<>(referenceTuple.v1().plusMillis(timeDelta / 2), referenceTuple.v2() + valueDelta / 2)
-                );
-                timeseries.addLast(boundaryTuple);
+                var valueAtUpperBoundary = valueAtUpperBoundary(referenceTuple, otherTuple, secondsInWindow);
+                timeseries.addLast(new Tuple<>(timeseriesId, valueAtUpperBoundary));
             }
+            return true;
         }
+        return false;
+    }
+
+    private static boolean instantsInAdjacentWindows(Instant first, Instant second, int secondsInWindow) {
+        long firstRounded = first.getEpochSecond() / secondsInWindow * secondsInWindow;
+        long secondRounded = second.getEpochSecond() / secondsInWindow * secondsInWindow;
+        long delta = Math.abs(firstRounded - secondRounded);
+        return delta == secondsInWindow;
+    }
+
+    private static Tuple<Instant, Double> valueAtLowerBoundary(
+        Tuple<Instant, Double> lowerTuple,
+        Tuple<Instant, Double> upperTuple,
+        int secondsInWindow
+    ) {
+        final double valueDelta;
+        final double baseValue;
+        if (upperTuple.v2() >= lowerTuple.v2()) {
+            valueDelta = upperTuple.v2() - lowerTuple.v2();
+            baseValue = lowerTuple.v2();
+        } else {
+            // Counter reset.
+            valueDelta = upperTuple.v2();
+            baseValue = 0;
+        }
+        // Interpolate between the two values to find the value at the boundary.
+        final double timeDelta = (upperTuple.v1().toEpochMilli() - lowerTuple.v1().toEpochMilli()) / 1000.0;
+        final double slope = valueDelta / timeDelta;
+        final long lowerBoundaryTimeSeconds = upperTuple.v1().getEpochSecond() / secondsInWindow * secondsInWindow;
+        final double lowerBoundaryValue = baseValue + slope * (lowerBoundaryTimeSeconds - lowerTuple.v1().toEpochMilli() / 1000.0);
+        return new Tuple<>(Instant.ofEpochSecond(lowerBoundaryTimeSeconds), lowerBoundaryValue);
+    }
+
+    private static Tuple<Instant, Double> valueAtUpperBoundary(
+        Tuple<Instant, Double> lowerTuple,
+        Tuple<Instant, Double> upperTuple,
+        int secondsInWindow
+    ) {
+        final double valueDelta;
+        if (upperTuple.v2() >= lowerTuple.v2()) {
+            valueDelta = upperTuple.v2() - lowerTuple.v2();
+        } else {
+            // Counter reset.
+            valueDelta = upperTuple.v2();
+        }
+        // Interpolate between the two values to find the value at the boundary.
+        final double timeDelta = (upperTuple.v1().toEpochMilli() - lowerTuple.v1().toEpochMilli()) / 1000.0;
+        final double slope = valueDelta / timeDelta;
+        final long upperBoundaryTimeSeconds = upperTuple.v1().getEpochSecond() / secondsInWindow * secondsInWindow;
+        final double upperBoundaryValue = lowerTuple.v2() + slope * (upperBoundaryTimeSeconds - lowerTuple.v1().toEpochMilli() / 1000.0);
+        return new Tuple<>(Instant.ofEpochSecond(upperBoundaryTimeSeconds), upperBoundaryValue);
     }
 
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
@@ -560,9 +603,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             Map<String, List<List<Object>>> rowsPerTimeseries = new HashMap<>();
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
+                String timeseriesId = getTimeseriesId(rowKey);
+                if (timeseriesId.isEmpty()) {
+                    continue;
+                }
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, metricName);
-                String timeseriesId = getTimeseriesId(rowKey);
                 docsPerWindowPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(docsPerTimeseries.values());
                 rowsPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(row);
             }
@@ -586,13 +632,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                                 + row
                                 + "\nWanted: "
                                 + rateAgg
+                                + "\nException: "
+                                + e.getMessage()
                                 + "\nRow times and values:\n\tTS:"
                                 + docsPerTimeseries.get(i)
                                     .stream()
                                     .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
                                     .collect(Collectors.joining("\n\tTS:"))
-                                + "\nException: "
-                                + e.getMessage()
                         );
                     }
                 }

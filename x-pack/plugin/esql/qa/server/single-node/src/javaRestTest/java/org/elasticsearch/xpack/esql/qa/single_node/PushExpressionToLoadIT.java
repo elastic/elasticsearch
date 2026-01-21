@@ -763,7 +763,12 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("drivers", instanceOf(List.class))
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
+                    .entry("parsing", matchesMap().extraOk())
+                    .entry("preanalysis", matchesMap().extraOk())
+                    .entry("dependency_resolution", matchesMap().extraOk())
+                    .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("field_caps_calls", instanceOf(Integer.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             columnMatcher,

@@ -390,11 +390,27 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
+    public XContentString optimizedText() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.optimizedText();
+    }
+
+    @Override
     public String textOrNull() throws IOException {
         if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.textOrNull();
+    }
+
+    @Override
+    public String text() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.text();
     }
 
     @Override

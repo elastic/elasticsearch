@@ -339,6 +339,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 scriptCompiler,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,
+                null,
                 null
             );
 

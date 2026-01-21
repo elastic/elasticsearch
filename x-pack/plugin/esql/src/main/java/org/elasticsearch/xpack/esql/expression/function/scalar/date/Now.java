@@ -42,7 +42,7 @@ public class Now extends EsqlConfigurationFunction {
     public Now(Source source, Configuration configuration) {
         super(source, List.of(), configuration);
         assert configuration.now() != null;
-        this.now = configuration.now().toInstant().toEpochMilli();
+        this.now = configuration.now().toEpochMilli();
     }
 
     private Now(StreamInput in) throws IOException {

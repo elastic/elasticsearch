@@ -42,6 +42,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -85,6 +86,10 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -98,9 +103,21 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
+/**
+ * Combines all components necessary for the coordinating node to plan and execute an ESQL query,
+ * including (pre-)analyzing, optimizing and running the physical plan.
+ * <p>
+ * In particular, this is where we perform remote calls to pre-analyze the query,
+ * that is, to resolve indices, enrich policies and their mappings.
+ * <p>
+ * Note that this is not a session in the traditional sense of a stateful connection. This will
+ * produce a single result set that is either returned to the user directly or stored for
+ * later retrieval if the query was async.
+ */
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
@@ -193,15 +210,24 @@ public class EsqlSession {
         PlanRunner planRunner,
         ActionListener<Versioned<Result>> listener
     ) {
+        executionInfo.planningProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
+        PlanningProfile.TimeSpanMarker parsingProfile = executionInfo.planningProfile().parsing();
+        parsingProfile.start();
         EsqlStatement statement = parse(request);
+        parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
+
+        ZoneId timeZone = request.timeZone() == null
+            ? statement.setting(QuerySettings.TIME_ZONE)
+            : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
+        Map<String, Object> approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
+
         Configuration configuration = new Configuration(
-            request.timeZone() == null
-                ? statement.setting(QuerySettings.TIME_ZONE)
-                : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone()),
+            timeZone,
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,
@@ -220,18 +246,18 @@ public class EsqlSession {
         );
         FoldContext foldContext = configuration.newFoldContext();
 
-        LogicalPlan plan = statement.plan();
-        if (plan instanceof Explain explain) {
+        if (statement.plan() instanceof Explain explain) {
             explainMode = true;
-            plan = explain.query();
-            parsedPlanString = plan.toString();
+            statement = new EsqlStatement(explain.query(), statement.settings());
+            parsedPlanString = explain.query().toString();
         }
+
         analyzedPlan(
-            plan,
+            statement,
             configuration,
             executionInfo,
             request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+            new EsqlCCSUtils.CssPartialErrorsActionListener(configuration, executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
                     assert ThreadPool.assertCurrentThreadPool(
@@ -431,7 +457,13 @@ public class EsqlSession {
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
+                                new Result(
+                                    finalResult.schema(),
+                                    finalResult.pages(),
+                                    configuration,
+                                    completionInfoAccumulator.finish(),
+                                    executionInfo
+                                )
                             );
                         })
                     );
@@ -566,7 +598,7 @@ public class EsqlSession {
     }
 
     public void analyzedPlan(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
@@ -574,11 +606,14 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        PlanningProfile.TimeSpanMarker preAnalysisProfile = executionInfo.planningProfile().preAnalysis();
+        preAnalysisProfile.start();
+        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed.plan());
+        preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed.plan(), preAnalysis.enriches().isEmpty() == false)
             .withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
@@ -595,7 +630,7 @@ public class EsqlSession {
     }
 
     private void resolveIndicesAndAnalyze(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         String description,
@@ -604,6 +639,8 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
+        PlanningProfile.TimeSpanMarker dependencyResolutionProfile = executionInfo.planningProfile().dependencyResolution();
+        dependencyResolutionProfile.start();
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -663,11 +700,12 @@ public class EsqlSession {
                 );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
-                inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
+                inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed.plan(), l.map(r::withInferenceResolution));
             })
-            .<Versioned<LogicalPlan>>andThen(
-                (l, r) -> analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l)
-            )
+            .<Versioned<LogicalPlan>>andThen((l, r) -> {
+                dependencyResolutionProfile.stop();
+                analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
+            })
             .addListener(logicalPlanListener);
     }
 
@@ -699,7 +737,8 @@ public class EsqlSession {
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        indexResolver.resolveIndices(
+        executionInfo.planningProfile().incFieldCapsCalls();
+        indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
@@ -961,7 +1000,8 @@ public class EsqlSession {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            indexResolver.resolveIndicesVersioned(
+            executionInfo.planningProfile().incFieldCapsCalls();
+            indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
@@ -1000,7 +1040,8 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        indexResolver.resolveFlatWorldIndicesVersioned(
+        executionInfo.planningProfile().incFieldCapsCalls();
+        indexResolver.resolveMainFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
             projectRouting,
             result.fieldNames,
@@ -1012,7 +1053,9 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
+                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(
                     result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
                 );
@@ -1032,7 +1075,7 @@ public class EsqlSession {
     }
 
     private void analyzeWithRetry(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         String description,
@@ -1052,7 +1095,10 @@ public class EsqlSession {
                     requestFilter != null
                 );
             }
+            PlanningProfile.TimeSpanMarker analysisProfile = executionInfo.planningProfile().analysis();
+            analysisProfile.start();
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
+            analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));
@@ -1091,11 +1137,16 @@ public class EsqlSession {
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    private LogicalPlan analyzedPlan(LogicalPlan parsed, Configuration configuration, PreAnalysisResult r, EsqlExecutionInfo executionInfo)
-        throws Exception {
+    private LogicalPlan analyzedPlan(
+        EsqlStatement parsed,
+        Configuration configuration,
+        PreAnalysisResult r,
+        EsqlExecutionInfo executionInfo
+    ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, r), verifier);
-        LogicalPlan plan = analyzer.analyze(parsed);
+        AnalyzerContext analyzerContext = new AnalyzerContext(configuration, functionRegistry, parsed.setting(UNMAPPED_FIELDS), r);
+        Analyzer analyzer = new Analyzer(analyzerContext, verifier);
+        LogicalPlan plan = analyzer.analyze(parsed.plan());
         plan.setAnalyzed();
         return plan;
     }

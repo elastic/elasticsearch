@@ -25,6 +25,7 @@ import java.util.Optional;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7u;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7uBulkWithOffsets;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistance7u;
+import static org.elasticsearch.simdvec.internal.Similarities.squareDistance7uBulkWithOffsets;
 
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -147,6 +148,26 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             int sqDist = squareDistance7u(query, getSegment(node), vectorByteSize);
             float adjustedDistance = sqDist * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
+        }
+
+        @Override
+        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
+            if (vectorsSeg == null) {
+                super.bulkScore(nodes, scores, numNodes);
+            } else {
+                var ordinalsSeg = MemorySegment.ofArray(nodes);
+                var scoresSeg = MemorySegment.ofArray(scores);
+
+                var vectorPitch = vectorByteSize + Float.BYTES;
+                squareDistance7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
+
+                for (int i = 0; i < numNodes; ++i) {
+                    var squareDistance = scores[i];
+                    float adjustedDistance = squareDistance * scoreCorrectionConstant;
+                    scores[i] = 1 / (1f + adjustedDistance);
+                }
+            }
         }
     }
 

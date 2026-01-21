@@ -251,6 +251,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
         this.projectRouting = searchRequest.projectRouting;
+        this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
     }
 
     /**

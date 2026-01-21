@@ -482,7 +482,10 @@ works in parallel with the storage engine.)
 
 ### Create a Shard
 
-### Local Recovery
+### Local Shards Recovery
+Local shards recovery is a type of recovery that reuses existing data from other shard(s) allocated on the current node (hence local shards). It is used exclusively to implement index [Shrink/Split/Clone APIs](#shrinksplitclone-index-apis).
+
+This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data from the source shard(s) directory. Copy is used if the runtime environment does not support hard links (e.g., on Windows). Source shard(s) directories are added using the `IndexWriter#addIndexes` API. Once an `IndexWriter` is correctly set up with source shard(s), the necessary data modifications are performed (like deleting excess documents during split) and a new commit is created for the recovering shard. After that recovery proceeds using standard store recovery logic utilizing the commit that was just created.
 
 ### Peer Recovery
 
@@ -876,3 +879,68 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 ### Closing a Shard
 
 (this can also happen during shard reallocation, right? This might be a standalone topic, or need another section about it in allocation?...)
+
+# Shrink/Split/Clone index APIs
+
+These APIs are used to create a new index that contains a copy of data from a provided index and differs in number of shards and/or index settings. They can only be executed against source indices that are marked read-only.
+
+The shrink API (`/{index}/_shrink/{target}`) creates an index that has fewer shards than the original index.
+
+The split API (`/{index}/_split/{target}`) creates an index that has more shards than the original index.
+
+The clone API (`/{index}/_clone/{target}`) creates an index that has the same number of shards as the original index but may have different index settings.
+
+The main implementation logic is centralized in `TransportResizeAction` however it only creates a new index in the cluster state using special `recoverFrom` and `resizeType` parameters. The entire workflow involves multiple components.
+
+The high level structure is the following:
+1. `TransportResizeAction` creates index metadata for the new index that contains information about the resize performed. It also creates a routing table for the new index which assigns a `LocalShardsRecoverySource.INSTANCE` recovery source to primary shards based on the resize information in the index metadata .
+2. Allocation logic allocates shards of the index so that they are on the same node as the corresponding shards of the source index. See `ResizeAllocationDecider`. Note that this doesn't work for shrink case since during shrink there are multiple source shards that are "merged" together. These source shards may be on different nodes already. Shard movement in this case needs to be performed manually.
+3. Primary shards perform [local shards recovery](#local-shards-recovery) using index metadata to know what type of resize operation is performed.
+
+# Health API
+
+The Health API (`GET /_health_report`) provides a structured health report for the cluster. It is indicator-based: each health indicator evaluates a specific aspect of cluster health (for example shard allocation or disk) and returns a status (`GREEN`, `YELLOW`, `RED`, or `UNKNOWN`) plus structured details, impacts, and diagnoses. The top-level status is derived from the worst indicator status.
+
+## Health node and data flow
+
+A health node is selected by the master node via a persistent task. The health node maintains a cache of per-node health information. Each node periodically publishes its local health info to the health node cache. That cached health info is then used as input to health indicators when evaluating the overall cluster health. If the health node fails or leaves the cluster, the master node selects a new health node.
+
+```
+Publish: LocalHealthMonitor (local node) -> UpdateHealthInfoCacheAction -> HealthInfoCache (health node)
+Retrieve: Health API (coordination node) -> FetchHealthInfoCacheAction -> HealthInfoCache (health node)
+```
+
+Relevant classes:
+- [HealthNodeTaskExecutor][HealthNodeTaskExecutor]: the persistent task executor that selects the health node.
+- [HealthInfoCache][HealthInfoCache]: contains the cached per-node health info on the health node.
+- [LocalHealthMonitor][LocalHealthMonitor]: monitors local health and publishes to the health node.
+- [HealthTracker][HealthTracker]: invoked by LocalHealthMonitor and tracks local health info on each node.
+
+## Health indicators
+
+There are two kinds of health indicators: preflight and regular. Preflight indicators run first; if any preflight indicator is not GREEN, regular indicators return UNKNOWN to avoid misleading results on an unstable cluster. Currently, the only preflight indicator is [StableMasterHealthIndicatorService][StableMasterHealthIndicatorService], which checks whether the cluster has a stable master node.
+
+Relevant classes:
+- [HealthIndicatorService][HealthIndicatorService]: the interface for health indicators.
+- [HealthService][HealthService]: orchestrates indicator evaluation.
+
+## Health periodic logger
+
+Cluster health status can be logged periodically by [HealthPeriodicLogger][HealthPeriodicLogger], which runs on the health node and calls [HealthService][HealthService] at a configured interval. It enables alerting on the health status.
+
+## Health metadata
+
+Some health configuration is stored in the cluster state [HealthMetadata][HealthMetadata]. It stores user-configurable health settings, such as disk watermark thresholds. The current master node publishes its settings to the cluster state so the same settings are used across nodes in the cluster.
+
+Relevant classes:
+[HealthMetadataService][HealthMetadataService]: runs on master node, publishes health metadata to the cluster state.
+
+[HealthService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/HealthService.java
+[HealthIndicatorService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/HealthIndicatorService.java
+[HealthInfoCache]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/HealthInfoCache.java
+[LocalHealthMonitor]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/LocalHealthMonitor.java
+[HealthPeriodicLogger]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/HealthPeriodicLogger.java
+[HealthTracker]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/tracker/HealthTracker.java
+[StableMasterHealthIndicatorService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/StableMasterHealthIndicatorService.java
+[HealthMetadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
+[HealthMetadataService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadataService.java

@@ -90,7 +90,18 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     private void indexDocs() throws IOException {
         Request putIndex = new Request("PUT", "/test");
         putIndex.setJsonEntity("""
-            {"settings":{"index":{"number_of_shards":3}}}""");
+            {
+              "settings": {
+                "index":{"number_of_shards":3}
+              },
+              "mappings":{
+                "properties": {
+                  "int": {"type": "integer"},
+                  "kw": {"type": "keyword"}
+                }
+              }
+            }
+            """);
         client().performRequest(putIndex);
 
         Request indexDocs = new Request("POST", "/test/_bulk");
@@ -101,7 +112,9 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         }
 
         indexDocs.setJsonEntity(bulk.toString());
-        client().performRequest(indexDocs);
+
+        Response result = client().performRequest(indexDocs);
+        assertThat(result.getStatusLine().getStatusCode(), Matchers.equalTo(200));
     }
 
     @SuppressWarnings("unchecked")

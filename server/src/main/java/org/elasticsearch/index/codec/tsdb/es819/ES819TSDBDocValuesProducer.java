@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -537,6 +538,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int uncompressedBlockLength = compressedData.readVInt();
 
             if (uncompressedBlockLength == 0) {
+                Arrays.fill(uncompressedDocStarts, 0);
                 return;
             }
 

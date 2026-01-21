@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -70,20 +69,24 @@ public class PromqlAstTests extends ESTestCase {
                 Literal now = new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME);
                 var plan = parser.createStatement(q, now, now, 0, 0);
                 log.trace("{}", plan);
-                List.of("PROMQL index=test step=1m (%s)", "PROMQL index=test step=1m foo=(%s)", "PROMQL index=test step=1m %s", "PROMQL %s")
-                    .forEach(pattern -> {
-                        var query = String.format(Locale.ROOT, pattern, q);
-                        LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
-                        assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
+                List.of(
+                    "PROMQL index=test start=0 end=1 step=1m (%s)",
+                    "PROMQL index=test start=0 end=1 step=1m foo=(%s)",
+                    "PROMQL index=test start=0 end=1 step=1m %s",
+                    "PROMQL %s"
+                ).forEach(pattern -> {
+                    var query = String.format(Locale.ROOT, pattern, q);
+                    LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
+                    assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
 
-                        LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
-                        Explain explain = explainPlan.collect(Explain.class).getFirst();
-                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                    LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
+                    Explain explain = explainPlan.collect(Explain.class).getFirst();
+                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
 
-                        explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
-                        explain = explainPlan.collect(Explain.class).getFirst();
-                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
-                    });
+                    explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
+                    explain = explainPlan.collect(Explain.class).getFirst();
+                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                });
             } catch (ParsingException pe) {
                 fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));
             } catch (Exception e) {
@@ -93,21 +96,19 @@ public class PromqlAstTests extends ESTestCase {
     }
 
     public void testUnsupportedQueries() throws Exception {
+        PromqlParser parser = new PromqlParser();
         List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
                 log.trace("Testing invalid query {}", q);
-                PromqlParser parser = new PromqlParser();
-                Exception pe = expectThrowsAnyOf(
-                    asList(QlClientException.class, UnsupportedOperationException.class),
-                    () -> parser.createStatement(q)
-                );
                 parser.createStatement(q);
-                log.trace("{}", pe.getMessage());
             } catch (QlClientException | UnsupportedOperationException ex) {
                 // Expected
+                log.trace("{}", ex.getMessage());
+                continue;
             }
+            fail("Expected exception for line " + line.v2() + ": [" + q + "] but none was thrown");
         }
     }
 

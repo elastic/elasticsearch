@@ -17,6 +17,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
+import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 
@@ -33,8 +34,17 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable ChunkScorerConfig chunkScorerConfig) {
         super(field);
         this.chunkScorerConfig = chunkScorerConfig;
-        chunkingSettings = chunkScorerConfig != null ? chunkScorerConfig.chunkingSettings() : null;
-        chunker = chunkingSettings != null ? ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy()) : null;
+        if (chunkScorerConfig != null) {
+            if (chunkScorerConfig.chunkingSettings() == null) {
+                throw new IllegalStateException("Chunking settings must be resolved before shard execution");
+            }
+            this.chunkingSettings = chunkScorerConfig.chunkingSettings();
+
+            this.chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
+        } else {
+            this.chunkingSettings = null;
+            this.chunker = null;
+        }
     }
 
     @Override
@@ -52,15 +62,9 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         .map(offset -> { return docField.getValue().toString().substring(offset.start(), offset.end()); })
                         .toList();
 
-                    List<String> bestChunks;
                     MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-                    List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
-                        chunks,
-                        chunkScorerConfig.inferenceText(),
-                        size,
-                        true
-                    );
-                    bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(size).toList();
+                    List<ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, chunkScorerConfig.inferenceText(), size, true);
+                    List<String> bestChunks = scoredChunks.stream().map(ScoredChunk::content).limit(size).toList();
                     rankFeatureDocs[i].featureData(bestChunks);
 
                 } else {

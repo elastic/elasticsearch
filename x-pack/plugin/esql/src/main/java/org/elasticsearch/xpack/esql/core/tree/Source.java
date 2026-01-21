@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,12 +33,7 @@ public final class Source implements Writeable {
         this.text = text;
     }
 
-    public static <S extends StreamInput & PlanStreamInput> Source readFrom(S in) throws IOException {
-        /*
-         * The funny typing dance with `<S extends...>` is required we're in esql-core
-         * here and the real PlanStreamInput is in esql-proper. And we need PlanStreamInput
-         * to send the query one time.
-         */
+    public static Source readFrom(PlanStreamInput in) throws IOException {
         if (in.readBoolean() == false) {
             return EMPTY;
         }

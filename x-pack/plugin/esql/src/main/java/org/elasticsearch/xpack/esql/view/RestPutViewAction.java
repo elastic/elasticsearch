@@ -19,11 +19,14 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutViewAction extends BaseRestHandler {
+    private static final String VIEW_INDEX_ABSTRACTION = "view_index_abstraction";
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(PUT, "/_query/view/{name}"));
@@ -44,5 +47,10 @@ public class RestPutViewAction extends BaseRestHandler {
             );
             return channel -> client.execute(PutViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(VIEW_INDEX_ABSTRACTION);
     }
 }

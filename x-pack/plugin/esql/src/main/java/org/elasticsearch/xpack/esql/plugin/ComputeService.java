@@ -34,6 +34,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -279,7 +280,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     finalListener.map(profiles -> {
                         execInfo.markEndQuery();
-                        return new Result(mainPlan.output(), collectedPages, profiles, execInfo);
+                        return new Result(mainPlan.output(), collectedPages, configuration, profiles, execInfo);
                     })
                 )
             ) {
@@ -382,7 +383,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     listener.map(completionInfo -> {
                         updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(physicalPlan.output(), collectedPages, completionInfo, execInfo);
+                        return new Result(physicalPlan.output(), collectedPages, configuration, completionInfo, execInfo);
                     })
                 )
             ) {
@@ -419,7 +420,7 @@ public class ComputeService {
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
+                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
                 })
             )
         ) {
@@ -582,7 +583,8 @@ public class ComputeService {
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         execInfo.markEndQuery();
         if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && execInfo.isMainPlan()) {
-            assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
+            assert execInfo.planningProfile().planning().timeTook() != null
+                : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook());
@@ -670,10 +672,12 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
+            List<SearchExecutionContext> localContexts = new ArrayList<>();
+            context.searchExecutionContexts().iterable().forEach(localContexts::add);
             var localPlan = PlannerUtils.localPlan(
                 plannerSettings,
                 context.flags(),
-                new ArrayList<>(context.searchExecutionContexts().collection()),
+                localContexts,
                 context.configuration(),
                 context.foldCtx(),
                 plan,
@@ -696,7 +700,7 @@ public class ComputeService {
             // safely decrement the reference count so only the source operators and doc vectors control when these will be released.
             // Note that only the data drivers will increment the reference count when created, hence the if below.
             if (context.description().equals(DATA_DESCRIPTION)) {
-                shardContexts.collection().forEach(RefCounted::decRef);
+                shardContexts.iterable().forEach(RefCounted::decRef);
             }
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
@@ -710,7 +714,7 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
-            Releasables.close(context.searchContexts().collection());
+            Releasables.close(context.searchContexts().iterable());
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }

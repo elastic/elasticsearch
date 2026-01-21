@@ -349,7 +349,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             try {
                 run(state.projectState(projectId));
             } catch (Exception e) {
-                logger.error(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+                logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
             }
         }
     }
@@ -400,7 +400,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             } catch (Exception e) {
                 // individual index errors would be reported via the API action listener for every delete call
                 // we could potentially record errors at a data stream level and expose it via the _data_stream API?
-                logger.error(
+                logger.warn(
                     () -> String.format(
                         Locale.ROOT,
                         "Data stream lifecycle failed to execute retention for data stream [%s]",
@@ -415,7 +415,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     maybeExecuteForceMerge(project, getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, true))
                 );
             } catch (Exception e) {
-                logger.error(
+                logger.warn(
                     () -> String.format(
                         Locale.ROOT,
                         "Data stream lifecycle failed to execute force merge for data stream [%s]",
@@ -434,7 +434,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     )
                 );
             } catch (Exception e) {
-                logger.error(
+                logger.warn(
                     () -> String.format(
                         Locale.ROOT,
                         "Data stream lifecycle failed to execute downsampling for data stream [%s]",
@@ -899,7 +899,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
         } catch (Exception e) {
-            logger.error(
+            logger.warn(
                 () -> String.format(
                     Locale.ROOT,
                     "Data stream lifecycle encountered an error trying to roll over%s data stream [%s]",
@@ -1478,11 +1478,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         ErrorEntry previousError = errorStore.recordError(projectId, targetIndex, e);
         ErrorEntry currentError = errorStore.getError(projectId, targetIndex);
         if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
-            logger.error(logMessage, e);
+            logger.warn(logMessage, e);
         } else {
             if (currentError != null) {
                 if (currentError.retryCount() % signallingErrorRetryThreshold == 0) {
-                    logger.error(
+                    logger.warn(
                         String.format(
                             Locale.ROOT,
                             "%s\nFailing since [%d], operation retried [%d] times",

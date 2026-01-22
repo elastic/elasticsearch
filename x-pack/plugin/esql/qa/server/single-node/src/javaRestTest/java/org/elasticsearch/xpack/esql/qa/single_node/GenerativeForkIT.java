@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeForkRestTest;
 import org.junit.ClassRule;
 
+import java.util.Set;
+
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GenerativeForkIT extends GenerativeForkRestTest {
     @ClassRule
@@ -48,5 +50,19 @@ public class GenerativeForkIT extends GenerativeForkRestTest {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return cluster.getNumNodes() == 1;
+    }
+
+    private static final Set<String> LOOKUP_MULTIPLE_BATCHES = Set.of(
+        "MultipleBatchesWithMvExpand",
+        "MultipleBatchesWithAggregate1",
+        "MultipleBatchesWithSort",
+        "MultipleBatchesWithAggregate2",
+        "MultipleBatchesWithAggregate3"
+    );
+
+    // Some tests will fail if views are defined (notably tests with `FROM *` which are non-deterministic)
+    @Override
+    protected boolean shouldRemoveViews(String testName) {
+        return super.shouldRemoveViews(testName) || LOOKUP_MULTIPLE_BATCHES.stream().anyMatch(testName::contains);
     }
 }

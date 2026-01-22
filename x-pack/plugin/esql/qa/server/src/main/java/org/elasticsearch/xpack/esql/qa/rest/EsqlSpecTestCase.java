@@ -264,7 +264,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    private static final Set<String> FROM_STAR_TESTS = Set.of("FieldsInOtherIndicesBug", "EnrichLookupStatsBug");
+    private static final Set<String> FROM_STAR_TESTS = Set.of(
+        "FieldsInOtherIndicesBug",
+        "EnrichLookupStatsBug",
+        "InlineStatsAfterPruningAggregate6"
+    );
 
     private static final Set<String> AIRPORTS_STAR_TESTS = Set.of("LucenePushdownMixOrAnd", "LucenePushdownMultipleIndices");
 

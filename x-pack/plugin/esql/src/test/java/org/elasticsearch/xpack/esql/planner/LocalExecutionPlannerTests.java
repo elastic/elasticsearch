@@ -285,7 +285,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             10_000,
             ByteSizeValue.ofMb(1)
         );
-v        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
             plannerSettings,

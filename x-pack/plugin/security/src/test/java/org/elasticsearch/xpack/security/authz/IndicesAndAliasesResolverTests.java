@@ -3580,7 +3580,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolved.expressions(), contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS)));
     }
 
-   public void testCpsResolveExplicitHiddenIndexUsingConcreteExpression() {
+    public void testCpsResolveExplicitHiddenIndexUsingConcreteExpression() {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
         var targetIndex = randomFrom("hidden-open", "hidden-closed");
         var request = new SearchRequest().indices(targetIndex);

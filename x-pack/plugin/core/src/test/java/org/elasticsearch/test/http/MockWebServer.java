@@ -137,6 +137,10 @@ public class MockWebServer implements Closeable {
             try {
                 MockResponse response = responses.poll();
                 MockRequest request = createRequest(s);
+
+                // Update the response body based on the request if a body generator function was specified in the response
+                response.setBodyFromRequest(request);
+
                 requests.add(request);
 
                 if (logger.isDebugEnabled()) {
@@ -345,6 +349,9 @@ public class MockWebServer implements Closeable {
      */
     private String getStartOfBody(MockResponse response) {
         if (Strings.isEmpty(response.getBody())) {
+            if (response.getBodyGenerator() != null) {
+                return "response body not set until request made";
+            }
             return "";
         }
         int length = Math.min(20, response.getBody().length());

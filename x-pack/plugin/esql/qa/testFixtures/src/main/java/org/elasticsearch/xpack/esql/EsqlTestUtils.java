@@ -526,7 +526,7 @@ public final class EsqlTestUtils {
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     public static TransportVersion randomMinimumVersion() {
-        return TransportVersionUtils.randomCompatibleVersion(ESTestCase.random());
+        return TransportVersionUtils.randomCompatibleVersion();
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -592,6 +592,7 @@ public final class EsqlTestUtils {
     public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
         DataPartitioning.AUTO,
         ByteSizeValue.ofMb(1),
+        ByteSizeValue.ofMb(2),
         10_000,
         ByteSizeValue.ofMb(1)
     );

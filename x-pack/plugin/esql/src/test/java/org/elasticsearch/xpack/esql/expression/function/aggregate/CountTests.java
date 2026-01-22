@@ -60,7 +60,8 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.tdigestCases(1, 1000)
+            MultiRowTestCaseSupplier.tdigestCases(1, 1000),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -72,10 +73,12 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.DATETIME,
             DataType.DATE_NANOS,
             DataType.DENSE_VECTOR,
+            DataType.EXPONENTIAL_HISTOGRAM,
             DataType.BOOLEAN,
             DataType.IP,
             DataType.VERSION,
             DataType.KEYWORD,
+            DataType.TDIGEST,
             DataType.TEXT,
             DataType.GEO_POINT,
             DataType.CARTESIAN_POINT,

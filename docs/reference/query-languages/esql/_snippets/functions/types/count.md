@@ -12,6 +12,7 @@
 | date_nanos | long |
 | dense_vector | long |
 | double | long |
+| exponential_histogram | long |
 | geo_point | long |
 | geo_shape | long |
 | geohash | long |

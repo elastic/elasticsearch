@@ -85,6 +85,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "exponential_histogram",
                 "date",
                 "date_nanos",
                 "dense_vector",
@@ -159,12 +160,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         return isType(
             field(),
             dt -> dt.isCounter() == false
-                && dt != DataType.EXPONENTIAL_HISTOGRAM
                 && dt != DataType.HISTOGRAM
                 && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types, histogram, exponential_histogram, or date_range"
+            "any type except counter types, histogram, or date_range"
         );
     }
 
@@ -182,8 +182,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             );
         }
 
-        // if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
-        if (field.dataType() == DataType.TDIGEST) {
+        if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
             return new ToLong(s, new Sum(
                 s,
                 ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.COUNT),

@@ -87,7 +87,7 @@ class EntitlementsTestRule implements TestRule {
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir.getRoot().toPath()))
             // uncheck this if you encounter a VerifyError
-            //.jvmArg("-Xlog:verification")
+            // .jvmArg("-Xlog:verification")
             .setting("xpack.security.enabled", "false")
             // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
             // .setting("logger.org.elasticsearch.entitlement", "DEBUG")

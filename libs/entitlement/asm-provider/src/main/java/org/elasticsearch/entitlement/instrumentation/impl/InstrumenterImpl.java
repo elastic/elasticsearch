@@ -40,7 +40,9 @@ import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
 import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
+import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
+import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
 public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
@@ -252,7 +254,30 @@ public final class InstrumenterImpl implements Instrumenter {
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
             this.instrumentedMethodIsCtor = instrumentedMethodIsCtor;
             this.instrumentedMethodDescriptor = instrumentedMethodDescriptor;
-            this.checkMethod = checkMethod;
+            if ("check$java_lang_ProcessBuilder$start".equals(checkMethod.methodName())) {
+                this.checkMethod = CheckMethod.checkedException(
+                    checkMethod.className(),
+                    checkMethod.methodName(),
+                    checkMethod.parameterDescriptors(),
+                    IOException.class
+                );
+            } else if ("check$java_nio_file_Files$$exists".equals(checkMethod.methodName())) {
+                this.checkMethod = CheckMethod.constantValue(
+                    checkMethod.className(),
+                    checkMethod.methodName(),
+                    checkMethod.parameterDescriptors(),
+                    false
+                );
+            } else if ("check$java_net_URLConnection$getHeaderFieldInt".equals(checkMethod.methodName())) {
+                this.checkMethod = CheckMethod.parameterValue(
+                    checkMethod.className(),
+                    checkMethod.methodName(),
+                    checkMethod.parameterDescriptors(),
+                    3
+                );
+            } else {
+                this.checkMethod = checkMethod;
+            }
         }
 
         @Override
@@ -268,7 +293,11 @@ public final class InstrumenterImpl implements Instrumenter {
             pushEntitlementChecker();
             pushCallerClass();
             forwardIncomingArguments();
-            invokeInstrumentationMethod();
+            if (checkMethod.checkMethodType() == CheckMethod.CheckMethodType.NOT_ENTITLED) {
+                invokeInstrumentationMethod();
+            } else {
+                catchNotEntitled();
+            }
             super.visitCode();
         }
 
@@ -310,42 +339,96 @@ public final class InstrumenterImpl implements Instrumenter {
             }
         }
 
-        private void invokeInstrumentationMethod() {
-            if ("check$java_nio_file_Files$$exists".equals(checkMethod.methodName())) {
-                Label tryStart = new Label();
-                Label tryEnd = new Label();
-                Label catchStart = new Label();
-                Label catchEnd = new Label();
-                mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "java/security/AccessControlException");
-                mv.visitLabel(tryStart);
-                mv.visitMethodInsn(
-                    INVOKEINTERFACE,
-                    checkMethod.className(),
-                    checkMethod.methodName(),
-                    Type.getMethodDescriptor(
-                        Type.VOID_TYPE,
-                        checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
-                    ),
-                    true
-                );
-                mv.visitLabel(tryEnd);
-                mv.visitJumpInsn(Opcodes.GOTO, catchEnd);
-                mv.visitLabel(catchStart);
-                mv.visitInsn(Opcodes.ICONST_0);
-                mv.visitInsn(Opcodes.IRETURN);
-                mv.visitLabel(catchEnd);
+        private void catchNotEntitled() {
+            Label tryStart = new Label();
+            Label tryEnd = new Label();
+            Label catchStart = new Label();
+            Label catchEnd = new Label();
+            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "java/security/AccessControlException");
+            mv.visitLabel(tryStart);
+            invokeInstrumentationMethod();
+            mv.visitLabel(tryEnd);
+            mv.visitJumpInsn(Opcodes.GOTO, catchEnd);
+            mv.visitLabel(catchStart);
+            if (checkMethod.checkMethodType() == CheckMethod.CheckMethodType.CHECKED_EXCEPTION) {
+                wrapWithCheckedException();
+            } else if (checkMethod.checkMethodType() == CheckMethod.CheckMethodType.CONSTANT_VALUE) {
+                returnConstantValue();
+            } else if (checkMethod.checkMethodType() == CheckMethod.CheckMethodType.PARAMETER_VALUE) {
+                returnParameterValue();
             } else {
-                mv.visitMethodInsn(
-                    INVOKEINTERFACE,
-                    checkMethod.className(),
-                    checkMethod.methodName(),
-                    Type.getMethodDescriptor(
-                        Type.VOID_TYPE,
-                        checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
-                    ),
-                    true
-                );
+                throw new IllegalStateException("unexpected check method type [" + checkMethod.checkMethodType() + "]");
             }
+            mv.visitLabel(catchEnd);
+        }
+
+        private void wrapWithCheckedException() {
+            mv.visitTypeInsn(Opcodes.NEW, Type.getType(checkMethod.checked()).getInternalName());
+            mv.visitInsn(Opcodes.DUP_X1);
+            mv.visitInsn(Opcodes.SWAP);
+            mv.visitInsn(Opcodes.DUP);
+            mv.visitLdcInsn("not entitled: ");
+            mv.visitInsn(Opcodes.SWAP);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Exception", "getMessage", "()Ljava/lang/String;", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "concat", "(Ljava/lang/String;)Ljava/lang/String;", false);
+            mv.visitInsn(Opcodes.SWAP);
+            mv.visitMethodInsn(
+                INVOKESPECIAL,
+                Type.getType(checkMethod.checked()).getInternalName(),
+                "<init>",
+                "(Ljava/lang/String;Ljava/lang/Throwable;)V",
+                false
+            );
+            mv.visitInsn(Opcodes.ATHROW);
+        }
+
+        private void returnConstantValue() {
+            Object constant = checkMethod.constant();
+            if (constant == null) {
+                mv.visitInsn(Opcodes.ACONST_NULL);
+                mv.visitInsn(Opcodes.ARETURN);
+            } else {
+                mv.visitLdcInsn(constant);
+                if (constant instanceof String) {
+                    mv.visitInsn(Opcodes.ARETURN);
+                } else if (constant instanceof Double) {
+                    mv.visitInsn(Opcodes.DRETURN);
+                } else if (constant instanceof Float) {
+                    mv.visitInsn(Opcodes.FRETURN);
+                } else if (constant instanceof Long) {
+                    mv.visitInsn(Opcodes.LRETURN);
+                } else if (constant instanceof Integer
+                    || constant instanceof Character
+                    || constant instanceof Short
+                    || constant instanceof Byte
+                    || constant instanceof Boolean) {
+                        mv.visitInsn(Opcodes.IRETURN);
+                    } else {
+                        throw new IllegalStateException("unexpected check method constant [" + checkMethod.constant() + "]");
+                    }
+            }
+        }
+
+        private void returnParameterValue() {
+            Type type = Type.getType(checkMethod.parameterDescriptors().get(checkMethod.parameter()));
+            mv.visitVarInsn(
+                type.getOpcode(Opcodes.ILOAD),
+                checkMethod.parameter() - (instrumentedMethodIsCtor || instrumentedMethodIsStatic ? 2 : 1)
+            );
+            mv.visitInsn(type.getOpcode(Opcodes.IRETURN));
+        }
+
+        private void invokeInstrumentationMethod() {
+            mv.visitMethodInsn(
+                INVOKEINTERFACE,
+                checkMethod.className(),
+                checkMethod.methodName(),
+                Type.getMethodDescriptor(
+                    Type.VOID_TYPE,
+                    checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
+                ),
+                true
+            );
         }
     }
 

@@ -198,16 +198,19 @@ public class IndexAbstractionResolver {
             } else {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
-                    final boolean visible = indexExists(projectMetadata, indexAbstraction)
-                        && isIndexVisible(
-                            indexAbstraction,
-                            selectorString,
-                            indexAbstraction,
-                            indicesOptions,
-                            projectMetadata,
-                            indexNameExpressionResolver,
-                            includeDataStreams
-                        );
+                    boolean visible = indexExists(projectMetadata, indexAbstraction);
+                    if (visible) {
+                        try {
+                            visible = indexNameExpressionResolver.concreteIndexNames(
+                                projectMetadata,
+                                indicesOptions,
+                                includeDataStreams,
+                                indexAbstraction
+                            ).length != 0;
+                        } catch (Exception e) {
+                            visible = false;
+                        }
+                    }
                     final LocalIndexResolutionResult result = visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE;
                     resolvedExpressionsBuilder.addExpressions(originalIndexExpression, resolvedIndices, result, remoteExpressions);
                 } else if (indicesOptions.ignoreUnavailable()) {
@@ -278,6 +281,8 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
+        assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
+
         IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
@@ -365,19 +370,14 @@ public class IndexAbstractionResolver {
             }
         }
 
-        if (Regex.isSimpleMatchPattern(expression)) {
-            IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
-                return true;
-            }
-            if (indexMetadata.getState() == IndexMetadata.State.OPEN && indicesOptions.expandWildcardsOpen()) {
-                return true;
-            }
-            return false;
-        } else {
-            // for concrete expressions, i.e. no wildcards, don't check wildcard options as they aren't relevant
+        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
+        if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }
+        if (indexMetadata.getState() == IndexMetadata.State.OPEN && indicesOptions.expandWildcardsOpen()) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean isSystemIndexVisible(IndexNameExpressionResolver resolver, IndexAbstraction indexAbstraction) {

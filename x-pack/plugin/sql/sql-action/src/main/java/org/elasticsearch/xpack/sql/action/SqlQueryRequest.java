@@ -69,6 +69,10 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
         PARSER.declareBoolean((r, v) -> {
+            /*
+             * We don't plan to remove this no matter how few folks use it to make sure
+             * we don't break anyone.
+             */
             DEPRECATION_LOGGER.warn(DeprecationCategory.API, "sql_index_include_frozen", INDEX_INCLUDE_FROZEN_DEPRECATION_MESSAGE);
             r.indexIncludeFrozen(v);
         }, INDEX_INCLUDE_FROZEN);

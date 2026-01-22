@@ -444,7 +444,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             );
             fields.add(
                 new ValuesSourceReaderOperator.FieldInfo(
-                    extractField.name(),
+                    fieldName,
                     PlannerUtils.toElementType(extractField.dataType()),
                     false,
                     shardIdx -> {
@@ -475,7 +475,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * Extracts field name from a NamedExpression, handling FieldAttribute and Alias cases.
      * For Alias, recursively extracts the field name from the child expression.
      */
-    private static String extractFieldName(NamedExpression extractField) {
+    public static String extractFieldName(NamedExpression extractField) {
         return extractField instanceof FieldAttribute fa ? fa.fieldName().string()
             : extractField instanceof Alias a ? extractFieldName((NamedExpression) a.child())
             : extractField.name();

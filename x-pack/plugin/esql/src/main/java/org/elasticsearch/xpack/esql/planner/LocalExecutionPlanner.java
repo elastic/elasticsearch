@@ -856,6 +856,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
+        return planProject(project, source);
+    }
+
+    public static PhysicalOperation planProject(ProjectExec project, PhysicalOperation source) {
         List<? extends NamedExpression> projections = project.projections();
         List<Integer> projectionList = new ArrayList<>(projections.size());
 

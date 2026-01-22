@@ -517,17 +517,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         // Add FieldExtractExec if we have extract fields
         if (request.extractFields.isEmpty() == false) {
-            List<Attribute> extractAttributes = new ArrayList<>();
-            for (NamedExpression extractField : request.extractFields) {
-                if (extractField instanceof FieldAttribute fieldAttribute) {
-                    extractAttributes.add(fieldAttribute);
-                } else {
-                    throw new EsqlIllegalArgumentException(
-                        "Expected extract field to be a FieldAttribute but found [{}]",
-                        extractField.getClass().getSimpleName()
-                    );
-                }
-            }
+            List<Attribute> extractAttributes = request.extractFields.stream()
+                .<Attribute>map(LookupFromIndexService::getExtractFieldAttribute)
+                .toList();
             plan = new FieldExtractExec(request.source, plan, extractAttributes, MappedFieldType.FieldExtractPreference.NONE);
         }
 
@@ -596,5 +588,18 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 listener.onFailure(e);
             }
         });
+    }
+
+    /**
+     * Extracts a FieldAttribute from a NamedExpression, throwing an exception if it's not a FieldAttribute.
+     */
+    private static FieldAttribute getExtractFieldAttribute(NamedExpression extractField) {
+        if (extractField instanceof FieldAttribute fieldAttribute) {
+            return fieldAttribute;
+        }
+        throw new EsqlIllegalArgumentException(
+            "Expected extract field to be a FieldAttribute but found [{}]",
+            extractField.getClass().getSimpleName()
+        );
     }
 }

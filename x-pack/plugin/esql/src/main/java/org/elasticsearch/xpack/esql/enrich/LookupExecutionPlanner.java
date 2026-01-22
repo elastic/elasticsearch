@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -21,7 +22,6 @@ import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.OutputOperator.CollectedPagesProvider;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
-import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
@@ -35,11 +35,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -50,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -244,6 +242,7 @@ public class LookupExecutionPlanner {
         if (node instanceof UnaryExec unaryExec) {
             source = planLookupNode(unaryExec.child(), request, optimizationState);
         } else {
+            // there could be a leaf node such as ParameterizedQueryExec
             source = null;
         }
 
@@ -261,9 +260,6 @@ public class LookupExecutionPlanner {
         }
     }
 
-    /**
-     * Plans ParameterizedQueryExec into a PhysicalOperation with EnrichQuerySourceOperatorFactory.
-     */
     private PhysicalOperation planParameterizedQueryExec(
         ParameterizedQueryExec parameterizedQueryExec,
         BlockOptimization optimizationState
@@ -281,12 +277,7 @@ public class LookupExecutionPlanner {
         );
     }
 
-    /**
-     * Plans FieldExtractExec into a PhysicalOperation with ValuesSourceReaderOperatorFactory.
-     */
     private PhysicalOperation planFieldExtractExec(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
-        // Store field information instead of creating BlockLoader here (phase 2)
-        // BlockLoader will be created dynamically in phase 3 using fresh shardContext
         List<Attribute> attributesToExtract = fieldExtractExec.attributesToExtract();
 
         Layout.Builder layoutBuilder = new Layout.Builder();
@@ -295,9 +286,13 @@ public class LookupExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
+        // Determine the doc channel from the source layout
+        Attribute sourceAttr = fieldExtractExec.sourceAttribute();
+        int docChannel = source.layout().get(sourceAttr.id()).channel();
+
         // Create a factory that builds ShardContext and BlockLoader dynamically from LookupDriverContext
         // to avoid caching stale IndexReader references when PhysicalOperation is cached
-        org.elasticsearch.common.unit.ByteSizeValue jumboSize = org.elasticsearch.common.unit.ByteSizeValue.ofBytes(Long.MAX_VALUE);
+        ByteSizeValue jumboSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
         return source.with(new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
@@ -310,7 +305,7 @@ public class LookupExecutionPlanner {
                 for (Attribute attr : attributesToExtract) {
                     NamedExpression extractField = (NamedExpression) attr;
                     BlockLoader loader = esShardContext.blockLoader(
-                        extractFieldName(extractField),
+                        AbstractLookupService.extractFieldName(extractField),
                         extractField.dataType() == DataType.UNSUPPORTED,
                         MappedFieldType.FieldExtractPreference.NONE,
                         null
@@ -337,7 +332,13 @@ public class LookupExecutionPlanner {
                         EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
                     )
                 );
-                return new ValuesSourceReaderOperator(driverContext.blockFactory(), jumboSize.getBytes(), fields, shardContexts, 0);
+                return new ValuesSourceReaderOperator(
+                    driverContext.blockFactory(),
+                    jumboSize.getBytes(),
+                    fields,
+                    shardContexts,
+                    docChannel
+                );
             }
 
             @Override
@@ -363,26 +364,8 @@ public class LookupExecutionPlanner {
         }, layout);
     }
 
-    /**
-     * Plans ProjectExec into a PhysicalOperation with ProjectOperatorFactory.
-     * Uses the same logic as LocalExecutionPlanner.planProject: looks up each projection's
-     * NameId in the source layout to find the corresponding channel.
-     */
     private PhysicalOperation planProjectExec(ProjectExec projectExec, PhysicalOperation source) {
-        List<? extends NamedExpression> projections = projectExec.projections();
-        List<Integer> projectionList = new ArrayList<>(projections.size());
-
-        Layout.Builder layout = new Layout.Builder();
-        for (NamedExpression ne : projections) {
-            NameId inputId = ne instanceof Alias a ? ((NamedExpression) a.child()).id() : ne.id();
-            Layout.ChannelAndType input = source.layout().get(inputId);
-            if (input == null) {
-                throw new EsqlIllegalArgumentException("can't find input for [{}]", ne);
-            }
-            layout.append(ne);
-            projectionList.add(input.channel());
-        }
-        return source.with(new ProjectOperator.ProjectOperatorFactory(projectionList), layout.build());
+        return LocalExecutionPlanner.planProject(projectExec, source);
     }
 
     /**
@@ -394,10 +377,6 @@ public class LookupExecutionPlanner {
         return source.withSink(new OutputOperatorFactory(Expressions.names(output), Function.identity(), page -> {}), source.layout());
     }
 
-    /**
-     * Factory for EnrichQuerySourceOperator.
-     * Creates optimized page when needed (DICTIONARY state) during operator creation.
-     */
     private record EnrichQuerySourceOperatorFactory(int maxPageSize, BlockOptimization blockOptimization, int shardId)
         implements
             SourceOperatorFactory {
@@ -410,7 +389,6 @@ public class LookupExecutionPlanner {
             Page inputPage = lookupDriverContext.inputPage();
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
-            // Create warnings here when creating the operator from the factory
             Warnings warnings = Warnings.createWarnings(
                 DriverContext.WarningsMode.COLLECT,
                 lookupDriverContext.request().source.source().getLineNumber(),
@@ -418,7 +396,6 @@ public class LookupExecutionPlanner {
                 lookupDriverContext.request().source.text()
             );
 
-            // Create queryList when creating the operator from the factory
             LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()
                 .create(lookupDriverContext.request(), searchExecutionContext, lookupDriverContext.aliasFilter(), warnings);
 
@@ -439,15 +416,6 @@ public class LookupExecutionPlanner {
         public String describe() {
             return "EnrichQuerySourceOperator[maxPageSize=" + maxPageSize + "]";
         }
-    }
-
-    /**
-     * Extracts field name from a NamedExpression, handling FieldAttribute and Alias cases.
-     */
-    private String extractFieldName(NamedExpression extractField) {
-        return extractField instanceof FieldAttribute fa ? fa.fieldName().string()
-            : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
-            : extractField.name();
     }
 
 }

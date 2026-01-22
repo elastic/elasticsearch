@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -88,14 +87,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(totalMarker.timeSpan);
-        out.writeOptionalWriteable(planningMarker.timeSpan);
+        out.writeOptionalWriteable(totalMarker.timeSpan());
+        out.writeOptionalWriteable(planningMarker.timeSpan());
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
             && out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
-            out.writeOptionalWriteable(parsingMarker == null ? null : parsingMarker.timeSpan);
-            out.writeOptionalWriteable(preAnalysisMarker == null ? null : preAnalysisMarker.timeSpan);
-            out.writeOptionalWriteable(dependencyResolutionMarker == null ? null : dependencyResolutionMarker.timeSpan);
-            out.writeOptionalWriteable(analysisMarker == null ? null : analysisMarker.timeSpan);
+            out.writeOptionalWriteable(parsingMarker == null ? null : parsingMarker.timeSpan());
+            out.writeOptionalWriteable(preAnalysisMarker == null ? null : preAnalysisMarker.timeSpan());
+            out.writeOptionalWriteable(dependencyResolutionMarker == null ? null : dependencyResolutionMarker.timeSpan());
+            out.writeOptionalWriteable(analysisMarker == null ? null : analysisMarker.timeSpan());
         }
     }
 
@@ -212,81 +211,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (TimeSpanMarker timeSpanMarker : timeSpanMarkers()) {
-            builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan);
+            builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan());
         }
         builder.field("field_caps_calls", fieldCapsCalls.get());
         return builder;
     }
 
-    public static class TimeSpanMarker {
-        private TimeSpan timeSpan;
-        private transient TimeSpan.Builder timeSpanBuilder;
-
-        private final String name;
-        private final boolean allowMultipleCalls;
-
-        // Package private for testing
-        TimeSpanMarker(String name, boolean allowMultipleCalls, TimeSpan timeSpan) {
-            this.name = name;
-            this.allowMultipleCalls = allowMultipleCalls;
-            this.timeSpan = timeSpan;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        TimeSpan timeSpan() {
-            return timeSpan;
-        }
-
-        public void start() {
-            assert allowMultipleCalls || timeSpanBuilder == null : "start() should only be called once for " + name;
-            if (timeSpanBuilder == null) {
-                timeSpanBuilder = TimeSpan.start();
-            }
-        }
-
-        public void stop() {
-            assert timeSpanBuilder != null : "start() should have been called for " + name;
-            assert allowMultipleCalls || timeSpan == null : "start() should only be called once for " + name;
-            timeSpan = timeSpanBuilder.stop();
-        }
-
-        public TimeValue timeTook() {
-            return timeSpan == null ? null : timeSpan.toTimeValue();
-        }
-
-        public TimeValue timeSinceStarted() {
-            return timeSpanBuilder != null ? timeSpanBuilder.stop().toTimeValue() : TimeValue.ZERO;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            TimeSpanMarker that = (TimeSpanMarker) o;
-            return allowMultipleCalls == that.allowMultipleCalls
-                && Objects.equals(timeSpan, that.timeSpan)
-                && Objects.equals(name, that.name);
-            // Don't consider timeStampBuilders for equality
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(timeSpan, name, allowMultipleCalls);
-        }
-
-        @Override
-        public String toString() {
-            return "TimeSpanMarker{"
-                + "name='"
-                + name
-                + '\''
-                + ", timeSpan="
-                + timeSpan
-                + ", allowMultipleCalls="
-                + allowMultipleCalls
-                + '}';
-        }
-    }
 }

@@ -97,7 +97,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient volatile boolean isStopped; // Have we received stop command?
 
     private final EsqlQueryProfile queryProfile;
-    private TimeValue overallTook;
 
     /**
      * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.
@@ -121,7 +120,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION) == false) {
-            this.overallTook = in.readOptionalTimeValue();
+            in.readOptionalTimeValue();
         }
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
         if (in.getTransportVersion().supports(EXECUTION_METADATA_VERSION)) {
@@ -139,7 +138,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION) == false) {
-            out.writeOptionalTimeValue(overallTook);
+            out.writeOptionalTimeValue(null);
         }
         if (clusterInfo != null && clusterInfoInitializing == false) {
             out.writeCollection(clusterInfo.values());
@@ -174,16 +173,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public void markEndQuery() {
         if (isMainPlan()) {
             queryProfile.stop();
-            overallTook = queryProfile.total().timeSpan().toTimeValue();
         }
     }
 
-    public void overallTook(TimeValue took) {
-        this.overallTook = took;
-    }
-
     public TimeValue overallTook() {
-        return overallTook;
+        return queryProfile.total().timeTook();
     }
 
     public Set<String> clusterAliases() {
@@ -331,16 +325,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "EsqlExecutionInfo{"
-            + "overallTook="
-            + overallTook
-            + ", isPartial="
-            + isPartial
-            + ", isStopped="
-            + isStopped
-            + ", clusterInfo="
-            + clusterInfo
-            + '}';
+        return "EsqlExecutionInfo{" + "isPartial=" + isPartial + ", isStopped=" + isStopped + ", clusterInfo=" + clusterInfo + '}';
     }
 
     @Override
@@ -348,12 +333,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EsqlExecutionInfo that = (EsqlExecutionInfo) o;
-        return Objects.equals(clusterInfo, that.clusterInfo) && Objects.equals(overallTook, that.overallTook);
+        return Objects.equals(clusterInfo, that.clusterInfo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterInfo, overallTook);
+        return Objects.hash(clusterInfo);
     }
 
     public boolean isPartial() {

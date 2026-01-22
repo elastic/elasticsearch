@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -125,7 +126,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(tookMillis, is(tookMillisExpected));
 
                 // Checks values for all planning timespans
-                for (EsqlQueryProfile.TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
+                for (TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
                     String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
                     assertNotNull(tookValue);
                     Long timeSpanTook = Long.valueOf(tookValue);

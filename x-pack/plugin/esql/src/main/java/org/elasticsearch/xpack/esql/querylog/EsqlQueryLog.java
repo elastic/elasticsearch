@@ -17,6 +17,7 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
@@ -139,7 +140,7 @@ public final class EsqlQueryLog {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK, esqlResult.executionInfo().overallTook().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
             EsqlQueryProfile esqlQueryProfile = esqlResult.executionInfo().queryProfile();
-            for (EsqlQueryProfile.TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
+            for (TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
                 String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();
                 fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX, timeTook.nanos());

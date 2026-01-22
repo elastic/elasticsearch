@@ -63,7 +63,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         assertBusy(() -> assertHitCount(client().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs));
 
-        PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request("follower");
+        PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower");
         client().execute(PauseFollowAction.INSTANCE, pauseRequest);
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
@@ -136,7 +136,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
     }
 
     public void testRemoveRemoteConnection() throws Exception {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName("my_pattern");
         request.setRemoteCluster("local");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
@@ -152,7 +152,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         createIndex("logs-20200101", leaderIndexSettings);
         prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
-            CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
+            CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet();
             assertThat(
                 response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
                 equalTo(previousNumberOfSuccessfulFollowedIndices + 1)
@@ -171,7 +172,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         // This new document should be replicated to follower index:
         prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
-            CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
+            CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet();
             assertThat(
                 response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
                 equalTo(previousNumberOfSuccessfulFollowedIndices + 2)

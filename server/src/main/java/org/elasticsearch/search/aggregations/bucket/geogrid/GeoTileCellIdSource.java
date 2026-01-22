@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.util.function.LongConsumer;
 
@@ -25,7 +26,7 @@ public class GeoTileCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected NumericDocValues unboundedCellSingleValue(GeoPointValues values) {
+    protected LongValues unboundedCellSingleValue(GeoPointValues values) {
         return new CellSingleValue(values, precision()) {
             @Override
             protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
@@ -36,7 +37,7 @@ public class GeoTileCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
+    protected LongValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision(), boundingBox);
         final int tiles = 1 << precision();
         return new CellSingleValue(values, precision()) {
@@ -54,7 +55,7 @@ public class GeoTileCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values) {
+    protected SortedNumericLongValues unboundedCellMultiValues(MultiGeoPointValues values) {
         return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
@@ -65,7 +66,7 @@ public class GeoTileCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
+    protected SortedNumericLongValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision(), boundingBox);
         final int tiles = 1 << precision();
         return new CellMultiValues(values, precision(), circuitBreakerConsumer) {

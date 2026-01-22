@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -17,16 +18,18 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link AutomataMatch}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AutomataMatchEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator input;
 
@@ -36,9 +39,11 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public AutomataMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
       ByteRunAutomaton automaton, String pattern, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.input = input;
     this.automaton = automaton;
     this.pattern = pattern;
@@ -56,32 +61,41 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += input.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (inputBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (inputBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (inputBlock.getValueCount(p) != 1) {
-          if (inputBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBoolean(AutomataMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), automaton, pattern));
+        BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
+        result.appendBoolean(AutomataMatch.process(input, this.automaton, this.pattern));
       }
       return result.build();
     }
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), automaton, pattern));
+        BytesRef input = inputVector.getBytesRef(p, inputScratch);
+        result.appendBoolean(p, AutomataMatch.process(input, this.automaton, this.pattern));
       }
       return result.build();
     }
@@ -95,6 +109,18 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(input);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

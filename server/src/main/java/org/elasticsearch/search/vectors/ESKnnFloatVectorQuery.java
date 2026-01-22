@@ -1,34 +1,69 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.knn.KnnCollectorManager;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements ProfilingQuery {
+public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
+    private final int kParam;
     private long vectorOpsCount;
+    private final boolean earlyTermination;
 
-    public ESKnnFloatVectorQuery(String field, float[] target, int k, Query filter) {
-        super(field, target, k, filter);
+    public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
+        this(field, target, k, numCands, filter, strategy, false);
+    }
+
+    public ESKnnFloatVectorQuery(
+        String field,
+        float[] target,
+        int k,
+        int numCands,
+        Query filter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination
+    ) {
+        super(field, target, numCands, filter, strategy);
+        this.kParam = k;
+        this.earlyTermination = earlyTermination;
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        TopDocs topK = super.mergeLeafResults(perLeafResults);
-        vectorOpsCount = topK.totalHits.value;
+        // if k param is set, we get only top k results from each shard
+        TopDocs topK = TopDocs.merge(kParam, perLeafResults);
+        vectorOpsCount = topK.totalHits.value();
         return topK;
     }
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        queryProfiler.setVectorOpsCount(vectorOpsCount);
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
+    }
+
+    public int kParam() {
+        return kParam;
+    }
+
+    public KnnSearchStrategy getStrategy() {
+        return searchStrategy;
+    }
+
+    @Override
+    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        KnnCollectorManager knnCollectorManager = super.getKnnCollectorManager(k, searcher);
+        return earlyTermination ? PatienceCollectorManager.wrap(knnCollectorManager) : knnCollectorManager;
     }
 }

@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
-import java.util.Base64;
 import java.util.Locale;
 
 /**
@@ -45,14 +46,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        final IndexableField timestampField = context.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampField == null) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
-        }
-        long timestamp = timestampField.numericValue().longValue();
+    public static BytesRef createField(DocumentParserContext context, RoutingHashBuilder routingBuilder, BytesRef tsid) {
+        final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
         String id;
         if (routingBuilder != null) {
             byte[] suffix = new byte[16];
@@ -66,13 +61,17 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
              * at all we just skip the assertion because we can't be sure
              * it always must pass.
              */
-            IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
+            var indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context.indexSettings().getIndexRouting();
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
-            id = createId(routingHash, tsid, timestamp);
+            if (context.indexSettings().useTimeSeriesSyntheticId()) {
+                id = createSyntheticId(tsid, timestamp, routingHash);
+            } else {
+                id = createId(routingHash, tsid, timestamp);
+            }
         } else {
             if (context.sourceToParse().id() == null) {
                 throw new IllegalArgumentException(
@@ -95,10 +94,20 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 )
             );
         }
+        assert id != null;
         context.id(id);
 
-        BytesRef uidEncoded = Uid.encodeId(context.id());
-        context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+        final Field idField;
+        if (context.indexSettings().useTimeSeriesSyntheticId()) {
+            idField = syntheticIdField(context.id());
+        } else {
+            idField = standardIdField(context.id());
+        }
+        assert NAME.equals(idField.name()) : idField.name();
+        assert idField.binaryValue() != null;
+
+        context.doc().add(idField);
+        return idField.binaryValue();
     }
 
     public static String createId(int routingHash, BytesRef tsid, long timestamp) {
@@ -110,12 +119,19 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         ByteUtils.writeLongLE(hash.h1, bytes, 4);
         ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
+    }
+
+    public static long extractTimestampFromId(byte[] id) {
+        assert id.length == 20;
+        // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes
+        // @timestamp)
+        return ByteUtils.readLongBE(id, 12);
     }
 
     public static String createId(
         boolean dynamicMappersExists,
-        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        RoutingHashBuilder routingBuilder,
         BytesRef tsid,
         long timestamp,
         byte[] suffix
@@ -134,6 +150,59 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         });
         assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
         return id;
+    }
+
+    public static BytesRef createSyntheticIdBytesRef(BytesRef tsid, long timestamp, int routingHash) {
+        // A synthetic _id has the format: [_tsid (non-fixed length) + (Long.MAX_VALUE - timestamp) (8 bytes) + routing hash (4 bytes)].
+        // We dont' use hashing here because we need to be able to extract the concatenated values from the _id in various places, like
+        // when applying doc values updates in Lucene, or when routing GET or DELETE requests to the corresponding shard, or when replaying
+        // translog operations. Since the synthetic _id is not indexed and not really stored on disk we consider it fine if it is longer
+        // that standard ids.
+        //
+        // Also, when applying doc values updates Lucene expects _id to be sorted: it stops applying updates for a term "_id:ABC" if it
+        // seeks to a term "BCD" as it knows there won't be more documents matching "_id:ABC" past the term "BCD". So it is important to
+        // generate an _id as a byte array whose lexicographical order reflects the order of the documents in the segment. For this reason,
+        // the timestamp is stored in the synthetic _id as (Long.MAX_VALUE - timestamp).
+        byte[] bytes = new byte[tsid.length + Long.BYTES + Integer.BYTES];
+        System.arraycopy(tsid.bytes, tsid.offset, bytes, 0, tsid.length);
+        ByteUtils.writeLongBE(Long.MAX_VALUE - timestamp, bytes, tsid.length); // Big Endian as we want to most significant byte first
+        ByteUtils.writeIntBE(routingHash, bytes, tsid.length + Long.BYTES);
+        return new BytesRef(bytes);
+    }
+
+    public static String createSyntheticId(BytesRef tsid, long timestamp, int routingHash) {
+        BytesRef id = createSyntheticIdBytesRef(tsid, timestamp, routingHash);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(id.bytes);
+    }
+
+    public static BytesRef extractTimeSeriesIdFromSyntheticId(BytesRef id) {
+        assert id.length > Long.BYTES + Integer.BYTES;
+        // See #createSyntheticId
+        byte[] tsId = new byte[Math.toIntExact(id.length - Long.BYTES - Integer.BYTES)];
+        System.arraycopy(id.bytes, id.offset, tsId, 0, tsId.length);
+        return new BytesRef(tsId);
+    }
+
+    public static long extractTimestampFromSyntheticId(BytesRef id) {
+        assert id.length > Long.BYTES + Integer.BYTES;
+        // See #createSyntheticId
+        long delta = ByteUtils.readLongBE(id.bytes, id.offset + id.length - Long.BYTES - Integer.BYTES);
+        long timestamp = Long.MAX_VALUE - delta;
+        assert timestamp >= 0 : delta;
+        return timestamp;
+    }
+
+    /**
+     * Extract the routing hash value by reading the last 4 bytes of the provided {@link BytesRef} representing a UID-encoded synthetic id.
+     *
+     * @param id    an array of bytes representing the synthetic _id encoded with {@link Uid#encodeId}.
+     * @return      the routing hash value as an integer
+     */
+    public static int extractRoutingHashFromSyntheticId(BytesRef id) {
+        assert id.length > Long.BYTES + Integer.BYTES;
+        // In a synthetic id the routing hash is stored in the last 4 bytes using the Big Endian notation. This differs from how the
+        // _ts_routing_hash is stored in Lucene (using Little Endian).
+        return ByteUtils.readIntBE(id.bytes, id.offset + id.length - Integer.BYTES);
     }
 
     @Override

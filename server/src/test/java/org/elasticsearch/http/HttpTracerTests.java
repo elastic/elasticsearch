@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -18,7 +19,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -28,6 +29,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+
 public class HttpTracerTests extends ESTestCase {
 
     // these loggers are named in the docs so must not be changed without due care
@@ -36,19 +39,18 @@ public class HttpTracerTests extends ESTestCase {
 
     @TestLogging(reason = "testing trace logging", value = HTTP_TRACER_LOGGER + ":TRACE," + HTTP_BODY_TRACER_LOGGER + ":INFO")
     public void testLogging() {
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(HttpTracer.class)) {
+        try (var mockLog = MockLog.capture(HttpTracer.class)) {
 
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "request log",
                     HTTP_TRACER_LOGGER,
                     Level.TRACE,
                     "\\[\\d+]\\[idHeader]\\[GET]\\[uri] received request from \\[.*] trace.id: 4bf92f3577b34da6a3ce929d0e0e4736"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "response log",
                     HTTP_TRACER_LOGGER,
                     Level.TRACE,
@@ -81,7 +83,7 @@ public class HttpTracerTests extends ESTestCase {
                 true
             );
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -96,15 +98,15 @@ public class HttpTracerTests extends ESTestCase {
             .withContent(responseBody, null)
             .build();
 
-        assertEquals(
-            responseBody,
+        assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] request body",
                 ReferenceDocs.HTTP_TRACER,
                 () -> assertNotNull(tracer.maybeLogRequest(request, null))
-            )
+            ),
+            equalBytes(responseBody)
         );
     }
 }

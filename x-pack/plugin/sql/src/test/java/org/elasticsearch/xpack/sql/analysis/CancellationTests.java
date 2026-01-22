@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.analysis;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
@@ -22,7 +23,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -48,8 +52,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -88,23 +92,14 @@ public class CancellationTests extends ESTestCase {
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities categoryField = new FieldCapabilities(
-            "event.category",
-            "keyword",
-            false,
-            true,
-            true,
-            indices,
-            null,
-            null,
-            emptyMap()
-        );
-        FieldCapabilities timestampField = new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
+        FieldCapabilities fooField = new FieldCapabilitiesBuilder("foo", "integer").indices(indices).build();
+        FieldCapabilities categoryField = new FieldCapabilitiesBuilder("event.category", "keyword").indices(indices).build();
+        FieldCapabilities timestampField = new FieldCapabilitiesBuilder("@timestamp", "date").indices(indices).build();
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));
@@ -152,6 +147,7 @@ public class CancellationTests extends ESTestCase {
         verify(client, times(1)).fieldCaps(any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -171,7 +167,7 @@ public class CancellationTests extends ESTestCase {
         ClusterService mockClusterService = mockClusterService(nodeId);
 
         String[] indices = new String[] { "endgame" };
-        String pitId = randomAlphaOfLength(10);
+        BytesReference pitId = new BytesArray(randomAlphaOfLength(10));
 
         // Emulation of field capabilities
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
@@ -188,7 +184,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<OpenPointInTimeResponse> listener = (ActionListener<OpenPointInTimeResponse>) invocation.getArguments()[2];
-            listener.onResponse(new OpenPointInTimeResponse(pitId));
+            listener.onResponse(new OpenPointInTimeResponse(pitId, 1, 1, 0, 0));
             return null;
         }).when(client).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
 
@@ -198,7 +194,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
-            assertEquals(pitId, request.pointInTimeBuilder().getEncodedId());
+            assertThat(request.pointInTimeBuilder().getEncodedId(), equalBytes(pitId));
             TaskId parentTask = request.getParentTask();
             assertNotNull(parentTask);
             assertEquals(task.getId(), parentTask.getId());
@@ -212,7 +208,7 @@ public class CancellationTests extends ESTestCase {
         // Emulation of close pit
         doAnswer(invocation -> {
             ClosePointInTimeRequest request = (ClosePointInTimeRequest) invocation.getArguments()[1];
-            assertEquals(pitId, request.getId());
+            assertThat(request.getId(), equalBytes(pitId));
 
             @SuppressWarnings("unchecked")
             ActionListener<ClosePointInTimeResponse> listener = (ActionListener<ClosePointInTimeResponse>) invocation.getArguments()[2];
@@ -245,6 +241,7 @@ public class CancellationTests extends ESTestCase {
         verify(client, times(1)).execute(eq(TransportClosePointInTimeAction.TYPE), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -260,6 +257,7 @@ public class CancellationTests extends ESTestCase {
         when(mockClusterService.localNode()).thenReturn(mockNode);
         when(mockClusterName.value()).thenReturn(randomAlphaOfLength(10));
         when(mockClusterService.getClusterName()).thenReturn(mockClusterName);
+        when(mockClusterService.getSettings()).thenReturn(Settings.EMPTY);
         return mockClusterService;
     }
 

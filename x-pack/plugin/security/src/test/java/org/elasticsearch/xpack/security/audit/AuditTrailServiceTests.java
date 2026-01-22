@@ -7,14 +7,11 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -62,60 +59,55 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testLogWhenLicenseProhibitsAuditing() throws Exception {
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-        Logger auditTrailServiceLogger = LogManager.getLogger(AuditTrailService.class);
-        Loggers.addAppender(auditTrailServiceLogger, mockLogAppender);
-        when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.values()));
-        if (isAuditingAllowed) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "audit disabled because of license",
-                    AuditTrailService.class.getName(),
-                    Level.WARN,
-                    "Auditing logging is DISABLED because the currently active license ["
-                        + licenseState.getOperationMode()
-                        + "] does not permit it"
-                )
-            );
-        } else {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "audit disabled because of license",
-                    AuditTrailService.class.getName(),
-                    Level.WARN,
-                    "Auditing logging is DISABLED because the currently active license ["
-                        + licenseState.getOperationMode()
-                        + "] does not permit it"
-                )
-            );
+        try (var mockLog = MockLog.capture(AuditTrailService.class)) {
+            when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.values()));
+            if (isAuditingAllowed) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "audit disabled because of license",
+                        AuditTrailService.class.getName(),
+                        Level.WARN,
+                        "Auditing logging is DISABLED because the currently active license ["
+                            + licenseState.getOperationMode()
+                            + "] does not permit it"
+                    )
+                );
+            } else {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "audit disabled because of license",
+                        AuditTrailService.class.getName(),
+                        Level.WARN,
+                        "Auditing logging is DISABLED because the currently active license ["
+                            + licenseState.getOperationMode()
+                            + "] does not permit it"
+                    )
+                );
+            }
+            for (int i = 1; i <= randomIntBetween(2, 6); i++) {
+                service.get();
+            }
+
+            mockLog.assertAllExpectationsMatched();
         }
-        for (int i = 1; i <= randomIntBetween(2, 6); i++) {
-            service.get();
-        }
-        mockLogAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(auditTrailServiceLogger, mockLogAppender);
     }
 
     public void testNoLogRecentlyWhenLicenseProhibitsAuditing() throws Exception {
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-        Logger auditTrailServiceLogger = LogManager.getLogger(AuditTrailService.class);
-        Loggers.addAppender(auditTrailServiceLogger, mockLogAppender);
-        service.nextLogInstantAtomic.set(randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now()));
-        mockLogAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "audit disabled because of license",
-                AuditTrailService.class.getName(),
-                Level.WARN,
-                "Security auditing is DISABLED because the currently active license [*] does not permit it"
-            )
-        );
-        for (int i = 1; i <= randomIntBetween(2, 6); i++) {
-            service.get();
+        try (var mockLog = MockLog.capture(AuditTrailService.class)) {
+            service.nextLogInstantAtomic.set(randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now()));
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "audit disabled because of license",
+                    AuditTrailService.class.getName(),
+                    Level.WARN,
+                    "Security auditing is DISABLED because the currently active license [*] does not permit it"
+                )
+            );
+            for (int i = 1; i <= randomIntBetween(2, 6); i++) {
+                service.get();
+            }
+            mockLog.assertAllExpectationsMatched();
         }
-        mockLogAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(auditTrailServiceLogger, mockLogAppender);
     }
 
     public void testAuthenticationFailed() throws Exception {

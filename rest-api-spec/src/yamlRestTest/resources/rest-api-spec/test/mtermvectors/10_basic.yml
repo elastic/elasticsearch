@@ -3,6 +3,7 @@ setup:
   - do:
       indices.create:
           index: testidx
+          wait_for_active_shards: all
           body:
             mappings:
               properties:
@@ -80,6 +81,7 @@ setup:
   - do:
       indices.create:
           index: testidx2
+          wait_for_active_shards: all
 
   - do:
       indices.put_alias:

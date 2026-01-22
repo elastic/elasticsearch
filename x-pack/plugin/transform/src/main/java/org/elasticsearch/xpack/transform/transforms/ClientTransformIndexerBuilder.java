@@ -45,7 +45,7 @@ class ClientTransformIndexerBuilder {
     }
 
     ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
-        CheckpointProvider checkpointProvider = transformServices.getCheckpointService()
+        CheckpointProvider checkpointProvider = transformServices.checkpointService()
             .getCheckpointProvider(parentTaskClient, transformConfig);
 
         return new ClientTransformIndexer(

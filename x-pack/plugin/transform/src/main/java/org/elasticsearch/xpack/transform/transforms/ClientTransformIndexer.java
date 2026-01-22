@@ -25,10 +25,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -46,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -66,9 +71,11 @@ import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -150,9 +157,13 @@ class ClientTransformIndexer extends TransformIndexer {
         }
 
         if (getNextCheckpoint().getCheckpoint() != pitCheckpoint) {
-            closePointInTime();
+            closePointInTime(() -> doNextSearch(nextPhase));
+        } else {
+            doNextSearch(nextPhase);
         }
+    }
 
+    private void doNextSearch(ActionListener<SearchResponse> nextPhase) {
         injectPointInTimeIfNeeded(
             buildSearchRequest(),
             ActionListener.wrap(searchRequest -> doSearch(searchRequest, nextPhase), nextPhase::onFailure)
@@ -192,7 +203,11 @@ class ClientTransformIndexer extends TransformIndexer {
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
             if (item.isFailed()) {
-                deduplicatedFailures.putIfAbsent(item.getFailure().getCause().getClass().getSimpleName(), item);
+                var exceptionClass = item.getFailure().getCause().getClass();
+                if (IndexNotFoundException.class.isAssignableFrom(exceptionClass)) {
+                    context.setShouldRecreateDestinationIndex(true);
+                }
+                deduplicatedFailures.putIfAbsent(exceptionClass.getSimpleName(), item);
                 failureCount++;
             }
         }
@@ -427,30 +442,76 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void afterFinishOrFailure() {
-        closePointInTime();
-        super.afterFinishOrFailure();
+        closePointInTime(super::afterFinishOrFailure);
+    }
+
+    @Override
+    public boolean maybeTriggerAsyncJob(long now) {
+        if (TransformMetadata.upgradeMode(clusterService.state())) {
+            logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
+            return false;
+        }
+        if (context.isWaitingForIndexToUnblock()) {
+            if (destinationIndexHasWriteBlock()) {
+                logger.debug("[{}] schedule was triggered but the destination index has a write block. Ignoring trigger.", getJobId());
+                return false;
+            }
+            logger.debug("[{}] destination index is no longer blocked.", getJobId());
+            context.setIsWaitingForIndexToUnblock(false);
+        }
+
+        return super.maybeTriggerAsyncJob(now);
+    }
+
+    private boolean destinationIndexHasWriteBlock() {
+        var clusterState = clusterService.state();
+        if (clusterState == null) {
+            // if we can't determine if the index is blocked, we assume it isn't, even though the bulk request may fail again
+            return false;
+        }
+
+        var destinationIndexName = transformConfig.getDestination().getIndex();
+        var destinationIndex = indexNameExpressionResolver.concreteWriteIndex(
+            clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            destinationIndexName,
+            true,
+            false
+        );
+        return destinationIndex != null && clusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, destinationIndex.getName());
     }
 
     @Override
     protected void onStop() {
-        closePointInTime();
-        super.onStop();
+        closePointInTime(super::onStop);
     }
 
-    private void closePointInTime() {
-        for (String name : namedPits.keySet()) {
-            closePointInTime(name);
+    // visible for testing
+    void closePointInTime(Runnable runAfter) {
+        // we shouldn't need to do this, because a transform is only ever running on one thread anyway, but now that we're waiting for
+        // N PIT contexts to close, we want to make sure that the number N doesn't change in the underlying data structure so we can
+        // guarantee that we call runAfter
+        var pitEntries = new ArrayList<Entry<String, PointInTimeBuilder>>(namedPits.size());
+        var iter = namedPits.entrySet().iterator();
+        while (iter.hasNext()) {
+            pitEntries.add(iter.next());
+            iter.remove();
         }
+
+        if (pitEntries.isEmpty()) {
+            runAfter.run();
+        } else {
+            var countDownActionListener = new CountDownActionListener(pitEntries.size(), ActionListener.running(runAfter));
+            pitEntries.stream()
+                .map(Entry::getValue)
+                .filter(Objects::nonNull)
+                .forEach(pit -> closePointInTime(pit, countDownActionListener));
+        }
+
     }
 
-    private void closePointInTime(String name) {
-        PointInTimeBuilder pit = namedPits.remove(name);
-
-        if (pit == null) {
-            return;
-        }
-
-        String oldPit = pit.getEncodedId();
+    private void closePointInTime(PointInTimeBuilder pit, ActionListener<Void> listener) {
+        BytesReference oldPit = pit.getEncodedId();
 
         ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
         ClientHelper.executeWithHeadersAsync(
@@ -459,12 +520,12 @@ class ClientTransformIndexer extends TransformIndexer {
             client,
             TransportClosePointInTimeAction.TYPE,
             closePitRequest,
-            ActionListener.wrap(response -> {
+            ActionListener.runAfter(ActionListener.wrap(response -> {
                 logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
             }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
                 logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
-            })
+            }), () -> listener.onResponse(null))
         );
     }
 
@@ -473,7 +534,9 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        if (disablePit || searchRequest.indices().length == 0) {
+        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
+        // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
+        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
             listener.onResponse(namedSearchRequest);
             return;
         }

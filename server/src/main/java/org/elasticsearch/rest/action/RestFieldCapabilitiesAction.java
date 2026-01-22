@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action;
@@ -12,10 +13,12 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -29,6 +32,14 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
+
+    private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestFieldCapabilitiesAction(Settings settings) {
+        this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
 
     @Override
     public List<Route> routes() {
@@ -47,9 +58,24 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
+
+        final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
+            // Setting includeResolvedTo to always include index resolution data structure in the linked project responses,
+            // in order to allow the coordinating node to call CrossProjectIndexResolutionValidator#validate
+            fieldRequest.includeResolvedTo(true);
+        }
+
+        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         fieldRequest.indices(indices);
+
+        if (crossProjectEnabled && fieldRequest.allowsCrossProject()) {
+            var cpsIdxOpts = IndicesOptions.builder(fieldRequest.indicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+            fieldRequest.indicesOptions(cpsIdxOpts);
+        }
 
         fieldRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
@@ -80,6 +106,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
     private static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
 
@@ -87,5 +114,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         PARSER.declareObject(FieldCapabilitiesRequest::indexFilter, (p, c) -> parseTopLevelQuery(p), INDEX_FILTER_FIELD);
         PARSER.declareObject(FieldCapabilitiesRequest::runtimeFields, (p, c) -> p.map(), RUNTIME_MAPPINGS_FIELD);
         PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
+        PARSER.declareString(FieldCapabilitiesRequest::projectRouting, PROJECT_ROUTING);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
  * works in Linux containers. At the moment that isn't a problem, because we only publish Docker images
  * for Linux.
  */
-public record ProcessInfo(int pid, int uid, int gid, String username, String group) {
+public record ProcessInfo(int pid, int uid, int gid, String username, String group, String commandLine) {
 
     /**
      * Fetches process information about <code>command</code>, using <code>sh</code> to execute commands.
@@ -52,7 +53,9 @@ public record ProcessInfo(int pid, int uid, int gid, String username, String gro
             final String username = sh.run("getent passwd " + uid + " | cut -f1 -d:").stdout().trim();
             final String group = sh.run("getent group " + gid + " | cut -f1 -d:").stdout().trim();
 
-            infos.add(new ProcessInfo(pid, uid, gid, username, group));
+            final String commandLine = sh.run("cat /proc/" + pid + "/cmdline").stdout().trim();
+
+            infos.add(new ProcessInfo(pid, uid, gid, username, group, commandLine));
         }
         return Collections.unmodifiableList(infos);
     }

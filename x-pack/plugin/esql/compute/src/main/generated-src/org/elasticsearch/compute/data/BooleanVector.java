@@ -7,15 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.TransportVersions;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores boolean values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector,
     ConstantNullVector {
@@ -26,6 +29,35 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
 
     @Override
     BooleanVector filter(int... positions);
+
+    @Override
+    BooleanBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BooleanVector deepCopy(BlockFactory blockFactory) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
+    @Override
+    ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    boolean allTrue();
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    boolean allFalse();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -96,10 +128,10 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBoolean(getBoolean(0));
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof BooleanArrayVector v) {
+        } else if (this instanceof BooleanArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof BooleanBigArrayVector v) {
+        } else if (this instanceof BooleanBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
@@ -111,7 +143,7 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     private static BooleanVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendBoolean(in.readBoolean());
+                builder.appendBoolean(i, in.readBoolean());
             }
             return builder.build();
         }
@@ -145,5 +177,8 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
          */
         @Override
         FixedBuilder appendBoolean(boolean value);
+
+        FixedBuilder appendBoolean(int index, boolean value);
+
     }
 }

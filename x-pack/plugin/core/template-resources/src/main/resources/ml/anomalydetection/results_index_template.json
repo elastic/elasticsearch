@@ -2,14 +2,11 @@
   "priority": 2147483647,
   "version" : ${xpack.ml.version.id},
   "index_patterns" : [
-    ".ml-anomalies-*"
+    ".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*"
   ],
   "template" : {
     "settings" : {
       "index" : {
-        "translog" : {
-          "durability" : "async"
-        },
         "auto_expand_replicas" : "0-1",
         "query" : {
           "default_field" : "all_field_values"

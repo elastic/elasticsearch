@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -48,7 +52,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     public void setUpThreadPool() {
         threadPool = new TestThreadPool(
             AzureStorageServiceTests.class.getName(),
-            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
     }
@@ -77,6 +81,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList());
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.threadPool()).thenReturn(threadPool);
+        when(services.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         plugin.createComponents(services);
         return plugin;
     }
@@ -96,10 +101,20 @@ public class AzureStorageServiceTests extends ESTestCase {
             .build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureBlobServiceClient client1 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client1 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client1.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
 
-            AzureBlobServiceClient client2 = azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client2 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure2",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client2.getSyncClient().getAccountUrl(), equalTo("https://myaccount2.blob.core.windows.net"));
         }
     }
@@ -120,16 +135,31 @@ public class AzureStorageServiceTests extends ESTestCase {
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
 
-            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client11 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
 
-            AzureBlobServiceClient client12 = azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client12 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure2",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client12.getSyncClient().getAccountUrl(), equalTo("https://myaccount12.blob.core.windows.net"));
 
             // client 3 is missing
             final SettingsException e1 = expectThrows(
                 SettingsException.class,
-                () -> azureStorageService.client("azure3", LocationMode.PRIMARY_ONLY)
+                () -> azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure3",
+                    LocationMode.PRIMARY_ONLY,
+                    randomFrom(OperationPurpose.values())
+                )
             );
             assertThat(e1.getMessage(), is("Unable to find client with name [azure3]"));
 
@@ -140,7 +170,12 @@ public class AzureStorageServiceTests extends ESTestCase {
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
 
             // new client 1 is changed
-            AzureBlobServiceClient client21 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client21 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client21.getSyncClient().getAccountUrl(), equalTo("https://myaccount21.blob.core.windows.net"));
 
             // old client 2 not changed
@@ -149,12 +184,22 @@ public class AzureStorageServiceTests extends ESTestCase {
             // new client2 is gone
             final SettingsException e2 = expectThrows(
                 SettingsException.class,
-                () -> azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY)
+                () -> azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure2",
+                    LocationMode.PRIMARY_ONLY,
+                    randomFrom(OperationPurpose.values())
+                )
             );
             assertThat(e2.getMessage(), is("Unable to find client with name [azure2]"));
 
             // client 3 emerged
-            AzureBlobServiceClient client23 = azureStorageService.client("azure3", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client23 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure3",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client23.getSyncClient().getAccountUrl(), equalTo("https://myaccount23.blob.core.windows.net"));
         }
     }
@@ -166,7 +211,12 @@ public class AzureStorageServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client11 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             // reinit with empty settings is okay
             plugin.reload(Settings.EMPTY);
@@ -175,7 +225,12 @@ public class AzureStorageServiceTests extends ESTestCase {
             // client is no longer registered
             final SettingsException e = expectThrows(
                 SettingsException.class,
-                () -> azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY)
+                () -> azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure1",
+                    LocationMode.PRIMARY_ONLY,
+                    randomFrom(OperationPurpose.values())
+                )
             );
             assertThat(e.getMessage(), equalTo("Unable to find client with name [azure1]"));
         }
@@ -186,23 +241,25 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings1.setString("azure.client.azure1.account", "myaccount1");
         secureSettings1.setString("azure.client.azure1.key", encodeKey("mykey11"));
         final Settings settings1 = Settings.builder().setSecureSettings(secureSettings1).build();
+
         final MockSecureSettings secureSettings2 = new MockSecureSettings();
-        secureSettings2.setString("azure.client.azure1.account", "myaccount1");
-        // missing key
+        secureSettings2.setString("azure.client.azure1.account", "myaccount3");
+        secureSettings2.setString("azure.client.azure1.key", encodeKey("mykey33"));
+        secureSettings2.setString("azure.client.azure1.sas_token", encodeKey("mysasToken33"));
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
-        final MockSecureSettings secureSettings3 = new MockSecureSettings();
-        secureSettings3.setString("azure.client.azure1.account", "myaccount3");
-        secureSettings3.setString("azure.client.azure1.key", encodeKey("mykey33"));
-        secureSettings3.setString("azure.client.azure1.sas_token", encodeKey("mysasToken33"));
-        final Settings settings3 = Settings.builder().setSecureSettings(secureSettings3).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client11 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
-            final SettingsException e1 = expectThrows(SettingsException.class, () -> plugin.reload(settings2));
-            assertThat(e1.getMessage(), is("Neither a secret key nor a shared access token was set."));
-            final SettingsException e2 = expectThrows(SettingsException.class, () -> plugin.reload(settings3));
-            assertThat(e2.getMessage(), is("Both a secret as well as a shared access token were set."));
+            assertThat(
+                expectThrows(SettingsException.class, () -> plugin.reload(settings2)).getMessage(),
+                is("Both a secret as well as a shared access token were set for account [myaccount3]")
+            );
             // existing client untouched
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
         }
@@ -211,9 +268,9 @@ public class AzureStorageServiceTests extends ESTestCase {
     public void testNoProxy() {
         final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).build();
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        assertThat(mock.storageSettings.get("azure1").getProxy(), nullValue());
-        assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
-        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure1").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure2").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure3").getProxy(), nullValue());
     }
 
     public void testProxyHttp() throws UnknownHostException {
@@ -224,13 +281,13 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.type", "http")
             .build();
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        final Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
+        final Proxy azure1Proxy = mock.getStorageSettings().get("azure1").getProxy();
 
         assertThat(azure1Proxy, notNullValue());
         assertThat(azure1Proxy.type(), is(Proxy.Type.HTTP));
         assertThat(azure1Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8080)));
-        assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
-        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure2").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure3").getProxy(), nullValue());
     }
 
     public void testMultipleProxies() throws UnknownHostException {
@@ -244,15 +301,15 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure2.proxy.type", "http")
             .build();
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        final Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
+        final Proxy azure1Proxy = mock.getStorageSettings().get("azure1").getProxy();
         assertThat(azure1Proxy, notNullValue());
         assertThat(azure1Proxy.type(), is(Proxy.Type.HTTP));
         assertThat(azure1Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8080)));
-        final Proxy azure2Proxy = mock.storageSettings.get("azure2").getProxy();
+        final Proxy azure2Proxy = mock.getStorageSettings().get("azure2").getProxy();
         assertThat(azure2Proxy, notNullValue());
         assertThat(azure2Proxy.type(), is(Proxy.Type.HTTP));
         assertThat(azure2Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8081)));
-        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure3").getProxy(), nullValue());
     }
 
     public void testProxySocks() throws UnknownHostException {
@@ -263,12 +320,12 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure1.proxy.type", "socks")
             .build();
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        final Proxy azure1Proxy = mock.storageSettings.get("azure1").getProxy();
+        final Proxy azure1Proxy = mock.getStorageSettings().get("azure1").getProxy();
         assertThat(azure1Proxy, notNullValue());
         assertThat(azure1Proxy.type(), is(Proxy.Type.SOCKS));
         assertThat(azure1Proxy.address(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8080)));
-        assertThat(mock.storageSettings.get("azure2").getProxy(), nullValue());
-        assertThat(mock.storageSettings.get("azure3").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure2").getProxy(), nullValue());
+        assertThat(mock.getStorageSettings().get("azure3").getProxy(), nullValue());
     }
 
     public void testProxyNoHost() {
@@ -320,7 +377,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
             RequestRetryOptions retryOptions = azureStorageService.getRetryOptions(LocationMode.PRIMARY_ONLY, azureStorageSettings);
             assertThat(retryOptions.getTryTimeout(), equalTo(Integer.MAX_VALUE));
         }
@@ -334,7 +391,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
             RequestRetryOptions retryOptions = azureStorageService.getRetryOptions(LocationMode.PRIMARY_ONLY, azureStorageSettings);
             assertThat(retryOptions.getTryTimeout(), equalTo(1));
         }
@@ -348,7 +405,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
             RequestRetryOptions retryOptions = azureStorageService.getRetryOptions(LocationMode.PRIMARY_ONLY, azureStorageSettings);
             assertThat(retryOptions.getTryTimeout(), equalTo(200));
         }
@@ -378,7 +435,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
             RequestRetryOptions retryOptions = azureStorageService.getRetryOptions(
                 LocationMode.PRIMARY_THEN_SECONDARY,
                 azureStorageSettings
@@ -411,7 +468,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
             RequestRetryOptions retryOptions = azureStorageService.getRetryOptions(
                 LocationMode.SECONDARY_THEN_PRIMARY,
                 azureStorageSettings
@@ -428,7 +485,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
             LocationMode locationMode = randomFrom(LocationMode.PRIMARY_ONLY, LocationMode.SECONDARY_ONLY);
             RequestRetryOptions retryOptions = azureStorageService.getRetryOptions(locationMode, azureStorageSettings);
 
@@ -445,7 +502,7 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
 
             expectThrows(
                 IllegalArgumentException.class,
@@ -465,24 +522,59 @@ public class AzureStorageServiceTests extends ESTestCase {
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
 
-            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.PRIMARY_THEN_SECONDARY));
-            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.SECONDARY_ONLY));
-            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.SECONDARY_THEN_PRIMARY));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure1",
+                    LocationMode.PRIMARY_THEN_SECONDARY,
+                    randomFrom(OperationPurpose.values())
+                )
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure1",
+                    LocationMode.SECONDARY_ONLY,
+                    randomFrom(OperationPurpose.values())
+                )
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure1",
+                    LocationMode.SECONDARY_THEN_PRIMARY,
+                    randomFrom(OperationPurpose.values())
+                )
+            );
 
-            AzureBlobServiceClient client1 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client1 = azureStorageService.client(
+                ProjectId.DEFAULT,
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client1.getSyncClient().getAccountUrl(), equalTo("https://account1.zone.azure.net"));
 
             assertThat(
-                azureStorageService.client("azure2", randomBoolean() ? LocationMode.PRIMARY_ONLY : LocationMode.PRIMARY_THEN_SECONDARY)
-                    .getSyncClient()
-                    .getAccountUrl(),
+                azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure2",
+                    randomBoolean() ? LocationMode.PRIMARY_ONLY : LocationMode.PRIMARY_THEN_SECONDARY,
+                    randomFrom(OperationPurpose.values())
+                ).getSyncClient().getAccountUrl(),
                 equalTo("https://account2.zone.azure.net")
             );
 
             assertThat(
-                azureStorageService.client("azure2", randomBoolean() ? LocationMode.SECONDARY_ONLY : LocationMode.SECONDARY_THEN_PRIMARY)
-                    .getSyncClient()
-                    .getAccountUrl(),
+                azureStorageService.client(
+                    ProjectId.DEFAULT,
+                    "azure2",
+                    randomBoolean() ? LocationMode.SECONDARY_ONLY : LocationMode.SECONDARY_THEN_PRIMARY,
+                    randomFrom(OperationPurpose.values())
+                ).getSyncClient().getAccountUrl(),
                 equalTo("https://account2-secondary.zone.azure.net")
             );
         }
@@ -499,7 +591,7 @@ public class AzureStorageServiceTests extends ESTestCase {
                         .build()
                 )
             );
-            assertEquals("A primary endpoint is required when setting a secondary endpoint", e.getMessage());
+            assertEquals("A primary endpoint is required when setting a secondary endpoint for account [myaccount1]", e.getMessage());
         }
 
         {
@@ -513,7 +605,7 @@ public class AzureStorageServiceTests extends ESTestCase {
                         .build()
                 )
             );
-            assertEquals("Both an endpoint suffix as well as a secondary endpoint were set", e.getMessage());
+            assertEquals("Both an endpoint suffix as well as a secondary endpoint were set for account [myaccount1]", e.getMessage());
         }
     }
 
@@ -528,7 +620,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         return secureSettings;
     }
 
-    private static String encodeKey(final String value) {
+    public static String encodeKey(final String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 }

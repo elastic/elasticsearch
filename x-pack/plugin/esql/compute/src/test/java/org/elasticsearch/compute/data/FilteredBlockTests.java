@@ -133,7 +133,6 @@ public class FilteredBlockTests extends ESTestCase {
         assertTrue(filtered.isNull(0));
         assertTrue(filtered.mayHaveNulls());
         assertFalse(filtered.areAllValuesNull());
-        assertEquals(1, filtered.nullValuesCount());
         assertEquals(2, filtered.getTotalValueCount());
         assertFalse(filtered.isNull(1));
         assertEquals(30, filtered.getInt(filtered.getFirstValueIndex(1)));
@@ -161,7 +160,6 @@ public class FilteredBlockTests extends ESTestCase {
         assertTrue(filtered.isNull(0));
         assertTrue(filtered.mayHaveNulls());
         assertTrue(filtered.areAllValuesNull());
-        assertEquals(3, filtered.nullValuesCount());
         assertEquals(0, filtered.getTotalValueCount());
         block.close();
         releaseAndAssertBreaker(filtered);
@@ -184,7 +182,6 @@ public class FilteredBlockTests extends ESTestCase {
         assertFalse(filtered.isNull(0));
         assertFalse(filtered.mayHaveNulls());
         assertFalse(filtered.areAllValuesNull());
-        assertEquals(0, filtered.nullValuesCount());
         assertEquals(3, filtered.getTotalValueCount());
 
         assertEquals(20, filtered.asVector().getInt(0));
@@ -276,6 +273,24 @@ public class FilteredBlockTests extends ESTestCase {
             Releasables.close(obj);
         }
         Releasables.close(bytesRefVector, bytesRefBlock);
+
+        var aggregateMetricDoubleBlock = blockFactory.newAggregateMetricDoubleBlock(
+            new double[] { 1.1, 2.2, 3.3, 4.4 },
+            new double[] { 5.5, 6.6, 7.7, 8.8 },
+            new double[] { 9.9, 10.1, 11.11, 12.12 },
+            new int[] { 10, 20, 30, 40 },
+            4
+        );
+        for (Releasable obj : List.of(aggregateMetricDoubleBlock.filter(0, 2))) {
+            String s = obj.toString();
+            assertThat(s, containsString("[1.1, 3.3]"));
+            assertThat(s, containsString("[5.5, 7.7]"));
+            assertThat(s, containsString("[9.9, 11.11]"));
+            assertThat(s, containsString("[10, 30]"));
+            assertThat(s, containsString("positions=2"));
+            Releasables.close(obj);
+        }
+        Releasables.close(aggregateMetricDoubleBlock);
     }
 
     public void testFilterToStringMultiValue() {

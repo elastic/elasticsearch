@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
+  compileOnly project(":libs:cli")
   compileOnly project(":distribution:tools:server-cli")
 
   testImplementation project(":test:framework")

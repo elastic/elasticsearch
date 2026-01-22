@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -57,12 +59,16 @@ import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
+
+    private static final String CAPABILITY_AVAILABLE_PROCESSORS_AVAILABILITY = "available_processors_availability";
 
     @Override
     public List<Route> routes() {
@@ -84,9 +90,8 @@ public class RestNodesAction extends AbstractCatAction {
 
         final boolean fullId = request.paramAsBoolean("full_id", false);
 
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear()
@@ -102,11 +107,11 @@ public class RestNodesAction extends AbstractCatAction {
         nodesStatsRequest.clear()
             .indices(true)
             .addMetrics(
-                NodesStatsRequestParameters.Metric.JVM.metricName(),
-                NodesStatsRequestParameters.Metric.OS.metricName(),
-                NodesStatsRequestParameters.Metric.FS.metricName(),
-                NodesStatsRequestParameters.Metric.PROCESS.metricName(),
-                NodesStatsRequestParameters.Metric.SCRIPT.metricName()
+                NodesStatsRequestParameters.Metric.JVM,
+                NodesStatsRequestParameters.Metric.OS,
+                NodesStatsRequestParameters.Metric.FS,
+                NodesStatsRequestParameters.Metric.PROCESS,
+                NodesStatsRequestParameters.Metric.SCRIPT
             );
         nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
 
@@ -167,6 +172,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_1m", "alias:l;text-align:right;desc:1m load avg");
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
+        table.addCell("available_processors", "default:false;alias:ap;text-align:right;desc:available processors");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
         table.addCell(
             "node.role",
@@ -228,6 +234,11 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell(
             "indexing.index_failed",
             "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
+        );
+        table.addCell(
+            "indexing.index_failed_due_to_version_conflict",
+            "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
         );
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
@@ -329,6 +340,11 @@ public class RestNodesAction extends AbstractCatAction {
         return table;
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(super.supportedCapabilities(), Set.of(CAPABILITY_AVAILABLE_PROCESSORS_AVAILABILITY));
+    }
+
     Table buildTable(
         boolean fullId,
         RestRequest req,
@@ -366,7 +382,7 @@ public class RestNodesAction extends AbstractCatAction {
                 table.addCell("-");
             }
 
-            table.addCell(node.getVersion().toString());
+            table.addCell(node.getBuildVersion().toString());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
             table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
@@ -419,6 +435,8 @@ public class RestNodesAction extends AbstractCatAction {
                     ? null
                     : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[2])
             );
+            table.addCell(osStats == null ? null : osStats.getCpu().getAvailableProcessors());
+
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
             table.addCell(node.getRoleAbbreviationString());
@@ -465,6 +483,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedDueToVersionConflictCount());
 
             MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());

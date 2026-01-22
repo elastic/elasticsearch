@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
 import org.elasticsearch.xpack.sql.client.SuppressForbidden;
+import org.hamcrest.Matchers;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -43,12 +44,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testInvalidUrl() {
         JdbcSQLException e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://localhost9200/?ssl=#5#"));
-        assertEquals(
-            "Invalid URL: Invalid connection configuration: Illegal character in fragment at index 28: "
-                + "http://localhost9200/?ssl=#5#; format should be "
-                + "[jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]",
-            e.getMessage()
-        );
+        assertThat(e.getMessage(), Matchers.startsWith("Invalid URL: Invalid connection configuration: Illegal character in fragment"));
     }
 
     public void testJustThePrefix() throws Exception {
@@ -118,6 +114,12 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.flushAlways(), is(false));
+    }
+
+    public void testProjectRouting() throws Exception {
+        JdbcConfiguration ci = ci(jdbcPrefix() + "a:1/?project.routing=foo");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.projectRouting(), is("foo"));
     }
 
     public void testTypeInParam() throws Exception {

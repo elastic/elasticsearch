@@ -7,15 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.TransportVersions;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector {
 
@@ -26,6 +29,25 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
     @Override
     LongVector filter(int... positions);
+
+    @Override
+    LongBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default LongVector deepCopy(BlockFactory blockFactory) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
+    @Override
+    ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -97,10 +119,10 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeLong(getLong(0));
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof LongArrayVector v) {
+        } else if (this instanceof LongArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof LongBigArrayVector v) {
+        } else if (this instanceof LongBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
@@ -112,7 +134,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     private static LongVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
+                builder.appendLong(i, in.readLong());
             }
             return builder.build();
         }
@@ -146,5 +168,8 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
          */
         @Override
         FixedBuilder appendLong(long value);
+
+        FixedBuilder appendLong(int index, long value);
+
     }
 }

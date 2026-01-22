@@ -1,0 +1,132 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_text, join_lookup_v12]
+      reason: "uses LOOKUP JOIN"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              color:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+              description:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+  - do:
+      indices.create:
+        index: test-lookup
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              color:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+              description:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red", "description": "The color Red" }
+          - { "index": { } }
+          - { "color": "blue", "description": "The color Blue" }
+          - { "index": { } }
+          - { "color": "green", "description": "The color Green" }
+  - do:
+      bulk:
+        index: "test-lookup"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red", "description": "As red as a tomato" }
+          - { "index": { } }
+          - { "color": "blue", "description": "As blue as the sky" }
+
+---
+keyword-keyword:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT color | LOOKUP JOIN test-lookup ON color.keyword | LIMIT 3'
+
+  - length: { columns: 4 }
+  - length: { values: 3 }
+  - match: {columns.0.name: "color.keyword"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "text"}
+  - match: {columns.2.name: "description"}
+  - match: {columns.2.type: "text"}
+  - match: {columns.3.name: "description.keyword"}
+  - match: {columns.3.type: "keyword"}
+  - match: {values.0: ["blue", "blue", "As blue as the sky", "As blue as the sky"]}
+  - match: {values.1: ["green", null, null, null]}
+  - match: {values.2: ["red", "red", "As red as a tomato", "As red as a tomato"]}
+
+---
+text-keyword:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT color | RENAME color AS x | EVAL color.keyword = x | LOOKUP JOIN test-lookup ON color.keyword | LIMIT 3'
+
+  - length: { columns: 5 }
+  - length: { values: 3 }
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "text"}
+  - match: {columns.1.name: "color.keyword"}
+  - match: {columns.1.type: "text"}
+  - match: {columns.2.name: "color"}
+  - match: {columns.2.type: "text"}
+  - match: {columns.3.name: "description"}
+  - match: {columns.3.type: "text"}
+  - match: {columns.4.name: "description.keyword"}
+  - match: {columns.4.type: "keyword"}
+  - match: {values.0: ["blue", "blue", "blue", "As blue as the sky", "As blue as the sky"]}
+  - match: {values.1: ["green", "green", null, null, null]}
+  - match: {values.2: ["red", "red", "red", "As red as a tomato", "As red as a tomato"]}
+
+---
+text-text:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT color | LOOKUP JOIN test-lookup ON color | LIMIT 3'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Found 1 problem\nline 1:53: JOIN with right field [color] of type [TEXT] is not supported" }
+
+---
+keyword-text:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT color | EVAL color = color.keyword | LOOKUP JOIN test-lookup ON color | LIMIT 3'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Found 1 problem\nline 1:82: JOIN with right field [color] of type [TEXT] is not supported" }
+

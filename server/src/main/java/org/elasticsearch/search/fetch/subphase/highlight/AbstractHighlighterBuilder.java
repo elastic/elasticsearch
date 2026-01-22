@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -63,7 +64,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FRAGMENTER_FIELD = new ParseField("fragmenter");
     public static final ParseField NO_MATCH_SIZE_FIELD = new ParseField("no_match_size");
-    public static final ParseField FORCE_SOURCE_FIELD = new ParseField("force_source").withAllDeprecated();
+    public static final ParseField FORCE_SOURCE_FIELD = new ParseField("force_source").withAllDeprecated()
+        .forRestApiVersion(restApiVersion -> restApiVersion == RestApiVersion.V_8);
     public static final ParseField PHRASE_LIMIT_FIELD = new ParseField("phrase_limit");
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
@@ -141,9 +143,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags(in.readOptionalStringArray());
         fragmentSize(in.readOptionalVInt());
         numOfFragments(in.readOptionalVInt());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
-            encoder(in.readOptionalString());
-        }
+        encoder(in.readOptionalString());
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
@@ -151,9 +151,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
-        if (in.getTransportVersion().before(TransportVersions.V_8_8_0)) {
-            in.readOptionalBoolean();   // force_source, now deprecated
-        }
         boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
         boundaryMaxScan(in.readOptionalVInt());
         if (in.readBoolean()) {
@@ -180,9 +177,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalStringArray(postTags);
         out.writeOptionalVInt(fragmentSize);
         out.writeOptionalVInt(numOfFragments);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
-            out.writeOptionalString(encoder);
-        }
+        out.writeOptionalString(encoder);
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
         boolean hasQuery = highlightQuery != null;
@@ -192,9 +187,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
-        if (out.getTransportVersion().before(TransportVersions.V_8_8_0)) {
-            out.writeOptionalBoolean(false);
-        }
         out.writeOptionalWriteable(boundaryScannerType);
         out.writeOptionalVInt(boundaryMaxScan);
         boolean hasBounaryChars = boundaryChars != null;
@@ -567,13 +559,12 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set to a non-negative value which represents the max offset used to analyze
-     * the field thus avoiding exceptions if the field exceeds this limit.
+     * "maxAnalyzedOffset" might be non-negative int, null (unknown), or a negative int (defaulting to index analyzed offset).
      */
     @SuppressWarnings("unchecked")
     public HB maxAnalyzedOffset(Integer maxAnalyzedOffset) {
-        if (maxAnalyzedOffset != null && maxAnalyzedOffset <= 0) {
-            throw new IllegalArgumentException("[" + MAX_ANALYZED_OFFSET_FIELD + "] must be a positive integer");
+        if (maxAnalyzedOffset != null && (maxAnalyzedOffset < -1 || maxAnalyzedOffset == 0)) {
+            throw new IllegalArgumentException("[" + MAX_ANALYZED_OFFSET_FIELD + "] must be a positive integer, or -1");
         }
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         return (HB) this;

@@ -9,43 +9,46 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Locate function, given a string 'a' and a substring 'b', it returns the index of the first occurrence of the substring 'b' in 'a'.
  */
 public class Locate extends EsqlScalarFunction implements OptionalArgument {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Locate", Locate::new);
 
     private final Expression str;
     private final Expression substr;
     private final Expression start;
 
-    @FunctionInfo(
-        returnType = "integer",
-        description = "Returns an integer that indicates the position of a keyword substring within another string",
-        examples = @Example(file = "string", tag = "locate")
-    )
+    @FunctionInfo(returnType = "integer", description = """
+        Returns an integer that indicates the position of a keyword substring within another string.
+        Returns `0` if the substring cannot be found.
+        Note that string positions start from `1`.""", examples = @Example(file = "string", tag = "locate"))
     public Locate(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
@@ -62,9 +65,31 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
         this.start = start;
     }
 
+    private Locate(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(substr);
+        out.writeOptionalNamedWriteable(start);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     public DataType dataType() {
-        return DataTypes.INTEGER;
+        return DataType.INTEGER;
     }
 
     @Override
@@ -82,7 +107,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return start == null ? TypeResolution.TYPE_RESOLVED : isType(start, dt -> dt == DataTypes.INTEGER, sourceText(), THIRD, "integer");
+        return start == null ? TypeResolution.TYPE_RESOLVED : isType(start, dt -> dt == DataType.INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override
@@ -135,12 +160,24 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         ExpressionEvaluator.Factory substrExpr = toEvaluator.apply(substr);
         if (start == null) {
             return new LocateNoStartEvaluator.Factory(source(), strExpr, substrExpr);
         }
         return new LocateEvaluator.Factory(source(), strExpr, substrExpr, toEvaluator.apply(start));
+    }
+
+    Expression str() {
+        return str;
+    }
+
+    Expression substr() {
+        return substr;
+    }
+
+    Expression start() {
+        return start;
     }
 }

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -36,8 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
-
-import static org.elasticsearch.TransportVersions.AGGS_EXCLUDED_DELETED_DOCS;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final int KEY_ORDER_CONCURRENCY_THRESHOLD = 50;
@@ -172,7 +170,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
                 return cardinality <= KEY_ORDER_CONCURRENCY_THRESHOLD;
             }
             BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
-            return cardinality <= adjusted.getShardSize();
+            // for cardinality equal to shard size, we don't know if there were more terms when merging.
+            return cardinality < adjusted.getShardSize();
         }
         return false;
     }
@@ -198,9 +197,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(AGGS_EXCLUDED_DELETED_DOCS)) {
-            excludeDeletedDocs = in.readBoolean();
-        }
+        excludeDeletedDocs = in.readBoolean();
     }
 
     @Override
@@ -216,9 +213,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-        if (out.getTransportVersion().onOrAfter(AGGS_EXCLUDED_DELETED_DOCS)) {
-            out.writeBoolean(excludeDeletedDocs);
-        }
+        out.writeBoolean(excludeDeletedDocs);
     }
 
     /**
@@ -497,6 +492,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

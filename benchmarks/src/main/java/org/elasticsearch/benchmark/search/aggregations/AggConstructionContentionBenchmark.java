@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.search.aggregations;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -152,7 +153,7 @@ public class AggConstructionContentionBenchmark {
     }
 
     private class DummyAggregationContext extends AggregationContext {
-        private final Query query = new MatchAllDocsQuery();
+        private final Query query = Queries.ALL_DOCS_INSTANCE;
         private final List<Releasable> releaseMe = new ArrayList<>();
 
         private final CircuitBreaker breaker;
@@ -214,7 +215,7 @@ public class AggConstructionContentionBenchmark {
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
             }, index, ft.name());
-            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(indexFieldDataCache, breakerService);
+            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "benchmark")).build(indexFieldDataCache, breakerService);
         }
 
         @Override

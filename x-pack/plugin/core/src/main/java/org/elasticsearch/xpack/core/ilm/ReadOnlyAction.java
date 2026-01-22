@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -27,6 +27,10 @@ public class ReadOnlyAction implements LifecycleAction {
     public static final String NAME = "readonly";
 
     private static final ObjectParser<ReadOnlyAction, Void> PARSER = new ObjectParser<>(NAME, false, ReadOnlyAction::new);
+
+    public static final String INDEXING_COMPLETE_STEP_NAME = "set-indexing-complete";
+
+    private static final Settings INDEXING_COMPLETE = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true).build();
 
     public static ReadOnlyAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -61,6 +65,8 @@ public class ReadOnlyAction implements LifecycleAction {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, NAME);
+        StepKey setIndexingCompleteStepKey = new StepKey(phase, NAME, INDEXING_COMPLETE_STEP_NAME);
+
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndex,
             waitTimeSeriesEndTimePassesKey
@@ -68,11 +74,18 @@ public class ReadOnlyAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             readOnlyKey,
-            Instant::now,
-            client
+            Instant::now
         );
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, nextStepKey, client);
-        return Arrays.asList(checkNotWriteIndexStep, waitUntilTimeSeriesEndTimeStep, readOnlyStep);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, setIndexingCompleteStepKey, client, true);
+
+        UpdateSettingsStep setIndexingCompleteStep = new UpdateSettingsStep(
+            setIndexingCompleteStepKey,
+            nextStepKey,
+            client,
+            INDEXING_COMPLETE
+        );
+
+        return List.of(checkNotWriteIndexStep, waitUntilTimeSeriesEndTimeStep, readOnlyStep, setIndexingCompleteStep);
     }
 
     @Override

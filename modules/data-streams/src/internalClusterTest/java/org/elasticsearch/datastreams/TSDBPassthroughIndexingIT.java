@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -14,9 +15,12 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -41,12 +45,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
@@ -70,6 +76,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
               },
               "attributes": {
                 "type": "passthrough",
+                "priority": 0,
                 "dynamic": true,
                 "time_series_dimension": true
               },
@@ -139,10 +146,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexingGettingAndSearching() throws Exception {
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", randomIntBetween(2, 10))
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -182,8 +186,9 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         }
 
         // validate index:
-        var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(index)).actionGet();
-        assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), equalTo("[attributes.*]"));
+        var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index)).actionGet();
+        assertThat(getIndexResponse.getSettings().get(index).get("index.dimensions"), equalTo("[attributes.*]"));
+        assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), nullValue());
         // validate mapping
         var mapping = getIndexResponse.mappings().get(index).getSourceAsMap();
         assertMap(
@@ -197,39 +202,25 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         assertMap(attributes.get("pod.ip"), matchesMap().entry("type", "ip").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.uid"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.name"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
-        // alias field mappers:
-        assertMap(
-            ObjectPath.eval("properties.metricset", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.metricset")
-        );
-        assertMap(
-            ObjectPath.eval("properties.number.properties.long", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.number.long")
-        );
-        assertMap(
-            ObjectPath.eval("properties.number.properties.double", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.number.double")
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("name", matchesMap().entry("type", "alias").entry("path", "attributes.pod.name"))
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("uid", matchesMap().entry("type", "alias").entry("path", "attributes.pod.uid"))
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("ip", matchesMap().entry("type", "alias").entry("path", "attributes.pod.ip"))
-        );
+
+        FieldCapabilitiesResponse fieldCaps = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("k8s")).actionGet();
+        assertTrue(fieldCaps.getField("attributes.metricset").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("metricset").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("attributes.number.long").get("long").isDimension());
+        assertTrue(fieldCaps.getField("number.long").get("long").isDimension());
+        assertTrue(fieldCaps.getField("attributes.number.double").get("float").isDimension());
+        assertTrue(fieldCaps.getField("number.double").get("float").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.ip").get("ip").isDimension());
+        assertTrue(fieldCaps.getField("pod.ip").get("ip").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.uid").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("pod.uid").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.name").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("pod.name").get("keyword").isDimension());
     }
 
     public void testIndexingGettingAndSearchingShrunkIndex() throws Exception {
         String dataStreamName = "k8s";
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", 8)
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -278,12 +269,10 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
 
         String shrunkenTarget = "k8s-shrunken";
-        var shrinkIndexResponse = client().admin()
-            .indices()
-            .prepareResizeIndex(sourceIndex, shrunkenTarget)
-            .setResizeType(ResizeType.SHRINK)
-            .setSettings(indexSettings(2, 0).build())
-            .get();
+        final var shrinkIndexResponse = client().execute(
+            TransportResizeAction.TYPE,
+            resizeRequest(ResizeType.SHRINK, sourceIndex, shrunkenTarget, indexSettings(2, 0))
+        ).actionGet();
         assertThat(shrinkIndexResponse.isAcknowledged(), is(true));
         assertThat(shrinkIndexResponse.index(), equalTo(shrunkenTarget));
 

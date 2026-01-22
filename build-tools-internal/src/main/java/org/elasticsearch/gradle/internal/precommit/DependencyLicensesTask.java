@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask;
 import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
@@ -18,12 +20,17 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.specs.Spec;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -31,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +46,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFileCollectionFromNonTransitiveArtifactsView;
 
 /**
  * A task to check licenses for dependencies.
@@ -83,7 +91,8 @@ import javax.inject.Inject;
  * for the dependency. This artifact will be redistributed by us with the release to
  * comply with the license terms.
  */
-public class DependencyLicensesTask extends DefaultTask {
+@CacheableTask
+public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
 
     private final Pattern regex = Pattern.compile("-v?\\d+.*");
 
@@ -102,11 +111,6 @@ public class DependencyLicensesTask extends DefaultTask {
     private final DirectoryProperty licensesDir;
 
     /**
-     * A map of patterns to prefix, used to find the LICENSE and NOTICE file.
-     */
-    private Map<String, String> mappings = new LinkedHashMap<>();
-
-    /**
      * Names of dependencies whose shas should not exist.
      */
     private Set<String> ignoreShas = new HashSet<>();
@@ -117,25 +121,6 @@ public class DependencyLicensesTask extends DefaultTask {
     private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
     private ProjectLayout projectLayout;
 
-    /**
-     * Add a mapping from a regex pattern for the jar name, to a prefix to find
-     * the LICENSE and NOTICE file for that jar.
-     */
-    public void mapping(Map<String, String> props) {
-        String from = props.get("from");
-        if (from == null) {
-            throw new InvalidUserDataException("Missing \"from\" setting for license name mapping");
-        }
-        String to = props.get("to");
-        if (to == null) {
-            throw new InvalidUserDataException("Missing \"to\" setting for license name mapping");
-        }
-        if (props.size() > 2) {
-            throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: " + props.keySet());
-        }
-        mappings.put(from, to);
-    }
-
     @Inject
     public DependencyLicensesTask(ObjectFactory objects, ProjectLayout projectLayout) {
         this.projectLayout = projectLayout;
@@ -143,6 +128,7 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
     public FileCollection getDependencies() {
         return dependencies;
     }
@@ -153,6 +139,7 @@ public class DependencyLicensesTask extends DefaultTask {
 
     @Optional
     @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getLicensesDir() {
         File asFile = licensesDir.get().getAsFile();
         if (asFile.exists()) {
@@ -180,6 +167,10 @@ public class DependencyLicensesTask extends DefaultTask {
     public void ignoreFile(String file) {
         ignoreFiles.add(file);
     }
+
+    @Input
+    @Optional
+    public abstract Property<Spec<ComponentIdentifier>> getComponentFilter();
 
     @TaskAction
     public void checkDependencies() {
@@ -250,7 +241,7 @@ public class DependencyLicensesTask extends DefaultTask {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");
-            String dependencyName = getDependencyName(mappings, depName);
+            String dependencyName = getDependencyName(getMappings().get(), depName);
             logger.info("mapped dependency name {} to {} for license/notice check", depName, dependencyName);
             checkFile(dependencyName, jarName, licenses, "LICENSE");
             checkFile(dependencyName, jarName, notices, "NOTICE");
@@ -295,7 +286,6 @@ public class DependencyLicensesTask extends DefaultTask {
             // try the other suffix...TODO: get rid of this, just support ending in .txt
             return fileName + ".txt";
         }
-
         return fileName;
     }
 
@@ -305,9 +295,15 @@ public class DependencyLicensesTask extends DefaultTask {
         return new LinkedHashSet<>(ignoreFiles);
     }
 
-    @Input
-    public LinkedHashMap<String, String> getMappings() {
-        return new LinkedHashMap<>(mappings);
+    /**
+     * Convencience method for configuring dependencies to be checked and ignoring transitive dependencies for now.
+     * */
+    public void configureDependencies(
+        Configuration plusConfiguration,
+        Configuration minusConfiguration,
+        Spec<ComponentIdentifier> componentFilter
+    ) {
+        setDependencies(createFileCollectionFromNonTransitiveArtifactsView(plusConfiguration, componentFilter).minus(minusConfiguration));
     }
 
 }

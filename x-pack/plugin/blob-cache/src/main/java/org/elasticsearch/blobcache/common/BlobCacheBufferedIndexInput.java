@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -174,7 +175,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     @Override
     public final long readVLong() throws IOException {
-        if (9 <= buffer.remaining()) {
+        if (10 <= buffer.remaining()) {
             return ByteBufferStreamInput.readVLong(buffer);
         } else {
             return super.readVLong();
@@ -343,11 +344,28 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
      * @return a byte array backed index input if slicing directly from the buffer worked or {@code null} otherwise
      */
     @Nullable
-    protected final IndexInput trySliceBuffer(String name, long sliceOffset, long sliceLength) {
+    protected final ByteArrayIndexInput trySliceBuffer(String name, long sliceOffset, long sliceLength) {
         if (ByteRange.of(bufferStart, bufferStart + buffer.limit()).contains(sliceOffset, sliceOffset + sliceLength)) {
             final byte[] bytes = new byte[(int) sliceLength];
             buffer.get(Math.toIntExact(sliceOffset - bufferStart), bytes, 0, bytes.length);
             return new ByteArrayIndexInput(name, bytes);
+        }
+        return null;
+    }
+
+    @Nullable
+    protected final IndexInput tryCloneBuffer() {
+        if (buffer.limit() == length && bufferStart == 0) {
+            var clone = trySliceBuffer(super.toString(), 0, length);
+            if (clone != null) {
+                try {
+                    clone.seek(buffer.position());
+                } catch (IOException ioe) {
+                    assert false : ioe;
+                    throw new UncheckedIOException(ioe);
+                }
+                return clone;
+            }
         }
         return null;
     }
@@ -361,7 +379,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     protected abstract void seekInternal(long pos) throws IOException;
 
     @Override
-    public BlobCacheBufferedIndexInput clone() {
+    public IndexInput clone() {
         BlobCacheBufferedIndexInput clone = (BlobCacheBufferedIndexInput) super.clone();
 
         clone.buffer = EMPTY_BYTEBUFFER;
@@ -372,12 +390,11 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     /** Returns default buffer sizes for the given {@link IOContext} */
     public static int bufferSize(IOContext context) {
-        switch (context.context) {
+        switch (context.context()) {
             case MERGE:
                 return MERGE_BUFFER_SIZE;
             case DEFAULT:
             case FLUSH:
-            case READ:
             default:
                 return BUFFER_SIZE;
         }

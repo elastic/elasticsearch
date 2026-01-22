@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
+import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettingsTests.getAzureOpenAiRequestTaskSettingsMap;
@@ -65,6 +67,58 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         assertThat(overridenModel, is(createModel("resource", "deployment", "override_apiversion", "user", "api_key", null, "id")));
     }
 
+    public void testBuildUriString() throws URISyntaxException {
+        var resource = "resource";
+        var deploymentId = "deployment";
+        var apiKey = "api key";
+        var user = "user";
+        var entraId = "entra id";
+        var inferenceEntityId = "inference entity id";
+        var apiVersion = "2024";
+
+        var model = createModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
+
+        assertThat(
+            model.buildUriString().toString(),
+            is("https://resource.openai.azure.com/openai/deployments/deployment/embeddings?api-version=2024")
+        );
+    }
+
+    public static AzureOpenAiEmbeddingsModel createModelWithRandomValues() {
+        return createModel(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10)
+        );
+    }
+
+    public static AzureOpenAiEmbeddingsModel createModel(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        String user,
+        ChunkingSettings chunkingSettings,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String inferenceEntityId
+    ) {
+        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
+        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        return new AzureOpenAiEmbeddingsModel(
+            inferenceEntityId,
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
+            new AzureOpenAiEmbeddingsTaskSettings(user),
+            chunkingSettings,
+            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+        );
+    }
+
     public static AzureOpenAiEmbeddingsModel createModel(
         String resourceName,
         String deploymentId,
@@ -82,6 +136,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
+            null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }
@@ -117,6 +172,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 null
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),
+            null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }

@@ -1,4 +1,0 @@
-org.elasticsearch.xpack.ql.plan.logical.Aggregate @ use @org.elasticsearch.xpack.esql.plan.logical.Aggregate instead
-org.elasticsearch.xpack.ql.plan.logical.EsRelation @ use @org.elasticsearch.xpack.esql.plan.logical.EsRelation instead
-org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation @ use @org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation instead
-org.elasticsearch.xpack.ql.analyzer.PreAnalyzer @ use org.elasticsearch.xpack.esql.analysis.PreAnalyzer

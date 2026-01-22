@@ -1,0 +1,52 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.10.0" ]
+      reason: Introduced in 8.10.0
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ elastic ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+
+---
+"Delete Query Ruleset":
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      query_rules.get_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+
+---
+"Delete Query Ruleset - Ruleset does not exist":
+  - do:
+      catch: "missing"
+      query_rules.delete_ruleset:
+        ruleset_id: test-nonexistent-query-ruleset
+
+---
+'Delete Query Ruleset - Insufficient privilege':
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset-to-delete
+
+  - match: { error.type: 'security_exception' }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,11 +16,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -30,10 +31,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 
-public class CohereEmbeddingsServiceSettings implements ServiceSettings {
+public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
-
-    static final String EMBEDDING_TYPE = "embedding_type";
 
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -57,7 +56,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
             case REQUEST -> Objects.requireNonNullElse(
                 extractOptionalEnum(
                     map,
-                    EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     CohereEmbeddingType::fromString,
                     EnumSet.allOf(CohereEmbeddingType.class),
@@ -68,7 +67,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
             case PERSISTENT -> {
                 var embeddingType = ServiceUtils.extractOptionalString(
                     map,
-                    EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     validationException
                 );
@@ -82,7 +81,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
      * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
      * type was persisted as a CohereEmbeddingType enum. After
      * DenseVectorFieldMapper.ElementType was used.
-     *
+     * <p>
      * Parse either and convert to a CohereEmbeddingType
      */
     static CohereEmbeddingType fromCohereOrDenseVectorEnumValues(String enumString, ValidationException validationException) {
@@ -100,7 +99,12 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
                     .map(value -> value.toString().toLowerCase(Locale.ROOT))
                     .toArray(String[]::new);
                 validationException.addValidationError(
-                    ServiceUtils.invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
+                    ServiceUtils.invalidValue(
+                        ServiceFields.EMBEDDING_TYPE,
+                        ModelConfigurations.SERVICE_SETTINGS,
+                        enumString,
+                        validValuesAsStrings
+                    )
                 );
                 return null;
             }
@@ -134,6 +138,11 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         return commonSettings.dimensions();
     }
 
+    @Override
+    public String modelId() {
+        return commonSettings.modelId();
+    }
+
     public CohereEmbeddingType getEmbeddingType() {
         return embeddingType;
     }
@@ -153,26 +162,34 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         builder.startObject();
 
         commonSettings.toXContentFragment(builder, params);
-        builder.field(EMBEDDING_TYPE, elementType());
+        builder.field(ServiceFields.EMBEDDING_TYPE, elementType());
 
         builder.endObject();
         return builder;
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        commonSettings.toXContentFragmentOfExposedFields(builder, params);
+        builder.field(ServiceFields.EMBEDDING_TYPE, elementType());
+
+        return builder;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
         out.writeOptionalEnum(CohereEmbeddingType.translateToVersion(embeddingType, out.getTransportVersion()));
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

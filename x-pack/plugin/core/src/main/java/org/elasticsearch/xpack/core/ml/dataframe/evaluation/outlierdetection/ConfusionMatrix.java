@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -93,10 +93,10 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
         long[] tn = new long[thresholds.length];
         long[] fn = new long[thresholds.length];
         for (int i = 0; i < thresholds.length; i++) {
-            Filter tpAgg = aggs.get(aggName(thresholds[i], Condition.TP));
-            Filter fpAgg = aggs.get(aggName(thresholds[i], Condition.FP));
-            Filter tnAgg = aggs.get(aggName(thresholds[i], Condition.TN));
-            Filter fnAgg = aggs.get(aggName(thresholds[i], Condition.FN));
+            SingleBucketAggregation tpAgg = aggs.get(aggName(thresholds[i], Condition.TP));
+            SingleBucketAggregation fpAgg = aggs.get(aggName(thresholds[i], Condition.FP));
+            SingleBucketAggregation tnAgg = aggs.get(aggName(thresholds[i], Condition.TN));
+            SingleBucketAggregation fnAgg = aggs.get(aggName(thresholds[i], Condition.FN));
             tp[i] = tpAgg.getDocCount();
             fp[i] = fpAgg.getDocCount();
             tn[i] = tnAgg.getDocCount();

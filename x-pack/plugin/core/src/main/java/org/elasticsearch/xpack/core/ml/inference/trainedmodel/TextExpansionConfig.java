@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -76,12 +75,6 @@ public class TextExpansionConfig implements NlpConfig {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
-        if (this.tokenization instanceof BertTokenization == false) {
-            throw ExceptionsHelper.badRequestException(
-                "text expansion models must be configured with BERT tokenizer, [{}] given",
-                this.tokenization.getName()
-            );
-        }
         this.resultsField = resultsField;
     }
 
@@ -149,7 +142,7 @@ public class TextExpansionConfig implements NlpConfig {
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersions.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

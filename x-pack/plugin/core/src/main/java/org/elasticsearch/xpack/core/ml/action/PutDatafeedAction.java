@@ -43,6 +43,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         private final DatafeedConfig datafeed;
 
         public Request(DatafeedConfig datafeed) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.datafeed = datafeed;
         }
 
@@ -90,7 +91,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             datafeed = new DatafeedConfig(in);
         }
 

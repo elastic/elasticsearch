@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.security.action.saml;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.XmlUtils;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
@@ -75,7 +76,7 @@ public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSp
             final EntityDescriptor descriptor = builder.build();
             final Element element = marshaller.marshall(descriptor);
             final StringWriter writer = new StringWriter();
-            final Transformer serializer = SamlUtils.getHardenedXMLTransformer();
+            final Transformer serializer = XmlUtils.getHardenedXMLTransformer();
             serializer.transform(new DOMSource(element), new StreamResult(writer));
             listener.onResponse(new SamlSpMetadataResponse(writer.toString()));
         } catch (Exception e) {

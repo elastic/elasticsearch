@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -66,7 +67,7 @@ public class DynamicTemplateParseTests extends ESTestCase {
     public void testMappingTypeDynamicTypeReplace() {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
-        templateDef.put("mapping", Collections.singletonMap("type", "type_set_{dynamic_type}_{dynamicType}"));
+        templateDef.put("mapping", Collections.singletonMap("type", "type_set_{{dynamic_type}}_{dynamicType}"));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         // when type is set, the set type is returned
         assertEquals("type_set_input_input", template.mappingType("input"));
@@ -75,7 +76,7 @@ public class DynamicTemplateParseTests extends ESTestCase {
     public void testMappingTypeDynamicTypeReplaceRuntime() {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
-        templateDef.put("runtime", Collections.singletonMap("type", "type_set_{dynamic_type}_{dynamicType}"));
+        templateDef.put("runtime", Collections.singletonMap("type", "type_set_{dynamic_type}_{{dynamicType}}"));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         // when type is set, the set type is returned
         assertEquals("type_set_input_input", template.mappingType("input"));
@@ -84,7 +85,7 @@ public class DynamicTemplateParseTests extends ESTestCase {
     public void testMappingForName() throws IOException {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
-        templateDef.put("mapping", Map.of("field1_{name}", "{dynamic_type}", "test", List.of("field2_{name}_{dynamicType}")));
+        templateDef.put("mapping", Map.of("field1_{name}", "{dynamic_type}", "test", List.of("field2_{{name}}_{dynamicType}")));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
         assertEquals(
@@ -92,6 +93,41 @@ public class DynamicTemplateParseTests extends ESTestCase {
                 {"field1_my_name":"my_type","test":["field2_my_name_my_type"]}""",
             Strings.toString(JsonXContent.contentBuilder().map(stringObjectMap))
         );
+    }
+
+    public void testMappingForNameWithParams() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("{{key}}", "{{unit}}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of("unit", "By", "key", "unit"));
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", "By"))));
+    }
+
+    public void testMappingForNameSingleBraceValue() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("unit", "{percent}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of());
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", "{percent}"))));
+    }
+
+    public void testMappingForNameWithParamsDefaultValue() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("unit", "{{unit}}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of());
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", ""))));
+    }
+
+    public void testMappingForNameWithParamsSpecialCharacterValue() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("price", "{{price}}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of("price", "$2"));
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("price", "$2"))));
+    }
+
+    public void testMappingForNameWithParamsDefaultValueEmpty() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("unit", "{{unit}}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of());
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", ""))));
     }
 
     public void testMappingForNameRuntime() throws IOException {

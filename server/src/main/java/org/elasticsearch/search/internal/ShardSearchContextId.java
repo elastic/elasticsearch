@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -20,7 +21,6 @@ public final class ShardSearchContextId implements Writeable {
     private final long id;
     private final String searcherId;
 
-    // TODO: Remove this constructor
     public ShardSearchContextId(String sessionId, long id) {
         this(sessionId, id, null);
     }
@@ -42,7 +42,6 @@ public final class ShardSearchContextId implements Writeable {
         out.writeLong(id);
         out.writeString(sessionId);
         out.writeOptionalString(searcherId);
-
     }
 
     public String getSessionId() {
@@ -53,8 +52,12 @@ public final class ShardSearchContextId implements Writeable {
         return id;
     }
 
-    public String getSearcherId() {
-        return searcherId;
+    public boolean isRetryable() {
+        return this.searcherId != null;
+    }
+
+    public boolean sameSearcherIdsAs(String otherSearcherId) {
+        return this.isRetryable() && this.searcherId.equals(otherSearcherId);
     }
 
     @Override
@@ -73,5 +76,9 @@ public final class ShardSearchContextId implements Writeable {
     @Override
     public String toString() {
         return "[" + sessionId + "][" + id + "] searcherId [" + searcherId + "]";
+    }
+
+    public String getSearcherId() {
+        return searcherId;
     }
 }

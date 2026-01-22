@@ -111,7 +111,7 @@ public class FeatureFactory {
      * Returns a List {@code byte[]} containing the mvt representation of the provided geometry
      */
     public List<byte[]> getFeatures(Geometry geometry) {
-        // Get geometry in pixel coordinates
+        // Get clipped and simplified geometry in pixel coordinates
         final org.locationtech.jts.geom.Geometry mvtGeometry = geometry.visit(mvtGeometryBuilder);
         if (mvtGeometry == null) {
             return List.of();
@@ -125,6 +125,15 @@ public class FeatureFactory {
         final List<byte[]> byteFeatures = new ArrayList<>(features.size());
         features.forEach(f -> byteFeatures.add(f.toByteArray()));
         return byteFeatures;
+    }
+
+    /**
+     * Testing purposes only, allowing us to test the impact of the geometry clipping and simplification
+     * without needing to parse the protobuffer results.
+     */
+    org.locationtech.jts.geom.Geometry getMvtGeometry(Geometry geometry) {
+        // Get clipped and simplified geometry in pixel coordinates
+        return geometry.visit(mvtGeometryBuilder);
     }
 
     private record MVTGeometryBuilder(
@@ -307,8 +316,11 @@ public class FeatureFactory {
                         return null;
                     }
                 } catch (TopologyException ex) {
-                    // we should never get here but just to be super safe because a TopologyException will kill the node
-                    throw new IllegalArgumentException(ex);
+                    // Note we should never throw a TopologyException as it kill the node
+                    // unfortunately the intersection method is not perfect and it will throw this error for complex
+                    // geometries even when valid. We can still simplify such geometry so we just return the original and
+                    // let the simplification process handle it.
+                    return geometry;
                 }
             }
         }
@@ -329,8 +341,13 @@ public class FeatureFactory {
 
         @Override
         public void filter(CoordinateSequence seq, int i) {
-            seq.setOrdinate(i, 0, lon(seq.getOrdinate(i, 0)));
-            seq.setOrdinate(i, 1, lat(seq.getOrdinate(i, 1)));
+            // JTS can sometimes close polygons using references to the starting coordinate, which can lead to that coordinate
+            // being converted twice. We need to detect if the end is the same actual Coordinate, and not do the conversion again.
+            if (i != 0 && i == seq.size() - 1 && seq.getCoordinate(0) == seq.getCoordinate(i)) {
+                return;
+            }
+            seq.setOrdinate(i, CoordinateSequence.X, lon(seq.getOrdinate(i, CoordinateSequence.X)));
+            seq.setOrdinate(i, CoordinateSequence.Y, lat(seq.getOrdinate(i, CoordinateSequence.Y)));
         }
 
         @Override

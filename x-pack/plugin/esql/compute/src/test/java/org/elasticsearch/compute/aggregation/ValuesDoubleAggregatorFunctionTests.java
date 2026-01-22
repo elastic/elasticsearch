@@ -10,10 +10,13 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -26,8 +29,8 @@ public class ValuesDoubleAggregatorFunctionTests extends AggregatorFunctionTestC
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -36,8 +39,15 @@ public class ValuesDoubleAggregatorFunctionTests extends AggregatorFunctionTestC
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMapToDouble(b -> allDoubles(b)).boxed().collect(Collectors.toSet()).toArray(Object[]::new);
-        assertThat((List<?>) BlockUtils.toJavaObject(result, 0), containsInAnyOrder(values));
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        TreeSet<?> set = new TreeSet<>((List<?>) BlockUtils.toJavaObject(result, 0));
+        Object[] values = input.stream()
+            .flatMapToDouble(p -> allDoubles(p.getBlock(0)))
+            .boxed()
+            .collect(Collectors.toSet())
+            .toArray(Object[]::new);
+        if (false == set.containsAll(Arrays.asList(values))) {
+            assertThat(set, containsInAnyOrder(values));
+        }
     }
 }

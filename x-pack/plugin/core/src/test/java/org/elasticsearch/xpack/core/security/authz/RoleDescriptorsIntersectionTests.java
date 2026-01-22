@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RoleDescriptorsIntersectionTests extends ESTestCase {
@@ -48,6 +48,11 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
                     ConfigurableClusterPrivilege.class,
                     ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
                     ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageRolesPrivilege.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageRolesPrivilege::createFrom
                 )
             )
         );

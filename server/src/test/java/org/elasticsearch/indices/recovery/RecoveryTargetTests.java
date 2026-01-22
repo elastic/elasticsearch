@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.recovery;
 
@@ -59,7 +60,7 @@ public class RecoveryTargetTests extends ESTestCase {
         final Version streamVersion;
 
         Streamer(AtomicBoolean shouldStop, T source) {
-            this(shouldStop, source, randomVersion(random()));
+            this(shouldStop, source, randomVersion());
         }
 
         Streamer(AtomicBoolean shouldStop, T source, Version streamVersion) {

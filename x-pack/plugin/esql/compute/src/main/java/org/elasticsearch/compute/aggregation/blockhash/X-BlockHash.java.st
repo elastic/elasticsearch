@@ -9,16 +9,11 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(BytesRef)$
-import org.elasticsearch.common.util.BytesRefArray;
-$endif$
-import org.elasticsearch.common.util.$Hash$;
+import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 $if(BytesRef)$
@@ -27,6 +22,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 $elseif(double)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -50,21 +47,23 @@ $endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
+$if(BytesRef)$
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
+$endif$
 import org.elasticsearch.core.ReleasableIterator;
 
 $if(BytesRef)$
-import java.io.IOException;
-
 $else$
 import java.util.BitSet;
 
 $endif$
 /**
  * Maps a {@link $Type$Block} column to group ids.
+ * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;
-    final $Hash$ hash;
+    final $Hash$Table hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -78,11 +77,12 @@ final class $Type$BlockHash extends BlockHash {
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new $Hash$(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        // TODO track raw counts and which implementation we pick for the profiler - #114008
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             seenNull = true;
@@ -104,8 +104,20 @@ final class $Type$BlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
+     */
     IntVector add($Type$Vector vector) {
 $if(BytesRef)$
+        if (vector.isConstant()) {
+            BytesRef v = vector.getBytesRef(0, new BytesRef());
+            int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+            return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
+        }
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return addOrdinalsVector(ordinals);
+        }
         BytesRef scratch = new BytesRef();
 $endif$
         int positions = vector.getPositionCount();
@@ -124,7 +136,19 @@ $endif$
         }
     }
 
+    /**
+     *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
+     * <p>
+     *     For nulls, a 0 group ID is used. For multivalues, a multivalue is used with all the group IDs.
+     * </p>
+     */
     IntBlock add($Type$Block block) {
+$if(BytesRef)$
+        var ordinals = block.asOrdinals();
+        if (ordinals != null) {
+            return addOrdinalsBlock(ordinals);
+        }
+$endif$
         MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
@@ -145,6 +169,59 @@ $endif$
         }
         return ReleasableIterator.single(lookup(vector));
     }
+
+$if(BytesRef)$
+    private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
+        IntVector inputOrds = inputBlock.getOrdinalsVector();
+        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
+            if (inputOrds.isConstant()) {
+                int ord = hashOrds.getInt(inputOrds.getInt(0));
+                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
+            }
+            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
+                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                    int ord = hashOrds.getInt(inputOrds.getInt(p));
+                    builder.appendInt(ord);
+                }
+                return builder.build();
+            }
+        }
+    }
+
+    private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        try (
+            IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
+            IntVector hashOrds = add(inputBlock.getDictionaryVector())
+        ) {
+            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                int valueCount = inputOrds.getValueCount(p);
+                int firstIndex = inputOrds.getFirstValueIndex(p);
+                switch (valueCount) {
+                    case 0 -> {
+                        builder.appendInt(0);
+                        seenNull = true;
+                    }
+                    case 1 -> {
+                        int ord = hashOrds.getInt(inputOrds.getInt(firstIndex));
+                        builder.appendInt(ord);
+                    }
+                    default -> {
+                        int start = firstIndex;
+                        int end = firstIndex + valueCount;
+                        builder.beginPositionEntry();
+                        for (int i = start; i < end; i++) {
+                            int ord = hashOrds.getInt(inputOrds.getInt(i));
+                            builder.appendInt(ord);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+$endif$
 
     private IntBlock lookup($Type$Vector vector) {
 $if(BytesRef)$
@@ -183,26 +260,21 @@ $if(BytesRef)$
          * without and still read from the block.
          */
         // TODO replace with takeBytesRefsOwnership ?!
+        final BytesRef spare = new BytesRef();
         if (seenNull) {
             try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
                 builder.appendNull();
-                BytesRef spare = new BytesRef();
                 for (long i = 0; i < hash.size(); i++) {
                     builder.appendBytesRef(hash.get(i, spare));
                 }
                 return new BytesRefBlock[] { builder.build() };
             }
         }
-
-        final int size = Math.toIntExact(hash.size());
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            hash.getBytesRefs().writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                return new BytesRefBlock[] {
-                    blockFactory.newBytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock() };
+        try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
+            for (long i = 0; i < hash.size(); i++) {
+                builder.appendBytesRef(hash.get(i, spare));
             }
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
+            return new BytesRefBlock[] { builder.build() };
         }
 $else$
         if (seenNull) {

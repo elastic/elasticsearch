@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -20,7 +21,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -96,6 +97,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
+    public void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.afterIndexShardClosing(shardId, indexShard, indexSettings);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke after shard closing callback", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
     public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
@@ -122,6 +135,28 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 throw e;
             }
         }
+    }
+
+    @Override
+    public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
+        iterateBeforeIndexShardMutableOperation(indexShard, permitAcquired, listener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("%s failed to invoke the listener before ensuring shard mutability", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
+    }
+
+    private void iterateBeforeIndexShardMutableOperation(
+        IndexShard indexShard,
+        boolean permitAcquired,
+        ActionListener<Void> outerListener
+    ) {
+        callListeners(
+            indexShard,
+            listeners.stream()
+                .map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardMutableOperation(indexShard, permitAcquired, l))
+                .iterator(),
+            outerListener
+        );
     }
 
     @Override
@@ -336,4 +371,5 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
     }
+
 }

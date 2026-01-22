@@ -13,9 +13,9 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Builder for {@link LongVector}s that never grows. Prefer this to
  * {@link LongVectorBuilder} if you know the precise size up front because
  * it's faster.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorFixedBuilder.java.st} instead.
  */
-final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
+public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final long[] values;
     private final long preAdjustedBytes;
@@ -24,6 +24,8 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
      * been built.
      */
     private int nextIndex;
+
+    private boolean closed;
 
     LongVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
@@ -38,23 +40,31 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         return this;
     }
 
+    @Override
+    public LongVectorFixedBuilder appendLong(int idx, long value) {
+        values[idx] = value;
+        return this;
+    }
+
     private static long ramBytesUsed(int size) {
         return size == 1
             ? ConstantLongVector.RAM_BYTES_USED
             : LongArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Long.BYTES
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * Long.BYTES
             );
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public LongVector build() {
-        if (nextIndex < 0) {
+        if (closed) {
             throw new IllegalStateException("already closed");
         }
-        if (nextIndex != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
-        }
-        nextIndex = -1;
+        closed = true;
         LongVector vector;
         if (values.length == 1) {
             vector = blockFactory.newConstantLongBlockWith(values[0], 1, preAdjustedBytes).asVector();
@@ -67,14 +77,14 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
 
     @Override
     public void close() {
-        if (nextIndex >= 0) {
+        if (closed == false) {
             // If nextIndex < 0 we've already built the vector
-            nextIndex = -1;
+            closed = true;
             blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 
-    boolean isReleased() {
-        return nextIndex < 0;
+    public boolean isReleased() {
+        return closed;
     }
 }

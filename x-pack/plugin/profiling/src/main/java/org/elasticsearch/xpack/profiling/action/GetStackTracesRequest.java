@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
@@ -36,13 +36,13 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 /**
  * A request to get profiling details
  */
-public class GetStackTracesRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class GetStackTracesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
-    public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation_field");
+    public static final ParseField AGGREGATION_FIELDS = new ParseField("aggregation_fields");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
     public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
     public static final ParseField AZURE_COST_FACTOR_FIELD = new ParseField("azure_cost_factor");
@@ -59,7 +59,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String[] indices;
     private boolean userProvidedIndices;
     private String stackTraceIdsField;
-    private String aggregationField;
+    private String[] aggregationFields;
     private Double requestedDuration;
     private Double awsCostFactor;
     private Double azureCostFactor;
@@ -89,7 +89,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         QueryBuilder query,
         String[] indices,
         String stackTraceIdsField,
-        String aggregationField,
+        String[] aggregationFields,
         Double customCO2PerKWH,
         Double customDatacenterPUE,
         Double customPerCoreWattX86,
@@ -104,7 +104,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.indices = indices;
         this.userProvidedIndices = indices != null && indices.length > 0;
         this.stackTraceIdsField = stackTraceIdsField;
-        this.aggregationField = aggregationField;
+        this.aggregationFields = aggregationFields;
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
         this.customPerCoreWattX86 = customPerCoreWattX86;
@@ -177,8 +177,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return stackTraceIdsField;
     }
 
-    public String getAggregationField() {
-        return aggregationField;
+    public String[] getAggregationFields() {
+        return aggregationFields;
+    }
+
+    public boolean hasAggregationFields() {
+        String[] f = getAggregationFields();
+        return f != null && f.length > 0;
     }
 
     public boolean isAdjustSampleCount() {
@@ -217,8 +222,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     this.limit = parser.intValue();
                 } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.stackTraceIdsField = parser.text();
-                } else if (AGGREGATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.aggregationField = parser.text();
                 } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.requestedDuration = parser.doubleValue();
                 } else if (AWS_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -244,8 +247,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.indices = parseIndices(parser);
+                    this.indices = parseToStringArray(parser, INDICES_FIELD);
                     this.userProvidedIndices = true;
+                } else if (AGGREGATION_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.aggregationFields = parseToStringArray(parser, AGGREGATION_FIELDS);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + currentFieldName + "].");
                 }
@@ -260,12 +265,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         }
     }
 
-    private String[] parseIndices(XContentParser parser) throws IOException {
+    private String[] parseToStringArray(XContentParser parser, ParseField parseField) throws IOException {
         XContentParser.Token token;
-        List<String> indices = new ArrayList<>();
+        List<String> values = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.VALUE_STRING) {
-                indices.add(parser.text());
+                values.add(parser.text());
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
@@ -274,12 +279,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                         + "] but found ["
                         + token
                         + "] in ["
-                        + INDICES_FIELD.getPreferredName()
+                        + parseField.getPreferredName()
                         + "]."
                 );
             }
         }
-        return indices.toArray(new String[0]);
+        return values.toArray(new String[0]);
     }
 
     @Override
@@ -300,11 +305,19 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
         }
-        if (aggregationField != null && aggregationField.isBlank()) {
-            validationException = addValidationError(
-                "[" + AGGREGATION_FIELD.getPreferredName() + "] must be non-empty",
-                validationException
-            );
+        if (aggregationFields != null) {
+            // limit so we avoid an explosion of buckets
+            if (aggregationFields.length < 1 || aggregationFields.length > 2) {
+                validationException = addValidationError(
+                    "["
+                        + AGGREGATION_FIELDS.getPreferredName()
+                        + "] must contain either one or two elements but contains ["
+                        + aggregationFields.length
+                        + "] elements.",
+                    validationException
+                );
+            }
+
         }
 
         validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
@@ -338,7 +351,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 StringBuilder sb = new StringBuilder();
                 appendField(sb, "indices", indices);
                 appendField(sb, "stacktrace_ids_field", stackTraceIdsField);
-                appendField(sb, "aggregation_field", aggregationField);
+                appendField(sb, "aggregation_fields", aggregationFields);
                 appendField(sb, "sample_size", sampleSize);
                 appendField(sb, "limit", limit);
                 appendField(sb, "requested_duration", requestedDuration);
@@ -385,8 +398,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public int hashCode() {
         // The object representation of `query` may use Lucene's ByteRef to represent values. This class' hashCode implementation
         // uses StringUtils.GOOD_FAST_HASH_SEED which is reinitialized for each JVM. This means that hashcode is consistent *within*
-        // a JVM but will not be consistent across the cluster. As we use hashCode e.g. to initialize the random number generator in
-        // Resampler to produce a consistent downsampling results, relying on the default hashCode implementation of `query` will
+        // a JVM but will not be consistent across the cluster. As we use hashCode to initialize random number generators
+        // to produce consistent downsampling results, relying on the default hashCode implementation of `query` will
         // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
         // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
         return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField);

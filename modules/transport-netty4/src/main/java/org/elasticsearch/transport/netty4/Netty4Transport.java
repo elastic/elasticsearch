@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport.netty4;
 
@@ -30,6 +31,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,7 +54,6 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
@@ -78,6 +79,8 @@ public class Netty4Transport extends TcpTransport {
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     protected final boolean remoteClusterPortEnabled;
 
+    private final ThreadWatchdog threadWatchdog;
+
     public Netty4Transport(
         Settings settings,
         TransportVersion version,
@@ -92,6 +95,7 @@ public class Netty4Transport extends TcpTransport {
         Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
+        this.threadWatchdog = networkService.getThreadWatchdog();
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         this.receivePredictorMin = Netty4Plugin.NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
@@ -125,6 +129,7 @@ public class Netty4Transport extends TcpTransport {
                     bindServer(profileSettings);
                 }
             }
+            threadWatchdog.run(settings, threadPool, lifecycle);
             success = true;
         } finally {
             if (success == false) {
@@ -302,11 +307,18 @@ public class Netty4Transport extends TcpTransport {
         }, serverBootstraps::clear, () -> clientBootstrap = null);
     }
 
+    static Exception exceptionFromThrowable(Throwable cause) {
+        if (cause instanceof Error) {
+            return new Exception(cause);
+        } else {
+            return (Exception) cause;
+        }
+    }
+
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             setupPipeline(ch, false);
@@ -314,6 +326,8 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4TcpChannel channel = ctx.channel().attr(CHANNEL_KEY).get();
+            channel.setCloseException(exceptionFromThrowable(cause));
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
@@ -331,7 +345,6 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
@@ -342,6 +355,8 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            Netty4TcpChannel channel = ctx.channel().attr(CHANNEL_KEY).get();
+            channel.setCloseException(exceptionFromThrowable(cause));
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
@@ -353,26 +368,28 @@ public class Netty4Transport extends TcpTransport {
         if (NetworkTraceFlag.TRACE_ENABLED) {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
-        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(ch, isRemoteClusterServerChannel)));
+        pipeline.addLast(
+            "chunked_writer",
+            new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext(), threadWatchdog.getActivityTrackerForCurrentThread())
+        );
+        pipeline.addLast(
+            "dispatcher",
+            new Netty4MessageInboundHandler(
+                this,
+                getInboundPipeline(ch, isRemoteClusterServerChannel),
+                threadWatchdog.getActivityTrackerForCurrentThread()
+            )
+        );
     }
 
     protected InboundPipeline getInboundPipeline(Channel ch, boolean isRemoteClusterServerChannel) {
         return new InboundPipeline(
             getStatsTracker(),
-            threadPool::relativeTimeInMillis,
+            threadPool.relativeTimeInMillisSupplier(),
             new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage
         );
-    }
-
-    private static void addClosedExceptionLogger(Channel channel) {
-        channel.closeFuture().addListener(f -> {
-            if (f.isSuccess() == false) {
-                logger.debug(() -> format("exception while closing channel: %s", channel), f.cause());
-            }
-        });
     }
 
     @ChannelHandler.Sharable
@@ -382,11 +399,7 @@ public class Netty4Transport extends TcpTransport {
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             Netty4TcpServerChannel serverChannel = ctx.channel().attr(SERVER_CHANNEL_KEY).get();
-            if (cause instanceof Error) {
-                onServerException(serverChannel, new Exception(cause));
-            } else {
-                onServerException(serverChannel, (Exception) cause);
-            }
+            onServerException(serverChannel, exceptionFromThrowable(cause));
         }
     }
 }

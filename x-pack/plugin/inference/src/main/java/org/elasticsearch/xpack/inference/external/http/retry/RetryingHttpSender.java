@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -26,12 +27,16 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class RetryingHttpSender implements RequestSender {
+
+    public static final int MAX_RETRIES = 3;
+
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
     private final RetrySettings retrySettings;
@@ -68,6 +73,7 @@ public class RetryingHttpSender implements RequestSender {
         private final Logger logger;
         private final HttpClientContext context;
         private final Supplier<Boolean> hasRequestCompletedFunction;
+        private final AtomicInteger retryCount;
 
         InternalRetrier(
             Logger logger,
@@ -91,32 +97,68 @@ public class RetryingHttpSender implements RequestSender {
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);
             this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
+            this.retryCount = new AtomicInteger(0);
         }
 
         @Override
         public void tryAction(ActionListener<InferenceServiceResults> listener) {
+            retryCount.incrementAndGet();
             // A timeout likely occurred so let's stop attempting to execute the request
             if (hasRequestCompletedFunction.get()) {
                 return;
             }
 
-            ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
-                try {
-                    responseHandler.validateResponse(throttlerManager, logger, request, result);
-                    InferenceServiceResults inferenceResults = responseHandler.parseResult(request, result);
-
-                    listener.onResponse(inferenceResults);
-                } catch (Exception e) {
-                    logException(logger, request, result, responseHandler.getRequestType(), e);
-                    listener.onFailure(e);
-                }
-            }, e -> {
+            /*
+             * This listener handles failures from the http client level such as an IOException or UnknownHostException. We will try
+             * to determine if the exception is retryable and if so wrap it in a RetryException so that when we pass the failure to the
+             * tryAction original listener it will get passed to shouldRetry() and be retried.
+             */
+            var httpClientFailureListener = listener.delegateResponse((l, e) -> {
                 logException(logger, request, responseHandler.getRequestType(), e);
-                listener.onFailure(transformIfRetryable(e));
+                l.onFailure(transformIfRetryable(e));
             });
 
             try {
-                httpClient.send(request.createHttpRequest(), context, responseListener);
+                if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
+                    httpClient.stream(request.createHttpRequest(), context, httpClientFailureListener.delegateFailure((l, r) -> {
+                        if (r.isSuccessfulResponse()) {
+                            l.onResponse(responseHandler.parseResult(request, r.toHttpResult()));
+                        } else {
+                            r.readFullResponse(l.delegateFailureAndWrap((ll, httpResult) -> {
+                                try {
+                                    responseHandler.validateResponse(throttlerManager, logger, request, httpResult);
+                                    InferenceServiceResults inferenceResults = responseHandler.parseResult(request, httpResult);
+                                    ll.onResponse(inferenceResults);
+                                } catch (Exception e) {
+                                    /*
+                                     * Entering this exception block typically happens when validateResponse() throws an exception
+                                     * for when we get a failure status code. We pass it back to the original listener so
+                                     * shouldRetry() can determine if we need to retry.
+                                     */
+                                    logException(logger, request, httpResult, responseHandler.getRequestType(), e);
+                                    listener.onFailure(e);
+                                }
+                            }));
+                        }
+                    }));
+                } else {
+                    httpClient.send(request.createHttpRequest(), context, httpClientFailureListener.delegateFailure((l, r) -> {
+                        try {
+                            responseHandler.validateResponse(throttlerManager, logger, request, r);
+                            InferenceServiceResults inferenceResults = responseHandler.parseResult(request, r);
+
+                            l.onResponse(inferenceResults);
+                        } catch (Exception e) {
+                            /*
+                             * Entering this exception block typically happens when validateResponse() throws an exception
+                             * for when we get a failure status code. We pass it back to the original listener so
+                             * shouldRetry() can determine if we need to retry.
+                             */
+                            logException(logger, request, r, responseHandler.getRequestType(), e);
+                            listener.onFailure(e);
+                        }
+                    }));
+                }
             } catch (Exception e) {
                 logException(logger, request, responseHandler.getRequestType(), e);
 
@@ -140,10 +182,10 @@ public class RetryingHttpSender implements RequestSender {
                     RestStatus.BAD_REQUEST,
                     e
                 );
-            }
-
-            if (e instanceof IOException) {
-                exceptionToReturn = new RetryException(true, e);
+            } else if (e instanceof SizeLimitInputStream.InputStreamTooLargeException) {
+                return e;
+            } else if (e instanceof IOException) {
+                return new RetryException(true, e);
             }
 
             return exceptionToReturn;
@@ -164,6 +206,10 @@ public class RetryingHttpSender implements RequestSender {
 
         @Override
         public boolean shouldRetry(Exception e) {
+            if (retryCount.get() >= MAX_RETRIES) {
+                return false;
+            }
+
             if (e instanceof Retryable retry) {
                 request = retry.rebuildRequest(request);
                 return retry.shouldRetry();
@@ -177,12 +223,18 @@ public class RetryingHttpSender implements RequestSender {
     public void send(
         Logger logger,
         Request request,
-        HttpClientContext context,
         Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
-        InternalRetrier retrier = new InternalRetrier(logger, request, context, hasRequestTimedOutFunction, responseHandler, listener);
+        var retrier = new InternalRetrier(
+            logger,
+            request,
+            HttpClientContext.create(),
+            hasRequestTimedOutFunction,
+            responseHandler,
+            listener
+        );
         retrier.run();
     }
 

@@ -203,6 +203,14 @@ public class FilteringRule implements Writeable, ToXContentObject {
         return Objects.hash(createdAt, field, id, order, policy, rule, updatedAt, value);
     }
 
+    public Integer getOrder() {
+        return order;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
     public static class Builder {
 
         private Instant createdAt;

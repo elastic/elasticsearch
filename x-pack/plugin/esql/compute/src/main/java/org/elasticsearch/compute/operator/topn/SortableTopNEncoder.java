@@ -52,6 +52,24 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public final void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder) {
+        bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
+        NumericUtils.intToSortableBytes(NumericUtils.floatToSortableInt(value), bytesRefBuilder.bytes(), bytesRefBuilder.length());
+        bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
+    }
+
+    @Override
+    public final float decodeFloat(BytesRef bytes) {
+        if (bytes.length < Float.BYTES) {
+            throw new IllegalArgumentException("not enough bytes");
+        }
+        float v = NumericUtils.sortableIntToFloat(NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset));
+        bytes.offset += Float.BYTES;
+        bytes.length -= Float.BYTES;
+        return v;
+    }
+
+    @Override
     public final void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
         NumericUtils.longToSortableBytes(NumericUtils.doubleToSortableLong(value), bytesRefBuilder.bytes(), bytesRefBuilder.length());

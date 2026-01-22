@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -61,14 +61,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            if (in.readBoolean()) {
-                state = TDigestState.read(in);
-            } else {
-                state = null;
-            }
-        } else {
+        if (in.readBoolean()) {
             state = TDigestState.read(in);
+        } else {
+            state = null;
         }
         keyed = in.readBoolean();
     }
@@ -77,16 +73,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            if (this.state != null) {
-                out.writeBoolean(true);
-                TDigestState.write(state, out);
-            } else {
-                out.writeBoolean(false);
-            }
-        } else {
-            TDigestState state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+        if (this.state != null) {
+            out.writeBoolean(true);
             TDigestState.write(state, out);
+        } else {
+            out.writeBoolean(false);
         }
         out.writeBoolean(keyed);
     }

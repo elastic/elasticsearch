@@ -20,7 +20,7 @@ import java.util.Optional;
 public class RobertaTokenizationUpdate extends AbstractTokenizationUpdate {
     public static final ParseField NAME = new ParseField(RobertaTokenization.NAME);
 
-    public static ConstructingObjectParser<RobertaTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RobertaTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
         "roberta_tokenization_update",
         a -> new RobertaTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]), (Integer) a[1])
     );

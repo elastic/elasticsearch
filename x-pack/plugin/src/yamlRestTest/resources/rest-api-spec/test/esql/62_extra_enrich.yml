@@ -44,7 +44,6 @@
       esql.query:
         body:
           query: 'ROW name="engineering" | ENRICH departments-policy | LIMIT 10 | KEEP name, employees'
-          version: 2024.04.01
 
   - match: { columns.0.name: "name" }
   - match: { columns.0.type: "keyword" }
@@ -59,7 +58,6 @@
       esql.query:
         body:
           query: 'ROW name="sales" | ENRICH departments-policy ON name WITH department=name | WHERE name==department | KEEP name, department | LIMIT 10'
-          version: 2024.04.01
 
   - match: { columns.0.name: "name" }
   - match: { columns.0.type: "keyword" }
@@ -259,7 +257,6 @@ movies:
             SORT total DESC, title ASC |
             KEEP total, title |
             LIMIT 10
-          version: 2024.04.01
 
   - match: { columns.0.name: "total" }
   - match: { columns.0.type: "long" }

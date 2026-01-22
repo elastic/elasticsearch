@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.
@@ -143,7 +145,7 @@ public class RoundTripTests extends ESTestCase {
             assertNotNull(tripped.getRemoteInfo());
             assertEquals(request.getRemoteInfo().getScheme(), tripped.getRemoteInfo().getScheme());
             assertEquals(request.getRemoteInfo().getHost(), tripped.getRemoteInfo().getHost());
-            assertEquals(request.getRemoteInfo().getQuery(), tripped.getRemoteInfo().getQuery());
+            assertThat(tripped.getRemoteInfo().getQuery(), equalBytes(request.getRemoteInfo().getQuery()));
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());

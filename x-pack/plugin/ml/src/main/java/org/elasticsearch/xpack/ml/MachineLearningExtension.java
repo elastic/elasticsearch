@@ -15,8 +15,6 @@ public interface MachineLearningExtension {
 
     default void configure(Settings settings) {}
 
-    boolean useIlm();
-
     boolean includeNodeInfo();
 
     boolean isAnomalyDetectionEnabled();
@@ -25,7 +23,7 @@ public interface MachineLearningExtension {
 
     boolean isNlpEnabled();
 
-    default boolean isLearningToRankEnabled() {
+    default boolean disableInferenceProcessCache() {
         return false;
     }
 

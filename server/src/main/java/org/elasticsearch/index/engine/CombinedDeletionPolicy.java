@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -28,7 +29,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.lucene.Lucene.additionalFileNames;
 
 /**
  * An {@link IndexDeletionPolicy} that coordinates between Lucene's commits and the retention of translog generation files,
@@ -37,19 +39,15 @@ import java.util.stream.Collectors;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-public class CombinedDeletionPolicy extends IndexDeletionPolicy {
+public class CombinedDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
-
-    interface CommitsListener {
-
-        void onNewAcquiredCommit(IndexCommit commit, Set<String> additionalFiles);
-
-        void onDeletedCommit(IndexCommit commit);
-    }
+    private final Map<IndexCommit, Integer> acquiredIndexCommits; // Number of references held against each commit point.
+    // Index commits internally acquired by the commits listener. We want to track them separately to be able to disregard them
+    // when checking for externally acquired index commits that haven't been released
+    private final Set<IndexCommit> internallyAcquiredIndexCommits;
 
     @Nullable
     private final CommitsListener commitsListener;
@@ -71,7 +69,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.commitsListener = commitsListener;
-        this.snapshottedCommits = new HashMap<>();
+        this.acquiredIndexCommits = new HashMap<>();
+        this.internallyAcquiredIndexCommits = new HashSet<>();
     }
 
     @Override
@@ -114,13 +113,13 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             }
             if (commitsListener != null && previousLastCommit != this.lastCommit) {
-                newCommit = acquireIndexCommit(false);
+                newCommit = acquireIndexCommit(false, true);
             } else {
                 newCommit = null;
             }
             for (int i = 0; i < keptPosition; i++) {
                 final IndexCommit commit = commits.get(i);
-                if (snapshottedCommits.containsKey(commit) == false) {
+                if (acquiredIndexCommits.containsKey(commit) == false) {
                     deleteCommit(commit);
                     if (deletedCommits == null) {
                         deletedCommits = new ArrayList<>();
@@ -132,7 +131,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert assertSafeCommitUnchanged(safeCommit);
         if (commitsListener != null) {
             if (newCommit != null) {
-                final Set<String> additionalFiles = listOfNewFileNames(previousLastCommit, newCommit);
+                final Set<String> additionalFiles = additionalFileNames(previousLastCommit, newCommit);
                 commitsListener.onNewAcquiredCommit(newCommit, additionalFiles);
             }
             if (deletedCommits != null) {
@@ -153,7 +152,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             return currentSafeCommitInfo;
         }
 
-        if (currentSafeCommitInfo.localCheckpoint == newSafeCommitLocalCheckpoint) {
+        if (currentSafeCommitInfo.localCheckpoint() == newSafeCommitLocalCheckpoint) {
             // the new commit could in principle have the same LCP but a different doc count due to extra operations between its LCP and
             // MSN, but that is a transient state since we'll eventually advance the LCP. The doc count is only used for heuristics around
             // expiring excessively-lagging retention leases, so a little inaccuracy is tolerable here.
@@ -164,7 +163,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             return new SafeCommitInfo(newSafeCommitLocalCheckpoint, getDocCountOfCommit(newSafeCommit));
         } catch (IOException ex) {
             logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
-            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, currentSafeCommitInfo.docCount);
+            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, currentSafeCommitInfo.docCount());
         }
     }
 
@@ -182,7 +181,6 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert commit.isDeleted() == false : "Index commit [" + commitDescription(commit) + "] is deleted twice";
         logger.debug("Delete index commit [{}]", commitDescription(commit));
         commit.delete();
-        assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
     }
 
     private void updateRetentionPolicy() throws IOException {
@@ -199,7 +197,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         return SegmentInfos.readCommit(indexCommit.getDirectory(), indexCommit.getSegmentsFileName()).totalMaxDoc();
     }
 
-    SafeCommitInfo getSafeCommitInfo() {
+    @Override
+    public SafeCommitInfo getSafeCommitInfo() {
         return safeCommitInfo;
     }
 
@@ -209,42 +208,57 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      *
      * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
      */
-    synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+    @Override
+    public synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+        return acquireIndexCommit(acquiringSafeCommit, false);
+    }
+
+    private synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit, boolean acquiredInternally) {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
-        snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
-        return wrapCommit(snapshotting);
+        acquiredIndexCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
+        assert acquiredInternally == false || internallyAcquiredIndexCommits.add(snapshotting)
+            : "commit [" + snapshotting + "] already added";
+        return wrapCommit(snapshotting, acquiredInternally);
     }
 
     protected IndexCommit wrapCommit(IndexCommit indexCommit) {
-        return new SnapshotIndexCommit(indexCommit);
+        return wrapCommit(indexCommit, false);
+    }
+
+    protected IndexCommit wrapCommit(IndexCommit indexCommit, boolean acquiredInternally) {
+        return new SnapshotIndexCommit(indexCommit, acquiredInternally);
     }
 
     /**
      * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
      *
-     * @return true if the snapshotting commit can be clean up.
+     * @return true if the acquired commit can be clean up.
      */
-    synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
-        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).getIndexCommit();
-        assert snapshottedCommits.containsKey(releasingCommit)
-            : "Release non-snapshotted commit;"
-                + "snapshotted commits ["
-                + snapshottedCommits
+    @Override
+    public synchronized boolean releaseIndexCommit(final IndexCommit acquiredCommit) {
+        final SnapshotIndexCommit snapshotIndexCommit = (SnapshotIndexCommit) acquiredCommit;
+        final IndexCommit releasingCommit = snapshotIndexCommit.getIndexCommit();
+        assert acquiredIndexCommits.containsKey(releasingCommit)
+            : "Release non-acquired commit;"
+                + "acquired commits ["
+                + acquiredIndexCommits
                 + "], releasing commit ["
                 + releasingCommit
                 + "]";
         // release refCount
-        final Integer refCount = snapshottedCommits.compute(releasingCommit, (key, count) -> {
+        final Integer refCount = acquiredIndexCommits.compute(releasingCommit, (key, count) -> {
             if (count == 1) {
                 return null;
             }
             return count - 1;
         });
+        assert snapshotIndexCommit.acquiredInternally == false || internallyAcquiredIndexCommits.remove(releasingCommit)
+            : "Trying to release a commit [" + releasingCommit + "] that hasn't been previously acquired internally";
 
-        assert refCount == null || refCount > 0 : "Number of snapshots can not be negative [" + refCount + "]";
-        // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
+        assert refCount == null || refCount > 0 : "Number of references for acquired commit can not be negative [" + refCount + "]";
+        // The commit can be clean up only if no refCount and it is neither the safe commit nor last commit.
         return refCount == null && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
@@ -290,22 +304,25 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         return 0;
     }
 
-    private static Set<String> listOfNewFileNames(IndexCommit previous, IndexCommit current) throws IOException {
-        final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
-        return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
-    }
-
     /**
-     * Checks whether the deletion policy is holding on to snapshotted commits
+     * Checks whether the deletion policy is holding on to externally acquired index commits
      */
-    synchronized boolean hasSnapshottedCommits() {
-        return snapshottedCommits.isEmpty() == false;
+    @Override
+    public synchronized boolean hasAcquiredIndexCommitsForTesting() {
+        // We explicitly check only external commits and disregard internal commits acquired by the commits listener
+        for (var e : acquiredIndexCommits.entrySet()) {
+            if (internallyAcquiredIndexCommits.contains(e.getKey()) == false || e.getValue() > 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * Checks if the deletion policy can delete some index commits with the latest global checkpoint.
      */
-    boolean hasUnreferencedCommits() {
+    @Override
+    public boolean hasUnreferencedCommits() {
         return maxSeqNoOfNextSafeCommit <= globalCheckpointSupplier.getAsLong();
     }
 
@@ -320,8 +337,12 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * A wrapper of an index commit that prevents it from being deleted.
      */
     private static class SnapshotIndexCommit extends FilterIndexCommit {
-        SnapshotIndexCommit(IndexCommit delegate) {
+
+        private final boolean acquiredInternally;
+
+        SnapshotIndexCommit(IndexCommit delegate, boolean acquiredInternally) {
             super(delegate);
+            this.acquiredInternally = acquiredInternally;
         }
 
         @Override

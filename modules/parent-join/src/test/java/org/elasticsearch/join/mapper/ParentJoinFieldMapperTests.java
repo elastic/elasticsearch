@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.mapper;
@@ -430,13 +431,13 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
 
         Iterator<Mapper> it = mapper.iterator();
         FieldMapper next = (FieldMapper) it.next();
-        assertThat(next.name(), equalTo("join_field#parent"));
+        assertThat(next.fullPath(), equalTo("join_field#parent"));
         assertTrue(next.fieldType().isSearchable());
         assertTrue(next.fieldType().isAggregatable());
 
         assertTrue(it.hasNext());
         next = (FieldMapper) it.next();
-        assertThat(next.name(), equalTo("join_field#child"));
+        assertThat(next.fullPath(), equalTo("join_field#child"));
         assertTrue(next.fieldType().isSearchable());
         assertTrue(next.fieldType().isAggregatable());
 

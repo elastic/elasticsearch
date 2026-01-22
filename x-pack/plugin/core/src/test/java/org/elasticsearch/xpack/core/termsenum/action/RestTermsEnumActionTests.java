@@ -13,15 +13,17 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -47,10 +49,16 @@ import static org.mockito.Mockito.mock;
 public class RestTermsEnumActionTests extends ESTestCase {
 
     private static ThreadPool threadPool = new TestThreadPool(RestTermsEnumActionTests.class.getName());
-    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(null, client, new NoneCircuitBreakerService(), usageService, Tracer.NOOP);
+    private static RestController controller = new RestController(
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        TelemetryProvider.NOOP
+    );
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**
@@ -65,14 +73,14 @@ public class RestTermsEnumActionTests extends ESTestCase {
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             TermsEnumAction.NAME,
             new ActionFilters(Collections.emptySet()),
-            taskManager
+            taskManager,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
         client.initialize(actions, taskManager, () -> "local", mock(Transport.Connection.class), null);

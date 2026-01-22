@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.legacygeo.mapper;
 
@@ -61,12 +62,6 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testSupportsParsingObject() throws IOException {
-        super.testSupportsParsingObject();
-        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape").field("strategy", "recursive");
     }
@@ -74,12 +69,6 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsStoredFields() {
         return false;
-    }
-
-    @Override
-    public void testTotalFieldsCount() throws IOException {
-        super.testTotalFieldsCount();
-        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
     }
 
     @Override
@@ -122,7 +111,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        return IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
     }
 
     public void testLegacySwitches() throws IOException {
@@ -676,5 +665,15 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.datatiers;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -57,15 +57,14 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         IndexMetadata nonTiered = indexMetadata("non-tier", 1, 0); // No tier
         IndexMetadata hotIndex3 = indexMetadata("hot-3", 1, 0, DataTier.DATA_HOT);
 
-        Metadata.Builder metadataBuilder = Metadata.builder()
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(hotIndex1, false)
             .put(hotIndex2, false)
             .put(warmIndex1, false)
             .put(coldIndex1, false)
             .put(coldIndex2, false)
             .put(nonTiered, false)
-            .put(hotIndex3, false)
-            .generateClusterUuidIfNeeded();
+            .put(hotIndex3, false);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.add(getIndexRoutingTable(hotIndex1, dataNode));
         routingTableBuilder.add(getIndexRoutingTable(hotIndex2, dataNode));
@@ -76,11 +75,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         routingTableBuilder.add(getIndexRoutingTable(nonTiered, dataNode));
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoBuilder)
-            .metadata(metadataBuilder)
-            .routingTable(routingTableBuilder.build())
+            .putProjectMetadata(projectBuilder)
+            .putRoutingTable(projectBuilder.getId(), routingTableBuilder.build())
             .build();
         Map<String, Set<String>> result = DataTiersUsageTransportAction.getIndicesGroupedByTier(
-            clusterState,
+            clusterState.projectState(projectBuilder.getId()),
             List.of(new NodeDataTiersUsage(dataNode, Map.of(DataTier.DATA_WARM, createStats(5, 5, 0, 10))))
         );
         assertThat(result.keySet(), equalTo(Set.of(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD)));
@@ -90,9 +89,12 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testCalculateMAD() {
-        assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(TDigestState.create(10)), equalTo(0L));
+        assertThat(
+            DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(TDigestState.createWithoutCircuitBreaking(10)),
+            equalTo(0L)
+        );
 
-        TDigestState sketch = TDigestState.create(randomDoubleBetween(1, 1000, false));
+        TDigestState sketch = TDigestState.createWithoutCircuitBreaking(randomDoubleBetween(1, 1000, false));
         sketch.add(1);
         sketch.add(1);
         sketch.add(2);

@@ -7,13 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
+import java.util.Objects;
 
-public abstract class EsqlConfigurationFunction extends EsqlScalarFunction {
+/**
+ * Implementation of {@link ConfigurationFunction}.
+ * <p>
+ *     Extend this class if possible instead of the base interface.
+ * </p>
+ */
+public abstract class EsqlConfigurationFunction extends EsqlScalarFunction implements ConfigurationFunction {
 
     private final Configuration configuration;
 
@@ -24,5 +32,20 @@ public abstract class EsqlConfigurationFunction extends EsqlScalarFunction {
 
     public Configuration configuration() {
         return configuration;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        EsqlConfigurationFunction other = (EsqlConfigurationFunction) obj;
+
+        return configuration.equals(other.configuration);
     }
 }

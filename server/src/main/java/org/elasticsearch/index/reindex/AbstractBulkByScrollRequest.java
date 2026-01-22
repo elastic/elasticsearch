@@ -1,35 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
-public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
+public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends LegacyActionRequest {
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
@@ -116,8 +119,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Constructor for actual use.
      *
      * @param searchRequest the search request to execute to get the documents to process
-     * @param setDefaults should this request set the defaults on the search request? Usually set to true but leave it false to support
-     *        request slicing
+     * @param setDefaults   should this request set the defaults on the search request? Usually set to true but leave it false to support
+     *                      request slicing
      */
     public AbstractBulkByScrollRequest(SearchRequest searchRequest, boolean setDefaults) {
         this.searchRequest = searchRequest;
@@ -135,6 +138,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * warnings.
      */
     protected abstract Self self();
+
+    /**
+     * Whether the request supports remote indices in the search request.
+     */
+    public boolean supportsRemoteIndicesSearch() {
+        return false;
+    }
 
     @Override
     public ActionRequestValidationException validate() {
@@ -158,6 +168,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
             e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
+        }
+        if (supportsRemoteIndicesSearch() == false) {
+            List<String> remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(searchRequest.indices());
+            if (remoteIndices.isEmpty() == false) {
+                e = addValidationError(
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + remoteIndices,
+                    e
+                );
+            }
         }
         return e;
     }
@@ -248,7 +267,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Timeout to wait for the shards on to be available for each bulk request?
      */
     public Self setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
+        this.timeout = Objects.requireNonNull(timeout);
         return self();
     }
 
@@ -348,7 +367,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Set scroll timeout for {@link SearchRequest}
      */
     public Self setScroll(TimeValue keepAlive) {
-        searchRequest.scroll(new Scroll(keepAlive));
+        searchRequest.scroll(keepAlive);
         return self();
     }
 
@@ -356,7 +375,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Get scroll timeout
      */
     public TimeValue getScrollTime() {
-        return searchRequest.scroll().keepAlive();
+        return searchRequest.scroll();
     }
 
     /**

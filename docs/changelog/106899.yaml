@@ -1,6 +1,0 @@
-pr: 106899
-summary: Add ES|QL Locate function
-area: ES|QL
-type: enhancement
-issues:
- - 106818

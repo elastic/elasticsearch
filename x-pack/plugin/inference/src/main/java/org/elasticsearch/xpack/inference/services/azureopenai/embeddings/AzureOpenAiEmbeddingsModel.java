@@ -7,23 +7,20 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionVisitor;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-
-import static org.elasticsearch.core.Strings.format;
 
 public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
 
@@ -42,6 +39,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -51,6 +49,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             service,
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
             AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
@@ -62,15 +61,16 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
         try {
-            this.uri = getEmbeddingsUri(serviceSettings.resourceName(), serviceSettings.deploymentId(), serviceSettings.apiVersion());
+            this.uri = buildUriString();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -104,17 +104,23 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         return creator.create(this, taskSettings);
     }
 
-    public static URI getEmbeddingsUri(String resourceName, String deploymentId, String apiVersion) throws URISyntaxException {
-        String hostname = format("%s.%s", resourceName, AzureOpenAiUtils.HOST_SUFFIX);
-        return new URIBuilder().setScheme("https")
-            .setHost(hostname)
-            .setPathSegments(
-                AzureOpenAiUtils.OPENAI_PATH,
-                AzureOpenAiUtils.DEPLOYMENTS_PATH,
-                deploymentId,
-                AzureOpenAiUtils.EMBEDDINGS_PATH
-            )
-            .addParameter(AzureOpenAiUtils.API_VERSION_PARAMETER, apiVersion)
-            .build();
+    @Override
+    public String resourceName() {
+        return getServiceSettings().resourceName();
+    }
+
+    @Override
+    public String deploymentId() {
+        return getServiceSettings().deploymentId();
+    }
+
+    @Override
+    public String apiVersion() {
+        return getServiceSettings().apiVersion();
+    }
+
+    @Override
+    public String[] operationPathSegments() {
+        return new String[] { AzureOpenAiUtils.EMBEDDINGS_PATH };
     }
 }

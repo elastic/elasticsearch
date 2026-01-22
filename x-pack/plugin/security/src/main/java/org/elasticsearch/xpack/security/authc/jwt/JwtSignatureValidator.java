@@ -32,17 +32,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil.toStringRedactSignature;
+import static org.elasticsearch.xpack.security.authc.jwt.JwtUtil.toStringRedactSignature;
 
 public interface JwtSignatureValidator extends Releasable {
 
@@ -68,7 +68,8 @@ public interface JwtSignatureValidator extends Releasable {
         public DelegatingJwtSignatureValidator(
             final RealmConfig realmConfig,
             final SSLService sslService,
-            final PkcJwkSetReloadNotifier reloadNotifier
+            final PkcJwkSetReloadNotifier reloadNotifier,
+            final ThreadPool threadPool
         ) {
             this.realmConfig = realmConfig;
             // Split configured signature algorithms by PKC and HMAC. Useful during validation, error logging, and JWK vs Alg filtering.
@@ -112,8 +113,7 @@ public interface JwtSignatureValidator extends Releasable {
 
             if (isConfiguredJwkSetPkc) {
                 this.pkcJwtSignatureValidator = new PkcJwtSignatureValidator(
-                    new JwkSetLoader(realmConfig, allowedJwksAlgsPkc, sslService),
-                    reloadNotifier
+                    new JwkSetLoader(realmConfig, allowedJwksAlgsPkc, sslService, threadPool, reloadNotifier)
                 );
             } else {
                 this.pkcJwtSignatureValidator = null;
@@ -260,11 +260,9 @@ public interface JwtSignatureValidator extends Releasable {
         private static final Logger logger = LogManager.getLogger(PkcJwtSignatureValidator.class);
 
         private final JwkSetLoader jwkSetLoader;
-        private final PkcJwkSetReloadNotifier reloadNotifier;
 
-        PkcJwtSignatureValidator(JwkSetLoader jwkSetLoader, PkcJwkSetReloadNotifier reloadNotifier) {
+        PkcJwtSignatureValidator(JwkSetLoader jwkSetLoader) {
             this.jwkSetLoader = jwkSetLoader;
-            this.reloadNotifier = reloadNotifier;
         }
 
         public void validate(String tokenPrincipal, SignedJWT signedJWT, ActionListener<Void> listener) {
@@ -305,11 +303,6 @@ public interface JwtSignatureValidator extends Releasable {
                             MessageDigests.toHexString(maybeUpdatedContentAndJwksAlgs.sha256())
                         );
                     }
-
-                    // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
-                    // Enhancement idea: Use separate caches for PKC vs HMAC JWKs, so only PKC entries get invalidated.
-                    // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
-                    reloadNotifier.reloaded();
 
                     try {
                         final JwkSetLoader.JwksAlgs updatedJwksAlgs = maybeUpdatedContentAndJwksAlgs.jwksAlgs();
@@ -457,10 +450,6 @@ public interface JwtSignatureValidator extends Releasable {
                 + OctetSequenceKey.class.getCanonicalName()
                 + "]."
         );
-    }
-
-    interface PkcJwkSetReloadNotifier {
-        void reloaded();
     }
 
 }

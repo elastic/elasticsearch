@@ -22,14 +22,10 @@ public class DefaultMachineLearningExtension implements MachineLearningExtension
         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(),
         MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(),
+        MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING.getKey(),
         MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(),
         MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(),
         MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey() };
-
-    @Override
-    public boolean useIlm() {
-        return true;
-    }
 
     @Override
     public boolean includeNodeInfo() {
@@ -48,11 +44,6 @@ public class DefaultMachineLearningExtension implements MachineLearningExtension
 
     @Override
     public boolean isNlpEnabled() {
-        return true;
-    }
-
-    @Override
-    public boolean isLearningToRankEnabled() {
         return true;
     }
 

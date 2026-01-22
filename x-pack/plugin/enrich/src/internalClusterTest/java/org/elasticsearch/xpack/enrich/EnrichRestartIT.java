@@ -60,7 +60,7 @@ public class EnrichRestartIT extends ESIntegTestCase {
         createSourceIndices(client(), enrichPolicy);
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+            PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         }
 
@@ -71,8 +71,10 @@ public class EnrichRestartIT extends ESIntegTestCase {
     }
 
     private static void verifyPolicies(int numPolicies, EnrichPolicy enrichPolicy) {
-        GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
-            .actionGet();
+        GetEnrichPolicyAction.Response response = client().execute(
+            GetEnrichPolicyAction.INSTANCE,
+            new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet();
         assertThat(response.getPolicies(), hasSize(numPolicies));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;

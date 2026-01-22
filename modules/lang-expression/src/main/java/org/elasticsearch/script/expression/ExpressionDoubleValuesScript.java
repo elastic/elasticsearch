@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.expression;
@@ -16,6 +17,8 @@ import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.script.DoubleValuesScript;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.function.Function;
 
 /**
@@ -36,12 +39,20 @@ public class ExpressionDoubleValuesScript implements DoubleValuesScript.Factory 
         return new DoubleValuesScript() {
             @Override
             public double execute() {
-                return exprScript.evaluate(new DoubleValues[0]);
+                try {
+                    return exprScript.evaluate(new DoubleValues[0]);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
 
             @Override
             public double evaluate(DoubleValues[] functionValues) {
-                return exprScript.evaluate(functionValues);
+                try {
+                    return exprScript.evaluate(functionValues);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
 
             @Override

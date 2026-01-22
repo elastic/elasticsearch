@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -92,7 +93,6 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     }
 
     private LeafBucketCollector getLeafCollector(GeoPointValues values, LeafBucketCollector sub) {
-        final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -103,16 +103,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
                     final GeoPoint value = values.pointValue();
-                    // latitude
-                    compensatedSum.reset(latSum.get(bucket), latCompensations.get(bucket));
-                    compensatedSum.add(value.getLat());
-                    latSum.set(bucket, compensatedSum.value());
-                    latCompensations.set(bucket, compensatedSum.delta());
-                    // longitude
-                    compensatedSum.reset(lonSum.get(bucket), lonCompensations.get(bucket));
-                    compensatedSum.add(value.getLon());
-                    lonSum.set(bucket, compensatedSum.value());
-                    lonCompensations.set(bucket, compensatedSum.delta());
+                    SumAggregator.computeSum(bucket, value.getLat(), latSum, latCompensations);
+                    SumAggregator.computeSum(bucket, value.getLon(), lonSum, lonCompensations);
                 }
             }
         };

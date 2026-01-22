@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -64,10 +64,11 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(final XContentParser parser) throws IOException {
+        public static Request fromXContent(TimeValue masterNodeTimeout, TimeValue ackTimeout, final XContentParser parser)
+            throws IOException {
             PutFollowParameters parameters = PARSER.parse(parser, null);
 
-            Request request = new Request();
+            Request request = new Request(masterNodeTimeout, ackTimeout);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndex(parameters.leaderIndex);
             request.setDataStreamName(parameters.dataStreamName);
@@ -85,7 +86,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
+        }
 
         public String getFollowerIndex() {
             return followerIndex;
@@ -190,14 +193,10 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.remoteCluster = in.readString();
             this.leaderIndex = in.readString();
             this.followerIndex = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                this.settings = Settings.readSettingsFromStream(in);
-            }
+            this.settings = Settings.readSettingsFromStream(in);
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                this.dataStreamName = in.readOptionalString();
-            }
+            this.dataStreamName = in.readOptionalString();
         }
 
         @Override
@@ -206,14 +205,10 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings.writeTo(out);
-            }
+            settings.writeTo(out);
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                out.writeOptionalString(this.dataStreamName);
-            }
+            out.writeOptionalString(this.dataStreamName);
         }
 
         @Override
@@ -294,7 +289,6 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             followIndexCreated = in.readBoolean();
             followIndexShardsAcked = in.readBoolean();
             indexFollowingStarted = in.readBoolean();

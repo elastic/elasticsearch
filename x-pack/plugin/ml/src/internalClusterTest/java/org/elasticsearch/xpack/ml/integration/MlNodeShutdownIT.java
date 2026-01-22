@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -33,6 +34,7 @@ import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
     public void testJobsVacateShuttingDownNode() throws Exception {
@@ -95,7 +97,16 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                nodeIdToShutdown.get(),
+                type,
+                "just testing",
+                null,
+                targetNodeName,
+                grace
+            )
         ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
@@ -189,7 +200,16 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                nodeIdToShutdown.get(),
+                type,
+                "just testing",
+                null,
+                targetNodeName,
+                grace
+            )
         ).actionGet();
 
         if (randomBoolean()) {

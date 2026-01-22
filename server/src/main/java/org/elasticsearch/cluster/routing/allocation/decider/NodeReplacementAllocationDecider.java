@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -78,15 +79,66 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             }
 
             final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.node().getName());
-            return allocation.decision(
-                Decision.NO,
-                NAME,
-                "node [%s] is replacing the vacating node [%s], only data currently allocated to the source node "
-                    + "may be allocated to it until the replacement is complete",
-                node.nodeId(),
-                shutdown == null ? null : shutdown.getNodeId(),
-                shardRouting.currentNodeId()
-            );
+            assert shutdown != null : node.node() + " is a replacement target but no shutdown metadata found";
+
+            final String sourceNodeId = shutdown.getNodeId();
+            final var sourceNode = allocation.routingNodes().node(sourceNodeId);
+            if (sourceNode != null) {
+                if (sourceNode.isEmpty() == false) {
+                    return allocation.decision(
+                        Decision.NO,
+                        NAME,
+                        "node [%s] is replacing the vacating node [%s], only data currently allocated to the source node "
+                            + "may be allocated to it until the replacement is complete",
+                        node.nodeId(),
+                        sourceNodeId
+                    );
+                } else {
+                    return allocation.decision(
+                        Decision.YES,
+                        NAME,
+                        "node [%s] has completed replacing the vacating node [%s] and can receive shards from other sources",
+                        node.nodeId(),
+                        sourceNodeId
+                    );
+                }
+            } else {
+                final boolean sourceNodeLeftAnyUnassignedShards = allocation.routingNodes()
+                    .unassigned()
+                    .stream()
+                    .anyMatch(s -> sourceNodeId.equals(s.unassignedInfo().lastAllocatedNodeId()));
+
+                if (sourceNodeLeftAnyUnassignedShards) {
+                    if (shardRouting.unassigned() && sourceNodeId.equals(shardRouting.unassignedInfo().lastAllocatedNodeId())) {
+                        return allocation.decision(
+                            Decision.YES,
+                            NAME,
+                            "the vacating node [%s] is no longer in the cluster and has left unassigned shards, "
+                                + "the replacing node [%s] can receive those shards",
+                            sourceNodeId,
+                            node.nodeId()
+                        );
+                    } else {
+                        return allocation.decision(
+                            Decision.NO,
+                            NAME,
+                            "the vacating node [%s] is no longer in the cluster and has left unassigned shards, "
+                                + "the replacing node [%s] can only receive those unassigned shards until the replacement is complete",
+                            sourceNodeId,
+                            node.nodeId()
+                        );
+                    }
+                } else {
+                    return allocation.decision(
+                        Decision.YES,
+                        NAME,
+                        "the vacating node [%s] is no longer in the cluster and has left no unassigned shards, "
+                            + "the replacing node [%s] can receive shards from other sources",
+                        sourceNodeId,
+                        node.nodeId()
+                    );
+                }
+            }
         } else {
             return YES__NO_APPLICABLE_REPLACEMENTS;
         }

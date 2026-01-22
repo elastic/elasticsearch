@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -167,7 +169,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 invocation -> new TestTemplateService.MockTemplateScript.Factory(((Script) invocation.getArguments()[0]).getIdOrCode())
             );
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
+            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
             SearchExecutionContext mockContext = new SearchExecutionContext(
                 0,
                 0,
@@ -187,7 +189,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 null,
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                MapperMetrics.NOOP
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -243,7 +246,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

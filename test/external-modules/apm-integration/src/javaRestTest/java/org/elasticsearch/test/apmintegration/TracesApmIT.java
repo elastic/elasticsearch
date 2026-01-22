@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.apmintegration;
@@ -21,7 +22,8 @@ import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
 import org.junit.ClassRule;
-import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,19 +44,44 @@ public class TracesApmIT extends ESRestTestCase {
     final String traceIdValue = "0af7651916cd43dd8448eb211c80319c";
     final String traceParentValue = "00-" + traceIdValue + "-b7ad6b7169203331-01";
 
-    @ClassRule
     public static RecordingApmServer mockApmServer = new RecordingApmServer();
 
-    @Rule
-    public ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.INTEG_TEST)
         .module("test-apm-integration")
         .module("apm")
         .setting("telemetry.metrics.enabled", "false")
         .setting("telemetry.tracing.enabled", "true")
         .setting("telemetry.agent.metrics_interval", "1s")
-        .setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
+        .setting("telemetry.agent.server_url", () -> "http://127.0.0.1:" + mockApmServer.getPort())
         .build();
+
+    @ClassRule
+    // Custom test rule which manually orders test fixtures. A RuleChain won't work here due to the specific order we require, which is:
+    // 1. Start the mock APM server
+    // 2. Start ES cluster
+    // 3. Run the test
+    // 4. Stop the mock APM server
+    // 5. Stop ES cluster
+    public static TestRule rule = (base, description) -> {
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                mockApmServer.before();
+                Statement s = new Statement() {
+                    @Override
+                    public void evaluate() throws Throwable {
+                        try {
+                            base.evaluate();
+                        } finally {
+                            mockApmServer.after();
+                        }
+                    }
+                };
+                cluster.apply(s, description).evaluate();
+            }
+        };
+    };
 
     @Override
     protected String getTestRestCluster() {
@@ -90,7 +117,8 @@ public class TracesApmIT extends ESRestTestCase {
 
         client().performRequest(nodeStatsRequest);
 
-        finished.await(30, TimeUnit.SECONDS);
+        var completed = finished.await(30, TimeUnit.SECONDS);
+        assertTrue("Timeout when waiting for assertions to complete", completed);
         assertThat(assertions, equalTo(Collections.emptySet()));
     }
 
@@ -142,5 +170,4 @@ public class TracesApmIT extends ESRestTestCase {
             return Collections.emptyMap();
         }
     }
-
 }

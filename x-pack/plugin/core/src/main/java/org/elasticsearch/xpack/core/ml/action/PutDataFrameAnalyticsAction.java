@@ -62,6 +62,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         public Request(DataFrameAnalyticsConfig config) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.config = config;
         }
 
@@ -163,7 +164,6 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             config = new DataFrameAnalyticsConfig(in);
         }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -13,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,6 +42,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.index.SearchSlowLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,33 +52,37 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
 
 public class IndexingSlowLogTests extends ESTestCase {
     static MockAppender appender;
     static Logger testLogger1 = LogManager.getLogger(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+    static Level origLogLevel = testLogger1.getLevel();
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
         appender = new MockAppender("trace_appender");
         appender.start();
         Loggers.addAppender(testLogger1, appender);
+
+        Loggers.setLevel(testLogger1, Level.TRACE);
     }
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(testLogger1, appender);
+        appender.stop();
+
+        Loggers.setLevel(testLogger1, origLogLevel);
     }
 
     public void testLevelPrecedence() {
         String uuid = UUIDs.randomBase64UUID();
         IndexMetadata metadata = createIndexMetadata("index-precedence", settings(uuid));
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mockLogFieldProvider());
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
+        Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
         Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);// (0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
@@ -134,7 +140,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             ),
             Settings.EMPTY
         );
-        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mockLogFieldProvider());
 
         IndexSettings index2Settings = new IndexSettings(
             createIndexMetadata(
@@ -147,10 +153,10 @@ public class IndexingSlowLogTests extends ESTestCase {
             ),
             Settings.EMPTY
         );
-        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mockLogFieldProvider());
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
+        Engine.Index index = new Engine.Index(Uid.encodeId("doc_id"), randomNonNegativeLong(), doc);
         Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
@@ -171,12 +177,12 @@ public class IndexingSlowLogTests extends ESTestCase {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
         IndexSettings index1Settings = new IndexSettings(createIndexMetadata("index1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mockLogFieldProvider());
 
         int numberOfLoggersBefore = context.getLoggers().size();
 
         IndexSettings index2Settings = new IndexSettings(createIndexMetadata("index2", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mockLogFieldProvider());
         context = (LoggerContext) LogManager.getContext(false);
 
         int numberOfLoggersAfter = context.getLoggers().size();
@@ -202,13 +208,14 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values())),
             "id",
             "routingValue",
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -230,13 +237,14 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values())),
             "id",
             "routingValue",
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -259,13 +267,14 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values())),
             "id",
             null,
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
 
@@ -277,13 +286,14 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values())),
             "id",
             null,
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -308,13 +318,14 @@ public class IndexingSlowLogTests extends ESTestCase {
         source = new BytesArray("invalid");
         ParsedDocument doc = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values())),
             "id",
             null,
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
 
         final XContentParseException e = expectThrows(
@@ -342,7 +353,7 @@ public class IndexingSlowLogTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mockLogFieldProvider());
         assertFalse(log.isReformat());
         settings.updateIndexMetadata(
             newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), "true").build())
@@ -359,7 +370,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        log = new IndexingSlowLog(settings, mockLogFieldProvider());
         assertTrue(log.isReformat());
         try {
             settings.updateIndexMetadata(
@@ -392,7 +403,7 @@ public class IndexingSlowLogTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        IndexingSlowLog log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        IndexingSlowLog log = new IndexingSlowLog(settings, mockLogFieldProvider());
         assertEquals(TimeValue.timeValueMillis(100).nanos(), log.getIndexTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(200).nanos(), log.getIndexDebugThreshold());
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getIndexInfoThreshold());
@@ -417,18 +428,18 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings.updateIndexMetadata(metadata);
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexWarnThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexTraceThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexDebugThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexInfoThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new IndexingSlowLog(settings, mock(SlowLogFieldProvider.class));
+        log = new IndexingSlowLog(settings, mockLogFieldProvider());
 
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexInfoThreshold());
-        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexWarnThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexTraceThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexDebugThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexInfoThreshold());
+        assertEquals(TimeValue.MINUS_ONE.nanos(), log.getIndexWarnThreshold());
         try {
             settings.updateIndexMetadata(
                 newIndexMeta(

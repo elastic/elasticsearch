@@ -11,14 +11,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.hamcrest.Matcher;
 
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.compute.data.BasicBlockTests.randomBlock;
-import static org.elasticsearch.compute.data.BasicBlockTests.valuesAtPositions;
-import static org.elasticsearch.compute.data.BlockTestUtils.deepCopyOf;
+import static org.elasticsearch.compute.test.BlockTestUtils.deepCopyOf;
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
+import static org.elasticsearch.compute.test.RandomBlock.randomBlock;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -45,17 +49,17 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new MvExpandOperator.Factory(0, randomIntBetween(1, 1000));
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "MvExpandOperator[channel=0]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("MvExpandOperator[channel=0]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 
@@ -209,8 +213,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesIn(), equalTo(1));
-        assertThat(status.pagesOut(), equalTo(1));
+        assertThat(status.pagesReceived(), equalTo(1));
+        assertThat(status.pagesEmitted(), equalTo(1));
         assertThat(status.noops(), equalTo(1));
     }
 
@@ -222,8 +226,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesIn(), equalTo(1));
-        assertThat(status.pagesOut(), equalTo(1));
+        assertThat(status.pagesReceived(), equalTo(1));
+        assertThat(status.pagesEmitted(), equalTo(1));
         assertThat(status.noops(), equalTo(0));
         result.forEach(Page::releaseBlocks);
     }

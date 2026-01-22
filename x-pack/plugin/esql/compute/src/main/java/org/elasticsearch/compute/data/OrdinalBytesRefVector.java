@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -53,7 +55,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
      * Returns true if this ordinal vector is dense enough to enable optimizations using its ordinals
      */
     public boolean isDense() {
-        return ordinals.getPositionCount() * 2 / 3 >= bytes.getPositionCount();
+        return OrdinalBytesRefBlock.isDense(ordinals.getPositionCount(), bytes.getPositionCount());
     }
 
     @Override
@@ -78,33 +80,64 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public BytesRefBlock asBlock() {
-        return new BytesRefVectorBlock(this);
+    public OrdinalBytesRefBlock asBlock() {
+        return new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
+    }
+
+    @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return this;
+    }
+
+    public IntVector getOrdinalsVector() {
+        return ordinals;
+    }
+
+    public BytesRefVector getDictionaryVector() {
+        return bytes;
     }
 
     @Override
     public BytesRefVector filter(int... positions) {
-        if (positions.length >= ordinals.getPositionCount()) {
-            OrdinalBytesRefVector result = null;
-            IntVector filteredOrdinals = ordinals.filter(positions);
-            try {
-                result = new OrdinalBytesRefVector(filteredOrdinals, bytes);
-                bytes.incRef();
-            } finally {
-                if (result == null) {
-                    filteredOrdinals.close();
-                }
+        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
+        // may reappear when hashing the dictionary in BlockHash.
+        final BytesRef scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
+            for (int p : positions) {
+                builder.appendBytesRef(getBytesRef(p, scratch));
             }
-            return result;
-        } else {
-            final BytesRef scratch = new BytesRef();
-            try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
-                for (int p : positions) {
-                    builder.appendBytesRef(getBytesRef(p, scratch));
-                }
-                return builder.build();
-            }
+            return builder.build();
         }
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        /*
+         * The implementation in OrdinalBytesRefBlock is quite fast and
+         * amounts to the same thing so we can just reuse it.
+         */
+        return asBlock().keepMask(mask);
+    }
+
+    @Override
+    public OrdinalBytesRefVector deepCopy(BlockFactory blockFactory) {
+        IntVector copiedOrdinals = null;
+        BytesRefVector copiedBytes = null;
+        try {
+            copiedOrdinals = ordinals.deepCopy(blockFactory);
+            copiedBytes = bytes.deepCopy(blockFactory);
+            OrdinalBytesRefVector result = new OrdinalBytesRefVector(copiedOrdinals, copiedBytes);
+            copiedOrdinals = null;
+            copiedBytes = null;
+            return result;
+        } finally {
+            Releasables.closeExpectNoException(copiedOrdinals, copiedBytes);
+        }
+    }
+
+    @Override
+    public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override
@@ -125,5 +158,19 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     @Override
     protected void closeInternal() {
         Releasables.close(ordinals, bytes);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof BytesRefVector other) {
+            return BytesRefVector.equals(this, other);
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefVector.hash(this);
     }
 }

@@ -76,16 +76,6 @@ public final class CrossClusterAccessSubjectInfo {
         ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, encode());
     }
 
-    public static CrossClusterAccessSubjectInfo readFromContext(final ThreadContext ctx) throws IOException {
-        final String header = ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
-        if (header == null) {
-            throw new IllegalArgumentException(
-                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"
-            );
-        }
-        return decode(header);
-    }
-
     public Authentication getAuthentication() {
         return authentication;
     }
@@ -224,7 +214,10 @@ public final class CrossClusterAccessSubjectInfo {
 
         public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
 
-        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().build();
+        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+            .allowRestriction(true)
+            .allowDescription(true)
+            .build();
 
         private final BytesReference rawBytes;
 

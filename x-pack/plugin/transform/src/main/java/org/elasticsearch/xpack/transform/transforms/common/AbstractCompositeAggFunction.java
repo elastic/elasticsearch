@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -36,7 +38,6 @@ import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -45,6 +46,7 @@ import static org.elasticsearch.core.Strings.format;
  * Basic abstract class for implementing a transform function that utilizes composite aggregations
  */
 public abstract class AbstractCompositeAggFunction implements Function {
+    private static final Logger logger = LogManager.getLogger(AbstractCompositeAggFunction.class);
 
     public static final int TEST_QUERY_PAGE_SIZE = 50;
     public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
@@ -78,33 +80,38 @@ public abstract class AbstractCompositeAggFunction implements Function {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
-            buildSearchRequest(sourceConfig, timeout, numberOfBuckets),
-            ActionListener.wrap(r -> {
+            buildSearchRequestForValidation("preview", sourceConfig, timeout, numberOfBuckets),
+            listener.delegateFailureAndWrap((l, r) -> {
                 try {
                     final InternalAggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
-                        listener.onFailure(
+                        l.onFailure(
                             new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
                         );
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     if (agg == null || agg.getBuckets().isEmpty()) {
-                        listener.onResponse(Collections.emptyList());
+                        l.onResponse(Collections.emptyList());
                         return;
                     }
 
-                    TransformIndexerStats stats = new TransformIndexerStats();
-                    TransformProgress progress = new TransformProgress();
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, progress).map(
-                        this::documentTransformationFunction
-                    ).collect(Collectors.toList());
+                    var stats = new TransformIndexerStats();
+                    var progress = new TransformProgress();
+                    var docs = extractResults(agg, fieldTypeMap, stats, progress).map(doc -> {
+                        var docId = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
+                        doc = documentTransformationFunction(doc);
+                        return Map.ofEntries(
+                            Map.entry(TransformField.DOCUMENT_ID_FIELD, docId),
+                            Map.entry(TransformField.DOCUMENT_SOURCE_FIELD, doc)
+                        );
+                    }).toList();
 
-                    listener.onResponse(docs);
+                    l.onResponse(docs);
                 } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
-                    listener.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
+                    l.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
                 }
-            }, listener::onFailure)
+            })
         );
     }
 
@@ -116,7 +123,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
         TimeValue timeout,
         ActionListener<Boolean> listener
     ) {
-        SearchRequest searchRequest = buildSearchRequest(sourceConfig, timeout, TEST_QUERY_PAGE_SIZE);
+        SearchRequest searchRequest = buildSearchRequestForValidation("validate", sourceConfig, timeout, TEST_QUERY_PAGE_SIZE);
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
@@ -193,17 +200,18 @@ public abstract class AbstractCompositeAggFunction implements Function {
         TransformProgress progress
     );
 
-    private SearchRequest buildSearchRequest(SourceConfig sourceConfig, TimeValue timeout, int pageSize) {
+    private SearchRequest buildSearchRequestForValidation(String logId, SourceConfig sourceConfig, TimeValue timeout, int pageSize) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery())
             .runtimeMappings(sourceConfig.getRuntimeMappings())
             .timeout(timeout);
         buildSearchQuery(sourceBuilder, null, pageSize);
+        logger.debug("[{}] Querying {} for data: {}", logId, sourceConfig.getIndex(), sourceBuilder);
         return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
     }
 
     @Override
     public void getInitialProgressFromResponse(SearchResponse response, ActionListener<TransformProgress> progressListener) {
-        progressListener.onResponse(new TransformProgress(response.getHits().getTotalHits().value, 0L, 0L));
+        progressListener.onResponse(new TransformProgress(response.getHits().getTotalHits().value(), 0L, 0L));
     }
 
 }

@@ -6,27 +6,32 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Now}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NowEvaluator.class);
+
+  private final Source source;
 
   private final long now;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public NowEvaluator(Source source, long now, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.now = now;
     this.driverContext = driverContext;
   }
@@ -36,10 +41,16 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
     return eval(page.getPositionCount()).asBlock();
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    return baseRamBytesUsed;
+  }
+
   public LongVector eval(int positionCount) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Now.process(now));
+        result.appendLong(p, Now.process(this.now));
       }
       return result.build();
     }
@@ -52,6 +63,18 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public void close() {
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

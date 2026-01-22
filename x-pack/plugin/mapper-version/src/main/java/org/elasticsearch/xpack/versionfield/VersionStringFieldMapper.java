@@ -39,20 +39,21 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SearchAfterTermsEnum;
-import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
-import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -112,19 +113,13 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
-            return new VersionStringFieldType(context.buildFullName(name()), fieldtype, meta.getValue());
+            return new VersionStringFieldType(context.buildFullName(leafName()), fieldtype, meta.getValue());
         }
 
         @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            return new VersionStringFieldMapper(
-                name(),
-                fieldtype,
-                buildFieldType(context, fieldtype),
-                multiFieldsBuilder.build(this, context),
-                copyTo
-            );
+            return new VersionStringFieldMapper(leafName(), fieldtype, buildFieldType(context, fieldtype), builderParams(this, context));
         }
 
         @Override
@@ -138,7 +133,13 @@ public class VersionStringFieldMapper extends FieldMapper {
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
         private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
+            super(
+                name,
+                IndexType.terms(true, true),
+                false,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                meta
+            );
         }
 
         @Override
@@ -193,7 +194,8 @@ public class VersionStringFieldMapper extends FieldMapper {
                 matchFlags,
                 DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                method == null ? CONSTANT_SCORE_REWRITE : method
+                method == null ? CONSTANT_SCORE_REWRITE : method,
+                true
             ) {
 
                 @Override
@@ -203,6 +205,17 @@ public class VersionStringFieldMapper extends FieldMapper {
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
                             BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            if (compiled.runAutomaton == null) {
+                                return switch (compiled.type) {
+                                    case SINGLE -> decoded.equals(compiled.term) ? AcceptStatus.YES : AcceptStatus.NO;
+                                    case ALL -> AcceptStatus.YES;
+                                    case NONE -> AcceptStatus.NO;
+                                    default -> {
+                                        assert false : "Unexpected automaton type: " + compiled.type;
+                                        yield AcceptStatus.NO;
+                                    }
+                                };
+                            }
                             boolean accepted = compiled.runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
@@ -299,7 +312,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             failIfNoDocValues();
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name());
         }
 
         @Override
@@ -360,14 +373,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     private final FieldType fieldType;
 
-    private VersionStringFieldMapper(
-        String simpleName,
-        FieldType fieldType,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    private VersionStringFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, BuilderParams buildParams) {
+        super(simpleName, mappedFieldType, buildParams);
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
     }
 
@@ -414,7 +421,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         return concat;
     }
 
-    public static DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
+    public static final DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -442,27 +449,24 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null, false) {
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                return VersionEncoder.decodeVersion(value);
-            }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(leafName(), fullPath(), new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return VersionEncoder.decodeVersion(value);
+                }
 
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // Convert copies the underlying bytes
-                return value;
-            }
-        };
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // Convert copies the underlying bytes
+                    return value;
+                }
+            })
+        );
     }
 }

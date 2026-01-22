@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -91,6 +92,21 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         ActionRequestValidationException e = deleteByQueryRequest.validate();
 
         assertThat(e, is(nullValue()));
+    }
+
+    public void testValidateGivenRemoteIndex() {
+        SearchRequest searchRequest = new SearchRequest();
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(searchRequest);
+        deleteByQueryRequest.indices("remote:index");
+        searchRequest.source().query(QueryBuilders.matchAllQuery());
+
+        ActionRequestValidationException e = deleteByQueryRequest.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(
+            e.getMessage(),
+            containsString("Cross-cluster calls are not supported in this context but remote indices were requested")
+        );
     }
 
     // TODO: Implement standard to/from x-content parsing tests

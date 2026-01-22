@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
@@ -26,14 +27,14 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
             XContentParser parser = createParser(YamlXContent.yamlXContent, """
                 "First test section":\s
                   - skip:
-                    version:  "2.0.0 - 2.2.0"
+                    cluster_features:  "feature"
                     reason:   "Update doesn't return metadata fields, waiting for #3259\"""");
 
             ParsingException e = expectThrows(ParsingException.class, () -> ClientYamlTestSection.parse(parser));
             assertEquals("Error parsing test named [First test section]", e.getMessage());
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals(
-                "Expected [START_OBJECT, found [VALUE_NULL], the skip section is not properly indented",
+                "Expected [START_OBJECT], found [VALUE_NULL], the skip section is not properly indented",
                 e.getCause().getMessage()
             );
         }
@@ -79,11 +80,11 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
     }
 
-    public void testParseTestSectionWithDoSetAndSkipSectionsNoSkip() throws Exception {
+    public void testParseTestSectionWithDoSetAndSkipSections() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             "First test section":\s
               - skip:
-                  version:  "6.0.0 - 6.2.0"
+                  cluster_features:  "feature"
                   reason:   "Update doesn't return metadata fields, waiting for #3259"
               - do :
                   catch: missing

@@ -315,15 +315,15 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(apiKey.getRealmType(), equalTo("native"));
         final Client clientWithGrantedKey = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         // The API key has privileges (inherited from user2) to check cluster health
-        clientWithGrantedKey.execute(TransportClusterHealthAction.TYPE, new ClusterHealthRequest()).actionGet();
+        clientWithGrantedKey.execute(TransportClusterHealthAction.TYPE, new ClusterHealthRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         // If the API key is granted with limiting descriptors, it should not be able to read pipeline
         if (grantApiKeyRequest.getApiKeyRequest().getRoleDescriptors().isEmpty()) {
-            clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet();
+            clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         } else {
             assertThat(
                 expectThrows(
                     ElasticsearchSecurityException.class,
-                    () -> clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet()
+                    () -> clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT)).actionGet()
                 ).getMessage(),
                 containsString("unauthorized")
             );
@@ -595,7 +595,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
         final RoleDescriptor expectedRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -647,7 +647,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     public void testUpdateCrossClusterApiKey() throws IOException {
         final RoleDescriptor originalRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -719,7 +719,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             ApiKeyTests.randomFutureExpirationTime();
         }
 
-        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata, expiration);
+        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(
+            apiKeyId,
+            roleDescriptorBuilder,
+            updateMetadata,
+            expiration,
+            null
+        );
         final UpdateApiKeyResponse updateApiKeyResponse = client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateApiKeyRequest)
             .actionGet();
 

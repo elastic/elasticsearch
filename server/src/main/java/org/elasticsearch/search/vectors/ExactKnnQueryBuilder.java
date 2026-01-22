@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -32,36 +32,25 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     public static final String NAME = "exact_knn";
     private final String field;
     private final VectorData query;
+    private final Float vectorSimilarity;
 
     /**
      * Creates a query builder.
      *
-     * @param query    the query vector
-     * @param field    the field that was used for the kNN query
+     * @param query the query vector
+     * @param field the field that was used for the kNN query
      */
-    public ExactKnnQueryBuilder(float[] query, String field) {
-        this(VectorData.fromFloats(query), field);
-    }
-
-    /**
-     * Creates a query builder.
-     *
-     * @param query    the query vector
-     * @param field    the field that was used for the kNN query
-     */
-    public ExactKnnQueryBuilder(VectorData query, String field) {
+    public ExactKnnQueryBuilder(VectorData query, String field, Float vectorSimilarity) {
         this.query = query;
         this.field = field;
+        this.vectorSimilarity = vectorSimilarity;
     }
 
     public ExactKnnQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-            this.query = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.query = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.query = in.readOptionalWriteable(VectorData::new);
         this.field = in.readString();
+        this.vectorSimilarity = in.readOptionalFloat();
     }
 
     String getField() {
@@ -72,6 +61,10 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
         return query;
     }
 
+    Float vectorSimilarity() {
+        return vectorSimilarity;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -79,12 +72,9 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-            out.writeOptionalWriteable(query);
-        } else {
-            out.writeFloatArray(query.asFloatVector());
-        }
+        out.writeOptionalWriteable(query);
         out.writeString(field);
+        out.writeOptionalFloat(vectorSimilarity);
     }
 
     @Override
@@ -92,6 +82,9 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
         builder.startObject(NAME);
         builder.field("query", query);
         builder.field("field", field);
+        if (vectorSimilarity != null) {
+            builder.field("similarity", vectorSimilarity);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -108,17 +101,17 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
             );
         }
         final DenseVectorFieldMapper.DenseVectorFieldType vectorFieldType = (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
-        return vectorFieldType.createExactKnnQuery(query);
+        return vectorFieldType.createExactKnnQuery(query, vectorSimilarity);
     }
 
     @Override
     protected boolean doEquals(ExactKnnQueryBuilder other) {
-        return field.equals(other.field) && Objects.equals(query, other.query);
+        return field.equals(other.field) && Objects.equals(query, other.query) && Objects.equals(vectorSimilarity, other.vectorSimilarity);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, Objects.hashCode(query));
+        return Objects.hash(field, Objects.hashCode(query), vectorSimilarity);
     }
 
     @Override
@@ -128,6 +121,6 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.NESTED_KNN_MORE_INNER_HITS;
+        return TransportVersion.minimumCompatible();
     }
 }

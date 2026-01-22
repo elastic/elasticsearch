@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -22,7 +24,7 @@ import org.elasticsearch.core.Releasables;
  *  re-hashing and capacity is always a multiple of 2 for faster identification of buckets.
  *  This class is not thread-safe.
  */
-public final class BytesRefHash extends AbstractHash implements Accountable {
+public final class BytesRefHash extends AbstractHash implements Accountable, BytesRefHashTable {
 
     // base size of the bytes ref hash
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefHash.class)
@@ -46,7 +48,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            this.hashes = bigArrays.newIntArray(capacity, false);
+            this.hashes = bigArrays.newIntArray(maxSize, false);
             this.bytesRefs = new BytesRefArray(capacity, bigArrays);
             success = true;
         } finally {
@@ -96,7 +98,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            this.hashes = bigArrays.newIntArray(bytesRefs.size() + 1, false);
+            this.hashes = bigArrays.newIntArray(maxSize, false);
             this.bytesRefs = BytesRefArray.takeOwnershipOf(bytesRefs);
             success = true;
         } finally {
@@ -125,6 +127,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
      * Return the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
+    @Override
     public BytesRef get(long id, BytesRef dest) {
         return bytesRefs.get(id, dest);
     }
@@ -147,6 +150,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     }
 
     /** Sugar for {@link #find(BytesRef, int) find(key, key.hashCode()} */
+    @Override
     public long find(BytesRef key) {
         return find(key, key.hashCode());
     }
@@ -167,7 +171,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key, code);
                 ++size;
                 return id;
@@ -180,7 +184,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     private void append(long id, BytesRef key, int code) {
         assert size == id;
         bytesRefs.append(key);
-        hashes = bigArrays.grow(hashes, id + 1);
         hashes.set(id, code);
     }
 
@@ -195,7 +198,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 break;
             }
         }
@@ -209,19 +212,21 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            hashes = bigArrays.resize(hashes, maxSize);
         }
         assert size < maxSize;
         return set(key, rehash(code), size);
     }
 
     /** Sugar to {@link #add(BytesRef, int) add(key, key.hashCode()}. */
+    @Override
     public long add(BytesRef key) {
         return add(key, key.hashCode());
     }
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
         final int code = hashes.get(id);
         reset(code, id);
@@ -234,6 +239,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         }
     }
 
+    @Override
     public BytesRefArray getBytesRefs() {
         return bytesRefs;
     }

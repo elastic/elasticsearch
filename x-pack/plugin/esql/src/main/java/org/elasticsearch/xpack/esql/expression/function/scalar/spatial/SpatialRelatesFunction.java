@@ -10,199 +10,118 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
-import static org.apache.lucene.document.ShapeField.QueryRelation.CONTAINS;
-import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
+import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometry;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
-public abstract class SpatialRelatesFunction extends BinaryScalarFunction
+public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     implements
         EvaluatorMapper,
-        SpatialEvaluatorFactory.SpatialSourceSupplier {
-    protected SpatialCrsType crsType;
-    protected final boolean leftDocValues;
-    protected final boolean rightDocValues;
+        SpatialEvaluatorFactory.SpatialSourceSupplier,
+        TranslationAware,
+        SurrogateExpression {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right);
-        this.leftDocValues = leftDocValues;
-        this.rightDocValues = rightDocValues;
+        super(source, left, right, leftDocValues, rightDocValues, false, false);
     }
 
-    public abstract ShapeField.QueryRelation queryRelation();
+    protected SpatialRelatesFunction(
+        Source source,
+        Expression left,
+        Expression right,
+        boolean leftDocValues,
+        boolean rightDocValues,
+        boolean supportsGrid
+    ) {
+        super(source, left, right, leftDocValues, rightDocValues, false, supportsGrid);
+    }
+
+    protected SpatialRelatesFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues) throws IOException {
+        super(in, leftDocValues, rightDocValues, false, false);
+    }
+
+    protected SpatialRelatesFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean supportsGrid)
+        throws IOException {
+        super(in, leftDocValues, rightDocValues, false, supportsGrid);
+    }
+
+    public abstract ShapeRelation queryRelation();
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
+
+    /** Spatial relates functions always use Lucene GeometryDocValueReader and Component2D instead of geometries */
+    @Override
+    protected Object fold(Geometry leftGeom, Geometry rightGeom) {
+        throw new UnsupportedOperationException("spatial relation [" + this.queryRelation() + "] does not support geometry folding");
+    }
+
+    protected Object foldGeoGrid(FoldContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) {
+        long gridId = (Long) valueOf(ctx, gridExp);
+        return getSpatialRelations().compareGeometryAndGrid(makeGeometryFromLiteral(ctx, spatialExp), gridId, gridType);
+    }
+
+    /** This exposes class-level static information within objects and should only be used for folding optimizations */
+    protected abstract SpatialRelations getSpatialRelations();
 
     @Override
-    public SpatialCrsType crsType() {
-        if (crsType == null) {
-            resolveType();
+    public Object fold(FoldContext ctx) {
+        try {
+            if (this.spatialTypeResolver.supportsGrid) {
+                if (DataType.isGeoGrid(left().dataType())) {
+                    return foldGeoGrid(ctx, right(), left(), left().dataType());
+                } else if (DataType.isGeoGrid(right().dataType())) {
+                    return foldGeoGrid(ctx, left(), right(), right().dataType());
+                }
+            }
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
+            Component2D component2D = asLuceneComponent2D(ctx, crsType(), right());
+            if (docValueReader == null || component2D == null) {
+                return null;
+            }
+            return getSpatialRelations().geometryRelatesGeometry(docValueReader, component2D);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
         }
-        return crsType;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
-            // Left is literal, but right is not, check the left field's type against the right field
-            return resolveType(right(), left(), SECOND, FIRST);
-        } else {
-            // All other cases check the right against the left
-            return resolveType(left(), right(), FIRST, SECOND);
-        }
-    }
-
-    private TypeResolution resolveType(
-        Expression leftExpression,
-        Expression rightExpression,
-        TypeResolutions.ParamOrdinal leftOrdinal,
-        TypeResolutions.ParamOrdinal rightOrdinal
-    ) {
-        TypeResolution leftResolution = isSpatial(leftExpression, sourceText(), leftOrdinal);
-        TypeResolution rightResolution = isSpatial(rightExpression, sourceText(), rightOrdinal);
-        if (leftResolution.resolved()) {
-            return resolveType(leftExpression, rightExpression, rightOrdinal);
-        } else if (rightResolution.resolved()) {
-            return resolveType(rightExpression, leftExpression, leftOrdinal);
-        } else {
-            return leftResolution;
-        }
-    }
-
-    protected TypeResolution resolveType(
-        Expression spatialExpression,
-        Expression otherExpression,
-        TypeResolutions.ParamOrdinal otherParamOrdinal
-    ) {
-        if (isNull(spatialExpression.dataType())) {
-            return isSpatial(otherExpression, sourceText(), otherParamOrdinal);
-        }
-        TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        setCrsType(spatialExpression.dataType());
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    protected void setCrsType(DataType dataType) {
-        crsType = SpatialCrsType.fromDataType(dataType);
-    }
-
-    public static TypeResolution isSameSpatialType(
-        DataType spatialDataType,
-        Expression expression,
-        String operationName,
-        TypeResolutions.ParamOrdinal paramOrd
-    ) {
-        return isType(
-            expression,
-            dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
-            operationName,
-            paramOrd,
-            compatibleTypeNames(spatialDataType)
-        );
-    }
-
-    private static final String[] GEO_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
-    private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
-
-    private static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
-            || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
-    }
-
-    static String[] compatibleTypeNames(DataType spatialDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
-    }
-
-    @Override
-    public boolean foldable() {
-        return left().foldable() && right().foldable();
-    }
-
-    /**
-     * Mark the function as expecting the specified fields to arrive as doc-values.
-     */
-    public abstract SpatialRelatesFunction withDocValues(Set<FieldAttribute> attributes);
-
-    /**
-     * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
-     */
-    public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
-        // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
-        // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
-        // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableFieldAttribute(left(), isAggregatable) && right().foldable()
-            || isPushableFieldAttribute(right(), isAggregatable) && left().foldable();
-    }
-
-    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> isAggregatable) {
-        return exp instanceof FieldAttribute fa
-            && fa.getExactInfo().hasExact()
-            && isAggregatable.test(fa)
-            && EsqlDataTypes.isSpatial(fa.dataType());
-    }
-
-    @Override
-    public int hashCode() {
-        // NB: the hashcode is currently used for key generation so
-        // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children(), leftDocValues, rightDocValues);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            SpatialRelatesFunction other = (SpatialRelatesFunction) obj;
-            return Objects.equals(other.children(), children())
-                && Objects.equals(other.leftDocValues, leftDocValues)
-                && Objects.equals(other.rightDocValues, rightDocValues);
-        }
-        return false;
-    }
-
-    public boolean leftDocValues() {
-        return leftDocValues;
-    }
-
-    public boolean rightDocValues() {
-        return rightDocValues;
     }
 
     /**
@@ -213,48 +132,19 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     /**
      * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
      */
+    @Override
     public SpatialRelatesFunction surrogate() {
         return this;
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator);
     }
 
-    /**
-     * When performing local physical plan optimization, it is necessary to know if this function has a field attribute.
-     * This is because the planner might push down a spatial aggregation to lucene, which results in the field being provided
-     * as doc-values instead of source values, and this function needs to know if it should use doc-values or not.
-     */
-    public boolean hasFieldAttribute(Set<FieldAttribute> foundAttributes) {
-        return foundField(left(), foundAttributes) || foundField(right(), foundAttributes);
-    }
-
-    protected boolean foundField(Expression expression, Set<FieldAttribute> foundAttributes) {
-        return expression instanceof FieldAttribute field && foundAttributes.contains(field);
-    }
-
-    protected enum SpatialCrsType {
-        GEO,
-        CARTESIAN,
-        UNSPECIFIED;
-
-        public static SpatialCrsType fromDataType(DataType dataType) {
-            return EsqlDataTypes.isSpatialGeo(dataType) ? SpatialCrsType.GEO
-                : EsqlDataTypes.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
-                : SpatialCrsType.UNSPECIFIED;
-        }
-    }
-
-    protected static class SpatialRelations {
+    protected static class SpatialRelations extends BinarySpatialComparator<Boolean> {
         protected final ShapeField.QueryRelation queryRelation;
-        protected final SpatialCoordinateTypes spatialCoordinateType;
-        protected final CoordinateEncoder coordinateEncoder;
         protected final ShapeIndexer shapeIndexer;
-        protected final SpatialCrsType crsType;
 
         protected SpatialRelations(
             ShapeField.QueryRelation queryRelation,
@@ -262,26 +152,20 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             CoordinateEncoder encoder,
             ShapeIndexer shapeIndexer
         ) {
+            super(spatialCoordinateType, encoder);
             this.queryRelation = queryRelation;
-            this.spatialCoordinateType = spatialCoordinateType;
-            this.coordinateEncoder = encoder;
             this.shapeIndexer = shapeIndexer;
-            this.crsType = spatialCoordinateType.equals(SpatialCoordinateTypes.GEO) ? SpatialCrsType.GEO : SpatialCrsType.CARTESIAN;
+        }
+
+        @Override
+        protected Boolean compare(BytesRef left, BytesRef right) throws IOException {
+            return geometryRelatesGeometry(left, right);
         }
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Component2D rightComponent2D = asLuceneComponent2D(crsType, fromBytesRef(right));
-            return geometryRelatesGeometry(left, rightComponent2D);
-        }
-
-        protected Geometry fromBytesRef(BytesRef bytesRef) {
-            return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
-        }
-
-        protected boolean geometryRelatesGeometry(BytesRef left, Component2D rightComponent2D) throws IOException {
-            Geometry leftGeom = fromBytesRef(left);
             // We already have a Component2D for the right geometry, so we need to convert the left geometry to a doc-values byte array
-            return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom), rightComponent2D);
+            return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, fromBytesRef(left)), rightComponent2D);
         }
 
         protected boolean geometryRelatesGeometry(GeometryDocValueReader reader, Component2D rightComponent2D) throws IOException {
@@ -290,24 +174,198 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             return visitor.matches();
         }
 
-        protected boolean pointRelatesGeometry(long encoded, Geometry geometry) {
-            Component2D component2D = asLuceneComponent2D(crsType, geometry);
-            return pointRelatesGeometry(encoded, component2D);
-        }
-
-        protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
-            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            return pointRelatesGeometry(point, component2D);
-        }
-
-        protected boolean pointRelatesGeometry(Point point, Component2D component2D) {
-            if (queryRelation == CONTAINS) {
-                return component2D.withinPoint(point.getX(), point.getY()) == Component2D.WithinRelation.CANDIDATE;
+        protected void processSourceAndConstantGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            BytesRefBlock wkb,
+            long gridId,
+            DataType gridType
+        ) {
+            if (wkb.getValueCount(position) < 1) {
+                builder.appendNull();
             } else {
-                boolean contains = component2D.contains(point.getX(), point.getY());
-                return queryRelation == DISJOINT ? contains == false : contains;
+                builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridId, gridType));
             }
+        }
+
+        protected void processSourceAndSourceGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            BytesRefBlock wkb,
+            LongBlock gridIds,
+            DataType gridType
+        ) {
+            if (wkb.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridIds.getLong(position), gridType));
+            }
+        }
+
+        protected boolean compareGeometryAndGrid(Geometry geometry, long gridId, DataType gridType) {
+            if (geometry instanceof Point point) {
+                long geoGridId = getGridId(point, gridId, gridType);
+                return switch (queryRelation) {
+                    case INTERSECTS -> gridId == geoGridId;
+                    case DISJOINT -> gridId != geoGridId;
+                    default -> throw new IllegalArgumentException("Unsupported grid relation: " + queryRelation);
+                };
+            } else {
+                throw new IllegalArgumentException(
+                    "Unsupported grid intersection geometry type: " + geometry.getClass().getSimpleName() + "; expected Point"
+                );
+            }
+        }
+
+        protected void processGeoPointDocValuesAndConstantGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock encodedPoint,
+            long gridId,
+            DataType gridType
+        ) {
+            if (encodedPoint.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
+                long geoGridId = getGridId(point, gridId, gridType);
+                builder.appendBoolean(gridId == geoGridId);
+            }
+        }
+
+        protected void processGeoPointDocValuesAndSourceGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock encodedPoint,
+            LongBlock gridIds,
+            DataType gridType
+        ) {
+            if (encodedPoint.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
+                final long gridId = gridIds.getLong(position);
+                long geoGridId = getGridId(point, gridId, gridType);
+                builder.appendBoolean(gridId == geoGridId);
+            }
+        }
+
+        private long getGridId(Point point, long gridId, DataType gridType) {
+            return switch (gridType) {
+                case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), Geohash.stringEncode(gridId).length());
+                case GEOTILE -> GeoTileUtils.longEncode(
+                    point.getX(),
+                    point.getY(),
+                    Integer.parseInt(GeoTileUtils.stringEncode(gridId).split("/")[0])
+                );
+                case GEOHEX -> H3.geoToH3(point.getY(), point.getX(), H3.getResolution(gridId));
+                default -> throw new IllegalArgumentException(
+                    "Unsupported grid type: " + gridType + "; expected GEOHASH, GEOTILE, or GEOHEX"
+                );
+            };
+        }
+
+        protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, Component2D right)
+            throws IOException {
+            if (left.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
+                builder.appendBoolean(geometryRelatesGeometry(reader, right));
+            }
+        }
+
+        protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
+            throws IOException {
+            if (left.getValueCount(position) < 1 || right.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
+                final Component2D component2D = asLuceneComponent2D(crsType, right, position);
+                builder.appendBoolean(geometryRelatesGeometry(reader, component2D));
+            }
+        }
+
+        protected void processPointDocValuesAndConstant(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            Component2D rightValue
+        ) throws IOException {
+            if (leftValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(
+                    coordinateEncoder,
+                    shapeIndexer,
+                    leftValue,
+                    position,
+                    spatialCoordinateType::longAsPoint
+                );
+                builder.appendBoolean(geometryRelatesGeometry(reader, rightValue));
+            }
+        }
+
+        protected void processPointDocValuesAndSource(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock leftValue,
+            BytesRefBlock rightValue
+        ) throws IOException {
+            if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final GeometryDocValueReader reader = asGeometryDocValueReader(
+                    coordinateEncoder,
+                    shapeIndexer,
+                    leftValue,
+                    position,
+                    spatialCoordinateType::longAsPoint
+                );
+                final Component2D component2D = asLuceneComponent2D(crsType, rightValue, position);
+                builder.appendBoolean(geometryRelatesGeometry(reader, component2D));
+            }
+        }
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return super.translatable(pushdownPredicates); // only for the explicit Override, as only this subclass implements TranslationAware
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (left().foldable()) {
+            checkSpatialRelatesFunction(left(), queryRelation());
+            return translate(handler, right(), left());
+        } else {
+            checkSpatialRelatesFunction(right(), queryRelation());
+            return translate(handler, left(), right());
+        }
+
+    }
+
+    private static void checkSpatialRelatesFunction(Expression constantExpression, ShapeRelation queryRelation) {
+        Check.isTrue(
+            constantExpression.foldable(),
+            "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [ST_{}]",
+            constantExpression.sourceLocation().getLineNumber(),
+            constantExpression.sourceLocation().getColumnNumber(),
+            Expressions.name(constantExpression),
+            queryRelation
+        );
+    }
+
+    private Query translate(TranslatorHandler handler, Expression spatialExpression, Expression constantExpression) {
+        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(spatialExpression);
+        String name = handler.nameOf(attribute);
+
+        try {
+            // TODO: Support geo-grid query pushdown
+            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
+            return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
+        } catch (IllegalArgumentException e) {
+            throw new QlIllegalArgumentException(e.getMessage(), e);
         }
     }
 }

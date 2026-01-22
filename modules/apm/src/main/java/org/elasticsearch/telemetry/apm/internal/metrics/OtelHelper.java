@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
@@ -14,9 +15,11 @@ import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.telemetry.apm.internal.MetricValidator;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -24,10 +27,13 @@ import java.util.function.Supplier;
 class OtelHelper {
     private static final Logger logger = LogManager.getLogger(OtelHelper.class);
 
-    static Attributes fromMap(Map<String, Object> attributes) {
+    static Attributes fromMap(String metricName, Map<String, Object> attributes) {
         if (attributes == null || attributes.isEmpty()) {
             return Attributes.empty();
         }
+
+        MetricValidator.assertValidAttributeNames(metricName, attributes);
+
         var builder = Attributes.builder();
         attributes.forEach((k, v) -> {
             if (v instanceof String value) {
@@ -53,37 +59,51 @@ class OtelHelper {
         return builder.build();
     }
 
-    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(Supplier<DoubleWithAttributes> observer) {
+    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(
+        String metricName,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    ) {
         return measurement -> {
-            DoubleWithAttributes observation;
+            Collection<DoubleWithAttributes> observations;
             try {
-                observation = observer.get();
+                observations = observer.get();
             } catch (RuntimeException err) {
                 assert false : "observer must not throw [" + err.getMessage() + "]";
                 logger.error("doubleMeasurementCallback observer unexpected error", err);
                 return;
             }
-            if (observation == null) {
+            if (observations == null) {
                 return;
             }
-            measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+            for (DoubleWithAttributes observation : observations) {
+                if (observation != null) {
+                    measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
+                }
+            }
         };
     }
 
-    static Consumer<ObservableLongMeasurement> longMeasurementCallback(Supplier<LongWithAttributes> observer) {
+    static Consumer<ObservableLongMeasurement> longMeasurementCallback(
+        String metricName,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
         return measurement -> {
-            LongWithAttributes observation;
+            Collection<LongWithAttributes> observations;
             try {
-                observation = observer.get();
+                observations = observer.get();
             } catch (RuntimeException err) {
                 assert false : "observer must not throw [" + err.getMessage() + "]";
                 logger.error("longMeasurementCallback observer unexpected error", err);
                 return;
             }
-            if (observation == null) {
+            if (observations == null) {
                 return;
             }
-            measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+            for (LongWithAttributes observation : observations) {
+                if (observation != null) {
+                    measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
+                }
+            }
         };
     }
 }

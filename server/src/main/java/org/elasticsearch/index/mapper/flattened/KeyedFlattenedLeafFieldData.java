@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -72,11 +73,6 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
         }
 
         return new KeyedFlattenedDocValues(keyBytes, values, minOrd, maxOrd);
-    }
-
-    @Override
-    public void close() {
-        delegate.close();
     }
 
     @Override
@@ -204,12 +200,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             }
 
             long ord = delegate.nextOrd();
-            if (ord != NO_MORE_ORDS && ord <= maxOrd) {
-                assert ord >= minOrd;
-                return mapOrd(ord);
-            } else {
-                return NO_MORE_ORDS;
-            }
+            assert ord <= maxOrd;
+            return mapOrd(ord);
         }
 
         @Override
@@ -222,9 +214,9 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             if (delegate.advanceExact(target)) {
 
                 int count = 0;
-                while (true) {
+                for (int i = 0; i < delegate.docValueCount(); i++) {
                     long ord = delegate.nextOrd();
-                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                    if (ord > maxOrd) {
                         break;
                     }
                     if (ord >= minOrd) {
@@ -245,7 +237,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
                 while (true) {
                     long ord = delegate.nextOrd();
-                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                    if (ord > maxOrd) {
                         break;
                     }
 

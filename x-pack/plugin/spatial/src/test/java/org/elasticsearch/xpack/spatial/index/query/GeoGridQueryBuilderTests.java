@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -118,8 +119,11 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
         final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
-        } else if (fieldType.hasDocValues()) {
-            assertEquals(IndexOrDocValuesQuery.class, query.getClass());
+        } else {
+            assertEquals(ConstantScoreQuery.class, query.getClass());
+            if (fieldType.hasDocValues()) {
+                assertEquals(IndexOrDocValuesQuery.class, ((ConstantScoreQuery) query).getQuery().getClass());
+            }
         }
     }
 

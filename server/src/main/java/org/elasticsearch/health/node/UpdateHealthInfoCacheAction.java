@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -16,12 +17,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.action.HealthNodeRequest;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +40,9 @@ import java.util.Objects;
  * regarding this node.
  */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
+
+    private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;
@@ -45,17 +52,21 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         private final DataStreamLifecycleHealthInfo dslHealthInfo;
         @Nullable
         private final RepositoriesHealthInfo repositoriesHealthInfo;
+        @Nullable
+        private final FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo;
 
         public Request(
             String nodeId,
             DiskHealthInfo diskHealthInfo,
             DataStreamLifecycleHealthInfo dslHealthInfo,
-            RepositoriesHealthInfo repositoriesHealthInfo
+            RepositoriesHealthInfo repositoriesHealthInfo,
+            @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo
         ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
             this.dslHealthInfo = dslHealthInfo;
             this.repositoriesHealthInfo = repositoriesHealthInfo;
+            this.fileSettingsHealthInfo = fileSettingsHealthInfo;
         }
 
         public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
@@ -63,26 +74,26 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.diskHealthInfo = null;
             this.repositoriesHealthInfo = null;
             this.dslHealthInfo = dslHealthInfo;
+            this.fileSettingsHealthInfo = null;
+        }
+
+        public Request(String nodeId, FileSettingsService.FileSettingsHealthInfo info) {
+            this.nodeId = nodeId;
+            this.diskHealthInfo = null;
+            this.repositoriesHealthInfo = null;
+            this.dslHealthInfo = null;
+            this.fileSettingsHealthInfo = info;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
-                this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
-                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
-                    ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
-                    : null;
-            } else {
-                // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
-                // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
-                // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
-                // transport invariant of always having a disk health information in the request
-                this.diskHealthInfo = new DiskHealthInfo(in);
-                this.dslHealthInfo = null;
-                this.repositoriesHealthInfo = null;
-            }
+            this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
+            this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
+            this.repositoriesHealthInfo = in.readOptionalWriteable(RepositoriesHealthInfo::new);
+            this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
+                ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
+                : null;
         }
 
         public String getNodeId() {
@@ -101,6 +112,11 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             return repositoriesHealthInfo;
         }
 
+        @Nullable
+        public FileSettingsService.FileSettingsHealthInfo getFileSettingsHealthInfo() {
+            return fileSettingsHealthInfo;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -110,18 +126,11 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeOptionalWriteable(diskHealthInfo);
-                out.writeOptionalWriteable(dslHealthInfo);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)) {
-                    out.writeOptionalWriteable(repositoriesHealthInfo);
-                }
-            } else {
-                // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
-                // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
-                // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
-                // transport invariant of always having a disk health information in the request
-                diskHealthInfo.writeTo(out);
+            out.writeOptionalWriteable(diskHealthInfo);
+            out.writeOptionalWriteable(dslHealthInfo);
+            out.writeOptionalWriteable(repositoriesHealthInfo);
+            if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
+                out.writeOptionalWriteable(fileSettingsHealthInfo);
             }
         }
 
@@ -184,7 +193,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             }
 
             public Request build() {
-                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo);
+                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, null);
             }
         }
     }
@@ -227,13 +236,21 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             ClusterState clusterState,
             ActionListener<AcknowledgedResponse> listener
         ) {
+            logger.debug(
+                "Updating health info cache on node [{}][{}] from node [{}]",
+                clusterService.getNodeName(),
+                clusterService.localNode().getId(),
+                request.getNodeId()
+            );
             nodeHealthOverview.updateNodeHealth(
                 request.getNodeId(),
                 request.getDiskHealthInfo(),
                 request.getDslHealthInfo(),
-                request.getRepositoriesHealthInfo()
+                request.getRepositoriesHealthInfo(),
+                request.getFileSettingsHealthInfo()
             );
             listener.onResponse(AcknowledgedResponse.of(true));
         }
     }
+
 }

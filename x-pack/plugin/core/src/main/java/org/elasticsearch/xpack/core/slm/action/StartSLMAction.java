@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -28,7 +29,9 @@ public class StartSLMAction extends ActionType<AcknowledgedResponse> {
             super(in);
         }
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
+        }
 
         @Override
         public int hashCode() {

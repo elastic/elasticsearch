@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank.context;
@@ -17,7 +18,7 @@ import java.util.List;
 /**
  * {@link QueryPhaseRankCoordinatorContext} is running on the coordinator node and is
  * responsible for combining the query phase results from the shards and rank them accordingly.
- * The output is a `window_size` ranked list of ordered results from all shards.
+ * The output is a `rank_window_size` ranked list of ordered results from all shards.
  * Note: Currently this can use only sort by score; sort by field is not supported.
  */
 public abstract class QueryPhaseRankCoordinatorContext {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams.lifecycle;
@@ -24,8 +25,6 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.V_8_12_0;
-
 /**
  * Encapsulates the information that describes an index from its data stream lifecycle perspective.
  */
@@ -44,6 +43,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     private final String index;
     private final boolean managedByLifecycle;
+    private final boolean isInternalDataStream;
     @Nullable
     private final Long indexCreationDate;
     @Nullable
@@ -59,6 +59,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(
         String index,
         boolean managedByLifecycle,
+        boolean isInternalDataStream,
         @Nullable Long indexCreationDate,
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
@@ -67,6 +68,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
+        this.isInternalDataStream = isInternalDataStream;
         this.indexCreationDate = indexCreationDate;
         this.rolloverDate = rolloverDate;
         this.generationDateMillis = generationDate == null ? null : generationDate.millis();
@@ -77,17 +79,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
         this.managedByLifecycle = in.readBoolean();
+        this.isInternalDataStream = in.readBoolean();
         if (managedByLifecycle) {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-            if (in.getTransportVersion().onOrAfter(V_8_12_0)) {
-                this.error = in.readOptionalWriteable(ErrorEntry::new);
-            } else {
-                String bwcErrorMessage = in.readOptionalString();
-                this.error = new ErrorEntry(-1L, bwcErrorMessage, -1L, -1);
-            }
+            this.error = in.readOptionalWriteable(ErrorEntry::new);
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
@@ -113,7 +111,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByLifecycle);
         if (managedByLifecycle) {
             if (indexCreationDate != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
                     INDEX_CREATION_DATE_FIELD.getPreferredName(),
                     indexCreationDate
@@ -124,7 +122,11 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 );
             }
             if (rolloverDate != null) {
-                builder.timeField(ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(), ROLLOVER_DATE_FIELD.getPreferredName(), rolloverDate);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(),
+                    ROLLOVER_DATE_FIELD.getPreferredName(),
+                    rolloverDate
+                );
                 builder.field(TIME_SINCE_ROLLOVER_FIELD.getPreferredName(), getTimeSinceRollover(nowSupplier).toHumanReadableString(2));
             }
             if (generationDateMillis != null) {
@@ -132,7 +134,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             }
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+                lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternalDataStream);
             }
             if (this.error != null) {
                 if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {
@@ -151,17 +153,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeBoolean(managedByLifecycle);
+        out.writeBoolean(isInternalDataStream);
         if (managedByLifecycle) {
             out.writeOptionalLong(indexCreationDate);
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
-            if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
-                out.writeOptionalWriteable(error);
-            } else {
-                String errorMessage = error != null ? error.error() : null;
-                out.writeOptionalString(errorMessage);
-            }
+            out.writeOptionalWriteable(error);
         }
     }
 

@@ -1,21 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.TransportVersions;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,9 +30,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.logging.log4j.LogManager.getLogger;
+
 public class JvmInfo implements ReportingService.Info {
 
     private static final JvmInfo INSTANCE;
+
+    private static final Logger logger = getLogger(JvmInfo.class);
 
     static {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -45,14 +47,7 @@ public class JvmInfo implements ReportingService.Info {
         long nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getInit();
         long nonHeapMax = memoryMXBean.getNonHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getMax();
         long directMemoryMax = 0;
-        try {
-            Class<?> vmClass = Class.forName("sun.misc.VM");
-            directMemoryMax = (Long) vmClass.getMethod("maxDirectMemory").invoke(null);
-        } catch (Exception t) {
-            // ignore
-        }
         String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
-        Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         String bootClassPath;
         try {
@@ -103,43 +98,66 @@ public class JvmInfo implements ReportingService.Info {
             try {
                 Object onErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnError");
                 onError = (String) valueMethod.invoke(onErrorObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object onOutOfMemoryErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnOutOfMemoryError");
                 onOutOfMemoryError = (String) valueMethod.invoke(onOutOfMemoryErrorObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object useCompressedOopsVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
                 useCompressedOops = (String) valueMethod.invoke(useCompressedOopsVmOptionObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object useG1GCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
                 useG1GC = (String) valueMethod.invoke(useG1GCVmOptionObject);
                 Object regionSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "G1HeapRegionSize");
                 g1RegisionSize = Long.parseLong((String) valueMethod.invoke(regionSizeVmOptionObject));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object initialHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "InitialHeapSize");
                 configuredInitialHeapSize = Long.parseLong((String) valueMethod.invoke(initialHeapSizeVmOptionObject));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object maxHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxHeapSize");
                 configuredMaxHeapSize = Long.parseLong((String) valueMethod.invoke(maxHeapSizeVmOptionObject));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
+
+            try {
+                Object maxDirectMemorySizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxDirectMemorySize");
+                directMemoryMax = Long.parseLong((String) valueMethod.invoke(maxDirectMemorySizeVmOptionObject));
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object useSerialGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseSerialGC");
                 useSerialGC = (String) valueMethod.invoke(useSerialGCVmOptionObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
-        } catch (Exception ignored) {
-
+        } catch (Exception e) {
+            logger.debug("Error getting JVM info from MX Bean", e);
         }
+
+        Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         INSTANCE = new JvmInfo(
             ProcessHandle.current().pid(),
@@ -167,19 +185,8 @@ public class JvmInfo implements ReportingService.Info {
         );
     }
 
-    @SuppressForbidden(reason = "PathUtils#get")
     private static boolean usingBundledJdk() {
-        /*
-         * We are using the bundled JDK if java.home is the jdk sub-directory of our working directory. This is because we always set
-         * the working directory of Elasticsearch to home, and the bundled JDK is in the jdk sub-directory there.
-         */
-        final String javaHome = System.getProperty("java.home");
-        final String userDir = System.getProperty("user.dir");
-        if (Constants.MAC_OS_X) {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
-        } else {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
-        }
+        return System.getProperty("es.java.type", "").equals("bundled JDK");
     }
 
     public static JvmInfo jvmInfo() {
@@ -268,10 +275,6 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_3_0)) {
-            // Before 8.0 the no-jdk distributions could have bundledJdk false, this is always true now.
-            in.readBoolean();
-        }
         usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
@@ -302,9 +305,6 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)) {
-            out.writeBoolean(true);
-        }
         out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
@@ -419,7 +419,7 @@ public class JvmInfo implements ReportingService.Info {
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
         builder.field(Fields.USING_BUNDLED_JDK, usingBundledJdk);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
+        builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
         builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, ByteSizeValue.ofBytes(mem.heapInit));
@@ -509,5 +509,8 @@ public class JvmInfo implements ReportingService.Info {
             return ByteSizeValue.ofBytes(heapMax);
         }
 
+        public ByteSizeValue getTotalMax() {
+            return ByteSizeValue.ofBytes(heapMax + nonHeapMax + directMemoryMax);
+        }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util.docker;
@@ -28,6 +29,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
  */
 public class DockerRun {
 
+    // Use less secure entropy source to avoid hanging when generating certificates
+    private static final String DEFAULT_JAVA_OPTS = "-Djava.security.egd=file:/dev/urandom";
+
     private Distribution distribution;
     private final Map<String, String> envVars = new HashMap<>();
     private final Map<Path, Path> volumes = new HashMap<>();
@@ -40,7 +44,6 @@ public class DockerRun {
     private DockerRun() {}
 
     public static DockerRun builder() {
-        // Disable this setting by default in the Docker tests
         return new DockerRun().envVar("ingest.geoip.downloader.enabled", "false");
     }
 
@@ -112,6 +115,11 @@ public class DockerRun {
         // Limit container memory
         cmd.add("--memory " + memory);
 
+        // Add default java opts
+        for (String envVar : List.of("CLI_JAVA_OPTS", "ES_JAVA_OPTS")) {
+            this.envVars.put(envVar, this.envVars.getOrDefault(envVar, "") + " " + DEFAULT_JAVA_OPTS);
+        }
+
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 
         // Map ports in the container to the host, so that we can send requests
@@ -163,10 +171,9 @@ public class DockerRun {
     public static String getImageName(Distribution distribution) {
         String suffix = switch (distribution.packaging) {
             case DOCKER -> "";
-            case DOCKER_UBI -> "-ubi8";
             case DOCKER_IRON_BANK -> "-ironbank";
-            case DOCKER_CLOUD -> "-cloud";
             case DOCKER_CLOUD_ESS -> "-cloud-ess";
+            case DOCKER_WOLFI -> "-wolfi";
             default -> throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
         };
 

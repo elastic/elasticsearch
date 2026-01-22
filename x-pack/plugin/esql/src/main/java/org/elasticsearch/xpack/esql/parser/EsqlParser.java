@@ -7,59 +7,187 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.BaseErrorListener;
-import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenFactory;
 import org.antlr.v4.runtime.TokenSource;
+import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
-import java.util.HashMap;
-import java.util.List;
+import java.util.BitSet;
+import java.util.EmptyStackException;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
 
+    public static final EsqlParser INSTANCE = new EsqlParser();
+
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
-    public LogicalPlan createStatement(String query) {
-        return createStatement(query, List.of());
+    /**
+     * Maximum number of characters in an ESQL query. Antlr may parse the entire
+     * query into tokens to make the choices, buffering the world. There's a lot we
+     * can do in the grammar to prevent that, but let's be paranoid and assume we'll
+     * fail at preventing antlr from slurping in the world. Instead, let's make sure
+     * that the world just isn't that big.
+     */
+    public static final int MAX_LENGTH = 1_000_000;
+
+    private static void replaceSymbolWithLiteral(Map<String, String> symbolReplacements, String[] literalNames, String[] symbolicNames) {
+        for (int i = 0, replacements = symbolReplacements.size(); i < symbolicNames.length && replacements > 0; i++) {
+            String symName = symbolicNames[i];
+            if (symName != null) {
+                String replacement = symbolReplacements.get(symName);
+                if (replacement != null && literalNames[i] == null) {
+                    // literals are single quoted
+                    literalNames[i] = "'" + replacement + "'";
+                    replacements--;
+                }
+            }
+        }
     }
 
-    public LogicalPlan createStatement(String query, List<TypedParamValue> params) {
+    /**
+     * Add the literal name to a number of tokens that due to ANTLR internals/ATN
+     * have their symbolic name returns instead during error reporting.
+     * When reporting token errors, ANTLR uses the Vocabulary class to get the displayName
+     * (if set), otherwise falls back to the literal one and eventually uses the symbol name.
+     * Since the Vocabulary is static and not pluggable, this code modifies the underlying
+     * arrays by setting the literal string manually based on the token index.
+     * This is needed since some symbols, especially around setting up the mode, end up losing
+     * their literal representation.
+     * NB: this code is highly dependent on the ANTLR internals and thus will likely break
+     * during upgrades.
+     * NB: Can't use this for replacing DEV_ since the Vocabular is static while DEV_ replacement occurs per runtime configuration
+     */
+    static {
+        Map<String, String> symbolReplacements = Map.of("LP", "(", "OPENING_BRACKET", "[");
+
+        // the vocabularies have the same content however are different instances
+        // for extra reliability, perform the replacement for each map
+        VocabularyImpl parserVocab = (VocabularyImpl) EsqlBaseParser.VOCABULARY;
+        replaceSymbolWithLiteral(symbolReplacements, parserVocab.getLiteralNames(), parserVocab.getSymbolicNames());
+
+        VocabularyImpl lexerVocab = (VocabularyImpl) EsqlBaseLexer.VOCABULARY;
+        replaceSymbolWithLiteral(symbolReplacements, lexerVocab.getLiteralNames(), lexerVocab.getSymbolicNames());
+    }
+
+    private final EsqlConfig config;
+
+    public EsqlParser(EsqlConfig config) {
+        this.config = config;
+    }
+
+    private EsqlParser() { // when default, use the INSTANCE member
+        this(new EsqlConfig());
+    }
+
+    // testing utility
+    public LogicalPlan parseQuery(String query) {
+        return parseQuery(query, new QueryParams());
+    }
+
+    // testing utility
+    public LogicalPlan parseQuery(String query, QueryParams params) {
+        return parseQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(Settings.EMPTY));
+    }
+
+    // testing utility
+    public LogicalPlan parseQuery(String query, QueryParams params, PlanTelemetry metrics, InferenceSettings inferenceSettings) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, params, metrics, inferenceSettings, EsqlBaseParser::singleStatement, AstBuilder::plan);
+    }
+
+    // testing utility
+    public EsqlStatement createStatement(String query) {
+        return createStatement(query, new QueryParams());
+    }
+
+    // testing utility
+    public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
+        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(Settings.EMPTY));
+    }
+
+    // testing utility
+    public EsqlStatement createStatement(String query, QueryParams params) {
+        return parse(
+            query,
+            params,
+            new SettingsValidationContext(false, config.isDevVersion()), // TODO: wire CPS in
+            new PlanTelemetry(new EsqlFunctionRegistry()),
+            new InferenceSettings(Settings.EMPTY)
+        );
+    }
+
+    public EsqlStatement parse(
+        String query,
+        QueryParams params,
+        SettingsValidationContext settingsValidationCtx,
+        PlanTelemetry metrics,
+        InferenceSettings inferenceSettings
+    ) {
+        var parsed = createStatement(query, params, metrics, inferenceSettings);
+        if (log.isDebugEnabled()) {
+            log.debug("Parsed logical plan:\n{}", parsed.plan());
+            log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
+        }
+        QuerySettings.validate(parsed, settingsValidationCtx);
+        return parsed;
+    }
+
+    private EsqlStatement createStatement(String query, QueryParams params, PlanTelemetry metrics, InferenceSettings inferenceSettings) {
+        if (log.isDebugEnabled()) {
+            log.debug("Parsing as statement: {}", query);
+        }
+        return invokeParser(query, params, metrics, inferenceSettings, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private <T> T invokeParser(
         String query,
-        List<TypedParamValue> params,
+        QueryParams params,
+        PlanTelemetry metrics,
+        InferenceSettings inferenceSettings,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
+        if (query.length() > MAX_LENGTH) {
+            throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
+        }
         try {
-            EsqlBaseLexer lexer = new EsqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(query), false));
+            EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
 
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, TypedParamValue> paramTokens = new HashMap<>();
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
+            lexer.setEsqlConfig(config);
 
+            TokenSource tokenSource = new ParametrizedTokenSource(lexer, params);
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
             EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
 
@@ -70,15 +198,20 @@ public class EsqlParser {
 
             parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
 
+            parser.setEsqlConfig(config);
+
             ParserRuleContext tree = parseFunction.apply(parser);
 
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(paramTokens), tree);
+            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings)), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
+            // likely thrown by an invalid popMode (such as extra closing parenthesis)
+        } catch (EmptyStackException ese) {
+            throw new ParsingException("Invalid query [{}]", query);
         }
     }
 
@@ -86,7 +219,7 @@ public class EsqlParser {
         @Override
         public void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
             // TODO remove this at some point
-            EsqlBaseParser.IdentifierContext identifier = ctx.identifier();
+            EsqlBaseParser.FunctionNameContext identifier = ctx.functionName();
             if (identifier.getText().equalsIgnoreCase("is_null")) {
                 throw new ParsingException(
                     source(ctx),
@@ -97,6 +230,9 @@ public class EsqlParser {
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {
+        // replace entries that start with <comma?><space?>DEV_<space?>
+        private final Pattern REPLACE_DEV = Pattern.compile(",*\\s*DEV_\\w+\\s*");
+
         @Override
         public void syntaxError(
             Recognizer<?, ?> recognizer,
@@ -106,71 +242,79 @@ public class EsqlParser {
             String message,
             RecognitionException e
         ) {
+            if (recognizer instanceof EsqlBaseParser parser) {
+                Matcher m;
+
+                if (parser.isDevVersion() == false) {
+                    m = REPLACE_DEV.matcher(message);
+                    message = m.replaceAll(StringUtils.EMPTY);
+                }
+            }
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };
 
     /**
-     * Finds all parameter tokens (?) and associates them with actual parameter values
+     * Finds all parameter tokens (?) and associates them with actual parameter values.
      * <p>
      * Parameters are positional and we know where parameters occurred in the original stream in order to associate them
      * with actual values.
      */
-    private static class ParametrizedTokenSource implements TokenSource {
+    private static class ParametrizedTokenSource extends DelegatingTokenSource {
+        private static String message = "Inconsistent parameter declaration, "
+            + "use one of positional, named or anonymous params but not a combination of ";
 
-        private TokenSource delegate;
-        private Map<Token, TypedParamValue> paramTokens;
-        private int param;
-        private List<TypedParamValue> params;
+        private QueryParams params;
+        private BitSet paramTypes = new BitSet(3);
+        private int param = 1;
 
-        ParametrizedTokenSource(TokenSource delegate, Map<Token, TypedParamValue> paramTokens, List<TypedParamValue> params) {
-            this.delegate = delegate;
-            this.paramTokens = paramTokens;
+        ParametrizedTokenSource(TokenSource delegate, QueryParams params) {
+            super(delegate);
             this.params = params;
-            param = 0;
         }
 
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
-            if (token.getType() == EsqlBaseLexer.PARAM) {
-                if (param >= params.size()) {
-                    throw new ParsingException("Not enough actual parameters {}", params.size());
+            if (token.getType() == EsqlBaseLexer.PARAM || token.getType() == EsqlBaseLexer.DOUBLE_PARAMS) {
+                checkAnonymousParam(token);
+                if (param > params.size()) {
+                    throw new ParsingException(source(token), "Not enough actual parameters {}", params.size());
                 }
-                paramTokens.put(token, params.get(param));
+                params.addTokenParam(token, params.get(param));
                 param++;
+            }
+
+            String nameOrPosition = nameOrPosition(token);
+            if (nameOrPosition.isBlank() == false) {
+                if (isInteger(nameOrPosition)) {
+                    checkPositionalParam(token);
+                } else {
+                    checkNamedParam(token);
+                }
             }
             return token;
         }
 
-        @Override
-        public int getLine() {
-            return delegate.getLine();
+        private void checkAnonymousParam(Token token) {
+            paramTypes.set(0);
+            if (paramTypes.cardinality() > 1) {
+                throw new ParsingException(source(token), message + "anonymous and " + (paramTypes.get(1) ? "named" : "positional"));
+            }
         }
 
-        @Override
-        public int getCharPositionInLine() {
-            return delegate.getCharPositionInLine();
+        private void checkNamedParam(Token token) {
+            paramTypes.set(1);
+            if (paramTypes.cardinality() > 1) {
+                throw new ParsingException(source(token), message + "named and " + (paramTypes.get(0) ? "anonymous" : "positional"));
+            }
         }
 
-        @Override
-        public CharStream getInputStream() {
-            return delegate.getInputStream();
-        }
-
-        @Override
-        public String getSourceName() {
-            return delegate.getSourceName();
-        }
-
-        @Override
-        public void setTokenFactory(TokenFactory<?> factory) {
-            delegate.setTokenFactory(factory);
-        }
-
-        @Override
-        public TokenFactory<?> getTokenFactory() {
-            return delegate.getTokenFactory();
+        private void checkPositionalParam(Token token) {
+            paramTypes.set(2);
+            if (paramTypes.cardinality() > 1) {
+                throw new ParsingException(source(token), message + "positional and " + (paramTypes.get(0) ? "anonymous" : "named"));
+            }
         }
     }
 }

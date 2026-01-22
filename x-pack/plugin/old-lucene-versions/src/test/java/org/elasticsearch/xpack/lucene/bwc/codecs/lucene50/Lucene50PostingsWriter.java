@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 
+import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat.IntBlockTermState;
 import org.apache.lucene.codecs.BlockTermState;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.CompetitiveImpactAccumulator;
@@ -35,7 +36,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat.IntBlockTermState;
 
 import java.io.IOException;
 

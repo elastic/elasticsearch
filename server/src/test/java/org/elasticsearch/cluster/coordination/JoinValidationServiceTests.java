@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -13,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,7 +23,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistryTests;
@@ -37,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -48,6 +54,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -60,6 +67,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -116,7 +124,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                 public void doRun() {
                                     handleResponse(requestId, switch (action) {
                                         case JoinValidationService.JOIN_VALIDATE_ACTION_NAME, JoinHelper.JOIN_PING_ACTION_NAME ->
-                                            TransportResponse.Empty.INSTANCE;
+                                            ActionResponse.Empty.INSTANCE;
                                         case TransportService.HANDSHAKE_ACTION_NAME -> new TransportService.HandshakeResponse(
                                             Version.CURRENT,
                                             Build.current().hash(),
@@ -153,6 +161,7 @@ public class JoinValidationServiceTests extends ESTestCase {
             final var joinValidationService = new JoinValidationService(
                 settings,
                 transportService,
+                writableRegistry(),
                 () -> usually() ? clusterState : null,
                 clusterState::metadata,
                 List.of()
@@ -233,7 +242,7 @@ public class JoinValidationServiceTests extends ESTestCase {
             for (final var thread : threads) {
                 thread.join();
             }
-            assertTrue(validationPermits.tryAcquire(permitCount, 10, TimeUnit.SECONDS));
+            safeAcquire(permitCount, validationPermits);
             assertBusy(() -> assertTrue(joinValidationService.isIdle()));
         } finally {
             Collections.reverse(releasables);
@@ -284,7 +293,14 @@ public class JoinValidationServiceTests extends ESTestCase {
         );
 
         // registers request handler
-        new JoinValidationService(Settings.EMPTY, joiningNodeTransportService, () -> clusterState, clusterState::metadata, List.of());
+        new JoinValidationService(
+            Settings.EMPTY,
+            joiningNodeTransportService,
+            writableRegistry(),
+            () -> clusterState,
+            clusterState::metadata,
+            List.of()
+        );
 
         joiningNodeTransportService.start();
         joiningNodeTransportService.acceptIncomingRequests();
@@ -295,17 +311,9 @@ public class JoinValidationServiceTests extends ESTestCase {
                 assertSame(node, joiningNode);
                 assertEquals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME, action);
 
-                final var listener = new ActionListener<TransportResponse>() {
-                    @Override
-                    public void onResponse(TransportResponse transportResponse) {
-                        fail("should not succeed");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, e));
-                    }
-                };
+                final ActionListener<TransportResponse> listener = assertNoSuccessListener(
+                    e -> handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, e))
+                );
 
                 try (var ignored = NamedWriteableRegistryTests.ignoringUnknownNamedWriteables(); var out = new BytesStreamOutput()) {
                     request.writeTo(out);
@@ -331,6 +339,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         final var joinValidationService = new JoinValidationService(
             Settings.EMPTY,
             masterTransportService,
+            writableRegistry(),
             () -> clusterState,
             clusterState::metadata,
             List.of()
@@ -355,7 +364,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         }
     }
 
-    public void testJoinValidationRejectsMismatchedClusterUUID() {
+    public void testJoinValidationRejectsMismatchedClusterUUID() throws IOException {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
         final var localNode = DiscoveryNodeUtils.create("node0");
@@ -377,7 +386,14 @@ public class JoinValidationServiceTests extends ESTestCase {
         final var settings = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build();
 
         // registers request handler
-        new JoinValidationService(settings, transportService, () -> localClusterState, localClusterState::metadata, List.of());
+        new JoinValidationService(
+            settings,
+            transportService,
+            writableRegistry(),
+            () -> localClusterState,
+            localClusterState::metadata,
+            List.of()
+        );
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -386,12 +402,12 @@ public class JoinValidationServiceTests extends ESTestCase {
             .metadata(Metadata.builder().generateClusterUuidIfNeeded())
             .build();
 
-        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        final var future = new PlainActionFuture<ActionResponse.Empty>();
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(otherClusterState),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            serializeClusterState(otherClusterState),
+            new ActionListenerResponseHandler<>(future, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
@@ -405,6 +421,20 @@ public class JoinValidationServiceTests extends ESTestCase {
                 containsString("data path [" + dataPath + "]")
             )
         );
+    }
+
+    private static BytesTransportRequest serializeClusterState(ClusterState clusterState) {
+        try (
+            var bytesStream = new BytesStreamOutput();
+            var compressedStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))
+        ) {
+            compressedStream.setTransportVersion(TransportVersion.current());
+            clusterState.writeTo(compressedStream);
+            compressedStream.flush();
+            return new BytesTransportRequest(ReleasableBytesReference.wrap(bytesStream.bytes()), TransportVersion.current());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     public void testJoinValidationRunsJoinValidators() {
@@ -426,23 +456,24 @@ public class JoinValidationServiceTests extends ESTestCase {
         new JoinValidationService(
             Settings.EMPTY,
             transportService,
+            writableRegistry(),
             () -> localClusterState,
             localClusterState::metadata,
             List.of((node, state) -> {
                 assertSame(node, localNode);
-                assertSame(state, stateForValidation);
+                assertEquals(state.stateUUID(), stateForValidation.stateUUID());
                 throw new IllegalStateException("simulated validation failure");
             })
         ); // registers request handler
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        final var future = new PlainActionFuture<ActionResponse.Empty>();
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(stateForValidation),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            serializeClusterState(stateForValidation),
+            new ActionListenerResponseHandler<>(future, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
@@ -462,7 +493,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 assertSame(node, joiningNode);
                 assertEquals(JoinHelper.JOIN_PING_ACTION_NAME, action);
                 assertTrue(pingSeen.compareAndSet(false, true));
-                handleResponse(requestId, TransportResponse.Empty.INSTANCE);
+                handleResponse(requestId, ActionResponse.Empty.INSTANCE);
             }
         };
         final var masterTransportService = masterTransport.createTransportService(
@@ -473,9 +504,16 @@ public class JoinValidationServiceTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        final var joinValidationService = new JoinValidationService(Settings.EMPTY, masterTransportService, () -> null, () -> {
-            throw new AssertionError("should not be called");
-        }, List.of());
+        final var joinValidationService = new JoinValidationService(
+            Settings.EMPTY,
+            masterTransportService,
+            writableRegistry(),
+            () -> null,
+            () -> {
+                throw new AssertionError("should not be called");
+            },
+            List.of()
+        );
         masterTransportService.start();
         masterTransportService.acceptIncomingRequests();
 

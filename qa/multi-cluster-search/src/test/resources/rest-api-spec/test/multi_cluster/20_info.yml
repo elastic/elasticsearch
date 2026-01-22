@@ -113,19 +113,6 @@
 
   - do:
       cluster.remote_info: {}
-  - is_false: remote1.skip_unavailable
-
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            cluster.remote.remote1.skip_unavailable: true
-
-  - is_true: persistent.cluster.remote.remote1.skip_unavailable
-
-  - do:
-      cluster.remote_info: {}
-
   - is_true: remote1.skip_unavailable
 
   - do:
@@ -145,6 +132,19 @@
       cluster.put_settings:
         body:
           persistent:
+            cluster.remote.remote1.skip_unavailable: true
+
+  - is_true: persistent.cluster.remote.remote1.skip_unavailable
+
+  - do:
+      cluster.remote_info: {}
+
+  - is_true: remote1.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
             cluster.remote.remote1.skip_unavailable: null
 
   - match: {persistent: {}}
@@ -152,7 +152,7 @@
   - do:
       cluster.remote_info: {}
 
-  - is_false: remote1.skip_unavailable
+  - is_true: remote1.skip_unavailable
 
   - do:
       cluster.put_settings:

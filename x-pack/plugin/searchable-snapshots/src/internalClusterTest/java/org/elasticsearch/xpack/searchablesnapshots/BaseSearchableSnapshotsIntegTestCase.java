@@ -74,7 +74,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
@@ -110,8 +109,8 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             builder.put(
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                    ? ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+                    : ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB)
             );
         }
         if (DiscoveryNode.canContainData(otherSettings) && randomBoolean()) {
@@ -120,23 +119,23 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         builder.put(
             SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
-                ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
-                : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+                ? pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                : pageAligned(ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB))
         );
         if (randomBoolean()) {
             builder.put(
                 SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
-                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+                    ? pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         if (randomBoolean()) {
             builder.put(
                 SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
-                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+                    ? pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         return builder.build();
@@ -184,6 +183,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         final Storage storage
     ) throws Exception {
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             repositoryName,
             snapshotName,
@@ -240,7 +240,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
     }
 
-    protected void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
+    protected void assertShardFolders(String indexName, boolean isSearchableSnapshot) throws IOException {
         final Index restoredIndex = resolveIndex(indexName);
         final String customDataPath = resolveCustomDataPath(indexName);
         final ShardId shardId = new ShardId(restoredIndex, 0);
@@ -260,16 +260,16 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     translogExists
                 );
                 assertThat(
-                    snapshotDirectory ? "Index file should not exist" : "Index file should exist",
+                    isSearchableSnapshot ? "Index file should not exist" : "Index file should exist",
                     indexExists,
-                    not(snapshotDirectory)
+                    not(isSearchableSnapshot)
                 );
-                assertThat("Translog should exist", translogExists, is(true));
-                try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
-                    final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
-                    if (snapshotDirectory) {
-                        assertThat("There should be 2 translog files for a snapshot directory", translogFiles, equalTo(2L));
-                    } else {
+                if (isSearchableSnapshot) {
+                    assertThat("Translog should not exist", translogExists, equalTo(false));
+                } else {
+                    assertThat("Translog should exist", translogExists, equalTo(true));
+                    try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
+                        final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                         assertThat(
                             "There should be 2+ translog files for a non-snapshot directory",
                             translogFiles,
@@ -341,7 +341,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     }
 
     protected DiscoveryNodes getDiscoveryNodes() {
-        return clusterAdmin().prepareState().clear().setNodes(true).get().getState().nodes();
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).get().getState().nodes();
     }
 
     protected void assertExecutorIsIdle(String executorName) throws Exception {
@@ -350,6 +350,18 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(executorName);
                 assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
+            }
+        });
+    }
+
+    protected static void waitUntilRecoveryIsDone(String index) throws Exception {
+        assertBusy(() -> {
+            RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
+            assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
+            for (List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
+                for (RecoveryState recoveryState : value) {
+                    assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+                }
             }
         });
     }
@@ -378,7 +390,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
                     if (action.equals(TransportNodesListShardStoreMetadata.ACTION_NAME)) {
                         final var shardId = asInstanceOf(TransportNodesListShardStoreMetadata.Request.class, request).shardId();
-                        final var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                        final var indexMetadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
                         if (indexMetadata != null) {
                             assertFalse(shardId.toString(), indexMetadata.isSearchableSnapshot());
                         }

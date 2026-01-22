@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -61,7 +60,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
             assertEquals(expectedMaxTimeOnStep, maxTimeOnStep);
             assertEquals(expectedMaxRetriesPerStep, maxRetriesPerStep);
             return rc;
-        }).collect(Collectors.toList());
+        }).toList();
         // Per the evaluator, the timeSupplier _must_ be called only twice
         when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
 

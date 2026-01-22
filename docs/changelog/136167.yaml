@@ -1,0 +1,6 @@
+pr: 136167
+summary: "[Inference API] Remove worst-case additional 50ms latency for non-rate limited\
+  \ requests"
+area: Machine Learning
+type: bug
+issues: []

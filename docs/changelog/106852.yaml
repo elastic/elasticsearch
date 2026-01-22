@@ -1,6 +1,0 @@
-pr: 106852
-summary: Introduce ordinal bytesref block
-area: ES|QL
-type: enhancement
-issues:
- - 106387

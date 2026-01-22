@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -293,22 +294,6 @@ public class GrokProcessorTests extends ESTestCase {
         processor.execute(doc);
         assertThat(doc.hasField("one"), equalTo(true));
         assertThat(doc.getFieldValue("_ingest._grok_match_index", String.class), equalTo("0"));
-    }
-
-    public void testCombinedPatterns() {
-        String combined;
-        combined = GrokProcessor.combinePatterns(List.of(""), false);
-        assertThat(combined, equalTo(""));
-        combined = GrokProcessor.combinePatterns(List.of(""), true);
-        assertThat(combined, equalTo(""));
-        combined = GrokProcessor.combinePatterns(List.of("foo"), false);
-        assertThat(combined, equalTo("foo"));
-        combined = GrokProcessor.combinePatterns(List.of("foo"), true);
-        assertThat(combined, equalTo("foo"));
-        combined = GrokProcessor.combinePatterns(List.of("foo", "bar"), false);
-        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
-        combined = GrokProcessor.combinePatterns(List.of("foo", "bar"), true);
-        assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
     }
 
     public void testCombineSamePatternNameAcrossPatterns() throws Exception {

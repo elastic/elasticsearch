@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -18,6 +19,7 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,12 +34,14 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final ShardSearchRequest shardSearchRequest;
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
+    private final RankDocShardInfo rankDocs;
 
     public ShardFetchSearchRequest(
         OriginalIndices originalIndices,
         ShardSearchContextId id,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds,
+        RankDocShardInfo rankDocs,
         ScoreDoc lastEmittedDoc,
         RescoreDocIds rescoreDocIds,
         AggregatedDfs aggregatedDfs
@@ -47,6 +51,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         this.shardSearchRequest = shardSearchRequest;
         this.rescoreDocIds = rescoreDocIds;
         this.aggregatedDfs = aggregatedDfs;
+        this.rankDocs = rankDocs;
     }
 
     public ShardFetchSearchRequest(StreamInput in) throws IOException {
@@ -55,6 +60,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
         rescoreDocIds = new RescoreDocIds(in);
         aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
+        this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
     }
 
     @Override
@@ -64,6 +70,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         out.writeOptionalWriteable(shardSearchRequest);
         rescoreDocIds.writeTo(out);
         out.writeOptionalWriteable(aggregatedDfs);
+        out.writeOptionalWriteable(rankDocs);
     }
 
     @Override
@@ -95,5 +102,10 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     @Override
     public AggregatedDfs getAggregatedDfs() {
         return aggregatedDfs;
+    }
+
+    @Override
+    public RankDocShardInfo getRankDocks() {
+        return this.rankDocs;
     }
 }

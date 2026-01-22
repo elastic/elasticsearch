@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -24,7 +26,7 @@ public interface TestClustersAware extends Task {
     Collection<ElasticsearchCluster> getClusters();
 
     @ServiceReference(REGISTRY_SERVICE_NAME)
-    Property<TestClustersRegistry> getRegistery();
+    Property<TestClustersRegistry> getRegistry();
 
     @ServiceReference(TEST_CLUSTER_TASKS_SERVICE)
     Property<TestClustersPlugin.TaskEventsService> getTasksService();
@@ -33,11 +35,24 @@ public interface TestClustersAware extends Task {
         if (cluster.getPath().equals(getProject().getPath()) == false) {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
-
-        cluster.getNodes()
-            .all(node -> node.getDistributions().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
-        dependsOn(cluster.getPluginAndModuleConfigurations());
+        if (cluster.getName().equals(getName())) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                for (ElasticsearchDistribution distro : node.getDistributions()) {
+                    ElasticsearchDistribution frozenDistro = distro.maybeFreeze();
+                    dependsOn(frozenDistro);
+                }
+            }
+            dependsOn(cluster.getPluginAndModuleConfigurations());
+        }
         getClusters().add(cluster);
+    }
+
+    default Provider<TestClusterInfo> getClusterInfo(String clusterName) {
+        return getProject().getProviders().of(TestClusterValueSource.class, source -> {
+            source.getParameters().getService().set(getRegistry());
+            source.getParameters().getClusterName().set(clusterName);
+            source.getParameters().getPath().set(getProject().getIsolated().getPath());
+        });
     }
 
     default void useCluster(Provider<ElasticsearchCluster> cluster) {

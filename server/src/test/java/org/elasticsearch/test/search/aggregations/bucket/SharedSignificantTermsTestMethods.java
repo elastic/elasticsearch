@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -20,7 +21,6 @@ import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
@@ -55,9 +55,9 @@ public class SharedSignificantTermsTestMethods {
                 StringTerms classes = response.getAggregations().get("class");
                 Assert.assertThat(classes.getBuckets().size(), equalTo(2));
                 for (Terms.Bucket classBucket : classes.getBuckets()) {
-                    Map<String, InternalAggregation> aggs = classBucket.getAggregations().asMap();
-                    Assert.assertTrue(aggs.containsKey("sig_terms"));
-                    SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
+                    InternalAggregations aggs = classBucket.getAggregations();
+                    Assert.assertNotNull(aggs.get("sig_terms"));
+                    SignificantTerms agg = aggs.get("sig_terms");
                     Assert.assertThat(agg.getBuckets().size(), equalTo(1));
                     SignificantTerms.Bucket sigBucket = agg.iterator().next();
                     String term = sigBucket.getKeyAsString();

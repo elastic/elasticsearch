@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -11,7 +12,6 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHost;
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
@@ -39,8 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
  * In 8.2 we also added the ability to filter fields by type and metadata, with some post-hoc filtering applied on
  * the co-ordinating node if older nodes were included in the system
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103473")
-public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
+public class FieldCapsIT extends AbstractRollingUpgradeTestCase {
 
     public FieldCapsIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

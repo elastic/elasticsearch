@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -99,7 +98,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return Settings.builder()
             .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }
@@ -145,7 +143,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
             .setMappings(mappings())
             .setSettings(settings())
-            .setVersionMetaKey("version")
             .setOrigin(ASYNC_SEARCH_ORIGIN)
             .build();
     }
@@ -301,7 +298,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } else {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
-                    logger.error(() -> "failed to store async-search [" + docId + "]", e);
+                    logger.warn(() -> "failed to store async-search [" + docId + "]", e);
                     // at end, we should report a failure to the listener
                     updateResponse(
                         docId,
@@ -329,10 +326,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             os = Streams.noCloseStream(os);
             TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
             TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-            if (minNodeVersion.onOrAfter(TransportVersions.V_7_15_0)) {
-                os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
-            }
-            try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+            try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(os)) {
                 out.setTransportVersion(minNodeVersion);
                 response.writeTo(out);
             }
@@ -391,6 +385,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public <T extends AsyncTask> T getTaskAndCheckAuthentication(
         TaskManager taskManager,
+        AsyncExecutionId asyncExecutionId,
+        Class<T> tClass
+    ) throws IOException {
+        return getTaskAndCheckAuthentication(taskManager, security, asyncExecutionId, tClass);
+    }
+
+    /**
+    * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
+    * is registered in the task manager, <code>null</code> otherwise.
+    *
+    * This method throws a {@link ResourceNotFoundException} if the authenticated user
+    * is not the creator of the original task.
+    */
+    public static <T extends AsyncTask> T getTaskAndCheckAuthentication(
+        TaskManager taskManager,
+        AsyncSearchSecurity security,
         AsyncExecutionId asyncExecutionId,
         Class<T> tClass
     ) throws IOException {
@@ -524,7 +534,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
             try {
                 T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
-                if (asyncTask != null) { // get status response from task
+                if (asyncTask != null && asyncTask.isCancelled() == false) { // get status response from task
                     if (canSeeAll || security.currentUserHasAccessToTask(asyncTask)) {
                         var response = statusProducerFromTask.apply(asyncTask);
                         outerListener.onResponse(response);
@@ -564,13 +574,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
-        final StreamInput input;
-        if (version.onOrAfter(TransportVersions.V_7_15_0)) {
-            input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
-        } else {
-            input = new InputStreamStreamInput(encodedIn);
+        assert TransportVersion.current().supports(version) : version + " >= " + TransportVersion.current();
+        if (TransportVersion.isCompatible(version) == false) {
+            throw new IllegalArgumentException(
+                "Unable to retrieve async search results. Stored results were created with an incompatible version of Elasticsearch."
+            );
         }
+        final StreamInput input;
+        input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
         try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
             in.setTransportVersion(version);
             return reader.read(in);

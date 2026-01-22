@@ -1,0 +1,5 @@
+pr: 136547
+summary: Fetch search phase coordinator duration APM metric
+area: Search
+type: enhancement
+issues: []

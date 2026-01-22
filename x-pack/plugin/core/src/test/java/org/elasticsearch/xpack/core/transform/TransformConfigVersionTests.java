@@ -155,15 +155,6 @@ public class TransformConfigVersionTests extends ESTestCase {
     }
 
     public void testGetTransformConfigVersionForNode() {
-        DiscoveryNode node = DiscoveryNodeUtils.builder("_node_id4")
-            .name("_node_name4")
-            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9303))
-            .roles(ROLES_WITH_TRANSFORM)
-            .version(VersionInformation.inferVersions(Version.fromString("8.7.0")))
-            .build();
-        TransformConfigVersion transformConfigVersion = TransformConfigVersion.getTransformConfigVersionForNode(node);
-        assertEquals(TransformConfigVersion.V_8_7_0, transformConfigVersion);
-
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("_node_id5")
             .name("_node_name5")
             .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9304))

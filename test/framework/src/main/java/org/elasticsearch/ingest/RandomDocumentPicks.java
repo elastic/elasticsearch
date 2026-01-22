@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -39,7 +40,12 @@ public final class RandomDocumentPicks {
             if (i > 0) {
                 fieldName.append('.');
             }
-            fieldName.append(randomString(random));
+            String pathSegment;
+            // can't contain a dot since might lead to invalid empty segment, e.g. `one..two.three`
+            do {
+                pathSegment = randomString(random);
+            } while (pathSegment.contains("."));
+            fieldName.append(pathSegment);
         }
         if (numLevels > 1) {
             fieldName.append('.');

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
@@ -23,9 +24,16 @@ dependencies {
 }
 
 tasks.named("yamlRestTest").configure {
-  systemProperty 'tests.rest.blacklist', [
+  ArrayList<String> blacklist = [
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',
     'cat.templates/10_basic/Multiple template',
-  ].join(',')
+  ]
+  if (buildParams.snapshotBuild == false) {
+    blacklist += [
+      // doc_values.cardinality option not available in snapshots
+      "search/395_binary_doc_values_search/*"
+    ]
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }

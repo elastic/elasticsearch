@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 
 import java.util.List;
+import java.util.Map;
 
 public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
@@ -32,11 +33,21 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
+        assertEquals(45, response.getTotalSamples());
         assertEquals(1821, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
-        assertEquals(3L, response.getStackTraceEvents().get("L7kj7UvlKbT-vN73el4faQ").count);
+
+        Map<TraceEventID, TraceEvent> traceEvents = response.getStackTraceEvents();
+
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "497295213074376",
+            "8457605156473051743",
+            "L7kj7UvlKbT-vN73el4faQ",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
+        assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -45,8 +56,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.length);
         assertEquals(18, stackTrace.frameIds.length);
         assertEquals(18, stackTrace.typeIds.length);
-        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
         // not determined by default
         assertNull(stackTrace.subGroups);
 
@@ -67,7 +76,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            "service.name",
+            new String[] { "service.name" },
             null,
             null,
             null,
@@ -76,11 +85,20 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
+        assertEquals(45, response.getTotalSamples());
         assertEquals(1821, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
-        assertEquals(3L, response.getStackTraceEvents().get("L7kj7UvlKbT-vN73el4faQ").count);
+
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "497295213074376",
+            "8457605156473051743",
+            "L7kj7UvlKbT-vN73el4faQ",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
+        assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
+        assertEquals(Long.valueOf(2L), response.getStackTraceEvents().get(traceEventID).subGroups.getCount("basket"));
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -89,9 +107,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.length);
         assertEquals(18, stackTrace.frameIds.length);
         assertEquals(18, stackTrace.typeIds.length);
-        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
-        assertEquals(Long.valueOf(2L), stackTrace.subGroups.get("basket"));
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("8NlMClggx8jaziUTJXlmWAAAAAAAAIYI");
@@ -99,28 +114,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
 
         assertNotNull(response.getExecutables());
         assertEquals("vmlinux", response.getExecutables().get("lHp5_WAgpLy2alrUVab6HA"));
-    }
-
-    public void testGetStackTracesGroupedByInvalidField() {
-        GetStackTracesRequest request = new GetStackTracesRequest(
-            1000,
-            600.0d,
-            1.0d,
-            1.0d,
-            null,
-            null,
-            null,
-            // only service.name is supported (note the trailing "s")
-            "service.names",
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        request.setAdjustSampleCount(true);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, client().execute(GetStackTracesAction.INSTANCE, request));
-        assertEquals("Requested custom event aggregation field [service.names] but only [service.name] is supported.", e.getMessage());
     }
 
     public void testGetStackTracesFromAPMWithMatchNoDownsampling() throws Exception {
@@ -137,7 +130,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             // also match an index that does not contain stacktrace ids to ensure it is ignored
             new String[] { "apm-test-*", "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
-            "transaction.name",
+            new String[] { "transaction.name" },
             null,
             null,
             null,
@@ -149,8 +142,19 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
 
         assertNotNull(response.getStackTraceEvents());
-        assertEquals(3L, response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA").count);
-        assertEquals(2L, response.getStackTraceEvents().get("JvISdnJ47BQ01489cwF9DA").count);
+
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "",
+            "",
+            "Ce77w10WeIDow3kd1jowlA",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
+        assertEquals(3L, response.getStackTraceEvents().get(traceEventID).count);
+        assertEquals(Long.valueOf(3L), response.getStackTraceEvents().get(traceEventID).subGroups.getCount("encodeSha1"));
+
+        traceEventID = new TraceEventID("", "", "", "JvISdnJ47BQ01489cwF9DA", TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY);
+        assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -159,9 +163,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(39, stackTrace.fileIds.length);
         assertEquals(39, stackTrace.frameIds.length);
         assertEquals(39, stackTrace.typeIds.length);
-        assertTrue(stackTrace.annualCO2Tons > 0.0d);
-        assertTrue(stackTrace.annualCostsUSD > 0.0d);
-        assertEquals(Long.valueOf(3L), stackTrace.subGroups.get("encodeSha1"));
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("fhsEKXDuxJ-jIJrZpdRuSAAAAAAAAFtj");
@@ -197,9 +198,19 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(0.2d, response.getSamplingRate(), 0.001d);
 
         assertNotNull(response.getStackTraceEvents());
+
         // as the sampling rate is 0.2, we see 5 times more samples (random sampler agg automatically adjusts sample count)
-        assertEquals(5 * 3L, response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA").count);
-        assertEquals(5 * 2L, response.getStackTraceEvents().get("JvISdnJ47BQ01489cwF9DA").count);
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "",
+            "",
+            "Ce77w10WeIDow3kd1jowlA",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
+        assertEquals(5 * 3L, response.getStackTraceEvents().get(traceEventID).count);
+
+        traceEventID = new TraceEventID("", "", "", "JvISdnJ47BQ01489cwF9DA", TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY);
+        assertEquals(5 * 2L, response.getStackTraceEvents().get(traceEventID).count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -208,8 +219,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(39, stackTrace.fileIds.length);
         assertEquals(39, stackTrace.frameIds.length);
         assertEquals(39, stackTrace.typeIds.length);
-        assertTrue(stackTrace.annualCO2Tons > 0.0d);
-        assertTrue(stackTrace.annualCostsUSD > 0.0d);
         // not determined by default
         assertNull(stackTrace.subGroups);
 

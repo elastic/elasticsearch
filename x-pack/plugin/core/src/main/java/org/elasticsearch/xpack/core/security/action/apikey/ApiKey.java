@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -81,6 +83,28 @@ public final class ApiKey implements ToXContentObject {
         }
     }
 
+    public record Version(int version) implements VersionId<Version> {
+        @Override
+        public int id() {
+            return version;
+        }
+    }
+
+    public static class VersionComponent implements ComponentVersionNumber {
+
+        @Override
+        public String componentId() {
+            return "api_key_version";
+        }
+
+        @Override
+        public VersionId<?> versionNumber() {
+            return CURRENT_API_KEY_VERSION;
+        }
+    }
+
+    public static final ApiKey.Version CURRENT_API_KEY_VERSION = new ApiKey.Version(8_15_00_99);
+
     private final String name;
     private final String id;
     private final Type type;
@@ -97,6 +121,8 @@ public final class ApiKey implements ToXContentObject {
     private final List<RoleDescriptor> roleDescriptors;
     @Nullable
     private final RoleDescriptorsIntersection limitedBy;
+    @Nullable
+    private final String certificateIdentity;
 
     public ApiKey(
         String name,
@@ -111,7 +137,8 @@ public final class ApiKey implements ToXContentObject {
         @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
-        @Nullable List<RoleDescriptor> limitedByRoleDescriptors
+        @Nullable List<RoleDescriptor> limitedByRoleDescriptors,
+        @Nullable String certificateIdentity
     ) {
         this(
             name,
@@ -126,7 +153,8 @@ public final class ApiKey implements ToXContentObject {
             realmType,
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(Set.copyOf(limitedByRoleDescriptors)))
+            limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(Set.copyOf(limitedByRoleDescriptors))),
+            certificateIdentity
         );
     }
 
@@ -143,7 +171,8 @@ public final class ApiKey implements ToXContentObject {
         @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
-        @Nullable RoleDescriptorsIntersection limitedBy
+        @Nullable RoleDescriptorsIntersection limitedBy,
+        @Nullable String certificateIdentity
     ) {
         this.name = name;
         this.id = id;
@@ -163,6 +192,7 @@ public final class ApiKey implements ToXContentObject {
         // This assertion will need to be changed (or removed) when derived keys are properly supported
         assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "can only have one set of limited-by role descriptors";
         this.limitedBy = limitedBy;
+        this.certificateIdentity = certificateIdentity;
     }
 
     // Should only be used by XContent parsers
@@ -181,7 +211,8 @@ public final class ApiKey implements ToXContentObject {
             (String) parsed[9],
             (parsed[10] == null) ? null : (Map<String, Object>) parsed[10],
             (List<RoleDescriptor>) parsed[11],
-            (RoleDescriptorsIntersection) parsed[12]
+            (RoleDescriptorsIntersection) parsed[12],
+            (String) parsed[13]
         );
     }
 
@@ -244,6 +275,10 @@ public final class ApiKey implements ToXContentObject {
         return limitedBy;
     }
 
+    public @Nullable String getCertificateIdentity() {
+        return certificateIdentity;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -282,6 +317,11 @@ public final class ApiKey implements ToXContentObject {
             assert type != Type.CROSS_CLUSTER;
             builder.field("limited_by", limitedBy);
         }
+
+        if (certificateIdentity != null) {
+            builder.field("certificate_identity", certificateIdentity);
+        }
+
         return builder;
     }
 
@@ -333,7 +373,8 @@ public final class ApiKey implements ToXContentObject {
             realmType,
             metadata,
             roleDescriptors,
-            limitedBy
+            limitedBy,
+            certificateIdentity
         );
     }
 
@@ -361,7 +402,9 @@ public final class ApiKey implements ToXContentObject {
             && Objects.equals(realmType, other.realmType)
             && Objects.equals(metadata, other.metadata)
             && Objects.equals(roleDescriptors, other.roleDescriptors)
-            && Objects.equals(limitedBy, other.limitedBy);
+            && Objects.equals(limitedBy, other.limitedBy)
+            && Objects.equals(certificateIdentity, other.certificateIdentity);
+
     }
 
     @Override
@@ -392,6 +435,8 @@ public final class ApiKey implements ToXContentObject {
             + roleDescriptors
             + ", limited_by="
             + limitedBy
+            + ", certificate_identity="
+            + certificateIdentity
             + "]";
     }
 
@@ -428,6 +473,8 @@ public final class ApiKey implements ToXContentObject {
             new ParseField("limited_by"),
             ObjectParser.ValueType.OBJECT_ARRAY
         );
-        return 13; // the number of fields to parse
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField("certificate_identity"));
+
+        return 14; // the number of fields to parse
     }
 }

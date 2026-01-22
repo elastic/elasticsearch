@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -29,7 +29,7 @@ public class GetSearchApplicationActionRequestBWCSerializingTests extends Abstra
 
     @Override
     protected GetSearchApplicationAction.Request mutateInstance(GetSearchApplicationAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetSearchApplicationAction.Request(randomValueOtherThan(instance.getName(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

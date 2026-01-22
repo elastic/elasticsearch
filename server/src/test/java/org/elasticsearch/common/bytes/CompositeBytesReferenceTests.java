@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.bytes;
 
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase {
@@ -97,7 +99,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
 
         int offset = 0;
         for (BytesReference reference : referenceList) {
-            assertEquals(reference, ref.slice(offset, reference.length()));
+            assertThat(ref.slice(offset, reference.length()), equalBytes(reference));
             int probes = randomIntBetween(Math.min(10, reference.length()), reference.length());
             for (int i = 0; i < probes; i++) {
                 int index = randomIntBetween(0, reference.length() - 1);
@@ -107,12 +109,12 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         }
 
         BytesArray array = new BytesArray(builder.toBytesRef());
-        assertEquals(array, ref);
+        assertThat(ref, equalBytes(array));
         assertEquals(array.hashCode(), ref.hashCode());
 
         BytesStreamOutput output = new BytesStreamOutput();
         ref.writeTo(output);
-        assertEquals(array, output.bytes());
+        assertThat(output.bytes(), equalBytes(array));
     }
 
     @Override

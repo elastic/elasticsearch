@@ -59,18 +59,30 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null, null)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                shutdownNode,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "removal for testing",
+                null,
+                null,
+                null
+            )
         ).get();
 
         GetShutdownStatusAction.Response getResp = client().execute(
             GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(remainNode)
+            new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, remainNode)
         ).get();
 
         assertTrue(getResp.getShutdownStatuses().isEmpty());
 
         // The plugin should be in progress
-        getResp = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(shutdownNode)).get();
+        getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, shutdownNode)
+        ).get();
         assertThat(
             getResp.getShutdownStatuses().get(0).pluginsStatus().getStatus(),
             equalTo(SingleNodeShutdownMetadata.Status.IN_PROGRESS)
@@ -80,13 +92,19 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         safe.set(true);
 
         // The plugin should be complete
-        getResp = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(shutdownNode)).get();
+        getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, shutdownNode)
+        ).get();
         assertThat(getResp.getShutdownStatuses().get(0).pluginsStatus().getStatus(), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
 
         // The shutdown node should be in the triggered list
         assertThat(triggeredNodes.get(), contains(shutdownNode));
 
-        client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(shutdownNode)).get();
+        client().execute(
+            DeleteShutdownNodeAction.INSTANCE,
+            new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, shutdownNode)
+        ).get();
 
         // The shutdown node should now not in the triggered list
         assertThat(triggeredNodes.get(), empty());

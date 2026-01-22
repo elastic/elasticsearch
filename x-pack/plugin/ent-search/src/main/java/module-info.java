@@ -11,7 +11,6 @@ module org.elasticsearch.application {
     requires com.fasterxml.jackson.databind;
     requires json.schema.validator;
     requires org.apache.lucene.core;
-    requires org.slf4j;
 
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
@@ -37,6 +36,7 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.connector.action;
     exports org.elasticsearch.xpack.application.connector.syncjob;
     exports org.elasticsearch.xpack.application.connector.syncjob.action;
+    exports org.elasticsearch.xpack.application.utils;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 

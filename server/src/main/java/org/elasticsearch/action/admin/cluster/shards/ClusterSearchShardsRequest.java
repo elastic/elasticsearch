@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.shards;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,19 +33,16 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterSearchShardsRequest() {}
-
-    public ClusterSearchShardsRequest(String... indices) {
+    public ClusterSearchShardsRequest(TimeValue masterNodeTimeout, String... indices) {
+        super(masterNodeTimeout);
         indices(indices);
     }
 
     public ClusterSearchShardsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -53,7 +52,6 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-
         indicesOptions.writeIndicesOptions(out);
     }
 

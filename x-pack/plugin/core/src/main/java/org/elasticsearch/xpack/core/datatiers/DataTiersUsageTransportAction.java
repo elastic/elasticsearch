@@ -9,22 +9,21 @@ package org.elasticsearch.xpack.core.datatiers;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tasks.Task;
@@ -46,7 +45,7 @@ import java.util.stream.StreamSupport;
 public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final Client client;
-    private final FeatureService featureService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DataTiersUsageTransportAction(
@@ -54,71 +53,44 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
-        FeatureService featureService
+        ProjectResolver projectResolver
     ) {
-        super(
-            XPackUsageFeatureAction.DATA_TIERS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.DATA_TIERS.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
-        this.featureService = featureService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        if (featureService.clusterHasFeature(state, NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE)) {
-            new ParentTaskAssigningClient(client, clusterService.localNode(), task).admin()
-                .cluster()
-                .execute(
-                    NodesDataTiersUsageTransportAction.TYPE,
-                    new NodesDataTiersUsageTransportAction.NodesRequest(),
-                    listener.delegateFailureAndWrap((delegate, response) -> {
-                        // Generate tier specific stats for the nodes and indices
-                        delegate.onResponse(
-                            new XPackUsageFeatureResponse(
-                                new DataTiersFeatureSetUsage(
-                                    aggregateStats(response.getNodes(), getIndicesGroupedByTier(state, response.getNodes()))
-                                )
-                            )
-                        );
-                    })
-                );
-        } else {
-            new ParentTaskAssigningClient(client, clusterService.localNode(), task).admin()
-                .cluster()
-                .prepareNodesStats()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store))
-                .execute(listener.delegateFailureAndWrap((delegate, nodesStatsResponse) -> {
-                    List<NodeDataTiersUsage> response = nodesStatsResponse.getNodes()
-                        .stream()
-                        .map(
-                            nodeStats -> new NodeDataTiersUsage(nodeStats.getNode(), precalculateLocalStatsFromNodeStats(nodeStats, state))
-                        )
-                        .toList();
+        new ParentTaskAssigningClient(client, clusterService.localNode(), task).admin()
+            .cluster()
+            .execute(
+                NodesDataTiersUsageTransportAction.TYPE,
+                new NodesDataTiersUsageTransportAction.NodesRequest(),
+                listener.delegateFailureAndWrap((delegate, response) -> {
+                    final var projectState = projectResolver.getProjectState(state);
+                    // Generate tier specific stats for the nodes and indices
                     delegate.onResponse(
                         new XPackUsageFeatureResponse(
-                            new DataTiersFeatureSetUsage(aggregateStats(response, getIndicesGroupedByTier(state, response)))
+                            new DataTiersFeatureSetUsage(
+                                aggregateStats(response.getNodes(), getIndicesGroupedByTier(projectState, response.getNodes()))
+                            )
                         )
                     );
-                }));
-        }
+                })
+            );
     }
 
     // Visible for testing
-    static Map<String, Set<String>> getIndicesGroupedByTier(ClusterState state, List<NodeDataTiersUsage> nodes) {
+    static Map<String, Set<String>> getIndicesGroupedByTier(ProjectState state, List<NodeDataTiersUsage> nodes) {
         Set<String> indices = nodes.stream()
-            .map(nodeResponse -> state.getRoutingNodes().node(nodeResponse.getNode().getId()))
+            .map(nodeResponse -> state.cluster().getRoutingNodes().node(nodeResponse.getNode().getId()))
             .filter(Objects::nonNull)
             .flatMap(node -> StreamSupport.stream(node.spliterator(), false))
             .map(ShardRouting::getIndexName)
@@ -149,7 +121,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         long docCount = 0;
         int primaryShardCount = 0;
         long primaryByteCount = 0L;
-        final TDigestState valueSketch = TDigestState.create(1000);
+        final TDigestState valueSketch = TDigestState.createWithoutCircuitBreaking(1000);
     }
 
     // Visible for testing
@@ -228,13 +200,14 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             return 0;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch);
-            valuesSketch.centroids().forEach(centroid -> {
-                final double deviation = Math.abs(approximateMedian - centroid.mean());
-                approximatedDeviationsSketch.add(deviation, centroid.count());
-            });
+            try (TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch)) {
+                valuesSketch.centroids().forEach(centroid -> {
+                    final double deviation = Math.abs(approximateMedian - centroid.mean());
+                    approximatedDeviationsSketch.add(deviation, centroid.count());
+                });
 
-            return (long) approximatedDeviationsSketch.quantile(0.5);
+                return (long) approximatedDeviationsSketch.quantile(0.5);
+            }
         }
     }
 

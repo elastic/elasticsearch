@@ -59,9 +59,8 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        var requests = prepare((List<PutAutoscalingPolicyAction.Request>) source);
+    public TransformState transform(List<PutAutoscalingPolicyAction.Request> source, TransformState prevState) throws Exception {
+        var requests = prepare(source);
         ClusterState state = prevState.state();
 
         for (var request : requests) {
@@ -82,6 +81,11 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
     }
 
     @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
+    }
+
+    @Override
     public List<PutAutoscalingPolicyAction.Request> fromXContent(XContentParser parser) throws IOException {
         List<PutAutoscalingPolicyAction.Request> result = new ArrayList<>();
 
@@ -91,7 +95,18 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
             @SuppressWarnings("unchecked")
             Map<String, ?> content = (Map<String, ?>) source.get(name);
             try (XContentParser policyParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
-                result.add(PutAutoscalingPolicyAction.Request.parse(policyParser, name));
+                result.add(
+                    PutAutoscalingPolicyAction.Request.parse(
+                        policyParser,
+                        (roles, deciders) -> new PutAutoscalingPolicyAction.Request(
+                            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                            name,
+                            roles,
+                            deciders
+                        )
+                    )
+                );
             }
         }
 

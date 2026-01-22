@@ -87,7 +87,7 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
             if (chunkResult) {
-                throw chunkingNotSupportedException(TaskType.NER);
+                throw chunkingNotSupportedException(TaskType.TEXT_SIMILARITY);
             }
 
             if (pyTorchResult.getInferenceResult().length < 1) {
@@ -99,7 +99,7 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
                 if (result.length != 1) {
                     throw new ElasticsearchStatusException(
                         "Expected exactly [1] value in text_similarity result; got [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
+                        RestStatus.CONFLICT,
                         result.length
                     );
                 }

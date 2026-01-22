@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -24,7 +24,11 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-public class DivTests extends AbstractFunctionTestCase {
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
+import static org.hamcrest.Matchers.equalTo;
+
+public class DivTests extends AbstractScalarFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -58,7 +62,7 @@ public class DivTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (lhs, rhs) -> {
-                    if (lhs.type() != DataTypes.DOUBLE || rhs.type() != DataTypes.DOUBLE) {
+                    if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
                         return List.of();
                     }
                     double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
@@ -66,8 +70,8 @@ public class DivTests extends AbstractFunctionTestCase {
                         return List.of();
                     }
                     return List.of(
-                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: / by zero"
                     );
                 },
                 false
@@ -79,15 +83,13 @@ public class DivTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> (((BigInteger) l).divide((BigInteger) r)),
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE), true),
                 List.of(),
                 false
             )
         );
-
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
 
         // Divide by zero cases - all of these should warn and return null
         TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
@@ -110,30 +112,32 @@ public class DivTests extends AbstractFunctionTestCase {
                 "DivDoublesEvaluator"
             )
         );
-        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
+        List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
 
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
                 TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
-                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
-                    + "["
-                    + "lhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
-                    + ", "
-                    + "rhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
-                    + "]";
+                BiFunction<DataType, DataType, Matcher<String>> evaluatorToString = (lhs, rhs) -> equalTo(
+                    expectedTypeStuff.evaluatorName()
+                        + "["
+                        + "lhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                        + ", "
+                        + "rhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                        + "]"
+                );
                 TestCaseSupplier.casesCrossProduct(
                     (l1, r1) -> expectedTypeStuff.expected().apply((Number) l1, (Number) r1),
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
                     TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
                     evaluatorToString,
                     (lhs, rhs) -> List.of(
-                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: / by zero"
                     ),
                     suppliers,
                     expected,
@@ -148,23 +152,74 @@ public class DivTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> null,
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.ZERO, true),
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: / by zero"
                 ),
                 false
             )
         );
 
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> left = randomDenseVector(dimensions);
+            List<Float> right = randomDenseVector(dimensions);
+            List<Float> expected = divVectors(left, right);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "DivDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(expected)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            List<Float> left = randomDenseVector(64);
+            List<Float> right = randomDenseVector(128);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "DivDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(null)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: dense_vector dimensions do not match");
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DENSE_VECTOR), () -> {
+            List<Float> left = randomDenseVector(64);
+            List<Float> right = randomDenseVector(64);
+            left.set(32, -Float.MAX_VALUE);
+            right.set(32, 0.0f);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
+                    new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
+                ),
+                "DivDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DENSE_VECTOR,
+                equalTo(null)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: / by zero");
+        }));
+
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric or dense_vector");
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
@@ -175,5 +230,13 @@ public class DivTests extends AbstractFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Div(source, args.get(0), args.get(1));
+    }
+
+    private static List<Float> divVectors(List<Float> left, List<Float> right) {
+        List<Float> result = new ArrayList<>();
+        for (int i = 0; i < left.size(); i++) {
+            result.add(left.get(i) / right.get(i));
+        }
+        return result;
     }
 }

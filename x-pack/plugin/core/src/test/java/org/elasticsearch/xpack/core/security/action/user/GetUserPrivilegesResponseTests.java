@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -24,6 +23,8 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 
@@ -41,7 +42,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetUserPrivilegesResponseTests extends ESTestCase {
@@ -65,10 +66,10 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     }
 
     public void testSerializationForCurrentVersion() throws Exception {
-        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean canIncludeRemoteCluster = version.supports(ROLE_REMOTE_CLUSTER_PRIVS);
 
-        final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices);
+        final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteCluster);
 
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(version);
@@ -81,41 +82,6 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         assertThat(copy, equalTo(original));
     }
 
-    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.V_8_8_0
-        );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            versionBeforeAdvancedRemoteClusterSecurity
-        );
-        out.setTransportVersion(version);
-
-        final GetUserPrivilegesResponse original = randomResponse();
-        if (original.hasRemoteIndicesPrivileges()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
-            assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before ["
-                        + TransportVersions.V_8_8_0.toReleaseVersion()
-                        + "] can't handle remote indices privileges and attempted to send to ["
-                        + version.toReleaseVersion()
-                        + "]"
-                )
-            );
-        } else {
-            original.writeTo(out);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            in.setTransportVersion(out.getTransportVersion());
-            final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
-            assertThat(copy, equalTo(original));
-        }
-    }
-
     public void testEqualsAndHashCode() throws IOException {
         final GetUserPrivilegesResponse response = randomResponse();
         final EqualsHashCodeTestUtils.CopyFunction<GetUserPrivilegesResponse> copy = original -> new GetUserPrivilegesResponse(
@@ -124,7 +90,8 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             original.getIndexPrivileges(),
             original.getApplicationPrivileges(),
             original.getRunAs(),
-            original.getRemoteIndexPrivileges()
+            original.getRemoteIndexPrivileges(),
+            original.getRemoteClusterPermissions()
         );
         final EqualsHashCodeTestUtils.MutateFunction<GetUserPrivilegesResponse> mutate = new EqualsHashCodeTestUtils.MutateFunction<>() {
             @Override
@@ -175,7 +142,16 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                         randomStringSet(1)
                     )
                 );
-                return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex);
+
+                final RemoteClusterPermissions remoteCluster = new RemoteClusterPermissions();
+                remoteCluster.addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        generateRandomStringArray(3, 5, false, false)
+                    )
+                );
+
+                return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex, remoteCluster);
             }
 
             private <T> Set<T> maybeMutate(int random, int index, Set<T> original, Supplier<T> supplier) {
@@ -196,7 +172,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         return randomResponse(true);
     }
 
-    private GetUserPrivilegesResponse randomResponse(boolean allowRemoteIndices) {
+    private GetUserPrivilegesResponse randomResponse(boolean allowRemoteClusters) {
         final Set<String> cluster = randomStringSet(5);
         final Set<ConfigurableClusterPrivilege> conditionalCluster = Sets.newHashSet(
             randomArray(3, ConfigurableClusterPrivilege[]::new, () -> new ManageApplicationPrivileges(randomStringSet(3)))
@@ -216,17 +192,24 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             )
         );
         final Set<String> runAs = randomStringSet(3);
-        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = allowRemoteIndices
-            ? Sets.newHashSet(
-                randomArray(
-                    5,
-                    GetUserPrivilegesResponse.RemoteIndices[]::new,
-                    () -> new GetUserPrivilegesResponse.RemoteIndices(randomIndices(false), randomStringSet(6))
-                )
+        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = Sets.newHashSet(
+            randomArray(
+                5,
+                GetUserPrivilegesResponse.RemoteIndices[]::new,
+                () -> new GetUserPrivilegesResponse.RemoteIndices(randomIndices(false), randomStringSet(6))
             )
-            : Set.of();
+        );
 
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex);
+        RemoteClusterPermissions remoteCluster = allowRemoteClusters ? new RemoteClusterPermissions() : RemoteClusterPermissions.NONE;
+        if (allowRemoteClusters) {
+            remoteCluster.addGroup(
+                new RemoteClusterPermissionGroup(
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                    generateRandomStringArray(3, 5, false, false)
+                )
+            );
+        }
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex, remoteCluster);
     }
 
     private GetUserPrivilegesResponse.Indices randomIndices(boolean allowMultipleFlsDlsDefinitions) {

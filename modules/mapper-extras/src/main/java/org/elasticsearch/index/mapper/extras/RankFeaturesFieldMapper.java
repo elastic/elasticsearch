@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -64,10 +66,9 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         @Override
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
-                name(),
-                new RankFeaturesFieldType(context.buildFullName(name()), meta.getValue(), positiveScoreImpact.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                leafName(),
+                new RankFeaturesFieldType(context.buildFullName(leafName()), meta.getValue(), positiveScoreImpact.getValue()),
+                builderParams(this, context),
                 positiveScoreImpact.getValue()
             );
         }
@@ -80,7 +81,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 
@@ -105,6 +106,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_ONLY;
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
         }
@@ -122,11 +128,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     private RankFeaturesFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean positiveScoreImpact
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 
@@ -137,7 +142,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -174,7 +179,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = name() + "." + feature;
+                    final String key = fullPath() + "." + feature;
                     float value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
@@ -187,7 +192,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                     if (positiveScoreImpact == false) {
                         value = 1 / value;
                     }
-                    context.doc().addWithKey(key, new FeatureField(name(), feature, value));
+                    context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value));
                 } else {
                     throw new IllegalArgumentException(
                         "[rank_features] fields take hashes that map a feature to a strictly positive "

@@ -8,18 +8,16 @@
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -49,7 +47,7 @@ public class CohereRerankTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
-        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, ModelConfigurations.TASK_SETTINGS, validationException);
+        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
         Integer topNDocumentsOnly = extractOptionalPositiveInteger(
             map,
             TOP_N_DOCS_ONLY,
@@ -114,6 +112,11 @@ public class CohereRerankTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return topNDocumentsOnly == null && returnDocuments == null && maxChunksPerDoc == null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (topNDocumentsOnly != null) {
@@ -136,7 +139,7 @@ public class CohereRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_RERANK;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -161,10 +164,6 @@ public class CohereRerankTaskSettings implements TaskSettings {
         return Objects.hash(returnDocuments, topNDocumentsOnly, maxChunksPerDoc);
     }
 
-    public static String invalidInputTypeMessage(InputType inputType) {
-        return Strings.format("received invalid input type value [%s]", inputType.toString());
-    }
-
     public Boolean getDoesReturnDocuments() {
         return returnDocuments;
     }
@@ -181,4 +180,9 @@ public class CohereRerankTaskSettings implements TaskSettings {
         return maxChunksPerDoc;
     }
 
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        CohereRerankTaskSettings updatedSettings = CohereRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        return CohereRerankTaskSettings.of(this, updatedSettings);
+    }
 }

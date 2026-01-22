@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -12,6 +13,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -418,7 +421,7 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+        return alignsWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
     }
 
     /**
@@ -427,8 +430,13 @@ public class ValuesSourceConfig {
      * is searchable and there aren't missing values or a script to confuse
      * the ordering.
      */
-    public boolean alignesWithSearchIndex() {
-        return script() == null && missing() == null && fieldType() != null && fieldType().isIndexed();
+    public boolean alignsWithSearchIndex() {
+        var ft = fieldType();
+        boolean hasDocValuesSkipper = ft instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
+        return script() == null
+            && missing() == null
+            && ft != null
+            && (ft instanceof ConstantFieldType || ft.indexType().supportsSortShortcuts() || hasDocValuesSkipper);
     }
 
     /**

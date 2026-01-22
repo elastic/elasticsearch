@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -20,8 +20,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -316,13 +314,21 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionNonRuntimeType() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionHandlerNotFound() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionMissingType() throws IOException {
@@ -346,262 +352,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertEquals("Failed to parse mapping: unknown parameter [unsupported] on runtime field [field] of type [keyword]", e.getMessage());
     }
 
-    public void testPassThroughObjectWithAliases() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough");
-            {
-                b.startObject("properties");
-                b.startObject("dim").field("type", "keyword").endObject();
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
-        assertThat(mapperService.mappingLookup().getMapper("labels.dim"), instanceOf(KeywordFieldMapper.class));
-    }
-
-    public void testPassThroughObjectNested() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("resource").field("type", "object");
-            {
-                b.startObject("properties");
-                {
-                    b.startObject("attributes").field("type", "passthrough");
-                    {
-                        b.startObject("properties");
-                        b.startObject("dim").field("type", "keyword").endObject();
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-            b.startObject("attributes").field("type", "passthrough");
-            {
-                b.startObject("properties");
-                b.startObject("another.dim").field("type", "keyword").endObject();
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
-        assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
-        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
-        assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
-    }
-
-    public void testPassThroughObjectNestedWithDuplicateNames() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("resource").field("type", "object");
-            {
-                b.startObject("properties");
-                {
-                    b.startObject("attributes").field("type", "passthrough");
-                    {
-                        b.startObject("properties");
-                        b.startObject("dim").field("type", "keyword").endObject();
-                        b.startObject("more.attributes.another.dimA").field("type", "keyword").endObject();
-                        b.startObject("more.attributes.another.dimB").field("type", "keyword").endObject();
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-            b.startObject("attributes").field("type", "passthrough");
-            {
-                b.startObject("properties");
-                b.startObject("another.dim").field("type", "keyword").endObject();
-                b.startObject("more.attributes.another.dimC").field("type", "keyword").endObject();
-                b.startObject("more.attributes.another.dimD").field("type", "keyword").endObject();
-                b.endObject();
-            }
-            b.endObject();
-        }));
-
-        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
-        assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
-        assertThat(
-            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimA"),
-            instanceOf(FieldAliasMapper.class)
-        );
-        assertThat(
-            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimA"),
-            instanceOf(KeywordFieldMapper.class)
-        );
-        assertThat(
-            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimB"),
-            instanceOf(FieldAliasMapper.class)
-        );
-        assertThat(
-            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimB"),
-            instanceOf(KeywordFieldMapper.class)
-        );
-
-        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
-        assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
-        assertThat(
-            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimC"),
-            instanceOf(FieldAliasMapper.class)
-        );
-        assertThat(
-            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimC"),
-            instanceOf(KeywordFieldMapper.class)
-        );
-        assertThat(
-            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimD"),
-            instanceOf(FieldAliasMapper.class)
-        );
-        assertThat(
-            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimD"),
-            instanceOf(KeywordFieldMapper.class)
-        );
-    }
-
-    public void testPassThroughObjectNestedWithConflictingNames() throws IOException {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
-            b.startObject("resource").field("type", "object");
-            {
-                b.startObject("properties");
-                {
-                    b.startObject("attributes").field("type", "passthrough");
-                    {
-                        b.startObject("properties");
-                        b.startObject("dim").field("type", "keyword").endObject();
-                        b.startObject("resource.attributes.another.dim").field("type", "keyword").endObject();
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-        })));
-        assertEquals(
-            "Failed to parse mapping: Conflicting objects created during alias generation for pass-through field: [resource]",
-            e.getMessage()
-        );
-    }
-
-    public void testAliasMappersCreatesAlias() throws Exception {
-        var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
-            Map.of(
-                "labels",
-                new PassThroughObjectMapper(
-                    "labels",
-                    "labels",
-                    Explicit.EXPLICIT_TRUE,
-                    ObjectMapper.Dynamic.FALSE,
-                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
-                    Explicit.EXPLICIT_FALSE
-                )
-            ),
-            context
-        );
-        assertEquals(1, aliases.size());
-        assertThat(aliases.get("host"), instanceOf(FieldAliasMapper.class));
-    }
-
-    public void testAliasMappersCreatesAliasNested() throws Exception {
-        var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
-            Map.of(
-                "outer",
-                new ObjectMapper(
-                    "outer",
-                    "outer",
-                    Explicit.EXPLICIT_TRUE,
-                    Explicit.EXPLICIT_TRUE,
-                    ObjectMapper.Dynamic.FALSE,
-                    Map.of(
-                        "inner",
-                        new PassThroughObjectMapper(
-                            "inner",
-                            "outer.inner",
-                            Explicit.EXPLICIT_TRUE,
-                            ObjectMapper.Dynamic.FALSE,
-                            Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
-                            Explicit.EXPLICIT_FALSE
-                        )
-                    )
-                )
-            ),
-            context
-        );
-        assertEquals(1, aliases.size());
-        assertThat(aliases.get("host"), instanceOf(FieldAliasMapper.class));
-    }
-
-    public void testAliasMappersExitsInDeepNesting() throws Exception {
-        var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new HashMap<>();
-        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
-        var objectIntermediatesFullPath = new HashMap<String, ObjectMapper.Builder>(1);
-        new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
-            Map.of(
-                "labels",
-                new PassThroughObjectMapper(
-                    "labels",
-                    "labels",
-                    Explicit.EXPLICIT_TRUE,
-                    ObjectMapper.Dynamic.FALSE,
-                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
-                    Explicit.EXPLICIT_FALSE
-                )
-            ),
-            Map.of(),
-            aliases,
-            objectIntermediates,
-            objectIntermediatesFullPath,
-            context,
-            1_000_000
-        );
-        assertTrue(aliases.isEmpty());
-    }
-
-    public void testAliasMappersCreatesNoAliasForRegularObject() throws Exception {
-        var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
-            Map.of(
-                "labels",
-                new ObjectMapper(
-                    "labels",
-                    "labels",
-                    Explicit.EXPLICIT_TRUE,
-                    Explicit.EXPLICIT_FALSE,
-                    ObjectMapper.Dynamic.FALSE,
-                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context))
-                )
-            ),
-            context
-        );
-        assertTrue(aliases.isEmpty());
-    }
-
-    public void testAliasMappersConflictingField() throws Exception {
-        var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
-            Map.of(
-                "labels",
-                new PassThroughObjectMapper(
-                    "labels",
-                    "labels",
-                    Explicit.EXPLICIT_TRUE,
-                    ObjectMapper.Dynamic.FALSE,
-                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
-                    Explicit.EXPLICIT_FALSE
-                ),
-                "host",
-                new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)
-            ),
-            context
-        );
-        assertTrue(aliases.isEmpty());
-    }
-
     public void testEmptyType() throws Exception {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -619,6 +369,213 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
+    public void testWithRootObjectMapperNamespaceValidator() throws Exception {
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
+
+        String notNested = """
+            {
+                "_doc": {
+                    "properties": {
+                        "<FIELD_NAME>": {
+                            "type": "<TYPE>"
+                        }
+                    }
+                }
+            }""";
+
+        // _project should fail, regardless of type
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed);
+
+            String keyword = json.replace("<TYPE>", "keyword");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(keyword, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+
+            String text = json.replace("<TYPE>", "text");
+            e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(text, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+
+            String object = json.replace("<TYPE>", "object");
+            e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(object, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // _project.subfield should fail
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + ".subfield")
+                .replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // _projectx should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + "x").replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // _project_subfield should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + "_subfield");
+            json = json.replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // _projectx.subfield should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + "x.subfield");
+            json = json.replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        String nested = """
+            {
+              "_doc": {
+                "properties": {
+                  "<FIELD_NAME1>": {
+                    "type": "object",
+                    "properties": {
+                      "<FIELD_NAME1>": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
+
+        // nested _project { my_field } should fail
+        {
+            String json = nested.replace("<FIELD_NAME1>", disallowed).replace("<FIELD_NAME2>", "my_field");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // nested my_field { _project } should succeed
+        {
+            String json = nested.replace("<FIELD_NAME1>", "my_field").replace("<FIELD_NAME2>", disallowed);
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // nested _projectx { _project } should succeed
+        {
+            String json = nested.replace("<FIELD_NAME1>", disallowed + "x").replace("<FIELD_NAME2>", disallowed);
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+    }
+
+    public void testSubobjectsWithRootObjectMapperNamespaceValidator() throws Exception {
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
+
+        // test with subobjects setting
+        String withSubobjects = """
+            {
+                "_doc": {
+                    "subobjects": "<SUBOBJECTS_SETTING>",
+                    "properties": {
+                        "<FIELD_NAME>": {
+                            "type": "object",
+                            "properties": {
+                                "my_field": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        final String[] validSubojectsValues = new String[] { "false", "true" };
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false").replace("<FIELD_NAME>", "_project");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "true").replace("<FIELD_NAME>", "_project");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom(validSubojectsValues))
+                .replace("<FIELD_NAME>", "_project.foo");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom(validSubojectsValues))
+                .replace("<FIELD_NAME>", "project.foo");
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+    }
+
+    public void testRuntimeFieldInMappingWithNamespaceValidator() throws IOException {
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
+
+        // ensure that things close to the disallowed fields that are allowed
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject(disallowed + "_x").field("type", "ip").endObject();
+                builder.startObject(disallowed + "x").field("type", "date").endObject();
+                builder.startObject("field1." + disallowed).field("type", "double").endObject();
+            }));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(mapping, validator);
+            assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+            assertEquals(3, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
+        }
+
+        // _project is rejected
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field1").field("type", "double").endObject();
+                builder.startObject(disallowed).field("type", "date").endObject();
+                builder.startObject("field3").field("type", "ip").endObject();
+            }));
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithNamespaceValidator(mapping, validator));
+            Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), equalTo(errorMessage));
+        }
+
+        // _project.my_sub_field is rejected
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field1").field("type", "double").endObject();
+                builder.startObject(disallowed + ".my_sub_field").field("type", "keyword").endObject();
+                builder.startObject("field3").field("type", "ip").endObject();
+            }));
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithNamespaceValidator(mapping, validator));
+            Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), equalTo(errorMessage));
+        }
+    }
+
+    public void testSyntheticSourceKeepAllThrows() throws IOException {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("synthetic_source_keep", "all")
+                .endObject()
+                .endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("root object can't be configured with [synthetic_source_keep:all]"));
     }
 
     public void testWithoutMappers() throws IOException {
@@ -668,4 +625,25 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         return mapper.mapping().getRoot();
     }
 
+    static class TestRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
+        private final String disallowed;
+        private final String errorMessage;
+
+        TestRootObjectMapperNamespaceValidator(String disallowedNamespace, String errorMessage) {
+            this.disallowed = disallowedNamespace;
+            this.errorMessage = errorMessage;
+        }
+
+        @Override
+        public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
+            if (name.equals(disallowed)) {
+                throw new IllegalArgumentException(errorMessage);
+            } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                // name here will be something like _project.my_field, rather than just _project
+                if (name.startsWith(disallowed + ".")) {
+                    throw new IllegalArgumentException(errorMessage);
+                }
+            }
+        }
+    }
 }

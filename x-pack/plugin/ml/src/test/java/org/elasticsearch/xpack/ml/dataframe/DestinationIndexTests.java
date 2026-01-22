@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.xpack.ml.DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -283,14 +285,20 @@ public class DestinationIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(getMappingsResponse)).when(client)
             .execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
 
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], new HashMap<>() {
-            {
-                put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-            }
-        });
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(
+                Map.of(
+                    NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    OUTER_FIELD + "." + INNER_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NESTED_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer"))
+                )
+            )
+            .build();
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
             .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());
@@ -334,10 +342,7 @@ public class DestinationIndexTests extends ESTestCase {
                 clock,
                 config,
                 ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-                ActionListener.wrap(
-                    response -> fail("should not succeed"),
-                    e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage))
-                )
+                assertNoSuccessListener(e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage)))
             );
 
             return null;
@@ -578,8 +583,7 @@ public class DestinationIndexTests extends ESTestCase {
             clock,
             config,
             ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-            ActionListener.wrap(
-                response -> fail("should not succeed"),
+            assertNoSuccessListener(
                 e -> assertThat(
                     e.getMessage(),
                     equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
@@ -617,14 +621,20 @@ public class DestinationIndexTests extends ESTestCase {
         doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE)).when(client)
             .execute(eq(TransportPutMappingAction.TYPE), putMappingRequestCaptor.capture(), any());
 
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], new HashMap<>() {
-            {
-                put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-            }
-        });
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(
+                Map.of(
+                    NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    OUTER_FIELD + "." + INNER_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NUMERICAL_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")),
+                    ALIAS_TO_NESTED_FIELD,
+                    singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer"))
+                )
+            )
+            .build();
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
             .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());
@@ -803,6 +813,6 @@ public class DestinationIndexTests extends ESTestCase {
     }
 
     private static FieldCapabilities createFieldCapabilities(String field, String type) {
-        return new FieldCapabilities(field, type, false, true, true, null, null, null, Collections.emptyMap());
+        return new FieldCapabilitiesBuilder(field, type).build();
     }
 }

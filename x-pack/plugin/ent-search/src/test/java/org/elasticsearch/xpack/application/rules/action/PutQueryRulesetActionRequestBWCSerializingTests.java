@@ -9,18 +9,12 @@ package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.rules.QueryRule;
-import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CRITERIA_METADATA_VALUES_TRANSPORT_VERSION;
 
 public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<PutQueryRulesetAction.Request> {
 
@@ -33,13 +27,15 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected PutQueryRulesetAction.Request createTestInstance() {
-        this.queryRulesSet = SearchApplicationTestUtils.randomQueryRuleset();
+        this.queryRulesSet = EnterpriseSearchModuleTestUtils.randomQueryRuleset();
         return new PutQueryRulesetAction.Request(this.queryRulesSet);
     }
 
     @Override
     protected PutQueryRulesetAction.Request mutateInstance(PutQueryRulesetAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PutQueryRulesetAction.Request(
+            randomValueOtherThan(instance.queryRuleset(), () -> EnterpriseSearchModuleTestUtils.randomQueryRuleset())
+        );
     }
 
     @Override
@@ -49,22 +45,6 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected PutQueryRulesetAction.Request mutateInstanceForVersion(PutQueryRulesetAction.Request instance, TransportVersion version) {
-
-        if (version.before(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
-            List<QueryRule> rules = new ArrayList<>();
-            for (QueryRule rule : instance.queryRuleset().rules()) {
-                List<QueryRuleCriteria> newCriteria = new ArrayList<>();
-                for (QueryRuleCriteria criteria : rule.criteria()) {
-                    newCriteria.add(
-                        new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), criteria.criteriaValues().subList(0, 1))
-                    );
-                }
-                rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions()));
-            }
-            return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
-        }
-
-        // Default to current instance
         return instance;
     }
 }

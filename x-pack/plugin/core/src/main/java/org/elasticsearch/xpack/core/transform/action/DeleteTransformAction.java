@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -34,7 +33,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         private final boolean deleteDestIndex;
 
         public Request(String id, boolean force, boolean deleteDestIndex, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
             this.deleteDestIndex = deleteDestIndex;
@@ -44,11 +43,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             super(in);
             id = in.readString();
             force = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                deleteDestIndex = in.readBoolean();
-            } else {
-                deleteDestIndex = false;
-            }
+            deleteDestIndex = in.readBoolean();
         }
 
         public String getId() {
@@ -68,9 +63,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(force);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeBoolean(deleteDestIndex);
-            }
+            out.writeBoolean(deleteDestIndex);
         }
 
         @Override

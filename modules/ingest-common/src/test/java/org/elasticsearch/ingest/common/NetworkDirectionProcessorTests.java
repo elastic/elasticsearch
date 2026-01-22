@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -92,6 +93,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("'invalid' is not an IP string literal."));
     }
 
+    // These tests copy the data from the NetworkDirectionUtils tests
     public void testCIDR() throws Exception {
         testNetworkDirectionProcessor(buildEvent("10.0.1.1", "192.168.1.2"), new String[] { "10.0.0.0/8" }, "outbound");
         testNetworkDirectionProcessor(buildEvent("192.168.1.2", "10.0.1.1"), new String[] { "10.0.0.0/8" }, "inbound");
@@ -138,7 +140,8 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             processorTag,
             null,
-            config
+            config,
+            null
         );
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
@@ -157,7 +160,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         config.put("internal_networks", networks);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config)
+            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config, null)
         );
         assertThat(
             e.getMessage(),
@@ -183,7 +186,8 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             processorTag,
             null,
-            config
+            config,
+            null
         );
 
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);

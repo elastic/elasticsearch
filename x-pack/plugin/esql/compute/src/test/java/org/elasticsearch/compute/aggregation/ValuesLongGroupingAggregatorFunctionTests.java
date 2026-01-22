@@ -12,10 +12,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
+import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -25,8 +27,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ValuesLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesLongAggregatorFunctionSupplier();
     }
 
     @Override
@@ -36,7 +38,7 @@ public class ValuesLongGroupingAggregatorFunctionTests extends GroupingAggregato
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new TupleBlockSourceOperator(
+        return new TupleLongLongBlockSourceOperator(
             blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLong()))
         );
@@ -49,7 +51,12 @@ public class ValuesLongGroupingAggregatorFunctionTests extends GroupingAggregato
         switch (values.length) {
             case 0 -> assertThat(resultValue, nullValue());
             case 1 -> assertThat(resultValue, equalTo(values[0]));
-            default -> assertThat((List<?>) resultValue, containsInAnyOrder(values));
+            default -> {
+                TreeSet<?> set = new TreeSet<>((List<?>) resultValue);
+                if (false == set.containsAll(Arrays.asList(values))) {
+                    assertThat(set, containsInAnyOrder(values));
+                }
+            }
         }
     }
 }

@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.downsample;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -45,28 +45,28 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         private DownsampleConfig downsampleConfig;
 
         public Request(
+            TimeValue masterNodeTimeout,
             final String sourceIndex,
             final String targetIndex,
             final TimeValue waitTimeout,
             final DownsampleConfig downsampleConfig
         ) {
+            super(masterNodeTimeout);
             this.sourceIndex = sourceIndex;
             this.targetIndex = targetIndex;
             this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
             this.downsampleConfig = downsampleConfig;
         }
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                waitTimeout = TimeValue.parseTimeValue(in.readString(), "timeout");
-            } else {
-                waitTimeout = DEFAULT_WAIT_TIMEOUT;
-            }
+            waitTimeout = TimeValue.parseTimeValue(in.readString(), "timeout");
             downsampleConfig = new DownsampleConfig(in);
         }
 
@@ -77,7 +77,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public IndicesOptions indicesOptions() {
-            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         @Override
@@ -90,9 +90,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(sourceIndex);
             out.writeString(targetIndex);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                out.writeString(waitTimeout.getStringRep());
-            }
+            out.writeString(waitTimeout.getStringRep());
             downsampleConfig.writeTo(out);
         }
 

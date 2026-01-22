@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -21,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,7 +36,7 @@ public class GeoIpStatsAction {
 
     private GeoIpStatsAction() {/* no instances */}
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);
@@ -66,14 +65,9 @@ public class GeoIpStatsAction {
             }
             return true;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
-        }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
@@ -172,16 +166,10 @@ public class GeoIpStatsAction {
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
-                cacheStats = in.readBoolean() ? new CacheStats(in) : null;
-            } else {
-                cacheStats = null;
-            }
+            cacheStats = in.readBoolean() ? new CacheStats(in) : null;
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
-            configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? in.readCollectionAsImmutableSet(StreamInput::readString)
-                : null;
+            configDatabases = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
 
         protected NodeResponse(
@@ -223,17 +211,13 @@ public class GeoIpStatsAction {
             if (downloaderStats != null) {
                 downloaderStats.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
-                out.writeBoolean(cacheStats != null);
-                if (cacheStats != null) {
-                    cacheStats.writeTo(out);
-                }
+            out.writeBoolean(cacheStats != null);
+            if (cacheStats != null) {
+                cacheStats.writeTo(out);
             }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeStringCollection(configDatabases);
-            }
+            out.writeStringCollection(configDatabases);
         }
 
         @Override

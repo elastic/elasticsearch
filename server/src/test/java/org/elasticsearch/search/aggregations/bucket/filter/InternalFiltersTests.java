@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -58,10 +59,9 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     @Override
     protected InternalFilters createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final List<InternalFilters.InternalBucket> buckets = new ArrayList<>();
-        for (int i = 0; i < keys.size(); ++i) {
-            String key = keys.get(i);
+        for (String key : keys) {
             int docCount = randomIntBetween(0, 1000);
-            buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed, keyedBucket));
+            buckets.add(new InternalBucket(key, docCount, aggregations));
         }
         return new InternalFilters(name, buckets, keyed, keyedBucket, metadata);
     }
@@ -93,7 +93,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
             case 0 -> name += randomAlphaOfLength(5);
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
-                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed, keyedBucket));
+                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY));
             }
             default -> {
                 if (metadata == null) {

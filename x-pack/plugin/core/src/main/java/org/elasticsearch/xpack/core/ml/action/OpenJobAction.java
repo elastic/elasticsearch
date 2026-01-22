@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -55,10 +54,12 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         private JobParams jobParams;
 
         public Request(JobParams jobParams) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobParams = Objects.requireNonNull(jobParams);
         }
 
         public Request(String jobId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobParams = new JobParams(jobId);
         }
 
@@ -227,7 +228,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

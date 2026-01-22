@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'x-pack-monitoring'
-  description 'Elasticsearch Expanded Pack Plugin - Monitoring'
-  classname 'org.elasticsearch.xpack.monitoring.Monitoring'
+  name = 'x-pack-monitoring'
+  description = 'Elasticsearch Expanded Pack Plugin - Monitoring'
+  classname ='org.elasticsearch.xpack.monitoring.Monitoring'
   extendedPlugins = ['x-pack-core']
 }
 base {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.aggregations;
@@ -16,7 +17,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -24,6 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -71,7 +72,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), indexReader, parentToChild -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, indexReader, parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
             assertEquals(Double.POSITIVE_INFINITY, ((Min) parentToChild.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
@@ -90,7 +91,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        testCase(new MatchAllDocsQuery(), indexReader, child -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, indexReader, child -> {
             int expectedTotalChildren = 0;
             int expectedMinValue = Integer.MAX_VALUE;
             for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {
@@ -103,7 +104,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         });
 
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexReader, child -> {
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId(parent))), indexReader, child -> {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
                 assertEquals(
                     expectedParentChildRelations.get(parent).v2(),

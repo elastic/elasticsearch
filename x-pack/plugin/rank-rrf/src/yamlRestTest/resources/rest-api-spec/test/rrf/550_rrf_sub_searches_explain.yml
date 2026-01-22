@@ -1,0 +1,425 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'explain for rrf was added in 8.15'
+      test_runner_features: close_to
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              text:
+                type: text
+              integer:
+                type: integer
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term"
+          integer: 1
+          vector: [5]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "term term"
+          integer: 2
+          vector: [4]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "term term term"
+          integer: 3
+          vector: [3]
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          text: "term term term term"
+          integer: 3
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          integer: 1
+          vector: [0]
+
+  - do:
+      indices.refresh: {}
+
+---
+"using a top level knn and query":
+
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+      search:
+        index: test
+        body:
+          fields: [ "text", "integer" ]
+          knn:
+            field: vector
+            query_vector: [3]
+            k: 5
+            num_candidates: 5
+          query:
+            term:
+              text: term
+          rank:
+            rrf:
+              rank_window_size: 5
+              rank_constant: 1
+          size: 3
+          explain: true
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "4" }
+
+  - close_to: { hits.hits.0._explanation.value: { value: 0.8333334, error: 0.000001 } }
+  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.8333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.value: 2}
+  - match: {hits.hits.0._explanation.details.0.description: "/rrf.score:.\\[0.33333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.0._explanation.details.1.value: 1}
+  - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
+
+  - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
+  - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.value: 3}
+  - match: {hits.hits.1._explanation.details.0.description: "/rrf.score:.\\[0.25\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.1._explanation.details.1.value: 2}
+  - match: {hits.hits.1._explanation.details.1.description: "/rrf.score:.\\[0.33333334\\].*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
+
+  - match: {hits.hits.2._explanation.value: 0.5}
+  - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.value: 1}
+  - match: {hits.hits.2._explanation.details.0.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.2._explanation.details.1.value: 0}
+  - match: {hits.hits.2._explanation.details.1.description: "/rrf.score:.\\[0\\],.result.not.found./"}
+  - length: {hits.hits.2._explanation.details.1.details: 0}
+
+---
+"using sub_searches":
+
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
+      search:
+        index: test
+        body:
+          fields: [ "text", "integer" ]
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "knn":
+                  {
+                    "field": "vector",
+                    "query_vector": [ 3 ],
+                    "num_candidates": 5
+                  }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 5
+              rank_constant: 1
+          size: 3
+          explain: true
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "4" }
+
+  - close_to: { hits.hits.0._explanation.value: { value: 0.8333334, error: 0.000001 } }
+  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.8333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.value: 2}
+  - match: {hits.hits.0._explanation.details.0.description: "/rrf.score:.\\[0.33333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.0._explanation.details.1.value: 1}
+  - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.description: "/within.top.*/" }
+
+  - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
+  - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.value: 3}
+  - match: {hits.hits.1._explanation.details.0.description: "/rrf.score:.\\[0.25\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.1._explanation.details.1.value: 2}
+  - match: {hits.hits.1._explanation.details.1.description: "/rrf.score:.\\[0.33333334\\].*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.description: "/within.top.*/" }
+
+  - match: {hits.hits.2._explanation.value: 0.5}
+  - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.value: 1}
+  - match: {hits.hits.2._explanation.details.0.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.2._explanation.details.1.value: 0}
+  - match: {hits.hits.2._explanation.details.1.description: "/rrf.score:.\\[0\\],.result.not.found./"}
+  - length: {hits.hits.2._explanation.details.1.details: 0}
+
+---
+"using named top level knn and query":
+
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+      search:
+        index: test
+        body:
+          fields: [ "text", "integer" ]
+          knn:
+            field: vector
+            query_vector: [3]
+            k: 5
+            num_candidates: 5
+            _name: my_top_knn
+          query:
+            term:
+              text:
+                value: term
+                _name: my_query
+          rank:
+            rrf:
+              rank_window_size: 5
+              rank_constant: 1
+          size: 3
+          explain: true
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "4" }
+
+  - close_to: { hits.hits.0._explanation.value: { value: 0.8333334, error: 0.000001 } }
+  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.8333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.value: 2}
+  - match: {hits.hits.0._explanation.details.0.description: "/.*my_query.*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.0._explanation.details.1.value: 1}
+  - match: {hits.hits.0._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
+
+  - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
+  - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.value: 3}
+  - match: {hits.hits.1._explanation.details.0.description: "/.*my_query.*/" }
+  - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.1._explanation.details.1.value: 2}
+  - match: {hits.hits.1._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.details.0.description: "/found.vector.with.calculated.similarity.*/" }
+
+  - match: {hits.hits.2._explanation.value: 0.5}
+  - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.value: 1}
+  - match: {hits.hits.2._explanation.details.0.description: "/.*my_query.*/" }
+  - match: {hits.hits.2._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.2._explanation.details.1.value: 0}
+  - match: {hits.hits.2._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - length: {hits.hits.2._explanation.details.1.details: 0}
+
+---
+"using named sub_searches":
+
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
+      search:
+        index: test
+        body:
+          fields: [ "text", "integer" ]
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": {
+                    "value": "term",
+                    "_name": "my_query"
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "knn":
+                  {
+                    "field": "vector",
+                    "query_vector": [ 3 ],
+                    "num_candidates": 5,
+                    "_name": "my_top_knn"
+                  }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 5
+              rank_constant: 1
+          size: 3
+          explain: true
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "4" }
+
+  - close_to: { hits.hits.0._explanation.value: { value: 0.8333334, error: 0.000001 } }
+  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.8333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.value: 2}
+  - match: {hits.hits.0._explanation.details.0.description: "/.*my_query.*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.0._explanation.details.1.value: 1}
+  - match: {hits.hits.0._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.description: "/within.top.*/" }
+
+  - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
+  - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.value: 3}
+  - match: {hits.hits.1._explanation.details.0.description: "/.*my_query.*/" }
+  - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.1._explanation.details.1.value: 2}
+  - match: {hits.hits.1._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.description: "/within.top.*/" }
+
+  - match: {hits.hits.2._explanation.value: 0.5}
+  - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.value: 1}
+  - match: {hits.hits.2._explanation.details.0.description: "/.*my_query.*/" }
+  - match: {hits.hits.2._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.2._explanation.details.1.value: 0}
+  - match: {hits.hits.2._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - length: {hits.hits.2._explanation.details.1.details: 0}
+
+---
+"using a mix of named and unnamed queries":
+
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
+      search:
+        index: test
+        body:
+          fields: [ "text", "integer" ]
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": {
+                    "value": "term"
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "knn":
+                  {
+                    "field": "vector",
+                    "query_vector": [ 3 ],
+                    "num_candidates": 5,
+                    "_name": "my_top_knn"
+                  }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 5
+              rank_constant: 1
+          size: 3
+          explain: true
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "4" }
+
+  #  this has now been translated to a retriever
+  - close_to: { hits.hits.0._explanation.value: { value: 0.8333334, error: 0.000001 } }
+  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.8333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.value: 2}
+  - match: {hits.hits.0._explanation.details.0.description: "/.*at.index.\\[0\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.0._explanation.details.1.value: 1}
+  - match: {hits.hits.0._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.description: "/within.top.*/" }
+
+  - close_to: { hits.hits.1._explanation.value: { value: 0.5833334, error: 0.000001 } }
+  - match: {hits.hits.1._explanation.description: "/rrf.score:.\\[0.5833334\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.value: 3}
+  - match: {hits.hits.1._explanation.details.0.description: "/.*at.index.\\[0\\].*/" }
+  - match: {hits.hits.1._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.1._explanation.details.1.value: 2}
+  - match: {hits.hits.1._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - match: {hits.hits.1._explanation.details.1.details.0.description: "/within.top.*/" }
+
+  - match: {hits.hits.2._explanation.value: 0.5}
+  - match: {hits.hits.2._explanation.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.value: 1}
+  - match: {hits.hits.2._explanation.details.0.description: "/.*at.index.\\[0\\].*/" }
+  - match: {hits.hits.2._explanation.details.0.details.0.description: "/weight\\(text:term.*/" }
+  - match: {hits.hits.2._explanation.details.1.value: 0}
+  - match: {hits.hits.2._explanation.details.1.description: "/.*my_top_knn.*/" }
+  - length: {hits.hits.2._explanation.details.1.details: 0}

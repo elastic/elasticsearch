@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -230,22 +231,25 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         createIndex("test", client().admin().indices().prepareCreate("test"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         {
-            final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
+            final long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
-            assertThat(clusterService.state().metadata().index("test").getMappingVersion(), Matchers.equalTo(1 + previousVersion));
+            assertThat(
+                clusterService.state().metadata().getProject().index("test").getMappingVersion(),
+                Matchers.equalTo(1 + previousVersion)
+            );
         }
 
         {
-            final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
+            final long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
             // the version should be unchanged after putting the same mapping again
-            assertThat(clusterService.state().metadata().index("test").getMappingVersion(), Matchers.equalTo(previousVersion));
+            assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), Matchers.equalTo(previousVersion));
         }
     }
 

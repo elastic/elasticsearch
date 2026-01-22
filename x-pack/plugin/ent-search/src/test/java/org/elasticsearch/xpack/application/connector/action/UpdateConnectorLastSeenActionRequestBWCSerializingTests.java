@@ -28,7 +28,7 @@ public class UpdateConnectorLastSeenActionRequestBWCSerializingTests extends Abs
 
     @Override
     protected UpdateConnectorLastSeenAction.Request mutateInstance(UpdateConnectorLastSeenAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new UpdateConnectorLastSeenAction.Request(randomValueOtherThan(instance.getConnectorId(), () -> randomUUID()));
     }
 
     @Override

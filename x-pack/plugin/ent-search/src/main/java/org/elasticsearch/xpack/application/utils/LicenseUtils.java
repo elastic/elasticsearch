@@ -14,43 +14,63 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackField;
 
+import java.util.Locale;
+
 public final class LicenseUtils {
     public enum Product {
-        SEARCH_APPLICATION("search application"),
-        BEHAVIORAL_ANALYTICS("behavioral analytics"),
-        QUERY_RULES("query rules");
+        SEARCH_APPLICATION("search application", License.OperationMode.PLATINUM),
+        BEHAVIORAL_ANALYTICS("behavioral analytics", License.OperationMode.PLATINUM),
+        QUERY_RULES("query rules", License.OperationMode.ENTERPRISE),;
 
         private final String name;
+        private final License.OperationMode requiredLicense;
 
-        Product(String name) {
+        Product(String name, License.OperationMode requiredLicense) {
             this.name = name;
+            this.requiredLicense = requiredLicense;
         }
 
         public String getName() {
             return name;
         }
+
+        public LicensedFeature.Momentary getLicensedFeature() {
+            return switch (requiredLicense) {
+                case PLATINUM -> PLATINUM_LICENSED_FEATURE;
+                case ENTERPRISE -> ENTERPRISE_LICENSED_FEATURE;
+                default -> throw new IllegalStateException("Unknown license operation mode: " + requiredLicense);
+            };
+        }
     }
 
-    public static final LicensedFeature.Momentary LICENSED_ENT_SEARCH_FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary PLATINUM_LICENSED_FEATURE = LicensedFeature.momentary(
         null,
         XPackField.ENTERPRISE_SEARCH,
         License.OperationMode.PLATINUM
     );
 
-    public static boolean supportedLicense(XPackLicenseState licenseState) {
-        return LICENSED_ENT_SEARCH_FEATURE.check(licenseState);
+    public static final LicensedFeature.Momentary ENTERPRISE_LICENSED_FEATURE = LicensedFeature.momentary(
+        null,
+        XPackField.ENTERPRISE_SEARCH,
+        License.OperationMode.ENTERPRISE
+    );
+
+    public static boolean supportedLicense(Product product, XPackLicenseState licenseState) {
+        return product.getLicensedFeature().check(licenseState);
     }
 
     public static ElasticsearchSecurityException newComplianceException(XPackLicenseState licenseState, Product product) {
         String licenseStatus = licenseState.statusDescription();
+        String requiredLicenseStatus = product.requiredLicense.toString().toLowerCase(Locale.ROOT);
 
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(
             "Current license is non-compliant for "
                 + product.getName()
                 + ". Current license is {}. "
-                + "This feature requires an active trial, platinum or enterprise license.",
+                + "This feature requires an active trial, {}, or higher license.",
             RestStatus.FORBIDDEN,
-            licenseStatus
+            licenseStatus,
+            requiredLicenseStatus
         );
         return e;
     }

@@ -17,14 +17,14 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
@@ -39,7 +39,8 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportSearchableSnapshotCacheStoresAction.Request,
     TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata,
     TransportSearchableSnapshotCacheStoresAction.NodeRequest,
-    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata> {
+    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata,
+    Void> {
 
     public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
@@ -88,13 +89,13 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
         assert cacheService != null;
-        assert Optional.ofNullable(clusterService.state().metadata().index(request.shardId.getIndex()))
+        assert Optional.ofNullable(clusterService.state().metadata().getProject().index(request.shardId.getIndex()))
             .map(indexMetadata -> SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings()))
             .orElse(false) == false : request.shardId + " is partial, should not be fetching its cached size";
         return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));
     }
 
-    public static final class Request extends BaseNodesRequest<Request> {
+    public static final class Request extends BaseNodesRequest {
 
         private final SnapshotId snapshotId;
         private final ShardId shardId;
@@ -104,14 +105,9 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             this.snapshotId = snapshotId;
             this.shardId = shardId;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
-    public static final class NodeRequest extends TransportRequest {
+    public static final class NodeRequest extends AbstractTransportRequest {
 
         private final SnapshotId snapshotId;
         private final ShardId shardId;

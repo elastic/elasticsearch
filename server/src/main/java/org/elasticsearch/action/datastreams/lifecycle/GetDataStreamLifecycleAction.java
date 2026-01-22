@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.datastreams.lifecycle;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +22,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +36,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -42,17 +48,38 @@ public class GetDataStreamLifecycleAction {
 
     private GetDataStreamLifecycleAction() {/* no instances */}
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
         private String[] names;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        private IndicesOptions indicesOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .wildcardOptions(
+                IndicesOptions.WildcardOptions.builder()
+                    .matchOpen(true)
+                    .matchClosed(true)
+                    .includeHidden(false)
+                    .resolveAliases(false)
+                    .allowEmptyExpressions(true)
+                    .build()
+            )
+            .gatekeeperOptions(
+                IndicesOptions.GatekeeperOptions.builder()
+                    .allowAliasToMultipleIndices(false)
+                    .allowClosedIndices(true)
+                    .ignoreThrottled(false)
+                    .allowSelectors(false)
+                    .build()
+            )
+            .build();
         private boolean includeDefaults = false;
 
-        public Request(String[] names) {
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            super(masterNodeTimeout);
             this.names = names;
         }
 
-        public Request(String[] names, boolean includeDefaults) {
+        public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
+            super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }
@@ -66,19 +93,21 @@ public class GetDataStreamLifecycleAction {
             return null;
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             this.includeDefaults = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(names);
-            indicesOptions.writeIndicesOptions(out);
-            out.writeBoolean(includeDefaults);
         }
 
         @Override
@@ -137,22 +166,25 @@ public class GetDataStreamLifecycleAction {
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
-        public record DataStreamLifecycle(String dataStreamName, @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle)
-            implements
-                Writeable,
-                ToXContentObject {
+        public record DataStreamLifecycle(
+            String dataStreamName,
+            @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle,
+            boolean isInternalDataStream
+        ) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
 
-            DataStreamLifecycle(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalWriteable(org.elasticsearch.cluster.metadata.DataStreamLifecycle::new));
-            }
-
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
                 out.writeOptionalWriteable(lifecycle);
+                out.writeBoolean(isInternalDataStream);
             }
 
             @Override
@@ -174,7 +206,13 @@ public class GetDataStreamLifecycleAction {
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
                 if (lifecycle != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    lifecycle.toXContent(
+                        builder,
+                        org.elasticsearch.cluster.metadata.DataStreamLifecycle.addEffectiveRetentionParams(params),
+                        rolloverConfiguration,
+                        globalRetention,
+                        isInternalDataStream
+                    );
                 }
                 builder.endObject();
                 return builder;
@@ -201,16 +239,6 @@ public class GetDataStreamLifecycleAction {
             this.globalRetention = globalRetention;
         }
 
-        public Response(StreamInput in) throws IOException {
-            this(
-                in.readCollectionAsList(DataStreamLifecycle::new),
-                in.readOptionalWriteable(RolloverConfiguration::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
-                    ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                    : null
-            );
-        }
-
         public List<DataStreamLifecycle> getDataStreamLifecycles() {
             return dataStreamLifecycles;
         }
@@ -220,19 +248,36 @@ public class GetDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
-                out.writeOptionalWriteable(globalRetention);
-            }
+            out.writeOptionalWriteable(globalRetention);
         }
 
         @Override
         public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(Iterators.single((builder, params) -> {
                 builder.startObject();
+                builder.startObject("global_retention");
+                if (globalRetention != null) {
+                    if (globalRetention.maxRetention() != null) {
+                        builder.field("max_retention", globalRetention.maxRetention().getStringRep());
+                    }
+                    if (globalRetention.defaultRetention() != null) {
+                        builder.field("default_retention", globalRetention.defaultRetention().getStringRep());
+                    }
+                }
+                builder.endObject();
                 builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
                 return builder;
             }),
@@ -240,7 +285,7 @@ public class GetDataStreamLifecycleAction {
                     dataStreamLifecycles.iterator(),
                     dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(
                         builder,
-                        params,
+                        outerParams,
                         rolloverConfiguration,
                         globalRetention
                     )

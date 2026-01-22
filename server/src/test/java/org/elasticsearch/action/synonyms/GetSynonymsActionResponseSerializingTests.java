@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.synonyms.PagedResult;
+import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -30,6 +32,11 @@ public class GetSynonymsActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected GetSynonymsAction.Response mutateInstance(GetSynonymsAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        PagedResult<SynonymRule> originalResults = instance.getResults();
+        PagedResult<SynonymRule> mutatedResults = randomValueOtherThan(
+            originalResults,
+            () -> new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
+        );
+        return new GetSynonymsAction.Response(mutatedResults);
     }
 }

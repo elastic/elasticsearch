@@ -77,7 +77,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -108,6 +108,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.SecretKey;
@@ -968,11 +969,72 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         );
     }
 
+    public void testHandleUserinfoValidationFailsOnNotMatchingSubject() throws Exception {
+        final ProtocolVersion httpVersion = randomFrom(HttpVersion.HTTP_0_9, HttpVersion.HTTP_1_0, HttpVersion.HTTP_1_1);
+        final HttpResponse response = new BasicHttpResponse(new BasicStatusLine(httpVersion, RestStatus.OK.getStatus(), "OK"));
+
+        final String sub = randomAlphaOfLengthBetween(4, 36);
+        final String inf = randomAlphaOfLength(12);
+        final JWTClaimsSet infoClaims = new JWTClaimsSet.Builder().subject("it-is-a-different-subject").claim("inf", inf).build();
+        final StringEntity entity = new StringEntity(infoClaims.toString(), ContentType.APPLICATION_JSON);
+        if (randomBoolean()) {
+            entity.setContentEncoding(
+                randomFrom(StandardCharsets.UTF_8.name(), StandardCharsets.UTF_16.name(), StandardCharsets.US_ASCII.name())
+            );
+        }
+        response.setEntity(entity);
+
+        final String idx = randomAlphaOfLength(8);
+        final JWTClaimsSet idClaims = new JWTClaimsSet.Builder().subject(sub).claim("idx", idx).build();
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>() {
+
+            @Override
+            public void onResponse(JWTClaimsSet result) {
+                assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+                super.onResponse(result);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+                super.onFailure(e);
+            }
+        };
+
+        this.authenticator = buildAuthenticator();
+        OpenIdConnectAuthenticator.handleUserinfoResponse(response, idClaims, future);
+        var e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Userinfo Response is not valid as it is for subject [it-is-a-different-subject] while the ID Token was for subject ["
+                    + sub
+                    + "]"
+            )
+        );
+    }
+
+    public void testHandleTokenResponseNullContentType() {
+        final HttpResponse response = new BasicHttpResponse(HttpVersion.HTTP_1_1, RestStatus.OK.getStatus(), "");
+        final StringEntity entity = new StringEntity("", (ContentType) null);
+        response.setEntity(entity);
+
+        final PlainActionFuture<Tuple<AccessToken, JWT>> future = new PlainActionFuture<>();
+        OpenIdConnectAuthenticator.handleTokenResponse(response, future);
+        final IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
+
+        assertThat(
+            exception,
+            TestMatchers.throwableWithMessage(
+                "Unable to parse Token Response. Content type was expected to be [application/json] but was [null]"
+            )
+        );
+    }
+
     public void testLogIdTokenAndNonce() throws URISyntaxException, BadJOSEException, JOSEException, IllegalAccessException {
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
@@ -999,12 +1061,12 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final Nonce expectedNonce = new Nonce(randomAlphaOfLength(10));
 
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
+        try (var mockLog = MockLog.capture(OpenIdConnectAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "JWT exception",
                     logger.getName(),
                     Level.DEBUG,
@@ -1016,10 +1078,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
             assertThat(e.getCause(), is(joseException));
             // The logging message assertion is the only thing we actually care in this test
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             openIdConnectAuthenticator.close();
         }
@@ -1062,14 +1122,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         // In addition, capture logs to show that kept alive (TTL) is honored
         final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
-        try {
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+        try (var mockLog = MockLog.capture(PoolingNHttpClientConnectionManager.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "log",
                     logger.getName(),
                     Level.DEBUG,
@@ -1098,11 +1155,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
                 latch.await();
                 Thread.sleep(1500);
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
             assertThat(portTested.get(), is(true));
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();
             httpServer.stop(1);
@@ -1210,13 +1265,10 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
 
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(OpenIdConnectAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "log",
                     logger.getName(),
                     Level.DEBUG,
@@ -1225,10 +1277,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             );
             final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
             assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();
         }

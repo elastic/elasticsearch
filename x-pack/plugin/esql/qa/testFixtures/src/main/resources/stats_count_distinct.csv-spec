@@ -52,6 +52,7 @@ h:long
 ;
 
 countDistinctOfScaledFloat
+required_capability: fix_precision_of_scaled_float_fields
 // float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
 from employees | stats h = count_distinct(height.scaled_float);
 

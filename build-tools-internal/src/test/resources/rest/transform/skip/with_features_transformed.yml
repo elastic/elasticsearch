@@ -4,8 +4,7 @@ setup:
       features:
         - pre_existing_feature1
         - pre_existing_feature2
-      version: "all"
-      reason: "my reason"
+      awaits_fix: "my reason"
 ---
 "Test with multiple feature setup":
   - do:

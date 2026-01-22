@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -32,6 +34,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
@@ -147,11 +150,6 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-        storedFields().document(docID, visitor);
-    }
-
-    @Override
     public StoredFields storedFields() throws IOException {
         return new StoredFields() {
             @Override
@@ -203,12 +201,17 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
+    public DocValuesSkipper getDocValuesSkipper(String s) throws IOException {
+        return null;
+    }
+
+    @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) {
+    public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -233,18 +236,13 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public int numDocs() {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public int maxDoc() {
-        throw new UnsupportedOperationException();
+        return 1;
     }
 
     @Override
@@ -258,7 +256,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) {
+    public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -283,6 +281,7 @@ class DocumentLeafReader extends LeafReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -483,9 +482,7 @@ class DocumentLeafReader extends LeafReader {
             @Override
             public long nextOrd() {
                 i++;
-                if (i >= values.size()) {
-                    return NO_MORE_ORDS;
-                }
+                assert i < values.size();
                 return i;
             }
 

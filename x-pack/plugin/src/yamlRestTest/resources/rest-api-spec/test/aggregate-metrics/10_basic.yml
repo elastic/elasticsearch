@@ -293,8 +293,8 @@
 
 ---
 "Test fields api":
-  - skip:
-      version: "- 8.3.99"
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: "Breaking change introduced in 8.4.0"
   - do:
       indices.create:

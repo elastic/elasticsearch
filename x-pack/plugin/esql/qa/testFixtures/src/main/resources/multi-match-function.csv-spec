@@ -1,0 +1,133 @@
+###############################################
+# Tests for MultiMatch function
+#
+
+multiMatchWithField
+required_capability: multi_match_function
+
+// tag::multi-match-with-field[]
+FROM books
+| WHERE MULTI_MATCH("Faulkner", author, description)
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+// end::multi-match-with-field[]
+;
+
+// tag::multi-match-with-field-result[]
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+// end::multi-match-with-field-result[]
+;
+
+testMultiMatchWithOptionsFuzziness
+required_capability: multi_match_function
+
+from books 
+| where multi_match("Pings", title, description, {"fuzziness": 1})  
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+1463           
+2675           
+2714           
+2936           
+4023           
+4917           
+5335           
+7140           
+7350           
+8875
+;
+
+testMultiMatchWithOptionsOperator
+required_capability: multi_match_function
+
+// tag::multi-match-with-named-function-params[]
+FROM books
+| WHERE MULTI_MATCH("Hobbit Back Again", title, description, {"operator": "AND"})
+| KEEP title;
+// end::multi-match-with-named-function-params[]
+
+// tag::multi-match-with-named-function-params-result[]
+title:text
+The Hobbit or There and Back Again
+// end::multi-match-with-named-function-params-result[]
+;
+
+testMultiMatchWithOptionsMinimumShouldMatch
+required_capability: multi_match_function
+
+from books 
+| where multi_match("here back again", title, description, {"minimum_should_match": 2, "operator": "OR"})
+| sort book_no
+| keep title;
+
+title:text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+My First 100 Words in Spanish/English (My First 100 Words Pull-Tab Book)
+The Hobbit or There and Back Again                                                                                           
+;
+
+testMultiMatchWithNonPushableDisjunctions
+required_capability: multi_match_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where multi_match("lord", title, description) or length(title) > 130 
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+1463           
+2675           
+2714           
+2936           
+4023           
+5335           
+7140           
+7350           
+8678           
+8875
+;
+
+testMultiMatchPhraseQuery
+required_capability: multi_match_function
+
+from books 
+| where multi_match("Lord of the rings", title, description, { "type": "phrase" } )
+| keep title
+;
+ignoreOrder: true
+
+title:text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+Return of the Shadow
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+Letters of J R R Tolkien
+The Lord of the Rings - Boxed Set
+The Two Towers
+Realms of Tolkien: Images of Middle-earth
+Return of the King Being the Third Part of The Lord of the Rings
+;
+
+testMultiMatchPhrasePrefixQuery
+required_capability: multi_match_function
+
+from books 
+| where multi_match("Lord of the ri", title, { "type": "phrase_prefix" } )
+| keep title
+;
+ignoreOrder: true
+
+title:text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+The Lord of the Rings - Boxed Set
+Return of the King Being the Third Part of The Lord of the Rings
+A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;

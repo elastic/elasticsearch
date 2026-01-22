@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -33,8 +34,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -43,9 +48,13 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -177,7 +186,7 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
-        assertUsage(containsString("setting [foo] already set, saw [bar] and [baz]"), "-E", "foo=bar", "-E", "foo=baz");
+        assertUsage(containsString("setting [foo] set twice via command line -E"), "-E", "foo=bar", "-E", "foo=baz");
     }
 
     public void testUnknownOption() throws Exception {
@@ -321,11 +330,16 @@ public class ServerCliTests extends CommandTestCase {
                 throw new InterruptedException("interrupted while get jvm options");
             }
         };
-        var e = expectThrows(
-            InterruptedException.class,
-            () -> command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir))
-        );
-        assertThat(e.getMessage(), equalTo("interrupted while get jvm options"));
+
+        int exitCode = command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        assertThat(exitCode, is(ExitCodes.CODE_ERROR));
+
+        String[] lines = terminal.getErrorOutput().split(System.lineSeparator());
+        assertThat(List.of(lines), hasSize(greaterThan(10))); // at least decent sized stacktrace
+        assertThat(lines[0], is("java.lang.InterruptedException: interrupted while get jvm options"));
+        assertThat(lines[1], matchesRegex("\\tat org.elasticsearch.server.cli.ServerCliTests.+startServer\\(ServerCliTests.java:\\d+\\)"));
+        assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));
+
         command.close();
     }
 
@@ -372,6 +386,52 @@ public class ServerCliTests extends CommandTestCase {
         assertTrue(loader.loaded);
         assertTrue(loader.bootstrapped);
         assertEquals("", loader.password);
+    }
+
+    public void testProcessCreationRace() throws Exception {
+        for (int i = 0; i < 10; ++i) {
+            CyclicBarrier raceStart = new CyclicBarrier(2);
+            TestServerCli cli = new TestServerCli() {
+                @Override
+                void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+                    super.syncPlugins(terminal, env, processInfo);
+                    raceStart.await();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        raceStart.await();
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(ie);
+                    } catch (BrokenBarrierException e) {
+                        throw new AssertionError(e);
+                    }
+                    super.close();
+                }
+            };
+            Thread closeThread = new Thread(() -> {
+                try {
+                    cli.close();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closeThread.start();
+            cli.main(new String[] {}, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+            closeThread.join();
+
+            if (cli.getServer() == null) {
+                // close won the race, so server should never have been started
+                assertThat(cli.startServerCalled, is(false));
+            } else {
+                // creation won the race, so check we correctly waited on it and stopped
+                assertThat(cli.getServer(), sameInstance(mockServer));
+                assertThat(mockServer.waitForCalled, is(true));
+                assertThat(mockServer.stopCalled, is(true));
+            }
+        }
     }
 
     private MockSecureSettingsLoader loadWithMockSecureSettingsLoader() throws Exception {
@@ -456,9 +516,9 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private class MockServerProcess extends ServerProcess {
-        boolean detachCalled = false;
-        boolean waitForCalled = false;
-        boolean stopCalled = false;
+        volatile boolean detachCalled = false;
+        volatile boolean waitForCalled = false;
+        volatile boolean stopCalled = false;
 
         MockServerProcess() {
             super(null, null);
@@ -496,8 +556,10 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private class TestServerCli extends ServerCli {
+        boolean startServerCalled = false;
+
         @Override
-        protected Command loadTool(String toolname, String libs) {
+        protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
             if (toolname.equals("auto-configure-node")) {
                 assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
                 return AUTO_CONFIG_CLI;
@@ -542,20 +604,21 @@ public class ServerCliTests extends CommandTestCase {
 
             return new KeystoreSecureSettingsLoader();
         }
+
+        @Override
+        protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+            startServerCalled = true;
+            if (argsValidator != null) {
+                argsValidator.accept(args);
+            }
+            mockServer.reset();
+            return mockServer;
+        }
     }
 
     @Override
     protected Command newCommand() {
-        return new TestServerCli() {
-            @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
-                if (argsValidator != null) {
-                    argsValidator.accept(args);
-                }
-                mockServer.reset();
-                return mockServer;
-            }
-        };
+        return new TestServerCli();
     }
 
     static class MockSecureSettingsLoader implements SecureSettingsLoader {

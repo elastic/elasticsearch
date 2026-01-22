@@ -57,7 +57,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     @After
-    private void closeClientsByVersion() throws IOException {
+    protected void cleanUpClients() throws IOException {
         for (RestClient client : twoClients) {
             client.close();
         }
@@ -445,7 +445,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             final SearchHits searchHits = response.getHits();
             assertThat(
                 "Search request used with size parameter that was too small to fetch all tokens.",
-                searchHits.getTotalHits().value,
+                searchHits.getTotalHits().value(),
                 lessThanOrEqualTo(searchSize)
             );
             final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {

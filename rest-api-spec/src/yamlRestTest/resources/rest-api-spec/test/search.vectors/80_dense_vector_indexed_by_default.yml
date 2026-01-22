@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.10.99'
+  - requires:
+      cluster_features: "gte_v8.11.0"
       reason: 'dense_vector indexed by default was added in 8.11'
 
 ---
@@ -123,8 +123,8 @@ setup:
                   ef_construction: 200
 ---
 "Default index options for dense_vector":
-  - skip:
-      version: ' - 8.13.99'
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
   - do:
       indices.create:
@@ -149,8 +149,8 @@ setup:
   - match: { test_default_index_options.mappings.properties.vector.index_options.type: int8_hnsw }
 ---
 "Default index options for dense_vector element type byte":
-  - skip:
-      version: ' - 8.13.99'
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
   - do:
       indices.create:

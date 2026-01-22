@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -20,6 +21,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+
+import static org.elasticsearch.xpack.enrich.EnrichPolicyRunner.ENRICH_MASTER_REQUEST_TIMEOUT;
 
 /**
  * Manages the definitions and lifecycle of the ingest pipeline used by the reindex operation within the Enrich Policy execution.
@@ -44,16 +47,16 @@ public class EnrichPolicyReindexPipeline {
 
     /**
      * Checks if the current version of the pipeline definition is installed in the cluster
-     * @param clusterState The cluster state to check
+     * @param project The project metadata to check
      * @return true if a pipeline exists that is compatible with this version of Enrich, false otherwise
      */
-    static boolean exists(ClusterState clusterState) {
-        final IngestMetadata ingestMetadata = clusterState.getMetadata().custom(IngestMetadata.TYPE);
+    static boolean exists(ProjectMetadata project) {
+        final IngestMetadata ingestMetadata = project.custom(IngestMetadata.TYPE);
         // we ensure that we both have the pipeline and its version represents the current (or later) version
         if (ingestMetadata != null) {
             final PipelineConfiguration pipeline = ingestMetadata.getPipelines().get(pipelineName());
             if (pipeline != null) {
-                Object version = pipeline.getConfigAsMap().get("version");
+                Object version = pipeline.getConfig().get("version");
                 return version instanceof Number number && number.intValue() >= ENRICH_PIPELINE_LAST_UPDATED_VERSION;
             }
         }
@@ -67,8 +70,17 @@ public class EnrichPolicyReindexPipeline {
      */
     public static void create(Client client, ActionListener<AcknowledgedResponse> listener) {
         final BytesReference pipeline = BytesReference.bytes(currentEnrichPipelineDefinition(XContentType.JSON));
-        final PutPipelineRequest request = new PutPipelineRequest(pipelineName(), pipeline, XContentType.JSON);
-        client.admin().cluster().putPipeline(request, listener);
+        client.execute(
+            PutPipelineTransportAction.TYPE,
+            new PutPipelineRequest(
+                ENRICH_MASTER_REQUEST_TIMEOUT,
+                ENRICH_MASTER_REQUEST_TIMEOUT,
+                pipelineName(),
+                pipeline,
+                XContentType.JSON
+            ),
+            listener
+        );
     }
 
     private static XContentBuilder currentEnrichPipelineDefinition(XContentType xContentType) {

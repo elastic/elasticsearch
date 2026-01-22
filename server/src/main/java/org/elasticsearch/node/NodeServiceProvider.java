@@ -1,17 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
@@ -26,6 +31,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.ScriptContext;
@@ -34,13 +40,17 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -49,9 +59,20 @@ import java.util.function.LongSupplier;
  */
 class NodeServiceProvider {
 
-    PluginsService newPluginService(Environment environment, Settings settings) {
+    PluginsService newPluginService(Environment initialEnvironment, PluginsLoader pluginsLoader) {
         // this creates a PluginsService with an empty list of classpath plugins
-        return new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
+        return new PluginsService(initialEnvironment.settings(), initialEnvironment.configDir(), pluginsLoader);
+    }
+
+    TaskManager newTaskManager(
+        PluginsService pluginsService,
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        Tracer tracer,
+        String nodeId
+    ) {
+        return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
     }
 
     ScriptService newScriptService(
@@ -59,9 +80,10 @@ class NodeServiceProvider {
         Settings settings,
         Map<String, ScriptEngine> engines,
         Map<String, ScriptContext<?>> contexts,
-        LongSupplier timeProvider
+        LongSupplier timeProvider,
+        ProjectResolver projectResolver
     ) {
-        return new ScriptService(settings, engines, contexts, timeProvider);
+        return new ScriptService(settings, engines, contexts, timeProvider, projectResolver);
     }
 
     ClusterInfoService newClusterInfoService(
@@ -71,7 +93,18 @@ class NodeServiceProvider {
         ThreadPool threadPool,
         NodeClient client
     ) {
-        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final EstimatedHeapUsageCollector estimatedHeapUsageCollector = pluginsService.loadSingletonServiceProvider(
+            EstimatedHeapUsageCollector.class,
+            () -> EstimatedHeapUsageCollector.EMPTY
+        );
+        final InternalClusterInfoService service = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            estimatedHeapUsageCollector,
+            new NodeUsageStatsForThreadPoolsCollector()
+        );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
             clusterService.addListener(service);
@@ -100,9 +133,24 @@ class NodeServiceProvider {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         TaskManager taskManager,
-        Tracer tracer
+        TelemetryProvider telemetryProvider,
+        String nodeId,
+        LinkedProjectConfigService linkedProjectConfigService,
+        ProjectResolver projectResolver
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
+        return new TransportService(
+            settings,
+            transport,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
+            taskManager,
+            linkedProjectConfigService,
+            telemetryProvider,
+            projectResolver
+        );
     }
 
     HttpServerTransport newHttpTransport(PluginsService pluginsService, NetworkModule networkModule) {
@@ -117,10 +165,10 @@ class NodeServiceProvider {
         ScriptService scriptService,
         BigArrays bigArrays,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
         return new SearchService(
             clusterService,
@@ -129,10 +177,10 @@ class NodeServiceProvider {
             scriptService,
             bigArrays,
             fetchPhase,
-            responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            onlinePrewarmingService
         );
     }
 

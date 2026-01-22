@@ -27,12 +27,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -44,6 +42,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -713,22 +712,16 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(
-                    field,
-                    NumberType.LONG,
-                    ScriptCompiler.NONE,
-                    false,
-                    false,
-                    IndexVersion.current(),
-                    null
-                ).build(MapperBuilderContext.root(false, false)).fieldType();
+                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, defaultIndexSettings())
+                    .build(MapperBuilderContext.root(false, false))
+                    .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, defaultIndexSettings()).build(
                     MapperBuilderContext.root(false, false)
                 ).fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -741,10 +734,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     metric.getField(),
                     NumberType.LONG,
                     ScriptCompiler.NONE,
-                    false,
-                    false,
-                    IndexVersion.current(),
-                    null
+                    defaultIndexSettings()
                 ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -868,22 +858,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
-                    SearchHits.EMPTY_WITH_TOTAL_HITS,
-                    InternalAggregations.from(Collections.singletonList(result)),
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    null
-                )
+                SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(result)).build()
             );
         }
 

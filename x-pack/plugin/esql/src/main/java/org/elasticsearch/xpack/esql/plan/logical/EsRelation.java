@@ -6,88 +6,118 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.NodeUtils;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 
 public class EsRelation extends LeafPlan {
 
-    private final EsIndex index;
+    private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "EsRelation",
+        EsRelation::readFrom
+    );
+
+    private final String indexPattern;
+    private final IndexMode indexMode;
+    private final Map<String, List<String>> originalIndices; // keyed by cluster alias
+    private final Map<String, List<String>> concreteIndices; // keyed by cluster alias
+    private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
-    private final EsSourceOptions esSourceOptions;
-    private final boolean frozen;
 
-    public EsRelation(Source source, EsIndex index, boolean frozen) {
-        this(source, index, flatten(source, index.mapping()), EsSourceOptions.NO_OPTIONS, frozen);
-    }
-
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes) {
-        this(source, index, attributes, EsSourceOptions.NO_OPTIONS, false);
-    }
-
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, EsSourceOptions esSourceOptions) {
-        this(source, index, attributes, esSourceOptions, false);
-    }
-
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, EsSourceOptions esSourceOptions, boolean frozen) {
+    public EsRelation(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices,
+        Map<String, IndexMode> indexNameWithModes,
+        List<Attribute> attributes
+    ) {
         super(source);
-        this.index = index;
+        this.indexPattern = indexPattern;
+        this.indexMode = indexMode;
+        this.originalIndices = originalIndices;
+        this.concreteIndices = concreteIndices;
+        this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
-        Objects.requireNonNull(esSourceOptions);
-        this.esSourceOptions = esSourceOptions;
-        this.frozen = frozen;
+    }
+
+    private static EsRelation readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        String indexPattern = in.readString();
+        Map<String, List<String>> originalIndices;
+        Map<String, List<String>> concreteIndices;
+        if (in.getTransportVersion().supports(SPLIT_INDICES)) {
+            originalIndices = in.readMapOfLists(StreamInput::readString);
+            concreteIndices = in.readMapOfLists(StreamInput::readString);
+        } else {
+            originalIndices = Map.of();
+            concreteIndices = Map.of();
+        }
+        Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
+        List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+        IndexMode indexMode = IndexMode.fromString(in.readString());
+        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeString(indexPattern);
+        if (out.getTransportVersion().supports(SPLIT_INDICES)) {
+            out.writeMap(originalIndices, StreamOutput::writeStringCollection);
+            out.writeMap(concreteIndices, StreamOutput::writeStringCollection);
+        }
+        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        out.writeNamedWriteableCollection(attrs);
+        out.writeString(indexMode.getName());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, attrs, esSourceOptions, frozen);
+        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 
-    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
-        return flatten(source, mapping, null);
+    public String indexPattern() {
+        return indexPattern;
     }
 
-    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping, FieldAttribute parent) {
-        List<Attribute> list = new ArrayList<>();
-
-        for (Entry<String, EsField> entry : mapping.entrySet()) {
-            String name = entry.getKey();
-            EsField t = entry.getValue();
-
-            if (t != null) {
-                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
-                list.add(f);
-                // object or nested
-                if (t.getProperties().isEmpty() == false) {
-                    list.addAll(flatten(source, t.getProperties(), f));
-                }
-            }
-        }
-        return list;
+    public IndexMode indexMode() {
+        return indexMode;
     }
 
-    public EsIndex index() {
-        return index;
+    public Map<String, List<String>> originalIndices() {
+        return originalIndices;
     }
 
-    public EsSourceOptions esSourceOptions() {
-        return esSourceOptions;
+    public Map<String, List<String>> concreteIndices() {
+        return concreteIndices;
     }
 
-    public boolean frozen() {
-        return frozen;
+    public Map<String, IndexMode> indexNameWithModes() {
+        return indexNameWithModes;
     }
 
     @Override
@@ -95,14 +125,20 @@ public class EsRelation extends LeafPlan {
         return attrs;
     }
 
+    public Set<String> concreteQualifiedIndices() {
+        return indexNameWithModes.keySet();
+    }
+
     @Override
     public boolean expressionsResolved() {
+        // For unresolved expressions to exist in EsRelation is fine, as long as they are not used in later operations
+        // This allows for them to be converted to null@unsupported fields in final output, an important feature of ES|QL
         return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, esSourceOptions, frozen);
+        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 
     @Override
@@ -116,11 +152,36 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index) && Objects.equals(esSourceOptions, other.esSourceOptions) && frozen == other.frozen;
+        return Objects.equals(indexPattern, other.indexPattern)
+            && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(originalIndices, other.originalIndices)
+            && Objects.equals(concreteIndices, other.concreteIndices)
+            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
+            && Objects.equals(attrs, other.attrs);
     }
 
     @Override
-    public String nodeString() {
-        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+    public String nodeString(NodeStringFormat format) {
+        return nodeName()
+            + "["
+            + indexPattern
+            + "]"
+            + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
+            + NodeUtils.toString(attrs, format);
+    }
+
+    public EsRelation withAttributes(List<Attribute> newAttributes) {
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
+    }
+
+    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
+        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + 1);
+        newAttrs.addAll(attrs);
+        newAttrs.add(additionalAttribute);
+        return withAttributes(newAttrs);
+    }
+
+    public EsRelation withIndexMode(IndexMode indexMode) {
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 }

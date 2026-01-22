@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -11,6 +12,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
@@ -22,6 +24,8 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.ProcessLimits;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
@@ -29,12 +33,12 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AllPermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -73,7 +77,11 @@ final class BootstrapChecks {
         combinedChecks.addAll(additionalChecks);
         check(
             context,
-            enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())),
+            enforceLimits(
+                boundTransportAddress,
+                DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings()),
+                Build.current()::isSnapshot
+            ),
             Collections.unmodifiableList(combinedChecks)
         );
     }
@@ -170,17 +178,23 @@ final class BootstrapChecks {
     }
 
     /**
-     * Tests if the checks should be enforced.
+     * Tests if the checks should be enforced. \
+     * Bootstrap checks are enforced (in production builds) if a non-loopback address is configured and a non-snapshot build is used.
      *
      * @param boundTransportAddress the node network bindings
      * @param discoveryType the discovery type
+     * @param isSnapshot provider to test if this build is snapshot or not
      * @return {@code true} if the checks should be enforced
      */
-    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
+    static boolean enforceLimits(
+        final BoundTransportAddress boundTransportAddress,
+        final String discoveryType,
+        final BooleanSupplier isSnapshot
+    ) {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound = (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress)
             && isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
-        return bound && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
+        return bound && isSnapshot.getAsBoolean() == false && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
     }
 
     // the list of checks to execute
@@ -208,7 +222,6 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         checks.add(new ByteOrderCheck());
         return Collections.unmodifiableList(checks);
@@ -260,7 +273,7 @@ final class BootstrapChecks {
         }
 
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
     }
@@ -332,7 +345,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
         @Override
@@ -349,7 +362,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
+            if (getMaxNumberOfThreads() != ProcessLimits.UNKNOWN && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
@@ -365,7 +378,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxNumberOfThreads() {
-            return JNANatives.MAX_NUMBER_OF_THREADS;
+            return NativeAccess.instance().getProcessLimits().maxThreads();
         }
 
         @Override
@@ -378,7 +391,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != getRlimInfinity()) {
+            if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
@@ -392,13 +405,8 @@ final class BootstrapChecks {
         }
 
         // visible for testing
-        long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
-        }
-
-        // visible for testing
         long getMaxSizeVirtualMemory() {
-            return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
         }
 
         @Override
@@ -414,12 +422,12 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            final long maxFileSize = getMaxFileSize();
-            if (maxFileSize != Long.MIN_VALUE && maxFileSize != getRlimInfinity()) {
+            final long maxFileSize = getProcessLimits().maxFileSize();
+            if (maxFileSize != Long.MIN_VALUE && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
-                    getMaxFileSize(),
+                    maxFileSize,
                     BootstrapInfo.getSystemProperties().get("user.name")
                 );
                 return BootstrapCheckResult.failure(message);
@@ -428,12 +436,8 @@ final class BootstrapChecks {
             }
         }
 
-        long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
-        }
-
-        long getMaxFileSize() {
-            return JNANatives.MAX_FILE_SIZE;
+        protected ProcessLimits getProcessLimits() {
+            return NativeAccess.instance().getProcessLimits();
         }
 
         @Override
@@ -591,7 +595,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         @Override
@@ -615,7 +619,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         // visible for testing
@@ -707,7 +711,7 @@ final class BootstrapChecks {
         }
 
         String javaVersion() {
-            return Constants.JAVA_VERSION;
+            return Runtime.version().toString();
         }
 
         @Override
@@ -715,33 +719,6 @@ final class BootstrapChecks {
             return ReferenceDocs.BOOTSTRAP_CHECK_EARLY_ACCESS;
         }
 
-    }
-
-    static class AllPermissionCheck implements BootstrapCheck {
-
-        @Override
-        public final BootstrapCheckResult check(BootstrapContext context) {
-            if (isAllPermissionGranted()) {
-                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        boolean isAllPermissionGranted() {
-            final SecurityManager sm = System.getSecurityManager();
-            assert sm != null;
-            try {
-                sm.checkPermission(new AllPermission());
-            } catch (final SecurityException e) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.BOOTSTRAP_CHECK_ALL_PERMISSION;
-        }
     }
 
     static class DiscoveryConfiguredCheck implements BootstrapCheck {

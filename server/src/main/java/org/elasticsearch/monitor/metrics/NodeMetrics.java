@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.metrics;
@@ -12,21 +13,26 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them as metrics through
@@ -361,6 +367,22 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
+                "es.indexing.indexing.failed.version_conflict.total",
+                "Total number of failed indexing operations due to version conflict",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getIndexFailedDueToVersionConflictCount())
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
                 "es.indexing.deletion.docs.total",
                 "Total number of deleted documents",
                 "documents",
@@ -529,23 +551,16 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.coordinating_operations.rejections.ratio",
-                "Ratio of rejected coordinating operations",
-                "ratio",
-                () -> {
-                    var totalCoordinatingOperations = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating_operations.requests.total",
+                "Total number of coordinating requests",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalCoordinatingOps)
-                        .orElse(0L);
-                    var totalCoordinatingRejections = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getCoordinatingRejections)
-                        .orElse(0L);
-                    // rejections do not count towards `totalCoordinatingOperations`
-                    var totalOps = totalCoordinatingOperations + totalCoordinatingRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0);
-                }
+                        .map(IndexingPressureStats::getTotalCoordinatingRequests)
+                        .orElse(0L)
+                )
             )
         );
 
@@ -620,23 +635,16 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.primary_operations.document.rejections.ratio",
-                "Ratio of rejected primary operations",
-                "ratio",
-                () -> {
-                    var totalPrimaryOperations = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalPrimaryOps)
-                        .orElse(0L);
-                    var totalPrimaryDocumentRejections = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.primary_operations.document.rejections.total",
+                "Total number of rejected indexing documents",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getPrimaryDocumentRejections)
-                        .orElse(0L);
-                    // primary document rejections do not count towards `totalPrimaryOperations`
-                    var totalOps = totalPrimaryOperations + totalPrimaryDocumentRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryDocumentRejections / totalOps : 0.0);
-                }
+                        .orElse(0L)
+                )
             )
         );
 
@@ -647,6 +655,34 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "bytes",
                 () -> new LongWithAttributes(
                     Optional.ofNullable(stats.getOrRefresh()).map(o -> o.getIndexingPressureStats()).map(o -> o.getMemoryLimit()).orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating.low_watermark_splits.total",
+                "Total number of times bulk requests are split due to SPLIT_BULK_LOW_WATERMARK",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getLowWaterMarkSplits)
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating.high_watermark_splits.total",
+                "Total number of times bulk requests are split due to SPLIT_BULK_HIGH_WATERMARK",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getHighWaterMarkSplits)
+                        .orElse(0L)
                 )
             )
         );
@@ -758,16 +794,49 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * refresh() is called, cache is updated and the new instance returned.
      */
     private class NodeStatsCache extends SingleObjectCache<NodeStats> {
+        private static final NodeStats MISSING_NODE_STATS = new NodeStats(
+            new DiscoveryNode(
+                "_na",
+                "_na",
+                new TransportAddress(InetAddress.getLoopbackAddress(), 0),
+                Map.of(),
+                Set.of(),
+                VersionInformation.CURRENT
+            ),
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         private boolean refresh;
 
         NodeStatsCache(TimeValue interval) {
-            super(interval, getNodeStats());
+            super(interval, MISSING_NODE_STATS);
             this.refresh = true;
         }
 
         @Override
         protected NodeStats refresh() {
             return refresh ? getNodeStats() : getNoRefresh();
+        }
+
+        @Override
+        protected boolean needsRefresh() {
+            return getNoRefresh() == MISSING_NODE_STATS || super.needsRefresh();
         }
 
         public void stopRefreshing() {

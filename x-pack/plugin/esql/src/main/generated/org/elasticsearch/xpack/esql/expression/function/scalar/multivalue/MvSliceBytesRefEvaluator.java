@@ -7,23 +7,26 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSlice}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvSliceBytesRefEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
 
@@ -33,10 +36,12 @@ public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEv
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public MvSliceBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator end,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.field = field;
     this.start = start;
     this.end = end;
@@ -54,6 +59,15 @@ public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEv
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += start.baseRamBytesUsed();
+    baseRamBytesUsed += end.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock, IntBlock startBlock,
       IntBlock endBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
@@ -62,36 +76,38 @@ public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEv
         if (!fieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (startBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (startBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startBlock.getValueCount(p) != 1) {
-          if (startBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (endBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endBlock.getValueCount(p) != 1) {
-          if (endBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (endBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
+        int start = startBlock.getInt(startBlock.getFirstValueIndex(p));
+        int end = endBlock.getInt(endBlock.getFirstValueIndex(p));
         try {
-          MvSlice.process(result, p, fieldBlock, startBlock.getInt(startBlock.getFirstValueIndex(p)), endBlock.getInt(endBlock.getFirstValueIndex(p)));
+          MvSlice.process(result, p, fieldBlock, start, end);
         } catch (InvalidArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -107,6 +123,18 @@ public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(field, start, end);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

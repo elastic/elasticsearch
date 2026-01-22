@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.query;
 
@@ -13,7 +14,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -67,11 +67,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         this.randomUID = in.readLong();
         this.failure = in.readException();
         this.shardId = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            this.index = in.readOptionalString();
-        } else {
-            this.index = null;
-        }
+        this.index = in.readOptionalString();
     }
 
     @Override
@@ -79,9 +75,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         out.writeLong(randomUID);
         out.writeException(failure);
         out.writeVInt(shardId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeOptionalString(index);
-        }
+        out.writeOptionalString(index);
     }
 
     @Override
@@ -92,7 +86,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) {
-        final Query delegate = Queries.newMatchAllQuery();
+        final Query delegate = Queries.ALL_DOCS_INSTANCE;
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -141,6 +135,6 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

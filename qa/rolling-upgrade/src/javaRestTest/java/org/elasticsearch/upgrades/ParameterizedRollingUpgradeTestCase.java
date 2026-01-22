@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -14,83 +15,59 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
+    protected static final int NODE_NUM = 3;
     private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
-
-    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static final int NODE_NUM = 3;
-
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(NODE_NUM)
-        .setting("path.repo", new Supplier<>() {
-            @Override
-            @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
-            public String get() {
-                return repoDirectory.getRoot().getPath();
-            }
-        })
-        .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
-
-    @ParametersFactory(shuffle = false)
-    public static Iterable<Object[]> parameters() {
-        return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
-    }
-
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
-
     private final int requestedUpgradedNodes;
 
     protected ParameterizedRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         this.requestedUpgradedNodes = upgradedNodes;
     }
 
-    @Before
-    public void extractOldClusterFeatures() {
-        if (isOldCluster() && oldClusterTestFeatureService == null) {
-            oldClusterTestFeatureService = testFeatureService;
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() {
+        return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
+    }
+
+    protected abstract ElasticsearchCluster getUpgradeCluster();
+
+    protected void beforeUpgrade() {
+        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
+            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
         }
     }
 
     @Before
-    public void extractOldIndexVersion() throws Exception {
+    public void upgradeNode() throws Exception {
+        // extract old cluster features
+        if (isOldCluster() && oldClusterTestFeatureService == null) {
+            oldClusterTestFeatureService = testFeatureService;
+        }
+
+        // extract old index version
         if (oldIndexVersion == null && upgradedNodes.isEmpty()) {
             IndexVersion indexVersion = null;   // these should all be the same version
 
@@ -121,21 +98,25 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             assertThat("Index version could not be read", indexVersion, notNullValue());
             oldIndexVersion = indexVersion;
         }
-    }
 
-    @Before
-    public void upgradeNode() throws Exception {
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
+        beforeUpgrade();
+
+        // finally, upgrade node
         if (upgradedNodes.size() < requestedUpgradedNodes) {
             closeClients();
             // we might be running a specific upgrade test by itself - check previous nodes too
             for (int n = 0; n < requestedUpgradedNodes; n++) {
                 if (upgradedNodes.add(n)) {
                     try {
-                        logger.info("Upgrading node {} to version {}", n, Version.CURRENT);
-                        cluster.upgradeNodeToVersion(n, Version.CURRENT);
+                        Version upgradeVersion = System.getProperty("tests.new_cluster_version") == null
+                            ? Version.CURRENT
+                            : Version.fromString(System.getProperty("tests.new_cluster_version"));
+
+                        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
+                        getUpgradeCluster().upgradeNodeToVersion(n, upgradeVersion);
                     } catch (Exception e) {
                         upgradeFailed = true;
                         throw e;
@@ -154,11 +135,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         upgradeFailed = false;
     }
 
-    @Deprecated // Use the new testing framework and oldClusterHasFeature(feature) instead
-    protected static String getOldClusterVersion() {
-        return OLD_CLUSTER_VERSION;
-    }
-
     protected static boolean oldClusterHasFeature(String featureId) {
         assert oldClusterTestFeatureService != null;
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
@@ -173,12 +149,19 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return oldIndexVersion;
     }
 
-    protected static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION);
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedRollingUpgradeTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
+        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
-    protected static boolean isOldClusterVersion(String nodeVersion) {
-        return OLD_CLUSTER_VERSION.equals(nodeVersion);
+    protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
+        if (isOldClusterDetachedVersion()) {
+            return System.getProperty("tests.bwc.refspec.main").equals(buildHash);
+        }
+        return getOldClusterVersion().equals(nodeVersion);
     }
 
     protected static boolean isOldCluster() {
@@ -199,7 +182,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return getUpgradeCluster().getHttpAddresses();
     }
 
     @Override
@@ -233,7 +216,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     @Override
-    protected final Settings restClientSettings() {
+    protected Settings restClientSettings() {
         return Settings.builder()
             .put(super.restClientSettings())
             // increase the timeout here to 90 seconds to handle long waits for a green

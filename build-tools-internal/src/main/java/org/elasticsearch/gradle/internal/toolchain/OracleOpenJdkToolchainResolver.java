@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.toolchain;
@@ -26,7 +27,36 @@ import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
-    record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) {}
+    interface JdkBuild {
+        JavaLanguageVersion languageVersion();
+
+        String url(String os, String arch, String extension);
+    }
+
+    record ReleaseJdkBuild(JavaLanguageVersion languageVersion, String host, String version, String buildNumber, String hash)
+        implements
+            JdkBuild {
+
+        @Override
+        public String url(String os, String arch, String extension) {
+            return "https://"
+                + host
+                + "/java/GA/jdk"
+                + version
+                + "/"
+                + hash
+                + "/"
+                + buildNumber
+                + "/GPL/openjdk-"
+                + version
+                + "_"
+                + os
+                + "-"
+                + arch
+                + "_bin."
+                + extension;
+        }
+    }
 
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
@@ -40,14 +70,11 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(),
-        // 22 release candidate
-        new JdkBuild(JavaLanguageVersion.of(22), "22", "36", "830ec9fcccef480bb3e73fb7ecafe059")
+        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion())
     );
 
-    private JdkBuild getBundledJdkBuild() {
-        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
+    static JdkBuild getBundledJdkBuild(String bundledJdkVersion, String bundledJkdMajorVersionString) {
+        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(bundledJkdMajorVersionString);
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
@@ -55,7 +82,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
-        return new JdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+        return new ReleaseJdkBuild(bundledJdkMajorVersion, "download.oracle.com", baseVersion, build, hash);
     }
 
     /**
@@ -72,24 +99,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String extension = operatingSystem.equals(OperatingSystem.WINDOWS) ? "zip" : "tar.gz";
         String arch = toArchString(request.getBuildPlatform().getArchitecture());
         String os = toOsString(operatingSystem);
-        return Optional.of(
-            () -> URI.create(
-                "https://download.oracle.com/java/GA/jdk"
-                    + build.version
-                    + "/"
-                    + build.hash
-                    + "/"
-                    + build.buildNumber
-                    + "/GPL/openjdk-"
-                    + build.version
-                    + "_"
-                    + os
-                    + "-"
-                    + arch
-                    + "_bin."
-                    + extension
-            )
-        );
+        return Optional.of(() -> URI.create(build.url(os, arch, extension)));
     }
 
     /**
@@ -117,7 +127,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
         JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
         for (JdkBuild build : builds) {
-            if (build.languageVersion.equals(languageVersion)) {
+            if (build.languageVersion().equals(languageVersion)) {
                 return build;
             }
         }

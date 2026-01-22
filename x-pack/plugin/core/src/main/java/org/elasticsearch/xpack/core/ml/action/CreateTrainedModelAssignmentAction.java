@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -34,14 +35,18 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
 
     public static class Request extends MasterNodeRequest<Request> {
         private final StartTrainedModelDeploymentAction.TaskParams taskParams;
+        private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
-        public Request(StartTrainedModelDeploymentAction.TaskParams taskParams) {
+        public Request(StartTrainedModelDeploymentAction.TaskParams taskParams, AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskParams = ExceptionsHelper.requireNonNull(taskParams, "taskParams");
+            this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
+            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         }
 
         @Override
@@ -53,6 +58,7 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             taskParams.writeTo(out);
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
 
         @Override
@@ -60,16 +66,21 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskParams, request.taskParams);
+            return Objects.equals(taskParams, request.taskParams)
+                && Objects.equals(adaptiveAllocationsSettings, request.adaptiveAllocationsSettings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskParams);
+            return Objects.hash(taskParams, adaptiveAllocationsSettings);
         }
 
         public StartTrainedModelDeploymentAction.TaskParams getTaskParams() {
             return taskParams;
+        }
+
+        public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+            return adaptiveAllocationsSettings;
         }
     }
 
@@ -96,7 +107,6 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.trainedModelAssignment = new TrainedModelAssignment(in);
         }
 

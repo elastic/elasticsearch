@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -24,7 +23,7 @@ import java.util.UUID;
 
 public class StartTrialClusterTask implements ClusterStateTaskListener {
 
-    private static final String ACKNOWLEDGEMENT_HEADER = "This API initiates a free 30-day trial for all platinum features. "
+    private static final String ACKNOWLEDGEMENT_HEADER = "This API initiates a free 30-day trial for all subscription features. "
         + "By starting this trial, you agree that it is subject to the terms and conditions at"
         + " https://www.elastic.co/legal/trial_license/. To begin your free trial, call /start_trial again and specify "
         + "the \"acknowledge=true\" parameter.";
@@ -41,13 +40,11 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
     private final PostStartTrialRequest request;
     private final ActionListener<PostStartTrialResponse> listener;
     private final Clock clock;
-    private final FeatureService featureService;
 
     StartTrialClusterTask(
         Logger logger,
         String clusterName,
         Clock clock,
-        FeatureService featureService,
         PostStartTrialRequest request,
         ActionListener<PostStartTrialResponse> listener
     ) {
@@ -56,7 +53,6 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         this.request = request;
         this.listener = listener;
         this.clock = clock;
-        this.featureService = featureService;
     }
 
     private LicensesMetadata execute(
@@ -65,9 +61,6 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         ClusterStateTaskExecutor.TaskContext<StartTrialClusterTask> taskContext
     ) {
         assert taskContext.getTask() == this;
-        if (featureService.clusterHasFeature(state, License.INDEPENDENT_TRIAL_VERSION_FEATURE) == false) {
-            throw new IllegalStateException("Please ensure all nodes are up to date before starting your trial");
-        }
         final var listener = ActionListener.runBefore(this.listener, () -> {
             logger.debug("started self generated trial license: {}", currentLicensesMetadata);
         });

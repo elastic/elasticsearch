@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -66,7 +65,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class TransformUpdaterTests extends ESTestCase {
 
@@ -77,8 +75,7 @@ public class TransformUpdaterTests extends ESTestCase {
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private TestThreadPool threadPool;
     private Client client;
-    private ClusterService clusterService = mock(ClusterService.class);
-    private TransformAuditor auditor = new MockTransformAuditor(clusterService);
+    private TransformAuditor auditor;
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
     private final Settings destIndexSettings = new DefaultTransformExtension().getTransformDestinationIndexSettings();
 
@@ -124,8 +121,7 @@ public class TransformUpdaterTests extends ESTestCase {
         }
         threadPool = createThreadPool();
         client = new MyMockClient(threadPool);
-        clusterService = mock(ClusterService.class);
-        auditor = new MockTransformAuditor(clusterService);
+        auditor = MockTransformAuditor.createMockAuditor();
     }
 
     @After
@@ -220,7 +216,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
@@ -311,7 +306,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfigForDryRunUpdate = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
@@ -365,7 +359,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
@@ -408,7 +401,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfig oldConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             TransformConfigVersionUtils.randomVersionBetween(
-                random(),
                 TransformConfigVersion.V_7_2_0,
                 TransformConfigVersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )

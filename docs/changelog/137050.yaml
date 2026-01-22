@@ -1,0 +1,6 @@
+pr: 137050
+summary: Fixes memory leak in `BytesRefLongBlockHash`
+area: ES|QL
+type: bug
+issues:
+ - 137021

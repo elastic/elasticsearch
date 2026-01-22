@@ -12,6 +12,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -52,8 +55,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testSimpleAliasAndIndexPair() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index", "alias");
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index", "alias");
         final RoleDescriptor roleOverAlias = new RoleDescriptor(
             "roleOverAlias",
             new String[] { "read" },
@@ -67,7 +70,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadataBuilder.build()),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -78,9 +82,9 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testRoleGrantsOnIndexAndAliasPair() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index", "alias");
-        addIndex(metadataBuilder, "index1", "alias2");
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index", "alias");
+        addIndex(projectBuilder, "index1", "alias2");
         final RoleDescriptor roleOverIndexAndAlias = new RoleDescriptor(
             "roleOverIndexAndAlias",
             new String[] { "manage_watcher" },
@@ -88,7 +92,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadataBuilder.build()),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -98,9 +103,9 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testMultiplePrivilegesLoggedOnce() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index", "alias");
-        addIndex(metadataBuilder, "index2", "alias2");
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index", "alias");
+        addIndex(projectBuilder, "index2", "alias2");
         final RoleDescriptor roleOverAlias = new RoleDescriptor(
             "roleOverAlias",
             new String[] { "manage_watcher" },
@@ -108,7 +113,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadataBuilder.build()),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -119,12 +125,12 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testMultiplePrivilegesLoggedForEachAlias() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index", "alias", "alias3");
-        addIndex(metadataBuilder, "index2", "alias2", "alias", "alias4");
-        addIndex(metadataBuilder, "index3", "alias3", "alias");
-        addIndex(metadataBuilder, "index4", "alias4", "alias");
-        addIndex(metadataBuilder, "foo", "bar");
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index", "alias", "alias3");
+        addIndex(projectBuilder, "index2", "alias2", "alias", "alias4");
+        addIndex(projectBuilder, "index3", "alias3", "alias");
+        addIndex(projectBuilder, "index4", "alias4", "alias");
+        addIndex(projectBuilder, "foo", "bar");
         final RoleDescriptor roleMultiplePrivileges = new RoleDescriptor(
             "roleMultiplePrivileges",
             new String[] { "manage_watcher" },
@@ -136,7 +142,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadataBuilder.build()),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -148,10 +155,10 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testPermissionsOverlapping() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index1", "alias1", "bar");
-        addIndex(metadataBuilder, "index2", "alias2", "baz");
-        addIndex(metadataBuilder, "foo", "bar");
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index1", "alias1", "bar");
+        addIndex(projectBuilder, "index2", "alias2", "baz");
+        addIndex(projectBuilder, "foo", "bar");
         final RoleDescriptor roleOverAliasAndIndex = new RoleDescriptor(
             "roleOverAliasAndIndex",
             new String[] { "read_ilm" },
@@ -161,7 +168,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadataBuilder.build()),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -171,10 +179,10 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testOverlappingAcrossMultipleRoleDescriptors() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index1", "alias1", "bar");
-        addIndex(metadataBuilder, "index2", "alias2", "baz");
-        addIndex(metadataBuilder, "foo", "bar");
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index1", "alias1", "bar");
+        addIndex(projectBuilder, "index2", "alias2", "baz");
+        addIndex(projectBuilder, "foo", "bar");
         final RoleDescriptor role1 = new RoleDescriptor(
             "role1",
             new String[] { "monitor_watcher" },
@@ -194,7 +202,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadataBuilder.build()),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -207,11 +216,10 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testDailyRoleCaching() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index1", "alias1", "far");
-        addIndex(metadataBuilder, "index2", "alias2", "baz");
-        addIndex(metadataBuilder, "foo", "bar");
-        final Metadata metadata = metadataBuilder.build();
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index1", "alias1", "far");
+        addIndex(projectBuilder, "index2", "alias2", "baz");
+        addIndex(projectBuilder, "foo", "bar");
         RoleDescriptor someRole = new RoleDescriptor(
             "someRole",
             new String[] { "monitor_rollup" },
@@ -219,7 +227,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         final DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadata),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -251,20 +260,21 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testWildcards() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index", "alias", "alias3");
-        addIndex(metadataBuilder, "index2", "alias", "alias2", "alias4");
-        addIndex(metadataBuilder, "index3", "alias", "alias3");
-        addIndex(metadataBuilder, "index4", "alias", "alias4");
-        addIndex(metadataBuilder, "foo", "bar", "baz");
-        Metadata metadata = metadataBuilder.build();
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index", "alias", "alias3");
+        addIndex(projectBuilder, "index2", "alias", "alias2", "alias4");
+        addIndex(projectBuilder, "index3", "alias", "alias3");
+        addIndex(projectBuilder, "index4", "alias", "alias4");
+        addIndex(projectBuilder, "foo", "bar", "baz");
         final RoleDescriptor roleGlobalWildcard = new RoleDescriptor(
             "roleGlobalWildcard",
             new String[] { "manage_token" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges(randomFrom("write", "delete_index", "read_cross_cluster"), "*") },
             null
         );
-        new DeprecationRoleDescriptorConsumer(mockClusterService(metadata), threadPool, deprecationLogger).accept(
+        final ClusterService clusterService = mockClusterService(projectBuilder);
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectBuilder.getId());
+        new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool, deprecationLogger).accept(
             Arrays.asList(roleGlobalWildcard)
         );
         verifyNoMoreInteractions(deprecationLogger);
@@ -275,7 +285,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                 indexPrivileges(randomFrom("write", "delete_index", "read_cross_cluster"), "i*", "a*") },
             null
         );
-        new DeprecationRoleDescriptorConsumer(mockClusterService(metadata), threadPool, deprecationLogger).accept(
+        new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool, deprecationLogger).accept(
             Arrays.asList(roleGlobalWildcard2)
         );
         verifyNoMoreInteractions(deprecationLogger);
@@ -287,7 +297,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                 indexPrivileges("read", "foo") },
             null
         );
-        new DeprecationRoleDescriptorConsumer(mockClusterService(metadata), threadPool, deprecationLogger).accept(
+        new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool, deprecationLogger).accept(
             Arrays.asList(roleWildcardOnIndices)
         );
         verifyNoMoreInteractions(deprecationLogger);
@@ -299,7 +309,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                 indexPrivileges("read", "foo", "index2") },
             null
         );
-        new DeprecationRoleDescriptorConsumer(mockClusterService(metadata), threadPool, deprecationLogger).accept(
+        new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool, deprecationLogger).accept(
             Arrays.asList(roleWildcardOnAliases)
         );
         verifyLogger(deprecationLogger, "roleWildcardOnAliases", "alias", "index2, index4");
@@ -310,10 +320,10 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     public void testMultipleIndicesSameAlias() throws Exception {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        addIndex(metadataBuilder, "index1", "alias1");
-        addIndex(metadataBuilder, "index2", "alias1", "alias2");
-        addIndex(metadataBuilder, "index3", "alias2");
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addIndex(projectBuilder, "index1", "alias1");
+        addIndex(projectBuilder, "index2", "alias1", "alias2");
+        addIndex(projectBuilder, "index3", "alias2");
         final RoleDescriptor roleOverAliasAndIndex = new RoleDescriptor(
             "roleOverAliasAndIndex",
             new String[] { "manage_ml" },
@@ -321,7 +331,8 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             null
         );
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
-            mockClusterService(metadataBuilder.build()),
+            mockClusterService(projectBuilder),
+            TestProjectResolvers.singleProject(projectBuilder.getId()),
             threadPool,
             deprecationLogger
         );
@@ -340,20 +351,20 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         verifyNoMoreInteractions(deprecationLogger);
     }
 
-    private void addIndex(Metadata.Builder metadataBuilder, String index, String... aliases) {
-        final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+    private void addIndex(ProjectMetadata.Builder projectBuilder, String index, String... aliases) {
+        final IndexMetadata.Builder indexprojectBuilder = IndexMetadata.builder(index)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         for (final String alias : aliases) {
-            indexMetadataBuilder.putAlias(AliasMetadata.builder(alias).build());
+            indexprojectBuilder.putAlias(AliasMetadata.builder(alias).build());
         }
-        metadataBuilder.put(indexMetadataBuilder.build(), false);
+        projectBuilder.put(indexprojectBuilder.build(), false);
     }
 
-    private ClusterService mockClusterService(Metadata metadata) {
+    private ClusterService mockClusterService(ProjectMetadata.Builder project) {
         final ClusterService clusterService = mock(ClusterService.class);
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(project)).build();
         when(clusterService.state()).thenReturn(clusterState);
         return clusterService;
     }

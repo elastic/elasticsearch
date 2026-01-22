@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Objects;
 import java.util.Set;
@@ -73,7 +74,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
                         indicesStatsResponse.getIndices()
                             .values()
                             .stream()
-                            .filter(stats -> stats.getTotal().getDocs().getCount() == 0)
+                            .filter(stats -> stats.getTotal().getDocs() == null || stats.getTotal().getDocs().getCount() == 0)
                             .map(IndexStats::getIndex)
                             .collect(toSet())
                     )
@@ -82,7 +83,9 @@ public class EmptyStateIndexRemover implements MlDataRemover {
     }
 
     private void getCurrentStateIndices(ActionListener<Set<String>> listener) {
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
+        GetIndexRequest getIndexRequest = new GetIndexRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT).indices(
+            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+        );
         getIndexRequest.setParentTask(parentTaskId);
         client.admin()
             .indices()

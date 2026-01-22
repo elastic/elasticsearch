@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion.context;
@@ -183,7 +184,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                 if (field instanceof StringField) {
                     spare.resetFromString(field.stringValue());
                     geohashes.add(spare.geohash());
-                } else if (field instanceof LatLonDocValuesField) {
+                } else if (field instanceof LatLonDocValuesField || field instanceof GeoPointFieldMapper.LatLonPointWithDocValues) {
                     spare.resetFromEncoded(field.numericValue().longValue());
                     geohashes.add(spare.geohash());
                 } else if (field instanceof LatLonPoint) {

@@ -73,6 +73,9 @@ public class ConnectionConfiguration {
     public static final String ALLOW_PARTIAL_SEARCH_RESULTS = "allow.partial.search.results";
     public static final String ALLOW_PARTIAL_SEARCH_RESULTS_DEFAULT = "false";
 
+    // CPS project routing
+    public static final String PROJECT_ROUTING = "project.routing";
+
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
         Arrays.asList(
             PROPERTIES_VALIDATION,
@@ -85,7 +88,8 @@ public class ConnectionConfiguration {
             AUTH_USER,
             AUTH_PASS,
             CATALOG,
-            ALLOW_PARTIAL_SEARCH_RESULTS
+            ALLOW_PARTIAL_SEARCH_RESULTS,
+            PROJECT_ROUTING
         )
     );
 
@@ -115,6 +119,8 @@ public class ConnectionConfiguration {
     private final ProxyConfig proxyConfig;
 
     private final boolean allowPartialSearchResults;
+
+    private final String projectRouting;
 
     @SuppressWarnings("this-escape")
     public ConnectionConfiguration(URI baseURI, String connectionString, Properties props) throws ClientException {
@@ -157,6 +163,8 @@ public class ConnectionConfiguration {
             settings.getProperty(ALLOW_PARTIAL_SEARCH_RESULTS, ALLOW_PARTIAL_SEARCH_RESULTS_DEFAULT),
             Boolean::parseBoolean
         );
+
+        projectRouting = settings.getProperty(PROJECT_ROUTING);
     }
 
     public ConnectionConfiguration(
@@ -173,7 +181,8 @@ public class ConnectionConfiguration {
         String pass,
         SslConfig sslConfig,
         ProxyConfig proxyConfig,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        String projectRouting
     ) throws ClientException {
         this.validateProperties = validateProperties;
         this.binaryCommunication = binaryCommunication;
@@ -194,6 +203,7 @@ public class ConnectionConfiguration {
         this.baseURI = baseURI;
 
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.projectRouting = projectRouting;
     }
 
     private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled) {
@@ -310,5 +320,9 @@ public class ConnectionConfiguration {
 
     public boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 }

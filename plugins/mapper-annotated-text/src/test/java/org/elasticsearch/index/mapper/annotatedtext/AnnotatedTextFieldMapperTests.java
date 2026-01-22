@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.annotatedtext;
@@ -24,8 +25,12 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -42,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TextFieldFamilySyntheticSourceTestSetup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,7 +63,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -238,7 +243,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
-            Terms terms = leaf.getTermVector(0, "field");
+            Terms terms = leaf.termVectors().get(0, "field");
             TermsEnum iterator = terms.iterator();
             BytesRef term;
             Set<String> foundTerms = new HashSet<>();
@@ -286,6 +291,92 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         assertTrue(fields.get(0).fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsToFalse() throws IOException {
+        // given
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "annotated_text"); }));
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsToFalseWhenSyntheticSourceIsEnabled() throws IOException {
+        // given
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        DocumentMapper mapper = createMapperService(indexSettings, fieldMapping(b -> { b.field("type", "annotated_text"); }))
+            .documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsWhenIndexVersionIsNotLatest() throws IOException {
+        var timeSeriesIndexMode = randomBoolean();
+        var isStored = randomBoolean();
+        var hasKeywordFieldForSyntheticSource = randomBoolean();
+
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        if (timeSeriesIndexMode) {
+            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+        }
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "annotated_text");
+            if (isStored) {
+                b.field("store", isStored);
+            }
+            if (hasKeywordFieldForSyntheticSource) {
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+
+            if (timeSeriesIndexMode) {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+                b.startObject("dimension");
+                b.field("type", "keyword");
+                b.field("time_series_dimension", "true");
+                b.endObject();
+            }
+        });
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", "1234");
+            if (timeSeriesIndexMode) {
+                b.field("@timestamp", "2000-10-10T23:40:53.384Z");
+                b.field("dimension", "dimension1");
+            }
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        if (isStored || (timeSeriesIndexMode && hasKeywordFieldForSyntheticSource == false)) {
+            assertTrue(fieldType.stored());
+        } else {
+            assertFalse(fieldType.stored());
+        }
     }
 
     public void testDisableNorms() throws IOException {
@@ -601,17 +692,8 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
-        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false);
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        return TextFieldFamilySyntheticSourceTestSetup.getSupportedReaders(mapper, loaderFieldName);
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        return TextFieldFamilySyntheticSourceTestSetup.loadBlockExpected(blockReaderSupport, columnReader);
+        // annotated_text uses stored fields for fallback (not binary doc values), so ignored values are not sorted
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false, false);
     }
 
     @Override
@@ -622,5 +704,15 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

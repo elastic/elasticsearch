@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.compute.operator;
@@ -68,6 +69,10 @@ public class TopNBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
+        selfTest();
+    }
+
+    static void selfTest() {
         try {
             for (String data : TopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
                 for (String topCount : TopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
@@ -97,8 +102,8 @@ public class TopNBenchmark {
             case DOUBLES -> List.of(ElementType.DOUBLE);
             case BOOLEANS -> List.of(ElementType.BOOLEAN);
             case BYTES_REFS -> List.of(ElementType.BYTES_REF);
-            case TWO_LONGS -> List.of(ElementType.INT, ElementType.INT);
-            case LONGS_AND_BYTES_REFS -> List.of(ElementType.INT, ElementType.BYTES_REF);
+            case TWO_LONGS -> List.of(ElementType.LONG, ElementType.LONG);
+            case LONGS_AND_BYTES_REFS -> List.of(ElementType.LONG, ElementType.BYTES_REF);
             default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
         };
         List<TopNEncoder> encoders = switch (data) {
@@ -126,7 +131,7 @@ public class TopNBenchmark {
     }
 
     private static void checkExpected(int topCount, List<Page> pages) {
-        if (topCount != pages.size()) {
+        if (topCount != pages.stream().mapToLong(Page::getPositionCount).sum()) {
             throw new AssertionError("expected [" + topCount + "] but got [" + pages.size() + "]");
         }
     }
@@ -190,7 +195,7 @@ public class TopNBenchmark {
         try (Operator operator = operator(data, topCount)) {
             Page page = page(data);
             for (int i = 0; i < 1024; i++) {
-                operator.addInput(page);
+                operator.addInput(page.shallowCopy());
             }
             operator.finish();
             List<Page> results = new ArrayList<>();

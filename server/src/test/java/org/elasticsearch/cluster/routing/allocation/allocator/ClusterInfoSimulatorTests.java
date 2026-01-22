@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -38,6 +41,8 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.HashMap;
 import java.util.List;
@@ -51,11 +56,16 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
@@ -69,8 +79,13 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withNode("node-0", new DiskUsageBuilder(1000, 1000))
             .build();
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0))))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -97,8 +112,13 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withShard(existingPrimary, 100)
             .build();
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0))))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -128,8 +148,13 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withShard(existingPrimary, 100)
             .build();
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 1))))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -207,8 +232,13 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withShard(shard, 100)
             .build();
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0))))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -241,8 +271,13 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withShard(shard, 100)
             .build();
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0))))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -268,14 +303,19 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             indexSettings.put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE);
         }
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings)))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
         var shard = shardRoutingBuilder(
-            new ShardId(state.metadata().index("my-index").getIndex(), 0),
+            new ShardId(state.metadata().getProject().index("my-index").getIndex(), 0),
             "node-0",
             true,
             ShardRoutingState.INITIALIZING
@@ -313,14 +353,19 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
             .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings)))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
         var shard = shardRoutingBuilder(
-            new ShardId(state.metadata().index("my-index").getIndex(), 0),
+            new ShardId(state.metadata().getProject().index("my-index").getIndex(), 0),
             "node-0",
             true,
             ShardRoutingState.INITIALIZING
@@ -358,8 +403,13 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
             .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings)))
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
             .build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
@@ -418,7 +468,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                             )
                     )
             )
-            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(source.index()).addShard(source)))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(source.index()).addShard(source))
+                    .add(IndexRoutingTable.builder(target.index()).addShard(target))
+            )
             .build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder().withNode("node-0", new DiskUsageBuilder(1000, 1000 - sourceShardSize))
@@ -495,12 +549,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         assertThat(
             "Should keep index-1 on node-0",
-            decider.canRemain(state.metadata().index("index-1"), shard1, allocation.routingNodes().node("node-0"), allocation).type(),
+            decider.canRemain(state.metadata().getProject().index("index-1"), shard1, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
         assertThat(
             "Should keep index-2 on node-0",
-            decider.canRemain(state.metadata().index("index-2"), shard2, allocation.routingNodes().node("node-0"), allocation).type(),
+            decider.canRemain(state.metadata().getProject().index("index-2"), shard2, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
         assertThat(
@@ -564,13 +620,15 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         assertThat(
             "Should keep index-1 on node-0",
-            decider.canRemain(state.metadata().index("index-1"), shard1, allocation.routingNodes().node("node-0"), allocation).type(),
+            decider.canRemain(state.metadata().getProject().index("index-1"), shard1, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
 
         assertThat(
             "Should keep index-2 on node-0",
-            decider.canRemain(state.metadata().index("index-2"), shard2, allocation.routingNodes().node("node-0"), allocation).type(),
+            decider.canRemain(state.metadata().getProject().index("index-2"), shard2, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
 
@@ -579,6 +637,48 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             decider.canAllocate(shard3, allocation.routingNodes().node("node-0"), allocation).type(),
             equalTo(Decision.Type.NO)
         );
+    }
+
+    public void testSimulateAlreadyStartedShard() {
+        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
+        doCallRealMethod().when(clusterInfoSimulator).simulateAlreadyStartedShard(any(), any());
+
+        final ShardRouting startedShard = ShardRouting.newUnassigned(
+            new ShardId(randomIdentifier(), randomUUID(), between(0, 5)),
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(REINITIALIZED, "simulation"),
+            ShardRouting.Role.DEFAULT
+        ).initialize(randomIdentifier(), null, randomLongBetween(100, 999)).moveToStarted(randomLongBetween(100, 999));
+
+        // New shard without relocation
+        {
+            final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
+            clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, null);
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            final var captureShard = shardCaptor.getValue();
+            assertTrue(captureShard.initializing());
+            assertNull(captureShard.relocatingNodeId());
+            assertThat(captureShard.shardId(), equalTo(startedShard.shardId()));
+            assertThat(captureShard.currentNodeId(), equalTo(startedShard.currentNodeId()));
+            assertThat(captureShard.getExpectedShardSize(), equalTo(startedShard.getExpectedShardSize()));
+        }
+
+        // Relocation
+        {
+            Mockito.clearInvocations(clusterInfoSimulator);
+            final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
+            final String sourceNodeId = randomIdentifier();
+            clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            final var captureShard = shardCaptor.getValue();
+            assertTrue(captureShard.initializing());
+            assertThat(captureShard.relocatingNodeId(), equalTo(sourceNodeId));
+            assertThat(captureShard.shardId(), equalTo(startedShard.shardId()));
+            assertThat(captureShard.currentNodeId(), equalTo(startedShard.currentNodeId()));
+            assertThat(captureShard.getExpectedShardSize(), equalTo(startedShard.getExpectedShardSize()));
+        }
+
     }
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {
@@ -640,7 +740,12 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         }
 
         public ClusterInfo build() {
-            return new ClusterInfo(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            return ClusterInfo.builder()
+                .leastAvailableSpaceUsage(leastAvailableSpaceUsage)
+                .mostAvailableSpaceUsage(mostAvailableSpaceUsage)
+                .shardSizes(shardSizes)
+                .reservedSpace(reservedSpace)
+                .build();
         }
     }
 

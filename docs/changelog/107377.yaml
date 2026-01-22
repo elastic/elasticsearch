@@ -1,5 +1,0 @@
-pr: 107377
-summary: Add support for the 'Enterprise' database to the geoip processor
-area: Ingest Node
-type: enhancement
-issues: []

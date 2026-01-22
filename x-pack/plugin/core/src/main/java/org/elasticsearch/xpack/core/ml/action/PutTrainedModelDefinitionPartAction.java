@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -76,6 +75,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             int totalParts,
             boolean allowOverwriting
         ) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.definition = ExceptionsHelper.requireNonNull(definition, DEFINITION);
             this.part = part;
@@ -91,11 +91,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             this.part = in.readVInt();
             this.totalDefinitionLength = in.readVLong();
             this.totalParts = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                this.allowOverwriting = in.readBoolean();
-            } else {
-                this.allowOverwriting = false;
-            }
+            this.allowOverwriting = in.readBoolean();
         }
 
         @Override
@@ -148,9 +144,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             out.writeVInt(part);
             out.writeVLong(totalDefinitionLength);
             out.writeVInt(totalParts);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                out.writeBoolean(allowOverwriting);
-            }
+            out.writeBoolean(allowOverwriting);
         }
 
         public String getModelId() {

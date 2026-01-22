@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -82,7 +83,8 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -107,7 +109,22 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
+            blContext,
+            NumberType.DOUBLE,
+            BlockLoader.BlockFactory::doubles,
+            (values, blockBuilder) -> {
+                var builder = (BlockLoader.DoubleBuilder) blockBuilder;
+                for (var value : values) {
+                    builder.appendDouble(value.doubleValue());
+                }
+            }
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
     }
 
     @Override
@@ -150,7 +167,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {

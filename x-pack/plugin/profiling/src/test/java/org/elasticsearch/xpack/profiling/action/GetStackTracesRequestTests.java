@@ -51,6 +51,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             // Expect the default values
             assertNull(request.getIndices());
             assertNull(request.getStackTraceIdsField());
+            assertNull(request.getAggregationFields());
             assertNull(request.getAwsCostFactor());
             assertNull(request.getAzureCostFactor());
             assertNull(request.getCustomCO2PerKWH());
@@ -85,6 +86,89 @@ public class GetStackTracesRequestTests extends ESTestCase {
             assertEquals(2000, request.getSampleSize());
             assertArrayEquals(new String[] { "my-traces" }, request.getIndices());
             assertEquals("stacktraces", request.getStackTraceIdsField());
+            // a basic check suffices here
+            assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
+
+            // Expect the default values
+            assertNull(request.getRequestedDuration());
+            assertNull(request.getAggregationFields());
+            assertNull(request.getAwsCostFactor());
+            assertNull(request.getAzureCostFactor());
+            assertNull(request.getCustomCO2PerKWH());
+            assertNull(request.getCustomDatacenterPUE());
+            assertNull(request.getCustomCostPerCoreHour());
+            assertNull(request.getCustomPerCoreWattX86());
+            assertNull(request.getCustomPerCoreWattARM64());
+        }
+    }
+
+    public void testParseValidXContentWithOneAggregationField() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+            .startObject()
+                .field("sample_size", 2000)
+                .field("indices", new String[] {"my-traces"})
+                .field("stacktrace_ids_field", "stacktraces")
+                .field("aggregation_fields", new String[] {"service"})
+                .startObject("query")
+                    .startObject("range")
+                        .startObject("@timestamp")
+                            .field("gte", "2022-10-05")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            request.parseXContent(content);
+
+            assertEquals(2000, request.getSampleSize());
+            assertArrayEquals(new String[] { "my-traces" }, request.getIndices());
+            assertEquals("stacktraces", request.getStackTraceIdsField());
+            assertArrayEquals(new String[] { "service" }, request.getAggregationFields());
+            // a basic check suffices here
+            assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
+
+            // Expect the default values
+            assertNull(request.getRequestedDuration());
+            assertNull(request.getAwsCostFactor());
+            assertNull(request.getAzureCostFactor());
+            assertNull(request.getCustomCO2PerKWH());
+            assertNull(request.getCustomDatacenterPUE());
+            assertNull(request.getCustomCostPerCoreHour());
+            assertNull(request.getCustomPerCoreWattX86());
+            assertNull(request.getCustomPerCoreWattARM64());
+        }
+    }
+
+    public void testParseValidXContentWithMultipleAggregationFields() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+            .startObject()
+                .field("sample_size", 2000)
+                .field("indices", new String[] {"my-traces"})
+                .field("stacktrace_ids_field", "stacktraces")
+                .field("aggregation_fields", new String[] {"service", "transaction"})
+                .startObject("query")
+                    .startObject("range")
+                        .startObject("@timestamp")
+                            .field("gte", "2022-10-05")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            request.parseXContent(content);
+
+            assertEquals(2000, request.getSampleSize());
+            assertArrayEquals(new String[] { "my-traces" }, request.getIndices());
+            assertEquals("stacktraces", request.getStackTraceIdsField());
+            assertArrayEquals(new String[] { "service", "transaction" }, request.getAggregationFields());
             // a basic check suffices here
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
 
@@ -143,6 +227,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             // Expect the default values
             assertNull(request.getIndices());
             assertNull(request.getStackTraceIdsField());
+            assertNull(request.getAggregationFields());
         }
     }
 
@@ -321,6 +406,67 @@ public class GetStackTracesRequestTests extends ESTestCase {
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
         assertEquals("[stacktrace_ids_field] is mandatory", validationErrors.get(0));
+    }
+
+    public void testValidateAggregationFieldsContainsTooFewElements() {
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            new String[] { randomAlphaOfLength(5) },
+            randomAlphaOfLength(5),
+            new String[] {},
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        List<String> validationErrors = request.validate().validationErrors();
+        assertEquals(1, validationErrors.size());
+        assertEquals("[aggregation_fields] must contain either one or two elements but contains [0] elements.", validationErrors.get(0));
+    }
+
+    public void testValidateAggregationFieldsContainsTooManyElements() {
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            new String[] { randomAlphaOfLength(5) },
+            randomAlphaOfLength(5),
+            new String[] { "application", "service", "transaction" },
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        List<String> validationErrors = request.validate().validationErrors();
+        assertEquals(1, validationErrors.size());
+        assertEquals("[aggregation_fields] must contain either one or two elements but contains [3] elements.", validationErrors.get(0));
+    }
+
+    public void testValidateAggregationFieldsContainsEnoughElements() {
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            new String[] { randomAlphaOfLength(5) },
+            randomAlphaOfLength(5),
+            new String[] { "service", "service" },
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        assertNull("Expecting no validation errors", request.validate());
     }
 
     public void testConsidersCustomIndicesInRelatedIndices() {

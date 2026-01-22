@@ -30,10 +30,12 @@ public class GetStatusActionIT extends ProfilingTestCase {
 
     public void testTimeoutIfResourcesNotCreated() throws Exception {
         updateProfilingTemplatesEnabled(false);
-        GetStatusAction.Request request = new GetStatusAction.Request();
-        request.waitForResourcesCreated(true);
-        // shorter than the default timeout to avoid excessively long execution
-        request.ackTimeout(TimeValue.timeValueSeconds(15));
+        GetStatusAction.Request request = new GetStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            true,
+            // shorter than the default timeout to avoid excessively long execution:
+            TimeValue.timeValueSeconds(15)
+        );
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.REQUEST_TIMEOUT, response.status());
@@ -43,8 +45,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
 
     public void testNoTimeoutIfNotWaiting() throws Exception {
         updateProfilingTemplatesEnabled(false);
-        GetStatusAction.Request request = new GetStatusAction.Request();
-        request.waitForResourcesCreated(false);
+        GetStatusAction.Request request = new GetStatusAction.Request(TEST_REQUEST_TIMEOUT, false, randomTimeValue());
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
@@ -54,10 +55,12 @@ public class GetStatusActionIT extends ProfilingTestCase {
 
     public void testWaitsUntilResourcesAreCreated() throws Exception {
         updateProfilingTemplatesEnabled(true);
-        GetStatusAction.Request request = new GetStatusAction.Request();
-        // higher timeout since we have more shards than usual
-        request.ackTimeout(TimeValue.timeValueSeconds(120));
-        request.waitForResourcesCreated(true);
+        GetStatusAction.Request request = new GetStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            true,
+            // higher timeout since we have more shards than usual:
+            TimeValue.timeValueSeconds(120)
+        );
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
@@ -67,9 +70,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
 
     public void testHasData() throws Exception {
         doSetupData();
-        GetStatusAction.Request request = new GetStatusAction.Request();
-        request.waitForResourcesCreated(true);
-
+        GetStatusAction.Request request = new GetStatusAction.Request(TEST_REQUEST_TIMEOUT, true, TEST_REQUEST_TIMEOUT);
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
         assertTrue(response.isResourcesCreated());

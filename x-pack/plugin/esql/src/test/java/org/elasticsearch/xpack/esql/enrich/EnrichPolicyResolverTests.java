@@ -11,19 +11,25 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -35,22 +41,26 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfoCluster;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,9 +101,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
         AbstractSimpleTransportTestCase.connectToNode(transports.get(""), transports.get("cluster_a").getLocalNode());
         AbstractSimpleTransportTestCase.connectToNode(transports.get(""), transports.get("cluster_b").getLocalNode());
-        localCluster = newEnrichPolicyResolver(LOCAL_CLUSTER_GROUP_KEY);
-        clusterA = newEnrichPolicyResolver("cluster_a");
-        clusterB = newEnrichPolicyResolver("cluster_b");
+        final var projectId = randomProjectIdOrDefault();
+        localCluster = newEnrichPolicyResolver(projectId, LOCAL_CLUSTER_GROUP_KEY);
+        clusterA = newEnrichPolicyResolver(projectId, "cluster_a");
+        clusterB = newEnrichPolicyResolver(projectId, "cluster_b");
 
         // hosts policies are the same across clusters
         var hostsPolicy = new EnrichPolicy("match", null, List.of(), "ip", List.of("region", "cost"));
@@ -397,8 +408,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
     }
 
-    TestEnrichPolicyResolver newEnrichPolicyResolver(String cluster) {
-        return new TestEnrichPolicyResolver(cluster, new HashMap<>(), new HashMap<>(), new HashMap<>());
+    TestEnrichPolicyResolver newEnrichPolicyResolver(ProjectId projectId, String cluster) {
+        return new TestEnrichPolicyResolver(projectId, cluster, new HashMap<>(), new HashMap<>(), new HashMap<>());
     }
 
     class TestEnrichPolicyResolver extends EnrichPolicyResolver {
@@ -408,15 +419,17 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         final Map<String, Map<String, String>> mappings;
 
         TestEnrichPolicyResolver(
+            ProjectId projectId,
             String cluster,
             Map<String, EnrichPolicy> policies,
             Map<String, String> aliases,
             Map<String, Map<String, String>> mappings
         ) {
             super(
-                mockClusterService(policies),
+                mockClusterService(projectId, policies),
                 transports.get(cluster),
-                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings), cluster, EsqlDataTypeRegistry.INSTANCE, Set::of)
+                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings)),
+                TestProjectResolvers.singleProject(projectId)
             );
             this.policies = policies;
             this.cluster = cluster;
@@ -425,7 +438,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
 
         EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
-            PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
+            EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(true);
+            for (String cluster : clusters) {
+                esqlExecutionInfo.swapCluster(cluster, (k, v) -> createEsqlExecutionInfoCluster(cluster, "*"));
+            }
             if (randomBoolean()) {
                 unresolvedPolicies = new ArrayList<>(unresolvedPolicies);
                 for (Enrich.Mode mode : Enrich.Mode.values()) {
@@ -439,21 +455,22 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     unresolvedPolicies.add(new UnresolvedPolicy("legacy-policy-1", randomFrom(Enrich.Mode.values())));
                 }
             }
-            super.resolvePolicies(clusters, unresolvedPolicies, future);
+            PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
+            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, TransportVersion.current(), future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 
         @Override
-        protected Transport.Connection getRemoteConnection(String remoteCluster) {
+        protected void getRemoteConnection(String remoteCluster, boolean ensureConnected, ActionListener<Transport.Connection> listener) {
             assertThat("Must only called on the local cluster", cluster, equalTo(LOCAL_CLUSTER_GROUP_KEY));
-            return transports.get("").getConnection(transports.get(remoteCluster).getLocalDiscoNode());
+            listener.onResponse(transports.get("").getConnection(transports.get(remoteCluster).getLocalNode()));
         }
 
-        static ClusterService mockClusterService(Map<String, EnrichPolicy> policies) {
+        static ClusterService mockClusterService(ProjectId projectId, Map<String, EnrichPolicy> policies) {
             ClusterService clusterService = mock(ClusterService.class);
             EnrichMetadata enrichMetadata = new EnrichMetadata(policies);
             ClusterState state = ClusterState.builder(new ClusterName("test"))
-                .metadata(Metadata.builder().customs(Map.of(EnrichMetadata.TYPE, enrichMetadata)))
+                .putProjectMetadata(ProjectMetadata.builder(projectId).customs(Map.of(EnrichMetadata.TYPE, enrichMetadata)))
                 .build();
             when(clusterService.state()).thenReturn(state);
             return clusterService;
@@ -483,30 +500,20 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             String alias = aliases.get(r.indices()[0]);
             assertNotNull(alias);
             Map<String, String> mapping = mappings.get(alias);
+            final FieldCapabilitiesResponse response;
             if (mapping != null) {
-                Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+                Map<String, IndexFieldCapabilities> fieldCaps = new HashMap<>();
                 for (Map.Entry<String, String> e : mapping.entrySet()) {
-                    var f = new FieldCapabilities(
-                        e.getKey(),
-                        e.getValue(),
-                        false,
-                        false,
-                        false,
-                        true,
-                        null,
-                        new String[] { alias },
-                        null,
-                        null,
-                        null,
-                        null,
-                        Map.of()
-                    );
-                    fieldCaps.put(e.getKey(), Map.of(e.getValue(), f));
+                    var f = new IndexFieldCapabilitiesBuilder(e.getKey(), e.getValue()).isSearchable(false).isAggregatable(false).build();
+                    fieldCaps.put(e.getKey(), f);
                 }
-                listener.onResponse((Response) new FieldCapabilitiesResponse(new String[] { alias }, fieldCaps));
+                var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);
+                response = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indexResponse)).build();
             } else {
-                listener.onResponse((Response) new FieldCapabilitiesResponse(new String[0], Map.of()));
+                response = FieldCapabilitiesResponse.empty();
             }
+            threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+                .execute(ActionRunnable.supply(listener, () -> (Response) new EsqlResolveFieldsResponse(response)));
         }
     }
 }

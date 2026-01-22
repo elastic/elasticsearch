@@ -5,7 +5,6 @@
   "template": {
     "settings": {
       "index": {
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "hidden": true

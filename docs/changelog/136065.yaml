@@ -1,0 +1,5 @@
+pr: 136065
+summary: Nightly maintenance for anomaly detection results indices to keep to manageable size.
+area: Machine Learning
+type: enhancement
+issues: []

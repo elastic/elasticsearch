@@ -13,20 +13,30 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -43,17 +53,73 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
-        return parameterSuppliersFromTypedData(suppliers);
-    }
 
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
-    }
+        // Warnings cases
+        suppliers.stream().toList().forEach(supplier -> {
+            DataType firstArgumentType = supplier.types().get(0);
+            String evaluatorTypePart = switch (firstArgumentType) {
+                case BOOLEAN -> "Boolean";
+                case INTEGER -> "Int";
+                case LONG, DATE_NANOS, DATETIME, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
+                case DOUBLE -> "Double";
+                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> "BytesRef";
+                default -> throw new IllegalArgumentException("Unsupported type: " + firstArgumentType);
+            };
 
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(representableTypes()), required(integers()), optional(integers()));
+            // Start offset greater than end offset
+            suppliers.add(new TestCaseSupplier(List.of(firstArgumentType, DataType.INTEGER, DataType.INTEGER), () -> {
+                int end = randomIntBetween(0, 10);
+                int start = randomIntBetween(end + 1, end + 10);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(List.of(randomLiteral(firstArgumentType).value()), firstArgumentType, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSlice"
+                        + evaluatorTypePart
+                        + "Evaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    firstArgumentType,
+                    nullValue()
+                ).withFoldingException(InvalidArgumentException.class, "Start offset is greater than end offset")
+                    .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Start offset is greater than end offset"
+                    );
+            }));
+
+            // Negative start with positive end
+            suppliers.add(new TestCaseSupplier(List.of(firstArgumentType, DataType.INTEGER, DataType.INTEGER), () -> {
+                int start = randomIntBetween(-10, -1);
+                int end = randomIntBetween(0, 10);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(List.of(randomLiteral(firstArgumentType).value()), firstArgumentType, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSlice"
+                        + evaluatorTypePart
+                        + "Evaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    firstArgumentType,
+                    nullValue()
+                ).withFoldingException(InvalidArgumentException.class, "Start and end offset have different signs")
+                    .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Start and end offset have different signs"
+                    );
+            }));
+        });
+
+        return parameterSuppliersFromTypedData(
+            anyNullIsNull(
+                suppliers,
+                (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
+                    ? DataType.NULL
+                    : original.expectedType(),
+                (nullPosition, nullData, original) -> original
+            )
+        );
     }
 
     @Override
@@ -63,282 +129,302 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
 
     private static void booleans(List<TestCaseSupplier> suppliers) {
         // Positive
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.BOOLEAN, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.INTEGER), () -> {
             List<Boolean> field = randomList(1, 10, () -> randomBoolean());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.BOOLEAN, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.BOOLEAN, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBooleanEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
         // Positive Start IndexOutofBound
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.BOOLEAN, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.INTEGER), () -> {
             List<Boolean> field = randomList(1, 10, () -> randomBoolean());
             int length = field.size();
             int start = randomIntBetween(length, length + 1);
             int end = randomIntBetween(start, length + 10);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.BOOLEAN, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.BOOLEAN, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBooleanEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 nullValue()
             );
         }));
         // Positive End IndexOutofBound
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.BOOLEAN, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.INTEGER), () -> {
             List<Boolean> field = randomList(1, 10, () -> randomBoolean());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(length, length + 10);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.BOOLEAN, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.BOOLEAN, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBooleanEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(start == length - 1 ? field.get(start) : field.subList(start, length))
             );
         }));
         // Negative
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.BOOLEAN, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.INTEGER), () -> {
             List<Boolean> field = randomList(1, 10, () -> randomBoolean());
             int length = field.size();
             int start = randomIntBetween(0 - length, -1);
             int end = randomIntBetween(start, -1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.BOOLEAN, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.BOOLEAN, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBooleanEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(start == end ? field.get(start + length) : field.subList(start + length, end + 1 + length))
             );
         }));
     }
 
     private static void ints(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER, DataType.INTEGER), () -> {
             List<Integer> field = randomList(1, 10, () -> randomInt());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.INTEGER, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.INTEGER, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceIntEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
     }
 
     private static void longs(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Long> field = randomList(1, 10, () -> randomLong());
+        addLongTestCase(suppliers, DataType.LONG, ESTestCase::randomLong);
+        addLongTestCase(suppliers, DataType.DATETIME, ESTestCase::randomLong);
+        addLongTestCase(suppliers, DataType.DATE_NANOS, ESTestCase::randomLong);
+        for (DataType gridType : new DataType[] { GEOHASH, GEOTILE, GEOHEX }) {
+            addLongTestCase(suppliers, gridType, () -> randomGrid(gridType));
+        }
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Long> field = randomList(1, 10, () -> randomNonNegativeLong());
+            List<BigInteger> result = field.stream().map(NumericUtils::unsignedLongAsBigInteger).toList();
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.LONG, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.UNSIGNED_LONG, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.LONG,
-                equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
+                DataType.UNSIGNED_LONG,
+                equalTo(start == end ? result.get(start) : result.subList(start, end + 1))
             );
         }));
+    }
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DATETIME, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Long> field = randomList(1, 10, () -> randomLong());
+    private static void addLongTestCase(List<TestCaseSupplier> suppliers, DataType dataType, Supplier<Long> longSupplier) {
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Long> field = randomList(1, 10, longSupplier);
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.DATETIME, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, dataType, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.DATETIME,
+                dataType,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
     }
 
+    static long randomGrid(DataType gridType) {
+        Point point = GeometryTestUtils.randomPoint();
+        return switch (gridType) {
+            case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), randomIntBetween(1, Geohash.PRECISION));
+            case GEOTILE -> GeoTileUtils.longEncode(point.getX(), point.getY(), randomIntBetween(1, GeoTileUtils.MAX_ZOOM));
+            case GEOHEX -> H3.geoToH3(point.getLat(), point.getLon(), randomIntBetween(1, H3.MAX_H3_RES));
+            default -> throw new IllegalStateException("Invalid grid type: " + gridType);
+        };
+    }
+
     private static void doubles(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DOUBLE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.INTEGER, DataType.INTEGER), () -> {
             List<Double> field = randomList(1, 10, () -> randomDouble());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.DOUBLE, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceDoubleEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataTypes.KEYWORD).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.KEYWORD, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.KEYWORD, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataTypes.TEXT).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.TEXT, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.TEXT, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.TEXT,
+                DataType.TEXT,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.IP, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataTypes.IP).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.IP, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.IP, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.IP,
+                DataType.IP,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.VERSION, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataTypes.VERSION).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataTypes.VERSION, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.VERSION, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataTypes.VERSION,
+                DataType.VERSION,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_POINT, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.GEO_POINT, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.GEO_POINT, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.GEO_POINT,
+                DataType.GEO_POINT,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_POINT, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.CARTESIAN_POINT, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.CARTESIAN_POINT, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.CARTESIAN_POINT,
+                DataType.CARTESIAN_POINT,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_SHAPE, DataType.INTEGER, DataType.INTEGER), () -> {
+            var field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.GEO_SHAPE, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.GEO_SHAPE, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.GEO_SHAPE,
+                DataType.GEO_SHAPE,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_SHAPE, DataType.INTEGER, DataType.INTEGER), () -> {
+            var field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.CARTESIAN_SHAPE, "field"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
+                    new TestCaseSupplier.TypedData(field, DataType.CARTESIAN_SHAPE, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.CARTESIAN_SHAPE,
+                DataType.CARTESIAN_SHAPE,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));

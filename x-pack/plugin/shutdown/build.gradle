@@ -4,9 +4,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    name 'x-pack-shutdown'
-    description 'Elasticsearch Expanded Pack Plugin - Shutdown'
-    classname 'org.elasticsearch.xpack.shutdown.ShutdownPlugin'
+    name = 'x-pack-shutdown'
+    description = 'Elasticsearch Expanded Pack Plugin - Shutdown'
+    classname ='org.elasticsearch.xpack.shutdown.ShutdownPlugin'
     extendedPlugins = ['x-pack-core']
 }
 base {

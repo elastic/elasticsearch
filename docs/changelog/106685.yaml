@@ -1,5 +1,0 @@
-pr: 106685
-summary: '`SharedBlobCacheService.maybeFetchRegion` should use `computeCacheFileRegionSize`'
-area: Snapshot/Restore
-type: bug
-issues: []

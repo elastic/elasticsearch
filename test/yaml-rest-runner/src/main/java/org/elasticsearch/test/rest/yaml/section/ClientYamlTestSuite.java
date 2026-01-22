@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -299,6 +300,14 @@ public class ClientYamlTestSuite {
                     """, section.getLocation().lineNumber()))
         );
 
+        if (hasCapabilitiesCheck(testSection, setupSection, teardownSection)
+            && false == hasYamlRunnerFeature("capabilities", testSection, setupSection, teardownSection)) {
+            errors = Stream.concat(errors, Stream.of("""
+                attempted to add a [capabilities] check in prerequisites without a corresponding \
+                ["requires": "test_runner_features": "capabilities"] \
+                so runners that do not support [capabilities] checks can skip the test"""));
+        }
+
         return errors;
     }
 
@@ -311,6 +320,16 @@ public class ClientYamlTestSuite {
         return (testSection != null && hasYamlRunnerFeature(feature, testSection.getPrerequisiteSection()))
             || (setupSection != null && hasYamlRunnerFeature(feature, setupSection.getPrerequisiteSection()))
             || (teardownSection != null && hasYamlRunnerFeature(feature, teardownSection.getPrerequisiteSection()));
+    }
+
+    private static boolean hasCapabilitiesCheck(
+        ClientYamlTestSection testSection,
+        SetupSection setupSection,
+        TeardownSection teardownSection
+    ) {
+        return (testSection != null && testSection.getPrerequisiteSection().hasCapabilitiesCheck())
+            || (setupSection != null && setupSection.getPrerequisiteSection().hasCapabilitiesCheck())
+            || (teardownSection != null && teardownSection.getPrerequisiteSection().hasCapabilitiesCheck());
     }
 
     private static boolean hasYamlRunnerFeature(String feature, PrerequisiteSection prerequisiteSection) {

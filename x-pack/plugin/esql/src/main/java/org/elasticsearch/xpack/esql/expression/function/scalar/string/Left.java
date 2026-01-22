@@ -9,43 +9,45 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 /**
  * {code left(foo, len)} is an alias to {code substring(foo, 0, len)}
  */
 public class Left extends EsqlScalarFunction {
-
-    private final Source source;
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Left", Left::new);
 
     private final Expression str;
-
     private final Expression length;
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns the substring that extracts 'length' chars from 'string' starting from the left.",
+        description = "Returns the substring that extracts *length* chars from *string* starting from the left.",
         examples = { @Example(file = "string", tag = "left") }
     )
     public Left(
@@ -54,15 +56,30 @@ public class Left extends EsqlScalarFunction {
         @Param(name = "length", type = { "integer" }, description = "The number of characters to return.") Expression length
     ) {
         super(source, Arrays.asList(str, length));
-        this.source = source;
         this.str = str;
         this.length = length;
     }
 
+    private Left(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(length);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Evaluator
     static BytesRef process(
-        @Fixed(includeInToString = false, build = true) BytesRef out,
-        @Fixed(includeInToString = false, build = true) UnicodeUtil.UTF8CodePoint cp,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef out,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) UnicodeUtil.UTF8CodePoint cp,
         BytesRef str,
         int length
     ) {
@@ -78,9 +95,9 @@ public class Left extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new LeftEvaluator.Factory(
-            source,
+            source(),
             context -> new BytesRef(),
             context -> new UnicodeUtil.UTF8CodePoint(),
             toEvaluator.apply(str),
@@ -100,7 +117,7 @@ public class Left extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -125,5 +142,13 @@ public class Left extends EsqlScalarFunction {
     @Override
     public boolean foldable() {
         return str.foldable() && length.foldable();
+    }
+
+    Expression str() {
+        return str;
+    }
+
+    Expression length() {
+        return length;
     }
 }

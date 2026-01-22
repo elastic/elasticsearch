@@ -14,24 +14,30 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
-public class PutConnectorActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<PutConnectorAction.Response> {
+public class PutConnectorActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<ConnectorCreateActionResponse> {
     @Override
-    protected Writeable.Reader<PutConnectorAction.Response> instanceReader() {
-        return PutConnectorAction.Response::new;
+    protected Writeable.Reader<ConnectorCreateActionResponse> instanceReader() {
+        return ConnectorCreateActionResponse::new;
     }
 
     @Override
-    protected PutConnectorAction.Response createTestInstance() {
-        return new PutConnectorAction.Response(randomFrom(DocWriteResponse.Result.values()));
+    protected ConnectorCreateActionResponse createTestInstance() {
+        return new ConnectorCreateActionResponse(randomUUID(), randomFrom(DocWriteResponse.Result.values()));
     }
 
     @Override
-    protected PutConnectorAction.Response mutateInstance(PutConnectorAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+    protected ConnectorCreateActionResponse mutateInstance(ConnectorCreateActionResponse instance) throws IOException {
+        String id = instance.getId();
+        DocWriteResponse.Result result = instance.getResult();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> id = randomValueOtherThan(id, () -> randomUUID());
+            case 1 -> result = randomValueOtherThan(result, () -> randomFrom(DocWriteResponse.Result.values()));
+        }
+        return new ConnectorCreateActionResponse(id, result);
     }
 
     @Override
-    protected PutConnectorAction.Response mutateInstanceForVersion(PutConnectorAction.Response instance, TransportVersion version) {
+    protected ConnectorCreateActionResponse mutateInstanceForVersion(ConnectorCreateActionResponse instance, TransportVersion version) {
         return instance;
     }
 }

@@ -7,13 +7,23 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
-public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Request> {
+public class PutInferenceModelRequestTests extends AbstractBWCWireSerializationTestCase<PutInferenceModelAction.Request> {
+
+    private static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT = TransportVersion.fromName(
+        "inference_add_timeout_put_endpoint"
+    );
+
     @Override
     protected Writeable.Reader<PutInferenceModelAction.Request> instanceReader() {
         return PutInferenceModelAction.Request::new;
@@ -25,38 +35,41 @@ public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCa
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
             randomBytesReference(50),
-            randomFrom(XContentType.values())
+            randomFrom(XContentType.values()),
+            randomTimeValue()
         );
     }
 
     @Override
     protected PutInferenceModelAction.Request mutateInstance(PutInferenceModelAction.Request instance) {
-        return switch (randomIntBetween(0, 3)) {
-            case 0 -> new PutInferenceModelAction.Request(
-                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
+        TaskType taskType = instance.getTaskType();
+        String inferenceId = instance.getInferenceEntityId();
+        BytesReference content = instance.getContent();
+        XContentType contentType = instance.getContentType();
+        TimeValue timeout = instance.getTimeout();
+        switch (randomInt(4)) {
+            case 0 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+            case 1 -> inferenceId = randomValueOtherThan(inferenceId, () -> randomAlphaOfLength(6));
+            case 2 -> content = randomValueOtherThan(content, () -> randomBytesReference(50));
+            case 3 -> contentType = randomValueOtherThan(contentType, () -> randomFrom(XContentType.values()));
+            case 4 -> timeout = randomValueOtherThan(timeout, ESTestCase::randomTimeValue);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutInferenceModelAction.Request(taskType, inferenceId, content, contentType, timeout);
+    }
+
+    @Override
+    protected PutInferenceModelAction.Request mutateInstanceForVersion(PutInferenceModelAction.Request instance, TransportVersion version) {
+        if (version.supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
+            return instance;
+        } else {
+            return new PutInferenceModelAction.Request(
+                instance.getTaskType(),
                 instance.getInferenceEntityId(),
                 instance.getContent(),
-                instance.getContentType()
+                instance.getContentType(),
+                InferenceAction.Request.DEFAULT_TIMEOUT
             );
-            case 1 -> new PutInferenceModelAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId() + "foo",
-                instance.getContent(),
-                instance.getContentType()
-            );
-            case 2 -> new PutInferenceModelAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                randomBytesReference(instance.getContent().length() + 1),
-                instance.getContentType()
-            );
-            case 3 -> new PutInferenceModelAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                instance.getContent(),
-                XContentType.values()[(instance.getContentType().ordinal() + 1) % XContentType.values().length]
-            );
-            default -> throw new IllegalStateException();
-        };
+        }
     }
 }

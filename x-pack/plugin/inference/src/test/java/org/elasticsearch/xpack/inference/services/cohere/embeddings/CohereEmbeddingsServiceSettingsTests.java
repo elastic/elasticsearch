@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -16,6 +15,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -61,7 +64,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     maxInputTokens,
                     CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
-                    CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     DenseVectorFieldMapper.ElementType.BYTE.toString()
                 )
             ),
@@ -78,7 +81,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                         dims,
                         maxInputTokens,
                         model,
-                        null
+                        null,
+                        CohereServiceSettings.CohereApiVersion.V1
                     ),
                     CohereEmbeddingType.BYTE
                 )
@@ -105,7 +109,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     maxInputTokens,
                     CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
-                    CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     CohereEmbeddingType.INT8.toString()
                 )
             ),
@@ -122,7 +126,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                         dims,
                         maxInputTokens,
                         model,
-                        null
+                        null,
+                        CohereServiceSettings.CohereApiVersion.V2
                     ),
                     CohereEmbeddingType.INT8
                 )
@@ -149,10 +154,12 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     maxInputTokens,
                     CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     "old_model",
-                    CohereServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model,
-                    CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
-                    CohereEmbeddingType.BYTE.toString()
+                    ServiceFields.EMBEDDING_TYPE,
+                    CohereEmbeddingType.BYTE.toString(),
+                    CohereServiceSettings.API_VERSION,
+                    CohereServiceSettings.CohereApiVersion.V1.toString()
                 )
             ),
             ConfigurationParseContext.PERSISTENT
@@ -168,7 +175,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                         dims,
                         maxInputTokens,
                         model,
-                        null
+                        null,
+                        CohereServiceSettings.CohereApiVersion.V1
                     ),
                     CohereEmbeddingType.BYTE
                 )
@@ -185,7 +193,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var thrownException = expectThrows(
             ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "")),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "", ServiceFields.MODEL_ID, "model")),
                 ConfigurationParseContext.REQUEST
             )
         );
@@ -195,7 +203,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             containsString(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    CohereEmbeddingsServiceSettings.EMBEDDING_TYPE
+                    ServiceFields.EMBEDDING_TYPE
                 )
             )
         );
@@ -205,7 +213,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var thrownException = expectThrows(
             ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "abc")),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "abc", ServiceFields.MODEL_ID, "model")),
                 ConfigurationParseContext.REQUEST
             )
         );
@@ -215,7 +223,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [byte, float, int8];"
+                        + "[embedding_type] must be one of [binary, bit, byte, float, int8];"
                 )
             )
         );
@@ -225,7 +233,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var thrownException = expectThrows(
             ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "abc")),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "abc")),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -235,7 +243,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [byte, float];"
+                        + "[embedding_type] must be one of [bit, byte, float];"
                 )
             )
         );
@@ -243,66 +251,106 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, List.of("abc"))),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, List.of("abc"))),
                 ConfigurationParseContext.PERSISTENT
             )
         );
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
+            containsString("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
         );
     }
 
     public void testFromMap_ConvertsElementTypeByte_ToCohereEmbeddingTypeByte() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.BYTE.toString())),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.BYTE.toString())),
                 ConfigurationParseContext.PERSISTENT
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.BYTE))
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(CohereServiceSettings.CohereApiVersion.V1),
+                    CohereEmbeddingType.BYTE
+                )
+            )
         );
     }
 
     public void testFromMap_ConvertsElementTypeFloat_ToCohereEmbeddingTypeFloat() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.FLOAT.toString())),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.FLOAT.toString())),
                 ConfigurationParseContext.PERSISTENT
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.FLOAT))
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(CohereServiceSettings.CohereApiVersion.V1),
+                    CohereEmbeddingType.FLOAT
+                )
+            )
         );
     }
 
     public void testFromMap_ConvertsInt8_ToCohereEmbeddingTypeInt8() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.INT8.toString())),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, CohereEmbeddingType.INT8.toString())),
+                ConfigurationParseContext.PERSISTENT
+            ),
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(CohereServiceSettings.CohereApiVersion.V1),
+                    CohereEmbeddingType.INT8
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ConvertsBit_ToCohereEmbeddingTypeBit() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, CohereEmbeddingType.BIT.toString(), ServiceFields.MODEL_ID, "model")),
                 ConfigurationParseContext.REQUEST
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.INT8))
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings((String) null, null, null, null, "model", null, CohereServiceSettings.CohereApiVersion.V2),
+                    CohereEmbeddingType.BIT
+                )
+            )
         );
     }
 
     public void testFromMap_PreservesEmbeddingTypeFloat() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.FLOAT.toString())),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, CohereEmbeddingType.FLOAT.toString(), ServiceFields.MODEL_ID, "model")),
                 ConfigurationParseContext.REQUEST
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.FLOAT))
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings((String) null, null, null, null, "model", null, CohereServiceSettings.CohereApiVersion.V2),
+                    CohereEmbeddingType.FLOAT
+                )
+            )
         );
     }
 
     public void testFromMap_PersistentReadsInt8() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "int8")),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "int8")),
                 ConfigurationParseContext.PERSISTENT
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.INT8))
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(CohereServiceSettings.CohereApiVersion.V1),
+                    CohereEmbeddingType.INT8
+                )
+            )
         );
     }
 
@@ -311,7 +359,31 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte", validation));
         assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8", validation));
         assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float", validation));
+        assertEquals(CohereEmbeddingType.BINARY, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("binary", validation));
+        assertEquals(CohereEmbeddingType.BIT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("bit", validation));
         assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testToXContent_WritesAllValues() throws IOException {
+        var serviceSettings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings(
+                "url",
+                SimilarityMeasure.COSINE,
+                5,
+                10,
+                "model_id",
+                new RateLimitSettings(3),
+                CohereServiceSettings.CohereApiVersion.V2
+            ),
+            CohereEmbeddingType.INT8
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        assertThat(xContentResult, is("""
+            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
+            "rate_limit":{"requests_per_minute":3},"api_version":"V2","embedding_type":"byte"}"""));
     }
 
     @Override
@@ -326,7 +398,19 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstance(CohereEmbeddingsServiceSettings instance) throws IOException {
-        return null;
+        if (randomBoolean()) {
+            CohereServiceSettings commonSettings = randomValueOtherThan(
+                instance.getCommonSettings(),
+                CohereServiceSettingsTests::createRandom
+            );
+            return new CohereEmbeddingsServiceSettings(commonSettings, instance.getEmbeddingType());
+        } else {
+            CohereEmbeddingType embeddingType = randomValueOtherThan(
+                instance.getEmbeddingType(),
+                () -> randomFrom(CohereEmbeddingType.values())
+            );
+            return new CohereEmbeddingsServiceSettings(instance.getCommonSettings(), embeddingType);
+        }
     }
 
     @Override
@@ -341,7 +425,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var map = new HashMap<>(CohereServiceSettingsTests.getServiceSettingsMap(url, model));
 
         if (embeddingType != null) {
-            map.put(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, embeddingType.toString());
+            map.put(ServiceFields.EMBEDDING_TYPE, embeddingType.toString());
         }
 
         return map;

@@ -8,12 +8,8 @@ package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
 
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -63,22 +59,14 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         if (false == SSL_ENABLED) {
             return;
         }
-        Path keyStore;
-        try {
-            keyStore = PathUtils.get(RestSqlIT.class.getResource("/test-node.jks").toURI());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException("exception while reading the store", e);
-        }
-        if (Files.exists(keyStore) == false) {
-            throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
-        }
-        String keyStoreStr = keyStore.toAbsolutePath().toString();
+        String keystorePath = SqlSecurityTestCluster.getKeystorePath();
+        String keystorePass = SqlSecurityTestCluster.KEYSTORE_PASSWORD;
 
         properties.put("ssl", "true");
-        properties.put("ssl.keystore.location", keyStoreStr);
-        properties.put("ssl.keystore.pass", "keypass");
-        properties.put("ssl.truststore.location", keyStoreStr);
-        properties.put("ssl.truststore.pass", "keypass");
+        properties.put("ssl.keystore.location", keystorePath);
+        properties.put("ssl.keystore.pass", keystorePass);
+        properties.put("ssl.truststore.location", keystorePath);
+        properties.put("ssl.truststore.pass", keystorePass);
     }
 
     void expectActionMatchesAdmin(
@@ -345,7 +333,6 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testMetadataGetColumnsDocumentExcluded() throws Exception {
         createUser("no_3s", "read_test_without_c_3");
 

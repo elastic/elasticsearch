@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Method;
+
+import static org.apache.logging.log4j.LogManager.getLogger;
 
 public class SunThreadInfo {
 
@@ -22,7 +24,7 @@ public class SunThreadInfo {
     private static final Method isThreadAllocatedMemorySupported;
     private static final Method isThreadAllocatedMemoryEnabled;
 
-    private static final Logger logger = LogManager.getLogger(SunThreadInfo.class);
+    private static final Logger logger = getLogger(SunThreadInfo.class);
     public static final SunThreadInfo INSTANCE = new SunThreadInfo();
 
     static {
@@ -82,11 +84,13 @@ public class SunThreadInfo {
     }
 
     private static Method getMethod(String methodName, Class<?>... parameterTypes) {
+        String className = "com.sun.management.ThreadMXBean";
         try {
-            Method method = Class.forName("com.sun.management.ThreadMXBean").getMethod(methodName, parameterTypes);
+            Method method = Class.forName(className).getMethod(methodName, parameterTypes);
             return method;
         } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }

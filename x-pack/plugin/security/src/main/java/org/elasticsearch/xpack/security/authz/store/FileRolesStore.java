@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authz.FileRoleValidator;
 
 import java.io.IOException;
@@ -44,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -67,7 +69,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
     private static final Logger logger = LogManager.getLogger(FileRolesStore.class);
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+        .allow2xFormat(true)
+        .allowDescription(true)
+        .build();
 
     private final Settings settings;
     private final Path file;
@@ -106,7 +111,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         }
         this.licenseState = licenseState;
         this.xContentRegistry = xContentRegistry;
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         permissions = parseFile(file, logger, settings, licenseState, xContentRegistry, roleValidator);
@@ -154,6 +159,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         usageStats.put("fls", fls);
         usageStats.put("dls", dls);
         usageStats.put("remote_indices", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteIndicesPrivileges).count());
+        usageStats.put("remote_cluster", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteClusterPermissions).count());
 
         return usageStats;
     }
@@ -167,6 +173,14 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
     public Path getFile() {
         return file;
+    }
+
+    /**
+     * @return a map of all file role definitions. The returned map is unmodifiable.
+     */
+    public Map<String, RoleDescriptor> getAllRoleDescriptors() {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
+        return Collections.unmodifiableMap(localPermissions);
     }
 
     // package private for testing
@@ -291,7 +305,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     Validation.Error validationError = Validation.Roles.validateRoleName(roleName, false);
                     if (validationError != null) {
                         logger.error(
-                            "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ",
+                            "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role...",
                             roleName,
                             path.toAbsolutePath(),
                             validationError
@@ -328,7 +342,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 final String finalRoleName = roleName;
                 logger.error(() -> format("invalid role definition [%s] in roles file [%s]. skipping role...", finalRoleName, path), e);
             } else {
-                logger.error((Supplier<?>) () -> "invalid role definition in roles file [" + path + "]. skipping role...", e);
+                logger.error(() -> format("invalid role definition [%s] in roles file [%s]. skipping role...", segment, path), e);
             }
         }
         return null;
@@ -374,6 +388,16 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         ActionRequestValidationException ex = roleValidator.validatePredefinedRole(descriptor);
         if (ex != null) {
             throw ex;
+        }
+        Validation.Error validationError = Validation.Roles.validateRoleDescription(descriptor.getDescription());
+        if (validationError != null) {
+            logger.error(
+                "invalid role definition [{}] in roles file [{}]. invalid description - {}. skipping role...",
+                roleName,
+                path.toAbsolutePath(),
+                validationError
+            );
+            return null;
         }
         return descriptor;
     }

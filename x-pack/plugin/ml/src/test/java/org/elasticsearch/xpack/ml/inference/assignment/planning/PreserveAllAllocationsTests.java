@@ -25,8 +25,8 @@ public class PreserveAllAllocationsTests extends ESTestCase {
     public void testGivenNoPreviousAssignments() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(440).getBytes(), 4);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 4, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", "m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", "m_2", ByteSizeValue.ofMb(30).getBytes(), 2, 4, Map.of(), 0, null, 0, 0);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(
             List.of(node1, node2),
             List.of(deployment1, deployment2)
@@ -40,15 +40,28 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             Node node2 = new Node("n_2", ByteSizeValue.ofMb(640).getBytes(), 8);
             Deployment deployment1 = new AssignmentPlan.Deployment(
                 "m_1",
+                "m_1",
                 ByteSizeValue.ofMb(30).getBytes(),
                 2,
                 1,
                 Map.of("n_1", 1),
                 1,
+                null,
                 0,
                 0
             );
-            Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
+            Deployment deployment2 = new Deployment(
+                "m_2",
+                "m_2",
+                ByteSizeValue.ofMb(50).getBytes(),
+                6,
+                4,
+                Map.of("n_1", 1, "n_2", 2),
+                3,
+                null,
+                0,
+                0
+            );
             PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(
                 List.of(node1, node2),
                 List.of(deployment1, deployment2)
@@ -72,13 +85,13 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             List<AssignmentPlan.Deployment> modelsPreservingAllocations = preserveAllAllocations.modelsPreservingAllocations();
             assertThat(modelsPreservingAllocations, hasSize(2));
 
-            assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
+            assertThat(modelsPreservingAllocations.get(0).deploymentId(), equalTo("m_1"));
             assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(ByteSizeValue.ofMb(30).getBytes()));
             assertThat(modelsPreservingAllocations.get(0).allocations(), equalTo(1));
             assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
             assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
 
-            assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
+            assertThat(modelsPreservingAllocations.get(1).deploymentId(), equalTo("m_2"));
             assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
             assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(3));
             assertThat(modelsPreservingAllocations.get(1).threadsPerAllocation(), equalTo(4));
@@ -112,21 +125,25 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 8);
             Deployment deployment1 = new AssignmentPlan.Deployment(
                 "m_1",
+                "m_1",
                 ByteSizeValue.ofMb(30).getBytes(),
                 2,
                 1,
                 Map.of("n_1", 1),
                 1,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
             Deployment deployment2 = new Deployment(
+                "m_2",
                 "m_2",
                 ByteSizeValue.ofMb(50).getBytes(),
                 6,
                 4,
                 Map.of("n_1", 1, "n_2", 2),
                 3,
+                null,
                 ByteSizeValue.ofMb(300).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
@@ -153,7 +170,7 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             List<AssignmentPlan.Deployment> modelsPreservingAllocations = preserveAllAllocations.modelsPreservingAllocations();
             assertThat(modelsPreservingAllocations, hasSize(2));
 
-            assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
+            assertThat(modelsPreservingAllocations.get(0).deploymentId(), equalTo("m_1"));
             assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(ByteSizeValue.ofMb(30).getBytes()));
             assertThat(modelsPreservingAllocations.get(0).perDeploymentMemoryBytes(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
             assertThat(modelsPreservingAllocations.get(0).perAllocationMemoryBytes(), equalTo(ByteSizeValue.ofMb(10).getBytes()));
@@ -161,7 +178,7 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
             assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
 
-            assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
+            assertThat(modelsPreservingAllocations.get(1).deploymentId(), equalTo("m_2"));
             assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
             assertThat(modelsPreservingAllocations.get(1).perDeploymentMemoryBytes(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
             assertThat(modelsPreservingAllocations.get(1).perAllocationMemoryBytes(), equalTo(ByteSizeValue.ofMb(10).getBytes()));
@@ -195,7 +212,7 @@ public class PreserveAllAllocationsTests extends ESTestCase {
 
     public void testGivenModelWithPreviousAssignments_AndPlanToMergeHasNoAssignments() {
         Node node = new Node("n_1", ByteSizeValue.ofMb(400).getBytes(), 4);
-        Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 2, 0, 0);
+        Deployment deployment = new Deployment("m_1", "m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 2, null, 0, 0);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node), List.of(deployment));
 
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node), List.of(deployment)).build();

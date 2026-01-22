@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -121,9 +121,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
      */
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
-            encoder(in.readOptionalString());
-        }
         useExplicitFieldOrder(in.readBoolean());
         this.fields = in.readCollectionAsList(Field::new);
         assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
@@ -131,9 +128,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
-            out.writeOptionalString(encoder);
-        }
         out.writeBoolean(useExplicitFieldOrder);
         out.writeCollection(fields);
     }
@@ -301,7 +295,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
             targetOptionsBuilder.boundaryMaxScan(highlighterBuilder.boundaryMaxScan);
         }
         if (highlighterBuilder.boundaryChars != null) {
-            targetOptionsBuilder.boundaryChars(convertCharArray(highlighterBuilder.boundaryChars));
+            targetOptionsBuilder.boundaryChars(highlighterBuilder.boundaryChars);
         }
         if (highlighterBuilder.boundaryScannerLocale != null) {
             targetOptionsBuilder.boundaryScannerLocale(highlighterBuilder.boundaryScannerLocale);
@@ -324,17 +318,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         if (highlighterBuilder.highlightQuery != null) {
             targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
-    }
-
-    static Character[] convertCharArray(char[] array) {
-        if (array == null) {
-            return null;
-        }
-        Character[] charArray = new Character[array.length];
-        for (int i = 0; i < array.length; i++) {
-            charArray[i] = array[i];
-        }
-        return charArray;
     }
 
     @Override
@@ -409,7 +392,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
             this.name = name;
         }
 
-        private Field(Field template, QueryBuilder builder) {
+        Field(Field template, QueryBuilder builder) {
             super(template, builder);
             name = template.name;
             fragmentOffset = template.fragmentOffset;

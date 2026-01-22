@@ -7,17 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores int values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
 
@@ -32,25 +33,51 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
      */
     int getInt(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, int value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getInt(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     IntVector asVector();
 
     @Override
     IntBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default IntBlock deepCopy(BlockFactory blockFactory) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
+    @Override
+    IntBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
     @Override
     IntBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "IntBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::readFrom);
-
-    private static IntBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
@@ -92,10 +119,10 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof IntArrayBlock b) {
+        } else if (this instanceof IntArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof IntBigArrayBlock b) {
+        } else if (this instanceof IntBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
@@ -208,6 +235,14 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
          */
         Builder copyFrom(IntBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(IntBlock block, int position);
+
         @Override
         Builder appendNull();
 
@@ -222,13 +257,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * An estimate of the number of bytes the {@link IntBlock} created by
-         * {@link #build} will use. This may overestimate the size but shouldn't
-         * underestimate it.
-         */
-        long estimatedBytes();
 
         @Override
         IntBlock build();

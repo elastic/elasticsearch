@@ -1,23 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -25,9 +32,9 @@ import java.util.Map;
  * data-structures per field. Elasticsearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
  */
-public class CodecService {
+public class CodecService implements CodecProvider {
 
-    public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
+    public static final boolean ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields").isEnabled();
 
     private final Map<String, Codec> codecs;
 
@@ -39,33 +46,55 @@ public class CodecService {
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
+    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 
-        Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
+        boolean useSyntheticId = mapperService != null
+            && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
+            && mapperService.getIndexSettings()
+                .getIndexVersionCreated()
+                .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
+
+        var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
+        if (useSyntheticId) {
+            // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
+            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec));
+        } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
+            codecs.put(
+                DEFAULT_CODEC,
+                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays, threadPool)
+            );
         } else {
             codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
         }
         codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
 
-        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            codecs.put(
-                BEST_COMPRESSION_CODEC,
-                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
-            );
-        } else {
-            codecs.put(BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
-        }
+        codecs.put(
+            BEST_COMPRESSION_CODEC,
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays, threadPool)
+        );
+        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(
+            Lucene103Codec.Mode.BEST_COMPRESSION,
+            mapperService,
+            bigArrays,
+            threadPool
+        );
         codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
-        this.codecs = Map.copyOf(codecs);
+
+        this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
+            Codec codec;
+            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
+                codec = dedupCodec;
+            } else {
+                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
+            }
+            return codec;
+        }));
     }
 
     public Codec codec(String name) {
@@ -77,9 +106,31 @@ public class CodecService {
     }
 
     /**
-     * Returns all registered available codec names
+     * Returns all registered available codec names.
      */
+    @Override
     public String[] availableCodecs() {
         return codecs.keySet().toArray(new String[0]);
+    }
+
+    public static class DeduplicateFieldInfosCodec extends FilterCodec {
+
+        private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
+
+        @SuppressWarnings("this-escape")
+        protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
+            super(name, delegate);
+            this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+        }
+
+        @Override
+        public final FieldInfosFormat fieldInfosFormat() {
+            return deduplicatingFieldInfosFormat;
+        }
+
+        public final Codec delegate() {
+            return delegate;
+        }
+
     }
 }

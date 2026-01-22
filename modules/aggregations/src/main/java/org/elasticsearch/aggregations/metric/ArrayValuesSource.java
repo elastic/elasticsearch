@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.metric;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
@@ -33,7 +34,7 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
             }
         }
 
-        public NumericDoubleValues getField(final int ordinal, LeafReaderContext ctx) throws IOException {
+        public DoubleValues getField(final int ordinal, LeafReaderContext ctx) throws IOException {
             if (ordinal > names.length) {
                 throw new IndexOutOfBoundsException("ValuesSource array index " + ordinal + " out of bounds");
             }

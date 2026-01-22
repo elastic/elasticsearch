@@ -1,30 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -37,7 +40,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    private static final TransportVersion INDICES_FLAG_VERSION = TransportVersions.V_8_3_0;
+    private static final TransportVersion STATE_FLAG_VERSION = TransportVersion.fromName("state_param_get_snapshot");
 
     public static final int NO_LIMIT = -1;
 
@@ -76,7 +79,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean includeIndexNames = true;
 
-    public GetSnapshotsRequest() {}
+    private EnumSet<SnapshotState> states = EnumSet.allOf(SnapshotState.class);
+
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Constructs a new get snapshots request with given repository names and list of snapshots
@@ -84,8 +91,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * @param repositories repository names
      * @param snapshots  list of snapshots
      */
-    public GetSnapshotsRequest(String[] repositories, String[] snapshots) {
-        this.repositories = repositories;
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String[] repositories, String[] snapshots) {
+        this(masterNodeTimeout, repositories);
         this.snapshots = snapshots;
     }
 
@@ -94,7 +101,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      *
      * @param repositories repository names
      */
-    public GetSnapshotsRequest(String... repositories) {
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String... repositories) {
+        this(masterNodeTimeout);
         this.repositories = repositories;
     }
 
@@ -111,8 +119,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         offset = in.readVInt();
         policies = in.readStringArray();
         fromSortValue = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
-            includeIndexNames = in.readBoolean();
+        includeIndexNames = in.readBoolean();
+        if (in.getTransportVersion().supports(STATE_FLAG_VERSION)) {
+            states = in.readEnumSet(SnapshotState.class);
+        } else {
+            states = EnumSet.allOf(SnapshotState.class);
         }
     }
 
@@ -130,8 +141,13 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeVInt(offset);
         out.writeStringArray(policies);
         out.writeOptionalString(fromSortValue);
-        if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
-            out.writeBoolean(includeIndexNames);
+        out.writeBoolean(includeIndexNames);
+        if (out.getTransportVersion().supports(STATE_FLAG_VERSION)) {
+            out.writeEnumSet(states);
+        } else if (states.equals(EnumSet.allOf(SnapshotState.class)) == false) {
+            final var errorString = "GetSnapshotsRequest [states] field is not supported on all nodes in the cluster";
+            assert false : errorString;
+            throw new IllegalStateException(errorString);
         }
     }
 
@@ -172,6 +188,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
         } else if (after != null && fromSortValue != null) {
             validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
+        }
+        if (states.isEmpty()) {
+            validationException = addValidationError("states is empty", validationException);
         }
         return validationException;
     }
@@ -214,13 +233,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public String[] policies() {
         return policies;
-    }
-
-    public boolean isSingleRepositoryRequest() {
-        return repositories.length == 1
-            && repositories[0] != null
-            && "_all".equals(repositories[0]) == false
-            && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 
     /**
@@ -345,6 +357,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return verbose;
     }
 
+    public EnumSet<SnapshotState> states() {
+        return states;
+    }
+
+    public GetSnapshotsRequest states(EnumSet<SnapshotState> states) {
+        this.states = Objects.requireNonNull(states);
+        return this;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
@@ -353,9 +374,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("repositories[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", "", "", 512, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", 512, stringBuilder);
         stringBuilder.append("], snapshots[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", 1024, stringBuilder);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

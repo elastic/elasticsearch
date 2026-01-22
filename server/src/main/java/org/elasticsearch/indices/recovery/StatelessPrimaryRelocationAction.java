@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +27,7 @@ public class StatelessPrimaryRelocationAction {
         "internal:index/shard/recovery/stateless_primary_relocation"
     );
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final long recoveryId;
         private final ShardId shardId;
@@ -101,6 +102,22 @@ public class StatelessPrimaryRelocationAction {
         @Override
         public int hashCode() {
             return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId, clusterStateVersion);
+        }
+
+        @Override
+        public String toString() {
+            return "Request{"
+                + "shardId="
+                + shardId
+                + ", targetNode="
+                + targetNode.descriptionWithoutAttributes()
+                + ", recoveryId="
+                + recoveryId
+                + ", targetAllocationId='"
+                + targetAllocationId
+                + "', clusterStateVersion="
+                + clusterStateVersion
+                + '}';
         }
     }
 }

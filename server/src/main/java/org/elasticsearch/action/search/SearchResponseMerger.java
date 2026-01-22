@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -18,6 +19,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
@@ -177,7 +179,7 @@ public final class SearchResponseMerger implements Releasable {
             final TotalHits totalHits;
             if (searchHits.getTotalHits() == null) {
                 // in case we didn't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
-                totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+                totalHits = Lucene.TOTAL_HITS_EQUAL_TO_ZERO;
                 assert trackTotalHits == null || trackTotalHits == false;
                 trackTotalHits = false;
             } else {

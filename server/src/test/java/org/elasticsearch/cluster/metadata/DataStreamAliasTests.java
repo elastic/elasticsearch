@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -173,6 +174,29 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
         alias = new DataStreamAlias("my-alias", List.of("ds-1"), null, null);
         result = alias.removeDataStream("ds-2");
         assertThat(result, sameInstance(alias));
+        // Remove a filtered data stream
+        alias = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, Map.of("ds-2", Map.of("term", Map.of("field", "value"))));
+        result = alias.removeDataStream("ds-2");
+        assertThat(result, not(sameInstance(alias)));
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1"));
+        assertThat(result.getFilter("ds-2"), nullValue());
+    }
+
+    public void testRemovalOfOrphanedFilters() {
+        DataStreamAlias alias = new DataStreamAlias(
+            "my-alias",
+            List.of("ds-1", "ds-2"),
+            null,
+            Map.of("unknown", Map.of("term", Map.of("field", "value")))
+        );
+        DataStreamAlias result = alias.removeDataStream("unknown");
+        assertThat(result, not(sameInstance(alias)));
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
+        assertThat(result.getFilter("unknown"), nullValue());
+        result = alias.update("unknown", false, null);
+        assertThat(result, not(sameInstance(alias)));
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "unknown"));
+        assertThat(result.getFilter("unknown"), nullValue());
     }
 
     public void testIntersect() {

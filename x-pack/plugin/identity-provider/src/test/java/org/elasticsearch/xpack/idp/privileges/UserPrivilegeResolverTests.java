@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
@@ -95,7 +96,8 @@ public class UserPrivilegeResolverTests extends ESTestCase {
                 Set.of(),
                 Set.of(appPriv1, appPriv2, discardedAppPriv),
                 Set.of(),
-                Set.of()
+                Set.of(),
+                RemoteClusterPermissions.NONE
             );
             listener.onResponse(response);
             return null;

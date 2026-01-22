@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -13,11 +14,10 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -63,7 +63,7 @@ public class RestTable {
 
         return RestResponse.chunked(
             RestStatus.OK,
-            ChunkedRestResponseBody.fromXContent(
+            ChunkedRestResponseBodyPart.fromXContent(
                 ignored -> Iterators.concat(
                     Iterators.single((builder, params) -> builder.startArray()),
                     Iterators.map(rowOrder.iterator(), row -> (builder, params) -> {
@@ -94,7 +94,7 @@ public class RestTable {
 
         return RestResponse.chunked(
             RestStatus.OK,
-            ChunkedRestResponseBody.fromTextChunks(
+            ChunkedRestResponseBodyPart.fromTextChunks(
                 RestResponse.TEXT_CONTENT_TYPE,
                 Iterators.concat(
                     // optional header
@@ -365,24 +365,6 @@ public class RestTable {
                 return Long.toString(v.getTb());
             } else if ("p".equals(resolution) || "pb".equals(resolution)) {
                 return Long.toString(v.getPb());
-            } else {
-                return v.toString();
-            }
-        }
-        if (value instanceof SizeValue v) {
-            String resolution = request.param("size");
-            if ("".equals(resolution)) {
-                return Long.toString(v.singles());
-            } else if ("k".equals(resolution)) {
-                return Long.toString(v.kilo());
-            } else if ("m".equals(resolution)) {
-                return Long.toString(v.mega());
-            } else if ("g".equals(resolution)) {
-                return Long.toString(v.giga());
-            } else if ("t".equals(resolution)) {
-                return Long.toString(v.tera());
-            } else if ("p".equals(resolution)) {
-                return Long.toString(v.peta());
             } else {
                 return v.toString();
             }

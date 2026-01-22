@@ -414,11 +414,13 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     }
 
     public void testProcessGivenUnsupportedAggregationUnderHistogram() {
-        InternalHistogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
         InternalAggregation anotherHistogram = mock(InternalAggregation.class);
         when(anotherHistogram.getName()).thenReturn("nested-agg");
-        InternalAggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), anotherHistogram));
-        when(histogramBucket.getAggregations()).thenReturn(subAggs);
+        InternalHistogram.Bucket histogramBucket = createHistogramBucket(
+            1000L,
+            2,
+            Arrays.asList(createMax("time", 1000), anotherHistogram)
+        );
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -428,13 +430,11 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     }
 
     public void testProcessGivenMultipleBucketAggregations() {
-        InternalHistogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
         StringTerms terms1 = mock(StringTerms.class);
         when(terms1.getName()).thenReturn("terms_1");
         StringTerms terms2 = mock(StringTerms.class);
         when(terms2.getName()).thenReturn("terms_2");
-        InternalAggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), terms1, terms2));
-        when(histogramBucket.getAggregations()).thenReturn(subAggs);
+        InternalHistogram.Bucket histogramBucket = createHistogramBucket(1000L, 2, Arrays.asList(createMax("time", 1000), terms1, terms2));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -503,6 +503,15 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
             {"time":1100,"my_value":1.0,"doc_count":4} \
             {"time":2200,"my_value":2.0,"doc_count":5} \
             {"time":4400,"my_value":4.0,"doc_count":7}"""));
+    }
+
+    public void testProcessGivenEmptyPercentiles() throws IOException {
+        var histogramBuckets = List.of(createHistogramBucket(1000L, 4, List.of(createMax("time", 1000), createPercentiles("my_field"))));
+
+        var json = aggToString(Sets.newHashSet("my_field"), histogramBuckets);
+
+        assertThat(json, equalTo("""
+            {"time":1000,"doc_count":4}"""));
     }
 
     public void testProcessGivenSinglePercentilesPerHistogram() throws IOException {
@@ -692,7 +701,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         processor.process(aggregations);
         processor.writeAllDocsCancellable(_timestamp -> false, outputStream);
         keyValuePairsWritten = processor.getKeyValueCount();
-        return outputStream.toString(StandardCharsets.UTF_8.name());
+        return outputStream.toString(StandardCharsets.UTF_8);
     }
 
     private String aggToStringComposite(Set<String> fields, List<InternalComposite.InternalBucket> buckets) throws IOException {

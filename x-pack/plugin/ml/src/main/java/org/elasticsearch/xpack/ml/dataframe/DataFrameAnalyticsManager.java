@@ -144,9 +144,9 @@ public class DataFrameAnalyticsManager {
             memoryLimitById.put(config.getId(), config.getModelMemoryLimit());
             // Check if existing destination index is incompatible.
             // If it is, we delete it and start from reindexing.
-            IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
+            IndexMetadata destIndex = clusterState.getMetadata().getProject().index(config.getDest().getIndex());
             if (destIndex != null) {
-                MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
+                MappingMetadata destIndexMapping = clusterState.getMetadata().getProject().index(config.getDest().getIndex()).mapping();
                 DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
                 if (metadata.hasMetadata() && (metadata.isCompatible() == false)) {
                     LOGGER.info(
@@ -297,7 +297,7 @@ public class DataFrameAnalyticsManager {
             config,
             listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-                InferenceRunner inferenceRunner = new InferenceRunner(
+                InferenceRunner inferenceRunner = InferenceRunner.create(
                     settings,
                     parentTaskClient,
                     modelLoadingService,
@@ -306,7 +306,8 @@ public class DataFrameAnalyticsManager {
                     config,
                     extractedFields,
                     task.getStatsHolder().getProgressTracker(),
-                    task.getStatsHolder().getDataCountsTracker()
+                    task.getStatsHolder().getDataCountsTracker(),
+                    threadPool
                 );
                 InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
                 delegate.onResponse(inferenceStep);

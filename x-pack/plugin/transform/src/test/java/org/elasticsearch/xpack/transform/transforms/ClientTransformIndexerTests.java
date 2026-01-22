@@ -22,11 +22,19 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
@@ -42,6 +50,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -51,6 +60,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSetti
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
@@ -64,18 +74,27 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ClientTransformIndexerTests extends ESTestCase {
@@ -171,7 +190,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+", response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -184,15 +203,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+", response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id++", response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id++")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+++", response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+++")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -201,15 +220,25 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+", response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
+            });
+
+            var paceCounter = new AtomicInteger(0);
+            client.addBeforeCloseListener(() -> assertThat(paceCounter.getAndIncrement(), equalTo(0)));
+            indexer.closePointInTime(() -> assertThat(paceCounter.getAndIncrement(), equalTo(1)));
+            assertThat(paceCounter.get(), equalTo(2));
+            assertEquals(0L, client.getPitContextCounter());
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id++", response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id++")));
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+++", response.pointInTimeId());
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+++")));
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -306,11 +335,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
     public void testDisablePit() throws InterruptedException {
         TransformConfig.Builder configBuilder = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig());
-        if (randomBoolean()) {
-            // TransformConfigTests.randomTransformConfig never produces remote indices in the source.
-            // We need to explicitly set the remote index here for coverage.
-            configBuilder.setSource(new SourceConfig("remote-cluster:remote-index"));
-        }
         TransformConfig config = configBuilder.build();
 
         boolean pitEnabled = TransformEffectiveSettings.isPitDisabled(config.getSettings()) == false;
@@ -357,7 +381,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
                 if (pitEnabled) {
-                    assertEquals("the_pit_id+", response.pointInTimeId());
+                    assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
                 } else {
                     assertNull(response.pointInTimeId());
                 }
@@ -370,9 +394,73 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 if (pitEnabled) {
                     assertNull(response.pointInTimeId());
                 } else {
-                    assertEquals("the_pit_id+", response.pointInTimeId());
+                    assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
                 }
             });
+        }
+    }
+
+    public void testDisablePitWhenThereIsRemoteIndexInSource() throws InterruptedException {
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig())
+            // Remote index is configured within source
+            .setSource(new SourceConfig("remote-cluster:remote-index"))
+            .build();
+        boolean pitEnabled = TransformEffectiveSettings.isPitDisabled(config.getSettings()) == false;
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
+                mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformNode.class)
+                ),
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+                mock(TransformIndexerStats.class),
+                config,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                mock(TransformContext.class),
+                false
+            );
+
+            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> assertNull(response.pointInTimeId())
+            );
+
+            // reverse the setting
+            indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
+
+            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> assertNull(response.pointInTimeId())
+            );
         }
     }
 
@@ -382,7 +470,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, true);
             ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("deleted-index").source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id_on_deleted_index"))
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("the_pit_id_on_deleted_index")))
             );
             Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
             this.<SearchResponse>assertAsync(listener -> indexer.doSearch(namedSearchRequest, listener), response -> {
@@ -396,7 +484,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, true);
             ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("essential-deleted-index").source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id_essential-deleted-index"))
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("the_pit_id_essential-deleted-index")))
             );
             Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
             indexer.doSearch(namedSearchRequest, ActionListener.wrap(r -> fail("expected a failure, got response"), e -> {
@@ -404,6 +492,61 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 assertEquals("no such index [essential-deleted-index]", e.getMessage());
             }));
         }
+    }
+
+    public void testIndexBlocked() {
+        var service = serviceWithBlockCheck(true);
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock());
+
+        var indexer = createTestIndexer(mock(), service, resolver(), context);
+        context.setIsWaitingForIndexToUnblock(true);
+
+        assertFalse(indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli()));
+        assertTrue(context.isWaitingForIndexToUnblock());
+    }
+
+    public void testIndexUnblocked() {
+        var service = serviceWithBlockCheck(false);
+        // set state to failed so that TransformIndexer returns false
+        var context = new TransformContext(TransformTaskState.FAILED, "", 0, mock());
+
+        var indexer = createTestIndexer(mock(), service, resolver(), context);
+        context.setIsWaitingForIndexToUnblock(true);
+
+        assertFalse(indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli()));
+        // ClientTransformIndexer's maybeTriggerAsyncJob should reset isWaitingForIndexToUnblock to false
+        assertFalse(context.isWaitingForIndexToUnblock());
+    }
+
+    private ClusterService serviceWithBlockCheck(boolean checkResponse) {
+        var clusterBlocks = mock(ClusterBlocks.class);
+        when(clusterBlocks.indexBlocked(eq(ClusterBlockLevel.WRITE), anyString())).thenReturn(checkResponse);
+
+        var project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
+        when(project.custom(eq(TransformMetadata.TYPE))).thenReturn(TransformMetadata.EMPTY_METADATA);
+
+        var metadata = Metadata.builder().put(project).build();
+        var clusterState = mock(ClusterState.class);
+        when(clusterState.blocks()).thenReturn(clusterBlocks);
+        when(clusterState.metadata()).thenReturn(metadata);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        return clusterService;
+    }
+
+    private IndexNameExpressionResolver resolver() {
+        var resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteWriteIndex(any(ProjectMetadata.class), any(), any(), anyBoolean(), anyBoolean())).thenAnswer(ans -> {
+            Index destIndex = mock();
+            when(destIndex.getName()).thenReturn(ans.getArgument(2));
+            return destIndex;
+        });
+        when(resolver.concreteWriteIndex(any(ClusterState.class), any(), any(), anyBoolean(), anyBoolean())).thenAnswer(ans -> {
+            Index destIndex = mock();
+            when(destIndex.getName()).thenReturn(ans.getArgument(2));
+            return destIndex;
+        });
+        return resolver;
     }
 
     private static class MockClientTransformIndexer extends ClientTransformIndexer {
@@ -457,10 +600,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
     private static class PitMockClient extends NoOpClient {
         private final boolean pitSupported;
         private AtomicLong pitContextCounter = new AtomicLong();
+        private List<Runnable> beforeCloseListeners = new ArrayList<>();
 
         PitMockClient(ThreadPool threadPool, boolean pitSupported) {
             super(threadPool);
             this.pitSupported = pitSupported;
+        }
+
+        public void addBeforeCloseListener(Runnable listener) {
+            this.beforeCloseListeners.add(listener);
         }
 
         public long getPitContextCounter() {
@@ -477,13 +625,14 @@ public class ClientTransformIndexerTests extends ESTestCase {
             if (request instanceof OpenPointInTimeRequest) {
                 if (pitSupported) {
                     pitContextCounter.incrementAndGet();
-                    OpenPointInTimeResponse response = new OpenPointInTimeResponse("the_pit_id");
+                    OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("the_pit_id"), 1, 1, 0, 0);
                     listener.onResponse((Response) response);
                 } else {
                     listener.onFailure(new ActionNotFoundTransportException("_pit"));
                 }
                 return;
             } else if (request instanceof ClosePointInTimeRequest) {
+                beforeCloseListeners.forEach(Runnable::run);
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
                 assert pitContextCounter.get() > 0;
                 pitContextCounter.decrementAndGet();
@@ -492,13 +641,13 @@ public class ClientTransformIndexerTests extends ESTestCase {
             } else if (request instanceof SearchRequest searchRequest) {
                 // if pit is used and deleted-index is given throw index not found
                 if (searchRequest.pointInTimeBuilder() != null
-                    && searchRequest.pointInTimeBuilder().getEncodedId().equals("the_pit_id_on_deleted_index")) {
+                    && searchRequest.pointInTimeBuilder().getEncodedId().equals(new BytesArray("the_pit_id_on_deleted_index"))) {
                     listener.onFailure(new IndexNotFoundException("deleted-index"));
                     return;
                 }
 
                 if ((searchRequest.pointInTimeBuilder() != null
-                    && searchRequest.pointInTimeBuilder().getEncodedId().equals("the_pit_id_essential-deleted-index"))
+                    && searchRequest.pointInTimeBuilder().getEncodedId().equals(new BytesArray("the_pit_id_essential-deleted-index")))
                     || (searchRequest.indices().length > 0 && searchRequest.indices()[0].equals("essential-deleted-index"))) {
                     listener.onFailure(new IndexNotFoundException("essential-deleted-index"));
                     return;
@@ -506,7 +655,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
                 // throw search context missing for the 4th run
                 if (searchRequest.pointInTimeBuilder() != null
-                    && "the_pit_id+++".equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
+                    && new BytesArray("the_pit_id+++").equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
                     listener.onFailure(new SearchContextMissingException(new ShardSearchContextId("sc_missing", 42)));
                 } else {
                     ActionListener.respondAndRelease(
@@ -532,7 +681,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             ShardSearchFailure.EMPTY_ARRAY,
                             SearchResponse.Clusters.EMPTY,
                             // copy the pit from the request
-                            searchRequest.pointInTimeBuilder() != null ? searchRequest.pointInTimeBuilder().getEncodedId() + "+" : null
+                            searchRequest.pointInTimeBuilder() != null
+                                ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
+                                : null
                         )
                     );
 
@@ -564,13 +715,22 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     private ClientTransformIndexer createTestIndexer(ParentTaskAssigningClient client) {
+        return createTestIndexer(client, mock(), mock(), mock(TransformContext.class));
+    }
+
+    private ClientTransformIndexer createTestIndexer(
+        ParentTaskAssigningClient client,
+        ClusterService service,
+        IndexNameExpressionResolver resolver,
+        TransformContext context
+    ) {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         return new ClientTransformIndexer(
             mock(ThreadPool.class),
-            mock(ClusterService.class),
-            mock(IndexNameExpressionResolver.class),
+            service,
+            resolver,
             mock(TransformExtension.class),
             new TransformServices(
                 mock(IndexBasedTransformConfigManager.class),
@@ -589,7 +749,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-            mock(TransformContext.class),
+            context,
             false
         );
     }

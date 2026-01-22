@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.remote;
@@ -25,6 +26,8 @@ import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -77,7 +80,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Build.current().version(),
-                    TransportVersion.current(),
+                    new CompatibilityVersions(TransportVersion.current(), Map.of()),
                     IndexVersion.current(),
                     Map.of(),
                     null,
@@ -107,7 +110,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         final RemoteClusterNodesAction.TransportAction action = new RemoteClusterNodesAction.TransportAction(
             mock(TransportService.class),
             new ActionFilters(Set.of()),
-            new AbstractClient(Settings.EMPTY, threadPool) {
+            new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @SuppressWarnings("unchecked")
                 @Override
                 protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -155,7 +158,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Build.current().version(),
-                    TransportVersion.current(),
+                    new CompatibilityVersions(TransportVersion.current(), Map.of()),
                     IndexVersion.current(),
                     Map.of(),
                     null,
@@ -185,7 +188,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         final RemoteClusterNodesAction.TransportAction action = new RemoteClusterNodesAction.TransportAction(
             mock(TransportService.class),
             new ActionFilters(Set.of()),
-            new AbstractClient(Settings.EMPTY, threadPool) {
+            new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @SuppressWarnings("unchecked")
                 @Override
                 protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

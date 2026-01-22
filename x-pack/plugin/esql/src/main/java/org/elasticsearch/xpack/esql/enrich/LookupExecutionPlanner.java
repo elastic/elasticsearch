@@ -105,9 +105,10 @@ public class LookupExecutionPlanner {
             Page inputPage,
             AbstractLookupService.TransportRequest request,
             AliasFilter aliasFilter,
-            QueryListFactory queryListFactory
+            QueryListFactory queryListFactory,
+            LocalCircuitBreaker.SizeSettings localBreakerSettings
         ) {
-            super(bigArrays, blockFactory);
+            super(bigArrays, blockFactory, localBreakerSettings);
             this.shardContext = shardContext;
             this.lookupShardContext = lookupShardContext;
             this.collectedPages = collectedPages;
@@ -203,7 +204,8 @@ public class LookupExecutionPlanner {
             request.inputPage,
             request,
             aliasFilter,
-            queryListFactory
+            queryListFactory,
+            localBreakerSettings
         );
 
         // Create operators from factories
@@ -319,7 +321,7 @@ public class LookupExecutionPlanner {
                                 if (shardIdx != 0) {
                                     throw new IllegalStateException("only one shard");
                                 }
-                                return loader;
+                                return ValuesSourceReaderOperator.load(loader);
                             }
                         )
                     );
@@ -332,13 +334,7 @@ public class LookupExecutionPlanner {
                         EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
                     )
                 );
-                return new ValuesSourceReaderOperator(
-                    driverContext.blockFactory(),
-                    jumboSize.getBytes(),
-                    fields,
-                    shardContexts,
-                    docChannel
-                );
+                return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, docChannel);
             }
 
             @Override

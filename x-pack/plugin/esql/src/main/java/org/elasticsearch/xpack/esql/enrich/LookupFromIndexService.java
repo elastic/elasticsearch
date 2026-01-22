@@ -459,7 +459,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
                 projectState,
                 request.shardId.getIndex().getName(),
-                indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
+                indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(projectState.metadata(), request.indexPattern)
             );
 
             LookupQueryPlan lookupQueryPlan = executionPlanner.buildOperators(

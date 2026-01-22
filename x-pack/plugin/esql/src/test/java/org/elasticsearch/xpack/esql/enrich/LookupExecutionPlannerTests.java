@@ -173,7 +173,9 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         when(indicesService.buildAliasFilter(any(), any(), any())).thenReturn(AliasFilter.EMPTY);
 
         indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(indexNameExpressionResolver.resolveExpressions(any(), any())).thenReturn(Set.of(new ResolvedExpression("test-index")));
+        when(indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(any(), any())).thenReturn(
+            Set.of(new ResolvedExpression("test-index"))
+        );
 
         // Create mock transport service - only needed for constructor, startDriver does nothing
         // Since we override startDriver to do nothing, we don't need a real thread pool

@@ -183,11 +183,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size, boolean sortedInput) {
         var longs = LongStream.range(0, size).map(l -> ESTestCase.randomLong());
 
-        return new SequenceLongBlockSourceOperator(
-            blockFactory,
-            sortedInput ? longs.sorted() : longs,
-            between(1, size * 2)
-        );
+        return new SequenceLongBlockSourceOperator(blockFactory, sortedInput ? longs.sorted() : longs, between(1, size * 2));
     }
 
     @Override

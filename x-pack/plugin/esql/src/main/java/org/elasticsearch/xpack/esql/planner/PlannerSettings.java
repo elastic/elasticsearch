@@ -30,6 +30,7 @@ public class PlannerSettings {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
             VALUES_LOADING_JUMBO_SIZE,
+            RATE_BUFFER_SIZE,
             LUCENE_TOPN_LIMIT,
             INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
             REDUCTION_LATE_MATERIALIZATION,
@@ -51,6 +52,15 @@ public class PlannerSettings {
         return ByteSizeValue.ofBytes(Math.max(proportional, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
     },
         s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.values_loading_jumbo_size"),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<ByteSizeValue> RATE_BUFFER_SIZE = new Setting<>("esql.rate_buffer_size", settings -> {
+        long oneTenth = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 10;
+        return ByteSizeValue.ofBytes(Math.max(oneTenth, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
+    },
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.rate_buffer_size"),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -105,6 +115,7 @@ public class PlannerSettings {
 
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
+    private volatile ByteSizeValue rateBufferSize;
     private volatile int luceneTopNLimit;
     private volatile ByteSizeValue intermediateLocalRelationMaxSize;
     private volatile ByteSizeValue blockLoaderSizeOrdinals;
@@ -117,6 +128,7 @@ public class PlannerSettings {
         var clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
         clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
+        clusterSettings.initializeAndWatch(RATE_BUFFER_SIZE, v -> this.rateBufferSize = v);
         clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
         clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
         clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_ORDINALS, v -> this.blockLoaderSizeOrdinals = v);
@@ -129,6 +141,7 @@ public class PlannerSettings {
     public PlannerSettings(
         DataPartitioning defaultDataPartitioning,
         ByteSizeValue valuesLoadingJumboSize,
+        ByteSizeValue rateBufferSize,
         int luceneTopNLimit,
         ByteSizeValue intermediateLocalRelationMaxSize,
         ByteSizeValue blockLoaderSizeOrdinals,
@@ -136,6 +149,7 @@ public class PlannerSettings {
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
+        this.rateBufferSize = rateBufferSize;
         this.luceneTopNLimit = luceneTopNLimit;
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
@@ -172,10 +186,23 @@ public class PlannerSettings {
         return intermediateLocalRelationMaxSize;
     }
 
+    /**
+     * Returns the memory size allocated for buffering data points during rate calculations.
+     */
+    public ByteSizeValue getRateBufferSize() {
+        return rateBufferSize;
+    }
+
+    /**
+     * Circuit breaker space reserved for each ordinals {@link BlockLoader.Reader}.
+     */
     public ByteSizeValue blockLoaderSizeOrdinals() {
         return blockLoaderSizeOrdinals;
     }
 
+    /**
+     * Circuit breaker space reserved for each script {@link BlockLoader.Reader}.
+     */
     public ByteSizeValue blockLoaderSizeScript() {
         return blockLoaderSizeScript;
     }

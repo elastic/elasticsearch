@@ -281,6 +281,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         PlannerSettings plannerSettings = new PlannerSettings(
             DataPartitioning.AUTO,
             ByteSizeValue.ofMb(1),
+            ByteSizeValue.ofMb(2),
             10_000,
             ByteSizeValue.ofMb(1),
             MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,

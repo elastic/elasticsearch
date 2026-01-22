@@ -11,8 +11,6 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
@@ -55,25 +53,35 @@ public class AllFirstIntByTimestampAggregator {
         return "all_first_int_by_timestamp";
     }
 
-    public static AllLongIntState initSingle() {
-        return new AllLongIntState();
+    public static AllLongIntState initSingle(DriverContext driverContext) {
+        return new AllLongIntState(driverContext.bigArrays());
     }
 
     private static void overrideState(AllLongIntState current, boolean timestampPresent, long timestamp, IntBlock values, int position) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);
-        Releasables.close(current.v2());
         if (values.isNull(position)) {
+            Releasables.close(current.v2());
             current.v2(null);
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            IntArray a = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(count);
-            for (int i = 0; i < count; ++i) {
-                a.set(i, values.getInt(offset + i));
+            IntArray a = null;
+            boolean success = false;
+            try {
+                a = current.bigArrays().newIntArray(count);
+                for (int i = 0; i < count; ++i) {
+                    a.set(i, values.getInt(offset + i));
+                }
+                success = true;
+                Releasables.close(current.v2());
+                current.v2(a);
+            } finally {
+                if (success == false) {
+                    Releasables.close(a);
+                }
             }
-            current.v2(a);
         }
     }
 
@@ -223,6 +231,11 @@ public class AllFirstIntByTimestampAggregator {
                 success = true;
             } finally {
                 if (success == false) {
+                    if (values != null) {
+                        for (long i = 0; i < values.size(); i++) {
+                            Releasables.close(values.get(i));
+                        }
+                    }
                     Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
                 }
             }
@@ -251,16 +264,25 @@ public class AllFirstIntByTimestampAggregator {
                 observed.set(group, (byte) 1);
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
-                IntArray a = null;
-                if (valuesBlock.isNull(position) == false) {
-                    int count = valuesBlock.getValueCount(position);
-                    int offset = valuesBlock.getFirstValueIndex(position);
-                    a = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(count);
-                    for (int i = 0; i < count; ++i) {
-                        a.set(i, valuesBlock.getInt(i + offset));
+                boolean success = false;
+                IntArray groupValues = null;
+                try {
+                    if (valuesBlock.isNull(position) == false) {
+                        int count = valuesBlock.getValueCount(position);
+                        int offset = valuesBlock.getFirstValueIndex(position);
+                        groupValues = bigArrays.newIntArray(count);
+                        for (int i = 0; i < count; ++i) {
+                            groupValues.set(i, valuesBlock.getInt(i + offset));
+                        }
+                    }
+                    success = true;
+                    Releasables.close(values.get(group));
+                    values.set(group, groupValues);
+                } finally {
+                    if (success == false) {
+                        Releasables.close(groupValues);
                     }
                 }
-                values.set(group, a);
             }
             maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
@@ -268,7 +290,10 @@ public class AllFirstIntByTimestampAggregator {
 
         @Override
         public void close() {
-            Releasables.close(observed, hasTimestamp, timestamps, Releasables.wrap(values), values, super::close);
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
         @Override

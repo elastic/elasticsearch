@@ -43,7 +43,7 @@ public final class AllLastBooleanByTimestampAggregatorFunction implements Aggreg
 
   public static AllLastBooleanByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllLastBooleanByTimestampAggregatorFunction(driverContext, channels, AllLastBooleanByTimestampAggregator.initSingle());
+    return new AllLastBooleanByTimestampAggregatorFunction(driverContext, channels, AllLastBooleanByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -11,8 +11,6 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -55,8 +53,8 @@ public class AllFirstBytesRefByTimestampAggregator {
         return "all_first_bytesref_by_timestamp";
     }
 
-    public static AllLongBytesRefState initSingle() {
-        return new AllLongBytesRefState();
+    public static AllLongBytesRefState initSingle(DriverContext driverContext) {
+        return new AllLongBytesRefState(driverContext.bigArrays());
     }
 
     private static void overrideState(
@@ -69,19 +67,29 @@ public class AllFirstBytesRefByTimestampAggregator {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);
-        Releasables.close(current.v2());
         if (values.isNull(position)) {
+            Releasables.close(current.v2());
             current.v2(null);
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            BytesRefArray a = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
-            for (int i = 0; i < count; ++i) {
-                BytesRef bytesScratch = new BytesRef();
-                values.getBytesRef(offset + i, bytesScratch);
-                a.append(bytesScratch);
+            BytesRefArray a = null;
+            boolean success = false;
+            try {
+                a = new BytesRefArray(0, current.bigArrays());
+                for (int i = 0; i < count; ++i) {
+                    BytesRef bytesScratch = new BytesRef();
+                    values.getBytesRef(offset + i, bytesScratch);
+                    a.append(bytesScratch);
+                }
+                success = true;
+                Releasables.close(current.v2());
+                current.v2(a);
+            } finally {
+                if (success == false) {
+                    Releasables.close(a);
+                }
             }
-            current.v2(a);
         }
     }
 
@@ -231,6 +239,11 @@ public class AllFirstBytesRefByTimestampAggregator {
                 success = true;
             } finally {
                 if (success == false) {
+                    if (values != null) {
+                        for (long i = 0; i < values.size(); i++) {
+                            Releasables.close(values.get(i));
+                        }
+                    }
                     Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
                 }
             }
@@ -260,24 +273,23 @@ public class AllFirstBytesRefByTimestampAggregator {
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
                 boolean success = false;
-                BytesRefArray newBytesRefArray = null;
+                BytesRefArray groupValues = null;
                 try {
                     if (valuesBlock.isNull(position) == false) {
                         int count = valuesBlock.getValueCount(position);
                         int offset = valuesBlock.getFirstValueIndex(position);
-                        newBytesRefArray = new BytesRefArray(count, bigArrays);
+                        groupValues = new BytesRefArray(count, bigArrays);
                         BytesRef scratch = new BytesRef();
                         for (int i = 0; i < count; ++i) {
-                            newBytesRefArray.append(valuesBlock.getBytesRef(i + offset, scratch));
+                            groupValues.append(valuesBlock.getBytesRef(i + offset, scratch));
                         }
                     }
                     success = true;
+                    Releasables.close(values.get(group));
+                    values.set(group, groupValues);
                 } finally {
-                    if (success) {
-                        Releasables.close(values.get(group));
-                        values.set(group, newBytesRefArray);
-                    } else {
-                        Releasables.close(newBytesRefArray);
+                    if (success == false) {
+                        Releasables.close(groupValues);
                     }
                 }
             }
@@ -287,7 +299,10 @@ public class AllFirstBytesRefByTimestampAggregator {
 
         @Override
         public void close() {
-            Releasables.close(observed, hasTimestamp, timestamps, Releasables.wrap(values), values, super::close);
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
         @Override

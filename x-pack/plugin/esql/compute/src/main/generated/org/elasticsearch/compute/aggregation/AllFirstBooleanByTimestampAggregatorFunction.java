@@ -43,7 +43,7 @@ public final class AllFirstBooleanByTimestampAggregatorFunction implements Aggre
 
   public static AllFirstBooleanByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllFirstBooleanByTimestampAggregatorFunction(driverContext, channels, AllFirstBooleanByTimestampAggregator.initSingle());
+    return new AllFirstBooleanByTimestampAggregatorFunction(driverContext, channels, AllFirstBooleanByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

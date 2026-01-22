@@ -11,8 +11,6 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 $if(!boolean)$
@@ -61,8 +59,8 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         $endif$
     }
 
-    public static $Prefix$Long$Type$State initSingle() {
-        return new $Prefix$Long$Type$State();
+    public static $Prefix$Long$Type$State initSingle(DriverContext driverContext) {
+        return new $Prefix$Long$Type$State(driverContext.bigArrays());
     }
 
     $if(long || int)$
@@ -79,31 +77,47 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);
-        Releasables.close(current.v2());
         if (values.isNull(position)) {
+            Releasables.close(current.v2());
             current.v2(null);
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
             $if(BytesRef)$
-            BytesRefArray a = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
+            BytesRefArray a = null;
             $elseif(boolean)$
-            ByteArray a = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
+            ByteArray a = null;
             $else$
-            $Type$Array a = BigArrays.NON_RECYCLING_INSTANCE.new$Type$Array(count);
+            $Type$Array a = null;
             $endif$
-            for (int i = 0; i < count; ++i) {
+            boolean success = false;
+            try {
                 $if(BytesRef)$
-                BytesRef bytesScratch = new BytesRef();
-                values.getBytesRef(offset + i, bytesScratch);
-                a.append(bytesScratch);
+                a = new BytesRefArray(0, current.bigArrays());
                 $elseif(boolean)$
-                a.set(i, (byte) (values.get$Type$(offset + i) ? 1 : 0));
+                a = current.bigArrays().newByteArray(count);
                 $else$
-                a.set(i, values.get$Type$(offset + i));
+                a = current.bigArrays().new$Type$Array(count);
                 $endif$
+                for (int i = 0; i < count; ++i) {
+                    $if(BytesRef)$
+                    BytesRef bytesScratch = new BytesRef();
+                    values.getBytesRef(offset + i, bytesScratch);
+                    a.append(bytesScratch);
+                    $elseif(boolean)$
+                    a.set(i, (byte) (values.get$Type$(offset + i) ? 1 : 0));
+                    $else$
+                    a.set(i, values.get$Type$(offset + i));
+                    $endif$
+                }
+                success = true;
+                Releasables.close(current.v2());
+                current.v2(a);
+            } finally {
+                if (success == false) {
+                    Releasables.close(a);
+                }
             }
-            current.v2(a);
         }
     }
 
@@ -261,6 +275,11 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                 success = true;
             } finally {
                 if (success == false) {
+                    if (values != null) {
+                        for (long i = 0; i < values.size(); i++) {
+                            Releasables.close(values.get(i));
+                        }
+                    }
                     Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
                 }
             }
@@ -289,46 +308,53 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                 observed.set(group, (byte) 1);
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
-                $if(BytesRef)$
                 boolean success = false;
-                BytesRefArray newBytesRefArray = null;
+                $if(BytesRef)$
+                BytesRefArray groupValues = null;
                 try {
                     if (valuesBlock.isNull(position) == false) {
                         int count = valuesBlock.getValueCount(position);
                         int offset = valuesBlock.getFirstValueIndex(position);
-                        newBytesRefArray = new BytesRefArray(count, bigArrays);
+                        groupValues = new BytesRefArray(count, bigArrays);
                         BytesRef scratch = new BytesRef();
                         for (int i = 0; i < count; ++i) {
-                            newBytesRefArray.append(valuesBlock.getBytesRef(i + offset, scratch));
+                            groupValues.append(valuesBlock.getBytesRef(i + offset, scratch));
                         }
                     }
                     success = true;
+                    Releasables.close(values.get(group));
+                    values.set(group, groupValues);
                 } finally {
-                    if (success) {
-                        Releasables.close(values.get(group));
-                        values.set(group, newBytesRefArray);
-                    } else {
-                        Releasables.close(newBytesRefArray);
+                    if (success == false) {
+                        Releasables.close(groupValues);
                     }
                 }
                 $else$
-                $if(boolean)$ByteArray$else$$Type$Array$endif$ a = null;
-                if (valuesBlock.isNull(position) == false) {
-                    int count = valuesBlock.getValueCount(position);
-                    int offset = valuesBlock.getFirstValueIndex(position);
-                    $if(boolean)$
-                    a = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
-                    for (int i = 0; i < count; ++i) {
-                        a.set(i, (byte) (valuesBlock.get$Type$(i + offset) ? 1 : 0));
+                $if(boolean)$ByteArray$else$$Type$Array$endif$ groupValues = null;
+                try {
+                    if (valuesBlock.isNull(position) == false) {
+                        int count = valuesBlock.getValueCount(position);
+                        int offset = valuesBlock.getFirstValueIndex(position);
+                        $if(boolean)$
+                        groupValues = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
+                        for (int i = 0; i < count; ++i) {
+                            groupValues.set(i, (byte) (valuesBlock.get$Type$(i + offset) ? 1 : 0));
+                        }
+                        $else$
+                        groupValues = bigArrays.new$Type$Array(count);
+                        for (int i = 0; i < count; ++i) {
+                            groupValues.set(i, valuesBlock.get$Type$(i + offset));
+                        }
+                        $endif$
                     }
-                    $else$
-                    a = BigArrays.NON_RECYCLING_INSTANCE.new$Type$Array(count);
-                    for (int i = 0; i < count; ++i) {
-                        a.set(i, valuesBlock.get$Type$(i + offset));
+                    success = true;
+                    Releasables.close(values.get(group));
+                    values.set(group, groupValues);
+                } finally {
+                    if (success == false) {
+                        Releasables.close(groupValues);
                     }
-                    $endif$
                 }
-                values.set(group, a);
                 $endif$
             }
             maxGroupId = Math.max(maxGroupId, group);
@@ -337,7 +363,10 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
 
         @Override
         public void close() {
-            Releasables.close(observed, hasTimestamp, timestamps, Releasables.wrap(values), values, super::close);
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
         @Override

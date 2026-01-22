@@ -9,12 +9,11 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
@@ -23,6 +22,9 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class AllLongIntState implements AggregatorState {
+
+    private BigArrays bigArrays;
+
     /**
      * Whether an observation was recorded in this state
      */
@@ -42,6 +44,14 @@ final class AllLongIntState implements AggregatorState {
      * The value can be null, single valued of multivalued.
      */
     private IntArray v2;
+
+    public AllLongIntState(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+    }
+
+    BigArrays bigArrays() {
+        return bigArrays;
+    }
 
     boolean observed() {
         return observed;

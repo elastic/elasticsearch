@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
 
@@ -723,7 +722,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
         @Override
         public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
-            float score = metadata.centroidScore();
+            float score = metadata.documentCentroidScore();
             indexInput.seek(metadata.offset());
             centroidToParentSqDist = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();
@@ -735,7 +734,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 case COSINE, DOT_PRODUCT -> score - 1;
                 case MAXIMUM_INNER_PRODUCT -> score < 1 ? 1 - (1 / score) : score - 1;
             };
-            queryQuantizer.reset(metadata.centroidOrdinal());
+            queryQuantizer.reset(metadata.queryCentroidOrdinal());
             return vectors;
         }
 

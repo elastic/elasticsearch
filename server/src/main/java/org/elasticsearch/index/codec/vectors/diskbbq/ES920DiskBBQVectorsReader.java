@@ -469,7 +469,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             docEncoding = indexInput.readByte();
             docBase = 0;
             slicePos = indexInput.getFilePointer();
-            queryQuantizer.reset(centroid, postingMetadata.centroidOrdinal());
+            queryQuantizer.reset(centroid, postingMetadata.queryCentroidOrdinal());
             return vectors;
         }
 

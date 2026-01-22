@@ -307,26 +307,27 @@ public class AllFirstBooleanByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            var valuesBuilder = blockFactory.newBooleanBlockBuilder(groups.getPositionCount());
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int group = groups.getInt(p);
-                int count = 0;
-                if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                    count = (int) values.get(group).size();
-                }
-                switch (count) {
-                    case 0 -> valuesBuilder.appendNull();
-                    case 1 -> valuesBuilder.appendBoolean(values.get(group).get(0));
-                    default -> {
-                        valuesBuilder.beginPositionEntry();
-                        for (int i = 0; i < count; ++i) {
-                            valuesBuilder.appendBoolean(values.get(group).get(i));
+            try (var valuesBuilder = blockFactory.newBooleanBlockBuilder(groups.getPositionCount())) {
+                for (int p = 0; p < groups.getPositionCount(); p++) {
+                    int group = groups.getInt(p);
+                    int count = 0;
+                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
+                        count = (int) values.get(group).size();
+                    }
+                    switch (count) {
+                        case 0 -> valuesBuilder.appendNull();
+                        case 1 -> valuesBuilder.appendBoolean(values.get(group).get(0));
+                        default -> {
+                            valuesBuilder.beginPositionEntry();
+                            for (int i = 0; i < count; ++i) {
+                                valuesBuilder.appendBoolean(values.get(group).get(i));
+                            }
+                            valuesBuilder.endPositionEntry();
                         }
-                        valuesBuilder.endPositionEntry();
                     }
                 }
+                return valuesBuilder.build();
             }
-            return valuesBuilder.build();
         }
     }
 }

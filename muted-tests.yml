@@ -237,9 +237,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/132733
-- class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
-  method: test_Embedding_ChunkedInfer_LateChunkingEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/138451
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
@@ -330,15 +327,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140809
-- class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
-  method: test_embeddingModel_chunkedInfer_batchesCallsWhenLateChunkingEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/140890
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testReadBlobWithPrematureConnectionClose
   issue: https://github.com/elastic/elasticsearch/issues/140954
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/141034
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields
+  issue: https://github.com/elastic/elasticsearch/issues/141083
 
 # Examples:
 #

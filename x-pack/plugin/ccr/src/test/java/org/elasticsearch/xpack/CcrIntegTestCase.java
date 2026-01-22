@@ -495,7 +495,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         });
     }
 
-
     protected void putAutoFollowPatterns(String name, String[] patterns, List<String> exclusionPatterns, String followIndexNamePattern) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName(name);
@@ -510,7 +509,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
-
 
     protected void pauseFollow(String... indices) throws Exception {
         for (String index : indices) {

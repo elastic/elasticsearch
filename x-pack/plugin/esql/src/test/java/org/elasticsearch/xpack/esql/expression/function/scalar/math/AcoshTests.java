@@ -12,11 +12,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class AcoshTests extends AbstractScalarFunctionTestCase {
     public AcoshTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -25,17 +29,48 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // acosh(x) = ln(x + sqrt(x^2 - 1)), valid for x >= 1
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
-            "AcoshEvaluator",
-            "val",
-            v -> Math.log(v + Math.sqrt(v * v - 1)),
-            1d,
-            Double.MAX_VALUE,
-            List.of()
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        // Within range (x >= 1) using canonical formula:
+        // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Definitions_in_terms_of_logarithms
+        suppliers.add(
+            new TestCaseSupplier(
+                "acosh(1)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(1.0, DataType.DOUBLE, "arg")),
+                    "AcoshEvaluator[val=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(0.0)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "acosh(2)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(2.0, DataType.DOUBLE, "arg")),
+                    "AcoshEvaluator[val=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(Math.log(2.0 + Math.sqrt(3.0)))  // acosh(2) = ln(2 + sqrt(3))
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "acosh(10)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
+                    "AcoshEvaluator[val=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(Math.log(10.0 + Math.sqrt(99.0)))  // acosh(10) = ln(10 + sqrt(99))
+                )
+            )
         );
 
-        // Out of range cases (x < 1)
+        // Out of range (x < 1)
         suppliers.addAll(
             TestCaseSupplier.forUnaryCastingToDouble(
                 "AcoshEvaluator",
@@ -54,6 +89,6 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Acosh(source, args.get(0));
+        return new Acosh(source, args.getFirst());
     }
 }

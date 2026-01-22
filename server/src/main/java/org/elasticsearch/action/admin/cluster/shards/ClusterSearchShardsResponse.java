@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,12 +29,20 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     private final ClusterSearchShardsGroup[] groups;
     private final DiscoveryNode[] nodes;
     private final Map<String, AliasFilter> indicesAndFilters;
-    private ResolvedIndexExpressions resolvedIndexExpressions;
+    private final ResolvedIndexExpressions resolvedIndexExpressions;
+    public static final TransportVersion CLUSTER_SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName(
+        "cluster_search_shards_resolved_index_expressions"
+    );
 
     public ClusterSearchShardsResponse(StreamInput in) throws IOException {
         groups = in.readArray(ClusterSearchShardsGroup::new, ClusterSearchShardsGroup[]::new);
         nodes = in.readArray(DiscoveryNode::new, DiscoveryNode[]::new);
         indicesAndFilters = in.readMap(AliasFilter::readFrom);
+        if (in.getTransportVersion().supports(CLUSTER_SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS)) {
+            resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+        } else {
+            resolvedIndexExpressions = null;
+        }
     }
 
     @Override
@@ -41,6 +50,9 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         out.writeArray(groups);
         out.writeArray(nodes);
         out.writeMap(indicesAndFilters, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().supports(CLUSTER_SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS)) {
+            out.writeOptionalWriteable(resolvedIndexExpressions);
+        }
     }
 
     public ClusterSearchShardsResponse(

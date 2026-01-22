@@ -71,8 +71,9 @@ public class FireworksAiService extends SenderService {
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING);
 
-    // FireworksAI embeddings max batch size - per-user limit varies by plan, 2048 is a safe default
-    private static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
+    // FireworksAI embeddings max batch size - enforced by the embeddings server
+    // See: https://github.com/fw-ai/fireworks-ai/blob/main/py/fireworks/serving/embeddings/defs.py
+    private static final int EMBEDDING_MAX_BATCH_SIZE = 256;
 
     public FireworksAiService(
         HttpRequestSender.Factory factory,

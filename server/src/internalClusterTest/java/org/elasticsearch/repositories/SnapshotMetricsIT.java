@@ -212,7 +212,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotFuture;
 
         // Kick off a snapshot
-        final long snapshotStartTime = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long snapshotStartTimeInNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
         snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(true)
@@ -253,12 +253,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
 
         // we should also have incurred some read duration due to the throttling
-        final long upperBoundTimeSpentOnSnapshotThingsMillis = internalCluster().numDataNodes() * maximumPerNodeConcurrency * TimeValue
-            .timeValueNanos(TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()) - snapshotStartTime)
+        final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * maximumPerNodeConcurrency * TimeValue
+            .timeValueNanos(TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()) - snapshotStartTimeInNanos)
             .nanos();
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsNanos))
         );
 
         // Restore the snapshot

@@ -29,7 +29,7 @@ public class SnapshotStatsWireSerializationTests extends AbstractWireSerializing
 
     @Override
     protected RepositoriesStats.SnapshotStats mutateInstance(RepositoriesStats.SnapshotStats instance) throws IOException {
-        // Since ClusterFormationState is a record, we don't need to check for equality
+        // Since SnapshotStats is a record, we don't need to check for equality
         return null;
     }
 }

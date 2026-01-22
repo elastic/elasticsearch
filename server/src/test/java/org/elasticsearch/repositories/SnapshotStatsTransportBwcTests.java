@@ -27,7 +27,7 @@ public class SnapshotStatsTransportBwcTests extends ESTestCase {
     /**
      * {@link RepositoriesStats.SnapshotStats#UPLOAD_TIME_NANOS} converted the {@code totalUploadTimeInNanos} and
      * {@code totalUploadReadTimeInNanos} fields from milliseconds to nanoseconds. This tests when a node is
-     * communicating with a node on a previous version. Therefore, we expect these fields to be converted into milliseconds.
+     * communicating with a node on a previous version and we expect these fields to be converted into milliseconds.
      * @throws IOException
      */
     public void testWritingToOldTransportVersionConvertsNanosToMillis() throws IOException {
@@ -68,6 +68,13 @@ public class SnapshotStatsTransportBwcTests extends ESTestCase {
         assertEquals(expectedTotalUploadReadTimeInNanos, read.totalUploadReadTimeInNanos());
     }
 
+    /**
+     * {@link RepositoriesStats.SnapshotStats#UPLOAD_TIME_NANOS} converted the {@code totalUploadTimeInNanos} and
+     * {@code totalUploadReadTimeInNanos} fields from milliseconds to nanoseconds. This tests when a node is
+     * reading from a node on a previous transport version in which we expect the milliseconds to be converted
+     * into nanoseconds
+     * @throws IOException
+     */
     public void testReadingFromOldTransportVersionConvertsMillisToNanos() throws IOException {
         long totalUploadTimeInNanos = randomNonNegativeLong();
         long totalUploadReadTimeInNanos = randomNonNegativeLong();

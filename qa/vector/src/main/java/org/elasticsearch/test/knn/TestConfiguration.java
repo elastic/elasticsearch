@@ -62,6 +62,7 @@ record TestConfiguration(
     static final ParseField INDEX_TYPE_FIELD = new ParseField("index_type");
     static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
     static final ParseField K_FIELD = new ParseField("k");
+    // static final ParseField N_PROBE_FIELD = new ParseField("n_probe");
     static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     static final ParseField IVF_CLUSTER_SIZE_FIELD = new ParseField("ivf_cluster_size");
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");

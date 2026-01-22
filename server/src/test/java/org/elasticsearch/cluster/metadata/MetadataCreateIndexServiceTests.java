@@ -94,6 +94,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -299,8 +300,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testUserIndicesLimit() {
-        withTemporaryClusterService(((clusterService, threadPool) -> {
-            var indexLimit = SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        Settings nodeSettings = Settings.builder().put(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.getKey(), randomIntBetween(10, 30)).build();
+
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            @SuppressWarnings("unchecked")
+            Setting<Integer> indexLimitSetting = (Setting<Integer>) clusterService.getClusterSettings()
+                .get(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.getKey());
+            var indexLimit = clusterService.getClusterSettings().get(Objects.requireNonNull(indexLimitSetting));
             var totalUserIndices = indexLimit + randomIntBetween(1, 10);
             String[] userIndices = new String[totalUserIndices];
             for (int i = 0; i < userIndices.length; i++) {
@@ -316,9 +322,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(tuple.v1()))
                 .build();
 
+            var settings = Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+                .build();
+
             IndicesService indicesService = mock(IndicesService.class);
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                Settings.EMPTY,
+                settings,
                 clusterService,
                 indicesService,
                 null,
@@ -356,7 +366,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             } catch (Exception ex) {
                 fail(ex, "System indices creation should not be limited by indices total.");
             }
-        }));
+        }, nodeSettings, Set.of(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT));
     }
 
     public void testValidateSplitIndex() {
@@ -1937,7 +1947,22 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId);
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        try {
+            consumer.accept(clusterService, threadPool);
+        } finally {
+            clusterService.stop();
+            threadPool.shutdown();
+        }
+    }
+
+    private void withTemporaryClusterService(
+        BiConsumer<ClusterService, ThreadPool> consumer,
+        Settings nodeSettings,
+        Set<Setting<?>> settingSet
+    ) {
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId, nodeSettings, settingSet);
         try {
             consumer.accept(clusterService, threadPool);
         } finally {

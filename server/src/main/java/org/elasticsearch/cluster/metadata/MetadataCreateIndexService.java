@@ -145,8 +145,7 @@ public class MetadataCreateIndexService {
 
     public static final Setting<Integer> SETTING_CLUSTER_MAX_INDICES_PER_PROJECT = Setting.intSetting(
         "cluster.max_indices_per_project",
-        15000,
-        11250,
+        0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -228,9 +227,14 @@ public class MetadataCreateIndexService {
     }
 
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
-        if (systemIndices.isSystemIndex(request.index())) {
+        if (DiscoveryNode.isStateless(settings) == false) {
             return;
         }
+
+        if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
+            return;
+        }
+
         var totalUserIndices = projectMetadata.stream().filter(indexMetadata -> indexMetadata.isSystem() == false).count();
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(

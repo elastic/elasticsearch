@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -24,6 +26,11 @@ import java.io.IOException;
  * {@link BytesRefsFromOrdsBlockLoader} for ordinals-based binary values
  */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    /**
+     * Circuit breaker space reserved for each reader. Measured in heap dumps
+     * around from 1.5kb. This is an intentional overestimate.
+     */
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
 
     private final String fieldName;
 
@@ -37,16 +44,25 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        return createReader(docValues);
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+        AllReader result = null;
+        try {
+            result = createReader(breaker, ESTIMATED_SIZE, context.reader().getBinaryDocValues(fieldName));
+            return result;
+        } finally {
+            if (result == null) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
+        }
     }
 
-    public static AllReader createReader(@Nullable BinaryDocValues docValues) {
+    public static AllReader createReader(CircuitBreaker breaker, long estimatedSize, @Nullable BinaryDocValues docValues) {
         if (docValues == null) {
+            breaker.addWithoutBreaking(-estimatedSize);
             return ConstantNull.READER;
         }
-        return new BytesRefsFromBinary(docValues);
+        return new BytesRefsFromBinary(breaker, estimatedSize, docValues);
     }
 
     /**
@@ -54,9 +70,11 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
     static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+        private final long estimatedSize;
 
-        BytesRefsFromBinary(BinaryDocValues docValues) {
-            super(docValues);
+        BytesRefsFromBinary(CircuitBreaker breaker, long estimatedSize, BinaryDocValues docValues) {
+            super(breaker, docValues);
+            this.estimatedSize = estimatedSize;
         }
 
         @Override
@@ -83,6 +101,11 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
         @Override
         public String toString() {
             return "BlockDocValuesReader.Bytes";
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-estimatedSize);
         }
     }
 }

@@ -594,7 +594,9 @@ public final class EsqlTestUtils {
         ByteSizeValue.ofMb(1),
         ByteSizeValue.ofMb(2),
         10_000,
-        ByteSizeValue.ofMb(1)
+        ByteSizeValue.ofMb(1),
+        MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
+        MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE
     );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(

@@ -13,9 +13,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -172,7 +174,7 @@ public interface BlockLoader {
         return new ConstantBytes(value);
     }
 
-    interface Reader {
+    interface Reader extends Releasable {
         /**
          * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
          */
@@ -273,7 +275,7 @@ public interface BlockLoader {
      * {@code null} or if they can't load column-at-a-time themselves.
      */
     @Nullable
-    ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
+    ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
     /**
      * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
@@ -281,7 +283,7 @@ public interface BlockLoader {
      * callers simply can't load column-at-a-time so all implementations must support
      * this method.
      */
-    RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
+    RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
     /**
      * What {@code stored} fields are needed by this reader.
@@ -348,24 +350,24 @@ public interface BlockLoader {
         protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
 
         @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             if (canUsePreferLoaderForLeaf(context)) {
-                return preferLoader.columnAtATimeReader(context);
+                return preferLoader.columnAtATimeReader(breaker, context);
             } else {
-                return fallbackLoader.columnAtATimeReader(context);
+                return fallbackLoader.columnAtATimeReader(breaker, context);
             }
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             if (preferLoader.rowStrideStoredFieldSpec().noRequirements() == false) {
-                return fallbackLoader.rowStrideReader(context);
+                return fallbackLoader.rowStrideReader(breaker, context);
             }
-            RowStrideReader preferReader = preferLoader.rowStrideReader(context);
+            RowStrideReader preferReader = preferLoader.rowStrideReader(breaker, context);
             if (canUsePreferLoaderForLeaf(context)) {
                 return preferReader;
             }
-            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(context);
+            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(breaker, context);
             return new RowStrideReader() {
                 @Override
                 public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
@@ -379,6 +381,11 @@ public interface BlockLoader {
                 @Override
                 public boolean canReuse(int startingDocID) {
                     return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+                }
+
+                @Override
+                public void close() {
+                    Releasables.close(preferReader, fallbackReader);
                 }
             };
         }

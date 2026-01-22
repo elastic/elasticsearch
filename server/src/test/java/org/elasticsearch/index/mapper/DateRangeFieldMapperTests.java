@@ -12,8 +12,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -125,8 +127,9 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
-                    .read(TestBlock.factory(), new BlockLoader.Docs() {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(breaker, reader.leaves().get(0))) {
+                    TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), new BlockLoader.Docs() {
                         @Override
                         public int count() {
                             return 1;
@@ -137,7 +140,8 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
                             return 0;
                         }
                     }, 0, false);
-                assertThat(block.get(0), nullValue());
+                    assertThat(block.get(0), nullValue());
+                }
             }
         }
     }

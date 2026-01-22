@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
@@ -35,34 +37,34 @@ public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
-        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
-        var mvMinLoader = new MvMinBytesRefsFromOrdsBlockLoader("field");
-
-        var stringsReader = stringsLoader.reader(ctx);
-        var mvMinReader = mvMinLoader.reader(ctx);
-        assertThat(mvMinReader, readerMatcher());
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
+        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofBytes(randomLongBetween(1, 1000)));
+        var mvMinLoader = new MvMinBytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofBytes(randomLongBetween(1, 1000)));
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-            TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
-        ) {
-            checkBlocks(strings, minStrings);
-        }
 
-        stringsReader = stringsLoader.reader(ctx);
-        mvMinReader = mvMinLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
+        try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx);) {
+            assertThat(mvMinReader, readerMatcher());
             try (
-                TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
+                TestBlock strings = read(stringsLoader, stringsReader, docs);
+                TestBlock minStrings = read(mvMinLoader, mvMinReader, docs);
             ) {
                 checkBlocks(strings, minStrings);
+            }
+        }
+
+        try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx);) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (
+                    TestBlock strings = read(stringsLoader, stringsReader, docs);
+                    TestBlock minStrings = read(mvMinLoader, mvMinReader, docs);
+                ) {
+                    checkBlocks(strings, minStrings);
+                }
             }
         }
     }

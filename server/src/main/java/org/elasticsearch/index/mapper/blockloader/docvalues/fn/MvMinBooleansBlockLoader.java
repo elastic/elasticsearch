@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBooleansBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 
@@ -25,13 +25,13 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues) {
-        return new Singleton(docValues);
+    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues) {
+        return new Singleton(breaker, docValues);
     }
 
     @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new MvMinSorted(docValues);
+    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues) {
+        return new MvMinSorted(breaker, docValues);
     }
 
     @Override
@@ -39,10 +39,11 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
         return "BooleansFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMinSorted extends BlockDocValuesReader {
+    private static class MvMinSorted extends BooleansBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        MvMinSorted(SortedNumericDocValues numericDocValues) {
+        MvMinSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
         }
 

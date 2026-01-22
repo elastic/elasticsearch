@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -21,9 +22,11 @@ import java.io.IOException;
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
  */
 public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
+    protected final CircuitBreaker breaker;
     private final Thread creationThread;
 
-    public BlockDocValuesReader() {
+    public BlockDocValuesReader(CircuitBreaker breaker) {
+        this.breaker = breaker;
         this.creationThread = Thread.currentThread();
     }
 
@@ -41,16 +44,16 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     public abstract String toString();
 
     public abstract static class DocValuesBlockLoader implements BlockLoader {
-        public abstract AllReader reader(LeafReaderContext context) throws IOException;
+        public abstract AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-            return reader(context);
+        public final ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return reader(breaker, context);
         }
 
         @Override
-        public final RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            return reader(context);
+        public final RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return reader(breaker, context);
         }
 
         @Override

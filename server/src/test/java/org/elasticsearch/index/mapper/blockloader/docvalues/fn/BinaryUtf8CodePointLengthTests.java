@@ -17,6 +17,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -80,6 +82,7 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
             }
             iw.forceMerge(1);
             try (DirectoryReader dr = iw.getReader()) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
                 for (int i = 0; i < mvCount; i++) {
@@ -90,51 +93,61 @@ public class BinaryUtf8CodePointLengthTests extends ESTestCase {
 
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
+                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(between(1, 100)));
 
-                var stringsReader = stringsLoader.reader(ctx);
-                var codePointsReader = codePointsLoader.reader(ctx);
-                assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (
-                    TestBlock strings = read(stringsLoader, stringsReader, docs);
-                    TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                    var stringsReader = stringsLoader.reader(breaker, ctx);
+                    var codePointsReader = codePointsLoader.reader(breaker, ctx);
                 ) {
-                    checkBlocks(strings, codePoints);
+                    assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
+                    try (
+                        TestBlock strings = read(stringsLoader, stringsReader, docs);
+                        TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                    ) {
+                        checkBlocks(strings, codePoints);
+                    }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    warnings.warnings().clear();
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
-                warnings.warnings().clear();
 
-                stringsReader = stringsLoader.reader(ctx);
-                codePointsReader = codePointsLoader.reader(ctx);
-                for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-                    int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-                    for (int d = 0; d < docsArray.length; d++) {
-                        docsArray[d] = i + d;
+                try (
+                    var stringsReader = stringsLoader.reader(breaker, ctx);
+                    var codePointsReader = codePointsLoader.reader(breaker, ctx);
+                ) {
+                    for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                        int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                        for (int d = 0; d < docsArray.length; d++) {
+                            docsArray[d] = i + d;
+                        }
+                        docs = TestBlock.docs(docsArray);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                        ) {
+                            checkBlocks(strings, codePoints);
+                        }
                     }
-                    docs = TestBlock.docs(docsArray);
-                    try (
-                        TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
-                    ) {
-                        checkBlocks(strings, codePoints);
-                    }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    // Testing fetching a single doc, which has a different code path
+                    warnings.warnings().clear();
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
-                // Testing fetching a single doc, which has a different code path
-                warnings.warnings().clear();
-                stringsReader = stringsLoader.reader(ctx);
-                codePointsReader = codePointsLoader.reader(ctx);
-                for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
-                    docs = TestBlock.docs(docId);
-                    try (
-                        TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
-                    ) {
-                        checkBlocks(strings, codePoints);
+
+                try (
+                    var stringsReader = stringsLoader.reader(breaker, ctx);
+                    var codePointsReader = codePointsLoader.reader(breaker, ctx);
+                ) {
+                    for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                        docs = TestBlock.docs(docId);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                        ) {
+                            checkBlocks(strings, codePoints);
+                        }
                     }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
             }
         }
     }

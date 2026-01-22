@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.Matcher;
@@ -374,6 +375,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        builtInClusterSettings.addAll(PlannerSettings.allSettings());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,
@@ -395,6 +397,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DriverContext ctx = beCranky ? crankyDriverContext() : driverContext();
         BigArrays bigArrays = ctx.bigArrays();
         BlockFactory blockFactory = ctx.blockFactory();
+        PlannerSettings plannerSettings = new PlannerSettings(clusterService);
         return new LookupFromIndexService(
             clusterService,
             indicesService,
@@ -403,7 +406,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            TestProjectResolvers.singleProject(projectId)
+            TestProjectResolvers.singleProject(projectId),
+            plannerSettings
         );
     }
 

@@ -14,10 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -54,52 +52,13 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
             BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS
         );
 
-        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return mapperService.getIndexSettings().getIndex().getName();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                return mapperService.getIndexSettings();
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                return new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return mapperService.mappingLookup().sourcePaths(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return mapperService.mappingLookup().parentField(field);
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
-            }
-
-            @Override
-            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                return config;
-            }
-
-            @Override
-            public MappingLookup mappingLookup() {
-                return mapperService.mappingLookup();
-            }
-        });
+        BlockLoader blockLoader = sourceMapper.fieldType()
+            .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+                @Override
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                    return config;
+                }
+            });
 
         assertThat(blockLoader, notNullValue());
         assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
@@ -129,52 +88,13 @@ public class SourceFieldMapperBlockLoaderTests extends MapperServiceTestCase {
         SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
 
         // Without TIME_SERIES_DIMENSIONS function, should return SourceFieldBlockLoader
-        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return mapperService.getIndexSettings().getIndex().getName();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                return mapperService.getIndexSettings();
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                return new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return mapperService.mappingLookup().sourcePaths(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return mapperService.mappingLookup().parentField(field);
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
-            }
-
-            @Override
-            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                return null; // No function config
-            }
-
-            @Override
-            public MappingLookup mappingLookup() {
-                return mapperService.mappingLookup();
-            }
-        });
+        BlockLoader blockLoader = sourceMapper.fieldType()
+            .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+                @Override
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                    return null; // No function config
+                }
+            });
 
         assertThat(blockLoader, notNullValue());
         assertThat(blockLoader, instanceOf(SourceFieldBlockLoader.class));

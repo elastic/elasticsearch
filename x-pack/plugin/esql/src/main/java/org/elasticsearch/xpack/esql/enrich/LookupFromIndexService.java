@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 
 import java.io.IOException;
@@ -70,7 +71,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        PlannerSettings plannerSettings
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -83,7 +85,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             blockFactory,
             false,
             TransportRequest::readFrom,
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
     }
 

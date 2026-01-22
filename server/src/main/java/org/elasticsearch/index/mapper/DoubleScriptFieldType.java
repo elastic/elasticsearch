@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.blockloader.script.DoubleScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -123,7 +124,10 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         } else {
-            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(
+                leafFactory(blContext.lookup()),
+                blContext.scriptByteSize()
+            );
         }
     }
 

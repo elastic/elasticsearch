@@ -19,7 +19,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -74,6 +76,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
             var blockFactory = new ComputeBlockLoaderFactory(factory);
             try (IndexReader reader = indexWriter.getReader()) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 for (LeafReaderContext ctx : reader.leaves()) {
                     int start = 0;
                     int numDocs = ctx.reader().numDocs();
@@ -90,8 +93,11 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                                 return i;
                             }
                         };
-                        var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
+
+                        try (
+                            var columnAtATimeReader = blockLoader.columnAtATimeReader(breaker, ctx);
+                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)
+                        ) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             BytesRef scratch = new BytesRef();
                             for (int i = 0; i < result.getPositionCount(); i++) {
@@ -238,6 +244,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
             var blockFactory = new ComputeBlockLoaderFactory(blockFactory());
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 for (LeafReaderContext ctx : reader.leaves()) {
                     int start = 0;
                     int numDocs = ctx.reader().numDocs();
@@ -254,8 +261,11 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                                 return i;
                             }
                         };
-                        var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
+
+                        try (
+                            var columnAtATimeReader = blockLoader.columnAtATimeReader(breaker, ctx);
+                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)
+                        ) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             assertNotNull(result.asVector());
                             boolean enclosedInSingleRange = false;

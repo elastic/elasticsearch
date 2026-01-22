@@ -16,7 +16,9 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -72,9 +74,13 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
             try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
                 iw.addDocument(List.of());
             }
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
-                try (var block = (TestBlock) loader.reader(leaf.getContext()).read(TestBlock.factory(), TestBlock.docs(0), 0, false)) {
+                try (
+                    BlockLoader.AllReader allReader = loader.reader(breaker, leaf.getContext());
+                    var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false)
+                ) {
                     assertThat(block.size(), equalTo(1));
                     assertThat(block.get(0), nullValue());
                 }
@@ -136,6 +142,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
             ArrayList<Object> intArrayResults = new ArrayList<>();
             int currentIndex = 0;
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 for (var leaf : reader.leaves()) {
                     LeafReader leafReader = leaf.reader();
                     int numDocs = leafReader.numDocs();
@@ -144,7 +151,10 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                     for (int j : array) {
                         expected.add(visitor.apply(geometries.get(j + currentIndex)).get());
                     }
-                    try (var block = (TestBlock) loader.reader(leaf).read(TestBlock.factory(), TestBlock.docs(array), 0, false)) {
+                    try (
+                        BlockLoader.AllReader allReader = loader.reader(breaker, leaf);
+                        var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(array), 0, false)
+                    ) {
                         for (int i = 0; i < block.size(); i++) {
                             intArrayResults.add(block.get(i));
                         }

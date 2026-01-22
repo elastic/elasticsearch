@@ -18,13 +18,21 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.blockloader.CrankyDirectoryReader;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractDoublesFromDocValuesBlockLoaderTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
@@ -50,9 +58,44 @@ public abstract class AbstractDoublesFromDocValuesBlockLoaderTests extends ESTes
         this.missingValues = missingValues;
     }
 
-    protected abstract void innerTest(LeafReaderContext ctx, int mvCount) throws IOException;
+    protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
 
     public void test() throws IOException {
+        test(newLimitedBreaker(ByteSizeValue.ofMb(1)), r -> r);
+    }
+
+    public void testWithCrankyBreaker() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            test(cranky, r -> r);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    public void testWithCrankyReader() {
+        try {
+            test(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyDirectoryReader::new);
+            logger.info("Cranky reader didn't break.");
+        } catch (IOException e) {
+            logger.info("Cranky reader broke", e);
+        }
+    }
+
+    public void testWithCrankyBreakerAndReader() {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            test(cranky, CrankyDirectoryReader::new);
+            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
+        } catch (IOException | CircuitBreakingException e) {
+            logger.info("Cranky breaker or reader broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap) throws IOException {
         int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
@@ -69,15 +112,14 @@ public abstract class AbstractDoublesFromDocValuesBlockLoaderTests extends ESTes
                 iw.addDocument(List.of());
             }
             iw.forceMerge(1);
-            try (DirectoryReader dr = iw.getReader()) {
+            try (DirectoryReader dr = wrap.apply(iw.getReader())) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
-                innerTest(ctx, mvCount);
+                innerTest(breaker, ctx, mvCount);
             }
         }
     }
 
-    protected final TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, LeafReaderContext ctx, BlockLoader.Docs docs)
-        throws IOException {
+    protected final TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
         BlockLoader.AllReader toUse = blockAtATime
             ? reader
             : new ForceDocAtATime(() -> loader.builder(TestBlock.factory(), docs.count()), reader);

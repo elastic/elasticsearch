@@ -251,10 +251,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     @Override
     public void close() {
-        Releasables.close(super::close, converterEvaluators);
+        Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));
     }
 
-    protected class FieldWork {
+    protected class FieldWork implements Releasable {
         final FieldInfo info;
         private final int fieldIdx;
 
@@ -271,16 +271,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
+                columnAtATime.close();
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
+                rowStride.close();
                 rowStride = null;
             }
         }
 
         void sameShardNewSegment() {
-            columnAtATime = null;
-            rowStride = null;
+            closeReaders();
         }
 
         void newShard(int shard) {
@@ -288,13 +289,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
-            columnAtATime = null;
-            rowStride = null;
+            sameShardNewSegment();
         }
 
         BlockLoader.ColumnAtATimeReader columnAtATime(LeafReaderContext ctx) throws IOException {
             if (columnAtATime == null) {
-                columnAtATime = loader.columnAtATimeReader(ctx);
+                columnAtATime = loader.columnAtATimeReader(driverContext.breaker(), ctx);
                 trackReader("column_at_a_time", this.columnAtATime);
             }
             return columnAtATime;
@@ -302,7 +302,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         BlockLoader.RowStrideReader rowStride(LeafReaderContext ctx) throws IOException {
             if (rowStride == null) {
-                rowStride = loader.rowStrideReader(ctx);
+                rowStride = loader.rowStrideReader(driverContext.breaker(), ctx);
                 trackReader("row_stride", this.rowStride);
             }
             return rowStride;
@@ -310,6 +310,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         private void trackReader(String type, BlockLoader.Reader reader) {
             readersBuilt.merge(info.name + ":" + type + ":" + reader, 1, (prev, one) -> prev + one);
+        }
+
+        @Override
+        public void close() {
+            closeReaders();
+        }
+
+        private void closeReaders() {
+            Releasables.close(rowStride, columnAtATime);
+            columnAtATime = null;
+            rowStride = null;
         }
     }
 

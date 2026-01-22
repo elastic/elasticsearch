@@ -13,8 +13,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -992,6 +994,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private void verifyIdFromBlockLoader(MapperService mapperService, ParsedDocument doc, String expectedId) throws IOException {
-        blockLoaderTestRunner.runTest(mapperService, doc, new BytesRef(expectedId), "_id");
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        blockLoaderTestRunner.runTest(mapperService, breaker, doc, new BytesRef(expectedId), "_id");
     }
 }

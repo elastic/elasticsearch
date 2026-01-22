@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.Extent;
@@ -25,6 +27,12 @@ import java.util.function.Function;
  * Base class for shape field mappers
  */
 public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
+    /**
+     * Circuit breaker space reserved for each reader. Measured at 1.2kb in a heap dump, 2kb is
+     * our overestimate.
+     */
+    private static final long BLOCK_LOADER_ESTIMATED_SIZE = ByteSizeValue.ofKb(2).getBytes();
+
     @Override
     protected boolean supportsParsingObject() {
         // ShapeGeometryFieldMapper supports parsing Well-Known Text (WKT) and GeoJSON.
@@ -84,9 +92,14 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             @Override
-            public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
+            public BlockLoader.AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                breaker.addEstimateBytesAndMaybeBreak(BLOCK_LOADER_ESTIMATED_SIZE, "load blocks");
                 BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
-                return binaryDocValues == null ? ConstantNull.READER : new BoundsReader(binaryDocValues);
+                if (binaryDocValues == null) {
+                    breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
+                    return ConstantNull.READER;
+                }
+                return new BoundsReader(breaker, binaryDocValues);
             }
 
             @Override
@@ -97,9 +110,11 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
         private static class BoundsReader implements BlockLoader.AllReader {
             private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
 
-            private BoundsReader(BinaryDocValues binaryDocValues) {
+            private BoundsReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues) {
+                this.breaker = breaker;
                 this.binaryDocValues = binaryDocValues;
             }
 
@@ -144,6 +159,11 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 builder.appendInt(extent.posLeft);
                 builder.appendInt(extent.posRight);
                 builder.endPositionEntry();
+            }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
             }
         }
     }

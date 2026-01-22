@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
@@ -35,34 +37,34 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
-        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
-        var mvMaxLoader = new MvMaxBytesRefsFromOrdsBlockLoader("field");
-
-        var stringsReader = stringsLoader.reader(ctx);
-        var mvMaxReader = mvMaxLoader.reader(ctx);
-        assertThat(mvMaxReader, readerMatcher());
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
+        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofBytes(randomLongBetween(1, 1000)));
+        var mvMaxLoader = new MvMaxBytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofBytes(randomLongBetween(1, 1000)));
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-            TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
-        ) {
-            checkBlocks(strings, maxStrings);
-        }
 
-        stringsReader = stringsLoader.reader(ctx);
-        mvMaxReader = mvMaxLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
+        try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMaxReader = mvMaxLoader.reader(breaker, ctx);) {
+            assertThat(mvMaxReader, readerMatcher());
             try (
-                TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
+                TestBlock strings = read(stringsLoader, stringsReader, docs);
+                TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, docs);
             ) {
                 checkBlocks(strings, maxStrings);
+            }
+        }
+
+        try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMaxReader = mvMaxLoader.reader(breaker, ctx);) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (
+                    TestBlock strings = read(stringsLoader, stringsReader, docs);
+                    TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, docs);
+                ) {
+                    checkBlocks(strings, maxStrings);
+                }
             }
         }
     }

@@ -1001,7 +1001,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 xContentToMap(builder -> ExponentialHistogramXContent.serialize(builder, EXPONENTIAL_HISTOGRAM_VALUE))
             );
             case TDIGEST -> equalTo(xContentToJson(AllSupportedFieldsTestCase::createTDigestValue));
-            case HISTOGRAM -> equalTo(xContentToJson(AllSupportedFieldsTestCase::createHistogramValue));
+            case HISTOGRAM -> {
+                if (HISTOGRAM.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                    yield equalTo(xContentToJson(AllSupportedFieldsTestCase::createHistogramValue));
+                }
+                yield nullValue();
+            }
             case DENSE_VECTOR -> {
                 // See expectedType for an explanation
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)

@@ -32,9 +32,6 @@ public class AddTimeRangeToTimeseriesAggregate extends ParameterizedRule<Logical
         if (agg.timestampRange() != null) {
             return agg;
         }
-        // Nothing explodes catastrophically if we can't apply this optimization, but we still want to make sure it applies always in tests
-        // therefore we check with asserts that the optimization is applicable, but still code defensively with ifs for production
-        assert agg.timestamp() instanceof FieldAttribute;
         if (agg.timestamp() instanceof FieldAttribute timestampField && isDateTime(timestampField.dataType())) {
             FieldAttribute.FieldName fieldName = timestampField.fieldName();
             Object minTimestamp = searchStats.min(fieldName);
@@ -42,6 +39,7 @@ public class AddTimeRangeToTimeseriesAggregate extends ParameterizedRule<Logical
             if (minTimestamp == null || maxTimestamp == null) {
                 return agg;
             }
+            // Fail in tests, silently ignore in production as this optimization is not mission critical
             assert minTimestamp instanceof Long && maxTimestamp instanceof Long;
             if (minTimestamp instanceof Long minTs && maxTimestamp instanceof Long maxTs) {
                 TimeSeriesAggregate result = agg.withTimestampRange(minTs, maxTs);

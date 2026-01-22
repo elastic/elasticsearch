@@ -130,6 +130,11 @@ public class DockerTests extends PackagingTestCase {
     }
 
     @Override
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return true;
+    }
+
+    @Override
     protected void dumpDebug() {
         final Result containerLogs = getContainerLogs();
         logger.warn("Container id for debug logs: " + getContainerId());

@@ -28,7 +28,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomTimeSpan(),
             randomTimeSpan(),
             randomTimeSpan(),
-            randomTimeSpan()
+            randomTimeSpan(),
+            randomIntBetween(0, 100)
         );
     }
 
@@ -40,15 +41,17 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         TimeSpan preAnalysis = instance.preAnalysis().timeSpan();
         TimeSpan dependencyResolution = instance.dependencyResolution().timeSpan();
         TimeSpan analysis = instance.analysis().timeSpan();
-        switch (randomIntBetween(0, 5)) {
+        int fieldCapsCalls = instance.fieldCapsCalls();
+        switch (randomIntBetween(0, 6)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
             case 3 -> preAnalysis = randomValueOtherThan(preAnalysis, EsqlQueryProfileTests::randomTimeSpan);
             case 4 -> dependencyResolution = randomValueOtherThan(dependencyResolution, EsqlQueryProfileTests::randomTimeSpan);
             case 5 -> analysis = randomValueOtherThan(analysis, EsqlQueryProfileTests::randomTimeSpan);
+            case 6 -> fieldCapsCalls = randomValueOtherThan(fieldCapsCalls, () -> randomIntBetween(0, 100));
         }
-        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis);
+        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis, fieldCapsCalls);
     }
 
     @Override
@@ -59,7 +62,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             instance.parsing().timeSpan(),
             instance.preAnalysis().timeSpan(),
             instance.dependencyResolution().timeSpan(),
-            instance.analysis().timeSpan()
+            instance.analysis().timeSpan(),
+            instance.fieldCapsCalls()
         );
     }
 

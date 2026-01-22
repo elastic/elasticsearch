@@ -1,6 +1,0 @@
-pr: 128429
-summary: "[ESQL] Refactor Greatest and Least functions to use evaluator map"
-area: ES|QL
-type: bug
-issues:
-  - 114036

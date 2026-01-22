@@ -53,6 +53,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
             return Objects.requireNonNullElse(enabled, "");
         })
         .feature(FeatureFlag.ESQL_VIEWS)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

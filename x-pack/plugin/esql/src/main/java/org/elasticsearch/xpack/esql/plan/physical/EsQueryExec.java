@@ -290,8 +290,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public boolean canSubstituteRoundToWithQueryBuilderAndTags() {
+        boolean queryWithoutTag = queryBuilderAndTags == null
+            || queryBuilderAndTags.isEmpty()
+            || (queryBuilderAndTags.size() == 1 && queryBuilderAndTags.getFirst().tags.isEmpty());
         // LuceneTopNSourceOperator doesn't support QueryAndTags
-        return sorts == null || sorts.isEmpty();
+        return queryWithoutTag && (sorts == null || sorts.isEmpty());
     }
 
     /**
@@ -347,7 +350,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
@@ -355,9 +358,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + "indexMode["
             + indexMode
             + "], "
-            + NodeUtils.limitedToString(attrs)
+            + NodeUtils.toString(attrs, format)
             + ", limit["
-            + (limit != null ? limit.toString() : "")
+            + (limit != null ? limit.toString(format) : "")
             + "], sort["
             + (sorts != null ? sorts.toString() : "")
             + "] estimatedRowSize["

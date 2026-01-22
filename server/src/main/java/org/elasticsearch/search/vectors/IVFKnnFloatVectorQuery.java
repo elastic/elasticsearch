@@ -10,6 +10,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -105,7 +106,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         if (fieldsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
             KnnVectorsReader knnVectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) fieldsReader).getFieldReader(field);
             if (knnVectorsReader instanceof VectorPreconditioner) {
-                Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner();
+                FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+                Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner(fieldInfo);
                 if (preconditioner != null) {
                     final float[] out = new float[query.length];
                     preconditioner.applyTransform(query, out);

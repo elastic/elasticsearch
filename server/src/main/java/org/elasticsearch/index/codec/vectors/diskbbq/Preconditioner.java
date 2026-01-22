@@ -38,6 +38,7 @@ public class Preconditioner {
 
     public void applyTransform(float[] vector, float[] out) {
         assert vector != null;
+        assert vector.length == blockDim * (blocks.length - 1) + (blocks[blocks.length - 1].length);
 
         if (blocks.length == 1) {
             matrixVectorMultiply(blocks[0], vector, out);

@@ -54,19 +54,9 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
 
-    private IndexInput ivfPreconditionerSlice;
-
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(state, getFormatReader);
-        if (fields.isEmpty() == false) {
-            // there's only one for all fields stored in the same place in all meta files
-            long preconditionerOffset = ((NextFieldEntry) fields.iterator().next().value).preconditionerOffset();
-            long preconditionerLength = ((NextFieldEntry) fields.iterator().next().value).preconditionerLength();
-            if (preconditionerLength > 0) {
-                ivfPreconditionerSlice = ivfCentroids.slice("preconditioner", preconditionerOffset, preconditionerLength);
-            }
-        }
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
@@ -221,11 +211,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
     }
 
     @Override
-    public Preconditioner getPreconditioner() throws IOException {
-        // the reader is only ever instantiated for a given dimension and block dimension so we can safely read the preconditioner here
-        if (ivfPreconditionerSlice != null) {
-            ivfPreconditionerSlice.seek(0);
-            return Preconditioner.read(ivfPreconditionerSlice);
+    public Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException {
+        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        long preconditionerOffset = ((NextFieldEntry) fieldEntry).preconditionerOffset();
+        long preconditionerLength = ((NextFieldEntry) fieldEntry).preconditionerLength();
+        if (preconditionerLength > 0) {
+            IndexInput ivfPreconditionerSlice = ivfCentroids.slice("preconditioner", preconditionerOffset, preconditionerLength);
+            if (ivfPreconditionerSlice != null) {
+                ivfPreconditionerSlice.seek(0);
+                return Preconditioner.read(ivfPreconditionerSlice);
+            }
         }
         return null;
     }

@@ -30,8 +30,8 @@ import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
  */
 public class NdJsonTextStructureFinder implements TextStructureFinder {
 
-    public static final int NO_RECURSION_DEPTH = 1;
-    public static final int DEFAULT_RECURSION_DEPTH = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getDefault(Settings.EMPTY)
+    private static final int NO_RECURSION_DEPTH = 1;
+    private static final int DEFAULT_RECURSION_DEPTH = MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getDefault(Settings.EMPTY)
         .intValue();
 
     private final List<String> sampleMessages;

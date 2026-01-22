@@ -87,7 +87,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         Map<String, Object> responseMap2 = executeAndVerifyRequest(nestedJsonSample);
 
         assertThat(
-            "Setting `parse_recursively=false` is equivalent to not setting this argument at all",
+            "Setting `should_parse_recursively=false` is equivalent to not setting this argument at all",
             responseMap1,
             equalTo(responseMap2)
         );
@@ -106,7 +106,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         request.setEntity(new StringEntity(sample, ContentType.APPLICATION_JSON));
 
         if (parseRecursivelyArgument) {
-            request.addParameter("parse_recursively", Boolean.toString(parseRecursivelyValue));
+            request.addParameter("should_parse_recursively", Boolean.toString(parseRecursivelyValue));
         }
         Response response = client().performRequest(request);
         assertOK(response);

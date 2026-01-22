@@ -39,7 +39,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
     public static final ParseField DELIMITER = TextStructure.DELIMITER;
     public static final ParseField QUOTE = TextStructure.QUOTE;
     public static final ParseField SHOULD_TRIM_FIELDS = TextStructure.SHOULD_TRIM_FIELDS;
-    public static final ParseField SHOULD_PARSE_RECURSIVELY = new ParseField("parse_recursively");
+    public static final ParseField SHOULD_PARSE_RECURSIVELY = new ParseField("should_parse_recursively");
     public static final ParseField GROK_PATTERN = TextStructure.GROK_PATTERN;
     // This one is plural in FileStructure, but singular in FileStructureOverrides
     public static final ParseField TIMESTAMP_FORMAT = new ParseField("timestamp_format");

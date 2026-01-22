@@ -183,13 +183,14 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         }
 
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
-            return new ToLong(s, new Sum(
+            // We need to cast here because ExtractHistogramComponent returns a double.
+            return new ToLong(s, new Coalesce(s, new Sum(
                 s,
                 ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.COUNT),
                 filter(),
                 window(),
                 SummationMode.COMPENSATED_LITERAL
-            ));
+            ), List.of(new Literal(s, 0, DataType.LONG))));
         }
 
         if (field.foldable()) {

@@ -122,6 +122,20 @@ instance-1       | 2.17E-4    | 3.190723   | 0.1        | 36.198484   | 0.011138
 instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
 ;
 
+// -------------------------------------------------------------------------------
+
+Count of tdigest with no matching rows (standard mode)
+required_capability: tdigest_tech_preview
+
+FROM tdigest_standard_index 
+ | WHERE instance == "does-not-exist"
+ | STATS cnt = count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long
+0
+;
 
 
 ungroupedPercentiles

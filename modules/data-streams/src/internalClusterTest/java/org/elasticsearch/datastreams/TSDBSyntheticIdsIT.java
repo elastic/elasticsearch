@@ -1028,8 +1028,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     private static void putDataStreamTemplate(String indexPattern, int shards) throws IOException {
         final var settings = indexSettings(shards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean())
             .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
 
         final var mappings = """

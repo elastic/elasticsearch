@@ -19,38 +19,58 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 
 public class MixedbreadRerankServiceSettingsTests extends AbstractWireSerializingTestCase<MixedbreadRerankServiceSettings> {
+    private static final String MODEL = "model";
+    private static final RateLimitSettings RATE_LIMIT = new RateLimitSettings(2);
+    private static final Integer WINDOWS_SIZE = 512;
+    private static final URI URI = java.net.URI.create("uri");
 
     public static MixedbreadRerankServiceSettings createRandom() {
         return createRandom(randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }));
     }
 
     public static MixedbreadRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
-        return new MixedbreadRerankServiceSettings(randomAlphaOfLengthOrNull(10), rateLimitSettings, null);
+        return new MixedbreadRerankServiceSettings(randomAlphaOfLengthOrNull(10), rateLimitSettings, null, null);
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var model = "model";
+        var serviceSettings = new MixedbreadRerankServiceSettings(MODEL, RATE_LIMIT, URI, WINDOWS_SIZE);
+        assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
+            {
+                "model_id":"model",
+                "rate_limit": {
+                    "requests_per_minute": 2
+                },
+                "url": "uri",
+                "windows_size": 512
+            }
+            """));
+    }
 
-        var serviceSettings = new MixedbreadRerankServiceSettings(model, null, null);
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+    public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit_And_DefaultWindowsSize() throws IOException {
+        var serviceSettings = new MixedbreadRerankServiceSettings(MODEL, null, null, null);
+        assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
             {
                 "model_id":"model",
                 "rate_limit": {
                     "requests_per_minute": 240
-                }
+                },
+                "windows_size": 8000
             }
             """));
+    }
+
+    private String getXContentResult(MixedbreadRerankServiceSettings serviceSettings) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        return Strings.toString(builder);
     }
 
     @Override
@@ -73,7 +93,7 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractWireSerializin
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new MixedbreadRerankServiceSettings(modelId, rateLimitSettings, null);
+        return new MixedbreadRerankServiceSettings(modelId, rateLimitSettings, null, null);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

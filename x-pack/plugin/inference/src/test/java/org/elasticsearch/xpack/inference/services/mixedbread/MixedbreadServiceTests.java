@@ -121,6 +121,6 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(2800));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(8000));
     }
 }

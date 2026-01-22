@@ -15,4 +15,6 @@ public interface MixedbreadRateLimitServiceSettings {
     RateLimitSettings rateLimitSettings();
 
     URI uri();
+
+    Integer windowSize();
 }

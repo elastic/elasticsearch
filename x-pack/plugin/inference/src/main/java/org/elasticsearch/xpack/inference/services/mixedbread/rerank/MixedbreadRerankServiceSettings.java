@@ -30,11 +30,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 public class MixedbreadRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, MixedbreadRateLimitServiceSettings {
 
     public static final String NAME = "mixedbread_ai_rerank_service_settings";
+    public static final String WINDOWS_SIZE = "windows_size";
 
     /**
      * Applied different rate limits based on the type of operation performed:
@@ -48,6 +50,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
      * <a href="https://www.mixedbread.com/api-reference/rate-limits">Rate Limiting</a>.
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
+    private static final Integer DEFAULT_WINDOWS_SIZE = 8000;
 
     public static MixedbreadRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -56,6 +59,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
 
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer windowsSize = extractOptionalInteger(map, WINDOWS_SIZE, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -68,24 +72,28 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
             throw validationException;
         }
 
-        return new MixedbreadRerankServiceSettings(model, rateLimitSettings, uri);
+        return new MixedbreadRerankServiceSettings(model, rateLimitSettings, uri, windowsSize);
     }
 
     private final String model;
 
     private final RateLimitSettings rateLimitSettings;
     private final URI uri;
+    private final Integer windowsSize;
 
-    public MixedbreadRerankServiceSettings(@Nullable String model, @Nullable RateLimitSettings rateLimitSettings, @Nullable URI uri) {
+    public MixedbreadRerankServiceSettings(
+        @Nullable String model, @Nullable RateLimitSettings rateLimitSettings, @Nullable URI uri, @Nullable Integer windowsSize) {
         this.model = model;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         this.uri = uri;
+        this.windowsSize = Objects.requireNonNullElse(windowsSize, DEFAULT_WINDOWS_SIZE);
     }
 
     public MixedbreadRerankServiceSettings(StreamInput in) throws IOException {
         this.model = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
         this.uri = createOptionalUri(in.readOptionalString());
+        this.windowsSize = in.readOptionalInt();
     }
 
     @Override
@@ -101,6 +109,11 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     @Override
     public URI uri() {
         return uri;
+    }
+
+    @Override
+    public Integer windowSize() {
+        return windowsSize;
     }
 
     @Override
@@ -125,6 +138,8 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
             builder.field(URL, uri.toString());
         }
 
+        builder.field(WINDOWS_SIZE, windowsSize);
+
         return builder;
     }
 
@@ -145,6 +160,7 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
         rateLimitSettings.writeTo(out);
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
+        out.writeOptionalInt(windowsSize);
     }
 
     @Override

@@ -71,6 +71,24 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         InputType.INTERNAL_SEARCH
     );
 
+    private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
+        "mixedbread-ai/mxbai-rerank-xsmall-v1",
+        512,
+        "mixedbread-ai/mxbai-rerank-base-v1",
+        512,
+        "mixedbread-ai/mxbai-rerank-large-v1",
+        512
+        // Windows size.
+        // The v1 models: 512
+        // The v2 models: at least 8k
+        // https://www.mixedbread.com/docs/models/reranking/mxbai-rerank-large-v1
+    );
+
+    /**
+     * Apart from v1 all other models have a context length of at least 8k.
+     */
+    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 8000;
+
     public MixedbreadService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
@@ -273,10 +291,8 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // Cohere rerank model truncates at 4096 tokens https://docs.cohere.com/reference/rerank
-        // Using 1 token = 0.75 words as a rough estimate, we get 3072 words
-        // allowing for some headroom, we set the window size below 3072
-        return 2800;
+        Integer inputSize = RERANKERS_INPUT_SIZE.get(modelId);
+        return inputSize != null ? inputSize : DEFAULT_RERANKER_INPUT_SIZE_WORDS;
     }
 
     public static class Configuration {

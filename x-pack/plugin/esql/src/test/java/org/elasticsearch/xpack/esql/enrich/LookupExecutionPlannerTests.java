@@ -154,6 +154,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
 
     @Before
     public void setup() {
+        // Enable streaming lookup to test the execution planner code path
+        LookupFromIndexService.USE_STREAMING_LOOKUP = true;
         blockFactory = TestBlockFactory.getNonBreakingInstance();
         bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
         releasables = new ArrayList<>();
@@ -207,6 +209,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
 
     @After
     public void cleanup() {
+        // Reset streaming lookup to default
+        LookupFromIndexService.USE_STREAMING_LOOKUP = false;
         Releasables.close(releasables);
         blockFactory = null;
         bigArrays = null;

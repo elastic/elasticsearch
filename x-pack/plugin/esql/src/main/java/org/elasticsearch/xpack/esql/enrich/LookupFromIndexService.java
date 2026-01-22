@@ -81,7 +81,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     /**
      * Switch between new streaming implementation and base class implementation.
      */
-    protected static boolean USE_STREAMING_LOOKUP = true;
+    protected static boolean USE_STREAMING_LOOKUP = false;
 
     private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");

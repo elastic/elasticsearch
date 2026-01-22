@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -135,15 +136,15 @@ public class SpatialEnvelopeResults<T extends Block.Builder> {
      */
     protected static class Factory<T extends Block.Builder> {
         private final SpatialCoordinateTypes spatialCoordinateType;
-        private final SpatialEnvelopeVisitor.PointVisitor pointVisitor;
+        private final Supplier<SpatialEnvelopeVisitor.PointVisitor> pointVisitorSupplier;
 
-        Factory(SpatialCoordinateTypes spatialCoordinateType, SpatialEnvelopeVisitor.PointVisitor pointVisitor) {
+        Factory(SpatialCoordinateTypes spatialCoordinateType, Supplier<SpatialEnvelopeVisitor.PointVisitor> pointVisitorSupplier) {
             this.spatialCoordinateType = spatialCoordinateType;
-            this.pointVisitor = pointVisitor;
+            this.pointVisitorSupplier = pointVisitorSupplier;
         }
 
         public SpatialEnvelopeResults<T> get(DriverContext ignored) {
-            return new SpatialEnvelopeResults<>(spatialCoordinateType, pointVisitor);
+            return new SpatialEnvelopeResults<>(spatialCoordinateType, pointVisitorSupplier.get());
         }
     }
 }

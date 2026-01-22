@@ -119,8 +119,8 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // Create the results-builder as a factory, so thread-local instances can be used in evaluators
         var resultsBuilder = isSpatialGeo(spatialField().dataType())
-            ? new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(GEO, new GeoPointVisitor(WRAP))
-            : new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(CARTESIAN, new CartesianPointVisitor());
+            ? new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(GEO, () -> new GeoPointVisitor(WRAP))
+            : new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
         var spatial = toEvaluator.apply(spatialField());
         if (spatialDocValues) {
             return switch (spatialField().dataType()) {

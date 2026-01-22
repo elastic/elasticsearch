@@ -1832,7 +1832,7 @@ public class EsqlCapabilities {
         /**
          * PromQL acosh function support.
          */
-        PROMQL_ACOSH(Build.current().isSnapshot()),
+        ACOSH_FUNCTION,
 
         /**
          * Bundle flag for PromQL math functions.
@@ -1849,22 +1849,6 @@ public class EsqlCapabilities {
          * Support for PromQL time() function.
          */
         PROMQL_TIME,
-
-        /**
-         * PromQL degrees (rad → deg) function support.
-         */
-        PROMQL_DEG(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
-
-        /**
-         * PromQL radians (deg → rad) function support.
-         */
-        PROMQL_RAD(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
-
-        /**
-         * PromQL binary logarithm function support.
-         */
-        PROMQL_LOG2(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
-
         /**
          * KNN function adds support for k and visit_percentage options
          */

@@ -35,11 +35,11 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService.FIREWORKS_AI_SERVICE;
 
 /**
@@ -88,7 +88,7 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         // Handle dimensionsSetByUser based on context
         Boolean dimensionsSetByUser = switch (context) {
             case PERSISTENT -> {
-                Boolean value = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
+                Boolean value = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
                 yield value != null ? value : Boolean.FALSE;
             }
             case REQUEST -> dims != null;
@@ -139,8 +139,8 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         this.modelId = in.readString();
         this.uri = ServiceUtils.createUri(in.readString());
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        this.dimensions = in.readOptionalInt();
-        this.maxInputTokens = in.readOptionalInt();
+        this.dimensions = in.readOptionalVInt();
+        this.maxInputTokens = in.readOptionalVInt();
         this.dimensionsSetByUser = in.readBoolean();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
@@ -191,6 +191,11 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
 
         toXContentFragmentOfExposedFields(builder, params);
 
+        // dimensionsSetByUser is an internal field, not exposed to users
+        if (dimensionsSetByUser != null) {
+            builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -212,8 +217,6 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
 
-        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
-
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -224,10 +227,10 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         out.writeString(modelId);
         out.writeString(uri.toString());
         out.writeOptionalEnum(similarity);
-        out.writeOptionalInt(dimensions);
-        out.writeOptionalInt(maxInputTokens);
+        out.writeOptionalVInt(dimensions);
+        out.writeOptionalVInt(maxInputTokens);
         out.writeBoolean(dimensionsSetByUser);
-        out.writeOptionalWriteable(rateLimitSettings);
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

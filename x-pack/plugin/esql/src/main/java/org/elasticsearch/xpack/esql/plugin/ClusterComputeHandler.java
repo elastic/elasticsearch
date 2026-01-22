@@ -174,7 +174,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 } else {
                     // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
                     // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-                    builder.setTook(executionInfo.queryProfile().query().timeSinceStarted());
+                    builder.setTook(executionInfo.queryProfile().total().timeSinceStarted());
                 }
             }
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {

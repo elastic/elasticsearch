@@ -35,7 +35,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
 
     @Override
     protected EsqlQueryProfile mutateInstance(EsqlQueryProfile instance) throws IOException {
-        TimeSpan query = instance.query().timeSpan();
+        TimeSpan query = instance.total().timeSpan();
         TimeSpan planning = instance.planning().timeSpan();
         TimeSpan parsing = instance.parsing().timeSpan();
         TimeSpan preAnalysis = instance.preAnalysis().timeSpan();
@@ -57,7 +57,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
     @Override
     protected EsqlQueryProfile copyInstance(EsqlQueryProfile instance, TransportVersion version) throws IOException {
         return new EsqlQueryProfile(
-            instance.query().timeSpan(),
+            instance.total().timeSpan(),
             instance.planning().timeSpan(),
             instance.parsing().timeSpan(),
             instance.preAnalysis().timeSpan(),

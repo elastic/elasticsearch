@@ -33,8 +33,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String DEPENDENCY_RESOLUTION = "dependency_resolution";
     public static final String ANALYSIS = "analysis";
 
-    private final TimeSpanMarker queryMarker;
-
+    /** Time elapsed since start of query till the final result rendering */
+    private final TimeSpanMarker totalMarker;
     /** Time elapsed since start of query to calling ComputeService.execute */
     private final TimeSpanMarker planningMarker;
     /** Time elapsed for query parsing */
@@ -63,7 +63,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         TimeSpan analysis,
         int fieldCapsCalls
     ) {
-        this.queryMarker = new TimeSpanMarker(QUERY, true, query);
+        this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         this.parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
         this.preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
@@ -88,7 +88,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(queryMarker.timeSpan);
+        out.writeOptionalWriteable(totalMarker.timeSpan);
         out.writeOptionalWriteable(planningMarker.timeSpan);
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
             && out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
@@ -103,7 +103,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         EsqlQueryProfile that = (EsqlQueryProfile) o;
-        return Objects.equals(queryMarker, that.queryMarker)
+        return Objects.equals(totalMarker, that.totalMarker)
             && Objects.equals(planningMarker, that.planningMarker)
             && Objects.equals(parsingMarker, that.parsingMarker)
             && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
@@ -115,7 +115,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     @Override
     public int hashCode() {
         return Objects.hash(
-            queryMarker,
+            totalMarker,
             planningMarker,
             parsingMarker,
             preAnalysisMarker,
@@ -128,8 +128,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         return "PlanningProfile{"
-            + "queryMarker="
-            + queryMarker
+            + "totalMarker="
+            + totalMarker
             + "planningMarker="
             + planningMarker
             + ", parsingMarker="
@@ -145,8 +145,18 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + '}';
     }
 
-    public TimeSpanMarker query() {
-        return queryMarker;
+    public EsqlQueryProfile start() {
+        totalMarker.start();
+        return this;
+    }
+
+    public EsqlQueryProfile stop() {
+        totalMarker.stop();
+        return this;
+    }
+
+    public TimeSpanMarker total() {
+        return totalMarker;
     }
 
     /**
@@ -196,7 +206,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     }
 
     public Collection<TimeSpanMarker> timeSpanMarkers() {
-        return List.of(queryMarker, planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
+        return List.of(totalMarker, planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
     }
 
     @Override

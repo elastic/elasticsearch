@@ -398,7 +398,7 @@ public class EsqlCCSUtils {
         assert status != Cluster.Status.RUNNING : "status must be a final state, not RUNNING";
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
-                .setTook(executionInfo.queryProfile().query().timeSinceStarted())
+                .setTook(executionInfo.queryProfile().total().timeSinceStarted())
                 .setTotalShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
                 .setSuccessfulShards(Objects.requireNonNullElse(v.getSuccessfulShards(), 0))
                 .setSkippedShards(Objects.requireNonNullElse(v.getSkippedShards(), 0))

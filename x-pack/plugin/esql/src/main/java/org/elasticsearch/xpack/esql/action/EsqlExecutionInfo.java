@@ -116,8 +116,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.clusterInfo = clusterInfo;
         this.skipOnFailurePredicate = skipOnPlanTimeFailurePredicate;
         this.includeExecutionMetadata = includeExecutionMetadata;
-        this.queryProfile = new EsqlQueryProfile();
-        this.queryProfile.query().start();
+        this.queryProfile = new EsqlQueryProfile().start();
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
@@ -170,8 +169,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         if (isMainPlan()) {
-            queryProfile.query().stop();
-            overallTook = queryProfile.query().timeSpan().toTimeValue();
+            queryProfile.stop();
+            overallTook = queryProfile.total().timeSpan().toTimeValue();
         }
     }
 

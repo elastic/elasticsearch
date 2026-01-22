@@ -55,14 +55,12 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
-import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -70,13 +68,11 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -147,7 +143,7 @@ public class Approximation {
 
     /**
      * These processing commands are supported.
-     *
+     * <p>
      * When a command is not supported, it should be added to
      * ApproximationSupportTests.UNSUPPORTED_COMMANDS
      * to make sure all commands are captured.
@@ -157,22 +153,18 @@ public class Approximation {
         ChangePoint.class,
         Completion.class,
         Dissect.class,
-        Drop.class,
         Enrich.class,
         EsRelation.class,
         Eval.class,
         Filter.class,
         Grok.class,
         Insist.class,
-        Keep.class,
         Limit.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,
         RegexExtract.class,
-        Rename.class,
         Rerank.class,
-        ResolvingProject.class,
         Row.class,
         Sample.class,
         TopN.class
@@ -180,6 +172,9 @@ public class Approximation {
 
     /**
      * These index modes of EsRelation are supported.
+     * <p>
+     * Note: LOOKUP is added to make query validation output nicer messages
+     * ("query with [LOOKUP JOIN ...] ..." instead of "query with [test_lookup] ...").
      */
     private static final Set<IndexMode> SUPPORTED_INDEX_MODES = Set.of(IndexMode.STANDARD, IndexMode.LOOKUP);
 
@@ -187,19 +182,15 @@ public class Approximation {
      * These commands preserve all rows, making it easy to predict the number of output rows.
      */
     private static final Set<Class<? extends LogicalPlan>> ROW_PRESERVING_COMMANDS = Set.of(
-        ChangePoint.class,
         Completion.class,
         Dissect.class,
-        Drop.class,
         Enrich.class,
         Eval.class,
         Grok.class,
         Insist.class,
-        Keep.class,
         OrderBy.class,
         Project.class,
         RegexExtract.class,
-        Rename.class,
         Rerank.class
     );
 
@@ -222,7 +213,7 @@ public class Approximation {
     /**
      * These aggregate functions behave well with random sampling, in the sense
      * that they converge to the true value as the sample size increases.
-     *
+     * <p>
      * When an aggregation is not supported, it should be added to
      * ApproximationSupportTests.UNSUPPORTED_AGGS
      * to make sure all aggregations are captured.
@@ -257,7 +248,7 @@ public class Approximation {
     /**
      * These numerical scalar functions produce multivalued output. This means that
      * confidence intervals cannot be computed anymore and are dropped.
-     *
+     * <p>
      * Numerical scalar functions that produce multivalued output should be added
      * here. Forgetting to do so leads to confidence intervals columns for the
      * multivalued fields, that are filled with nulls.
@@ -321,6 +312,7 @@ public class Approximation {
     private final PlanTimeProfile planTimeProfile;
 
     private long sourceRowCount;
+    private int countRecursionDepth;
 
     public Approximation(
         LogicalPlan logicalPlan,
@@ -343,6 +335,7 @@ public class Approximation {
         this.configuration = configuration;
         this.foldContext = foldContext;
         this.planTimeProfile = planTimeProfile;
+        countRecursionDepth = 0;
     }
 
     /**
@@ -377,13 +370,13 @@ public class Approximation {
         Holder<Boolean> canIncreaseRowCount = new Holder<>(false);
         Holder<Boolean> canDecreaseRowCount = new Holder<>(false);
 
-        logicalPlan.transformUp(plan -> {
+        logicalPlan.forEachUp(plan -> {
             if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate aggregate) {
                     // Verify that the aggregate functions are supported.
                     encounteredStats.set(true);
                     hasGrouping.set(aggregate.groupings().isEmpty() == false);
-                    plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
+                    plan.forEachExpression(AggregateFunction.class, aggFn -> {
                         if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
                             && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
                             // TODO: ideally just return aggregate function from the source
@@ -391,7 +384,6 @@ public class Approximation {
                                 List.of(Failure.fail(aggFn, "aggregation function [" + aggFn.sourceText() + "] cannot be approximated"))
                             );
                         }
-                        return aggFn;
                     });
                 } else if (plan instanceof LeafPlan == false) {
                     if (ROW_NON_DECREASING_COMMANDS.contains(plan.getClass()) == false) {
@@ -407,7 +399,6 @@ public class Approximation {
                     throw new VerificationException(List.of(Failure.fail(plan, "query with multiple [STATS] cannot be approximated")));
                 }
             }
-            return plan;
         });
 
         return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get(), canIncreaseRowCount.get());
@@ -424,21 +415,24 @@ public class Approximation {
     }
 
     /**
-     * Returns the original (exact) logical plan, extended with the confidence interval and
-     * reliable fields, that the approximation plan would have returned. The confidence interval
-     * of a field is [exact_value, exact_value] and the reliable field is always true.
+     * Returns the original logical plan (returning the exact results), extended with the
+     * confidence interval and reliable fields, that the approximation plan would have
+     * returned. The confidence interval of a field is [exact_value, exact_value] and the
+     * reliable field is always true.
      */
     private LogicalPlan exactPlanWithConfidenceIntervals() {
-        Set<NameId> exactFieldIds = logicalPlan.output().stream().map(Attribute::id).collect(Collectors.toSet());
         Map<String, Attribute> exactFields = logicalPlan.output()
             .stream()
             .collect(Collectors.toMap(NamedExpression::name, Function.identity()));
 
         // Compute the approximation plan to find out which fields need confidence intervals.
+        // To do so, use a non-zero sample probability lower than the threshold. Otherwise,
+        // the approximation plan uses this exactPlanWithConfidenceIntervals again.
         LogicalPlan approximationPlan = approximationPlan(SAMPLE_PROBABILITY_THRESHOLD / 2.0);
         List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
         for (Attribute field : approximationPlan.output()) {
-            if (exactFieldIds.contains(field.id())) {
+            // TODO: handle user-defined fields that collide with the extra fields.
+            if (exactFields.containsKey(field.name())) {
                 continue;
             }
             if (field.name().startsWith("CONFIDENCE_INTERVAL")) {
@@ -452,6 +446,8 @@ public class Approximation {
                 confidenceIntervalsAndReliable.add(new Alias(Source.EMPTY, field.name(), Literal.TRUE));
             }
         }
+        // The approximation plan appends the confidence interval and reliable fields
+        // at the end, so do the same here.
         LogicalPlan logicalPlanWithConfidenceIntervals = new Eval(Source.EMPTY, logicalPlan, confidenceIntervalsAndReliable);
         logicalPlanWithConfidenceIntervals.setPreOptimized();
         logicalPlanWithConfidenceIntervals = logicalPlanOptimizer.optimize(logicalPlanWithConfidenceIntervals);
@@ -480,17 +476,13 @@ public class Approximation {
      * </pre>
      */
     private LogicalPlan sourceCountPlan() {
-        LogicalPlan sourceCountPlan = logicalPlan.transformUp(plan -> {
-            if (plan instanceof LeafPlan) {
-                // Append the leaf plan by a STATS COUNT(*).
-                plan = new Aggregate(Source.EMPTY, plan, List.of(), List.of(new Alias(Source.EMPTY, "$count", COUNT_ALL_ROWS)));
-            } else {
-                // Strip everything after the leaf.
-                plan = plan.children().getFirst();
-            }
-            return plan;
-        });
-
+        LogicalPlan leaf = logicalPlan.collectLeaves().getFirst();
+        LogicalPlan sourceCountPlan = new Aggregate(
+            Source.EMPTY,
+            leaf,
+            List.of(),
+            List.of(new Alias(Source.EMPTY, "$count", COUNT_ALL_ROWS))
+        );
         sourceCountPlan.setPreOptimized();
         return logicalPlanOptimizer.optimize(sourceCountPlan);
     }
@@ -500,20 +492,14 @@ public class Approximation {
      * {@link Approximation#approximationPlan} or {@link Approximation#countPlan}
      * depending on whether the original query preserves all rows or not.
      */
-    private ActionListener<Result> sourceCountListener(ActionListener<Result> listener) {
-        return listener.delegateFailureAndWrap((countListener, countResult) -> {
+    private ActionListener<Result> sourceCountListener(ActionListener<Result> approximationListener) {
+        return approximationListener.delegateFailureAndWrap((listener, countResult) -> {
             sourceRowCount = rowCount(countResult);
-            logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
+            logger.debug("total number of source rows: [{}] rows", sourceRowCount);
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
                 executionInfo.finishSubPlans();
-                runner.run(
-                    toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
-                    configuration,
-                    foldContext,
-                    planTimeProfile,
-                    countListener
-                );
+                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
                 return;
             }
             double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
@@ -525,20 +511,14 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    countListener
+                    listener
                 );
             } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
                 executionInfo.finishSubPlans();
-                runner.run(
-                    toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
-                    configuration,
-                    foldContext,
-                    planTimeProfile,
-                    countListener
-                );
+                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
                 sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
@@ -547,7 +527,7 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    countListener(sampleProbability, countListener)
+                    countListener(sampleProbability, listener)
                 );
             }
         });
@@ -596,23 +576,64 @@ public class Approximation {
      * Runs either the {@link Approximation#approximationPlan} or a next iteration
      * {@link Approximation#countPlan} depending on whether the current count is
      * sufficient.
+     * <p>
+     * This count listener works recursively, increasing the sample probability at
+     * each step. The first iteration uses a probability of
+     * <pre>
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / {@link Approximation#sourceRowCount}
+     * </pre>
+     * which is set by the {@link Approximation#sourceCountListener}.
+     * <p>
+     * If the sampled row count is high enough, the approximation plan is run next.
+     * <p>
+     * If the sampled row count is low the probability is multiplied by
+     * <pre>
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / Math.max(1, rowCount)
+     * </pre>
+     * and the count plan is run again.
+     * <p>
+     * For positive rowCount this means the next iteration aims for
+     * approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
+     * The recursion stops when a rowCount larger than {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / 2
+     * is encountered. The division by 2 is to stop when the random sampling
+     * returns a few less rows than aimed for.
+     * <p>
+     * For zero rowCount the sample probability is multiplied by
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}. That means the next
+     * recursion step can sample a number of rows between 0 and the target count,
+     * but can never overshoot by much.
+     * <p>
+     * Regarding the recursion depth: in the worst case (very large index, very few
+     * matching docs), the first few iterations return zero rows, and the sample probability
+     * is multiplied by {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} each time.
+     * Next, there's one iteration that returns a positive small row count, and the
+     * probability is scaled up the correct value. Next, there's one final iteration
+     * with approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
+     * <p>
+     * This result in a maximum recursion depth of about:
+     * <pre>
+     *     log(sourceRowCount, {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}) + 2
+     * </pre>
+     * which is at most 7 when sourceRowCount=MAX_LONG (huge!) and
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} = 10000.
+     * To be safe, the maximum recursion depth is capped at 10, and an exception is thrown
+     * when this depth is exceeded.
      */
-    private ActionListener<Result> countListener(double sampleProbability, ActionListener<Result> listener) {
-        return listener.delegateFailureAndWrap((countListener, countResult) -> {
+    private ActionListener<Result> countListener(double sampleProbability, ActionListener<Result> approximationListener) {
+        return approximationListener.delegateFailureAndWrap((listener, countResult) -> {
+            countRecursionDepth += 1;
+            if (countRecursionDepth > 10) {
+                listener.onFailure(new IllegalStateException("Approximation count recursion limit exceeded"));
+                return;
+            }
             long rowCount = rowCount(countResult);
-            logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
+            logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
             double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount() / Math.max(1, rowCount));
             if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
                 executionInfo.finishSubPlans();
-                runner.run(
-                    toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
-                    configuration,
-                    foldContext,
-                    planTimeProfile,
-                    countListener
-                );
+                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
             } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
                 newSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
@@ -621,7 +642,7 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    countListener(newSampleProbability, countListener)
+                    countListener(newSampleProbability, listener)
                 );
             } else {
                 executionInfo.finishSubPlans();
@@ -630,7 +651,7 @@ public class Approximation {
                     configuration,
                     foldContext,
                     planTimeProfile,
-                    countListener
+                    listener
                 );
             }
         });
@@ -640,6 +661,10 @@ public class Approximation {
      * Returns the row count in the result and closes the result.
      */
     private long rowCount(Result countResult) {
+        assert countResult.pages().size() == 1;
+        assert countResult.pages().getFirst().getBlockCount() == 1;
+        assert countResult.pages().getFirst().getPositionCount() == 1;
+
         long rowCount = ((LongBlock) (countResult.pages().getFirst().getBlock(0))).getLong(0);
         countResult.pages().getFirst().close();
         return rowCount;
@@ -703,7 +728,7 @@ public class Approximation {
             return exactPlanWithConfidenceIntervals();
         }
 
-        logger.debug("generating approximate plan (p={})", sampleProbability);
+        logger.debug("generating approximate plan (p=[{}])", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
         // The keys are the IDs of the fields that have buckets. Confidence interval are computed
         // for these fields at the end of the computation. They map to the list of buckets for

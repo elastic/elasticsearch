@@ -102,7 +102,7 @@ public class ApproximationTests extends ESTestCase {
         private final List<LogicalPlan> invocations;
         private final Map<PhysicalPlan, LogicalPlan> toLogicalPlan = new HashMap<>();
 
-        static ActionListener<Result> resultCloser = ActionListener.wrap(result -> result.pages().getFirst().close(), e -> {});
+        static ActionListener<Result> resultCloser = ActionListener.wrap(result -> result.pages().getFirst().close(), ESTestCase::fail);
 
         TestRunner(long sourceRows, long statsRows) {
             this.sourceRows = sourceRows;

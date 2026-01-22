@@ -14,6 +14,13 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 
 import java.util.Map;
 
+/**
+ * @param rows The number of rows used for query approximation.
+ *             If {@code null}, the default will be used.
+ *
+ * @param confidenceLevel The confidence level of the confidence intervals returned by query approximation.
+ *                       If {@code null}, the default will be used.
+ */
 public record ApproximationSettings(Integer rows, Double confidenceLevel) {
     public static final ApproximationSettings DEFAULT = new ApproximationSettings(null, null);
 

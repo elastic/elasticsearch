@@ -350,6 +350,10 @@ public final class TextStructureUtils {
         String timestampFormatOverride,
         int maxDepth
     ) {
+        if (maxDepth < 1) {
+            throw new IllegalArgumentException("Max recursion depth must be at least 1");
+        }
+
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 

@@ -944,6 +944,28 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
     }
 
+    public void testGuessMappingsWithMaxDepthLessThanOneThrowsException() {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("field", "value");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TextStructureUtils.guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(input),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    0
+                )
+            );
+            assertEquals("Max recursion depth must be at least 1", e.getMessage());
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
     public void testGuessMappingsAndCalculateFieldStats() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");

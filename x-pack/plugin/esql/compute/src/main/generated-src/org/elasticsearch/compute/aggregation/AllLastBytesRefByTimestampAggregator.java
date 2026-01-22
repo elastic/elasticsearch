@@ -328,32 +328,33 @@ public class AllLastBytesRefByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            var valuesBuilder = blockFactory.newBytesRefBlockBuilder(groups.getPositionCount());
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int group = groups.getInt(p);
-                int count = 0;
-                if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                    count = (int) values.get(group).size();
-                }
-                switch (count) {
-                    case 0 -> valuesBuilder.appendNull();
-                    case 1 -> {
-                        BytesRef bytesScratch = new BytesRef();
-                        values.get(group).get(0, bytesScratch);
-                        valuesBuilder.appendBytesRef(bytesScratch);
+            try (var valuesBuilder = blockFactory.newBytesRefBlockBuilder(groups.getPositionCount())) {
+                for (int p = 0; p < groups.getPositionCount(); p++) {
+                    int group = groups.getInt(p);
+                    int count = 0;
+                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
+                        count = (int) values.get(group).size();
                     }
-                    default -> {
-                        valuesBuilder.beginPositionEntry();
-                        for (int i = 0; i < count; ++i) {
+                    switch (count) {
+                        case 0 -> valuesBuilder.appendNull();
+                        case 1 -> {
                             BytesRef bytesScratch = new BytesRef();
-                            values.get(group).get(i, bytesScratch);
+                            values.get(group).get(0, bytesScratch);
                             valuesBuilder.appendBytesRef(bytesScratch);
                         }
-                        valuesBuilder.endPositionEntry();
+                        default -> {
+                            valuesBuilder.beginPositionEntry();
+                            for (int i = 0; i < count; ++i) {
+                                BytesRef bytesScratch = new BytesRef();
+                                values.get(group).get(i, bytesScratch);
+                                valuesBuilder.appendBytesRef(bytesScratch);
+                            }
+                            valuesBuilder.endPositionEntry();
+                        }
                     }
                 }
+                return valuesBuilder.build();
             }
-            return valuesBuilder.build();
         }
     }
 }

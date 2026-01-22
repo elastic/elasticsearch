@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -436,5 +438,22 @@ public class ESVectorUtil {
     public static int indexOf(byte[] bytes, int offset, int length, byte marker) {
         Objects.checkFromIndexSize(offset, length, bytes.length);
         return IMPL.indexOf(bytes, offset, length, marker);
+    }
+
+    /**
+     * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
+     * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
+     * thrown, but invalid results will be returned.
+     *
+     * @param bytesRef bytes reference containing a valid utf-8 encoded string
+     * @return the number of code points in the bytes ref
+     */
+    public static int codePointCount(BytesRef bytesRef) {
+        // Scalar logic is faster for lengths below approximately 12
+        if (bytesRef.length < 12) {
+            return UnicodeUtil.codePointCount(bytesRef);
+        }
+        Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
+        return IMPL.codePointCount(bytesRef);
     }
 }

@@ -119,7 +119,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION) == false) {
+        if (in.getTransportVersion().supports(EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
             in.readOptionalTimeValue();
         }
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
@@ -137,7 +137,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION) == false) {
+        if (out.getTransportVersion().supports(EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
             out.writeOptionalTimeValue(null);
         }
         if (clusterInfo != null && clusterInfoInitializing == false) {

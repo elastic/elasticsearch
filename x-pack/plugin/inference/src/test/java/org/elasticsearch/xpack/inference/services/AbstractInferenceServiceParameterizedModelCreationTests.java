@@ -95,79 +95,43 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
                 {
                     new TestCaseBuilder(
                         "Test building model from config and secrets creates a completion model",
-                        testConfiguration -> new Utils.ModelConfigAndSecrets(
-                            testConfiguration.commonConfig().createModelConfigurations(TaskType.COMPLETION),
-                            testConfiguration.commonConfig().createModelSecrets()
-                        ),
-                        params -> params.service.buildModelFromConfigAndSecrets(
-                            params.modelConfigAndSecrets.config(),
-                            params.modelConfigAndSecrets.secrets()
-                        ),
+                        getTestConfigurationModelConfigAndSecretsFunction(TaskType.COMPLETION),
+                        getModelCreator(),
                         TaskType.COMPLETION
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test building model from config and secrets creates a chat completion model",
-                        testConfiguration -> new Utils.ModelConfigAndSecrets(
-                            testConfiguration.commonConfig().createModelConfigurations(TaskType.CHAT_COMPLETION),
-                            testConfiguration.commonConfig().createModelSecrets()
-                        ),
-                        params -> params.service.buildModelFromConfigAndSecrets(
-                            params.modelConfigAndSecrets.config(),
-                            params.modelConfigAndSecrets.secrets()
-                        ),
+                        getTestConfigurationModelConfigAndSecretsFunction(TaskType.CHAT_COMPLETION),
+                        getModelCreator(),
                         TaskType.CHAT_COMPLETION
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test building model from config and secrets creates a text embedding model",
-                        testConfiguration -> new Utils.ModelConfigAndSecrets(
-                            testConfiguration.commonConfig().createModelConfigurations(TaskType.TEXT_EMBEDDING),
-                            testConfiguration.commonConfig().createModelSecrets()
-                        ),
-                        params -> params.service.buildModelFromConfigAndSecrets(
-                            params.modelConfigAndSecrets.config(),
-                            params.modelConfigAndSecrets.secrets()
-                        ),
+                        getTestConfigurationModelConfigAndSecretsFunction(TaskType.TEXT_EMBEDDING),
+                        getModelCreator(),
                         TaskType.TEXT_EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test building model from config and secrets creates a sparse embedding model",
-                        testConfiguration -> new Utils.ModelConfigAndSecrets(
-                            testConfiguration.commonConfig().createModelConfigurations(TaskType.SPARSE_EMBEDDING),
-                            testConfiguration.commonConfig().createModelSecrets()
-                        ),
-                        params -> params.service.buildModelFromConfigAndSecrets(
-                            params.modelConfigAndSecrets.config(),
-                            params.modelConfigAndSecrets.secrets()
-                        ),
+                        getTestConfigurationModelConfigAndSecretsFunction(TaskType.SPARSE_EMBEDDING),
+                        getModelCreator(),
                         TaskType.SPARSE_EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test building model from config and secrets creates an embedding model",
-                        testConfiguration -> new Utils.ModelConfigAndSecrets(
-                            testConfiguration.commonConfig().createModelConfigurations(TaskType.EMBEDDING),
-                            testConfiguration.commonConfig().createModelSecrets()
-                        ),
-                        params -> params.service.buildModelFromConfigAndSecrets(
-                            params.modelConfigAndSecrets.config(),
-                            params.modelConfigAndSecrets.secrets()
-                        ),
+                        getTestConfigurationModelConfigAndSecretsFunction(TaskType.EMBEDDING),
+                        getModelCreator(),
                         TaskType.EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test building model from config and secrets creates a rerank model",
-                        testConfiguration -> new Utils.ModelConfigAndSecrets(
-                            testConfiguration.commonConfig().createModelConfigurations(TaskType.RERANK),
-                            testConfiguration.commonConfig().createModelSecrets()
-                        ),
-                        params -> params.service.buildModelFromConfigAndSecrets(
-                            params.modelConfigAndSecrets.config(),
-                            params.modelConfigAndSecrets.secrets()
-                        ),
+                        getTestConfigurationModelConfigAndSecretsFunction(TaskType.RERANK),
+                        getModelCreator(),
                         TaskType.RERANK
                     ).build() },
                 {
@@ -178,16 +142,29 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
                                 .createModelConfigurations(testConfiguration.commonConfig().unsupportedTaskType()),
                             testConfiguration.commonConfig().createModelSecrets()
                         ),
-                        params -> params.service.buildModelFromConfigAndSecrets(
-                            params.modelConfigAndSecrets.config(),
-                            params.modelConfigAndSecrets.secrets()
-                        ),
+                        getModelCreator(),
                         TaskType.ANY
                     ).expectFailure().build() } }
         );
     }
 
-    public void testBuildModelFromConfigAndSecrets() throws Exception {
+    private static ModelCreator getModelCreator() {
+        return params -> params.service.buildModelFromConfigAndSecrets(
+            params.modelConfigAndSecrets.config(),
+            params.modelConfigAndSecrets.secrets()
+        );
+    }
+
+    private static Function<TestConfiguration, Utils.ModelConfigAndSecrets> getTestConfigurationModelConfigAndSecretsFunction(
+        TaskType completion
+    ) {
+        return testConfiguration -> new Utils.ModelConfigAndSecrets(
+            testConfiguration.commonConfig().createModelConfigurations(completion),
+            testConfiguration.commonConfig().createModelSecrets()
+        );
+    }
+
+    public void testBuildModelFromConfigAndSecrets() {
         var commonConfig = testConfiguration.commonConfig();
         if (testCase.expectFailure == false) {
             // If the service doesn't support the expected task type, then skip the test

@@ -258,6 +258,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(clusterSettings),
+            yesOrNotPreferredDecider(),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -348,7 +349,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(clusterSettings)
+            new ThrottlingAllocationDecider(clusterSettings),
+            yesOrNotPreferredDecider()
         );
 
         final var stateWithInitializingPrimaries = startInitializingShardsAndReroute(allocationService, clusterState);
@@ -439,6 +441,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(clusterSettings),
+            yesOrNotPreferredDecider(),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -546,7 +549,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new TestAllocationDecider(() -> randomFrom(Decision.YES, Decision.NOT_PREFERRED))
+            yesOrNotPreferredDecider()
         );
 
         ClusterState reroutedState = clusterState;
@@ -643,7 +646,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             () -> clusterInfo,
             () -> snapshotShardSizeInfo,
             new SameShardAllocationDecider(clusterSettings),
-            new ReplicaAfterPrimaryActiveAllocationDecider()
+            new ReplicaAfterPrimaryActiveAllocationDecider(),
+            yesOrNotPreferredDecider()
         );
 
         final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
@@ -682,6 +686,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
+            yesOrNotPreferredDecider(),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -741,6 +746,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
+            yesOrNotPreferredDecider(),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -800,6 +806,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(clusterSettings),
+            yesOrNotPreferredDecider(),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -1791,5 +1798,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1000)
             .build();
+    }
+
+    /**
+     * A decider that randomly returns YES or NOT_PREFERRED
+     */
+    private static AllocationDecider yesOrNotPreferredDecider() {
+        return new TestAllocationDecider(() -> randomFrom(Decision.YES, Decision.NOT_PREFERRED));
     }
 }

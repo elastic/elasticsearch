@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.util.BytesRef;
+
 public interface ESVectorUtilSupport {
 
     /**
@@ -71,4 +73,6 @@ public interface ESVectorUtilSupport {
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
+
+    int codePointCount(BytesRef bytesRef);
 }

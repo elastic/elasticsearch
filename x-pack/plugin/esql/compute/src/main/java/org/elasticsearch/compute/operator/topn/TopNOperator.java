@@ -313,6 +313,8 @@ public class TopNOperator implements Operator, Accountable {
     private long receiveNanos;
     private long emitNanos;
 
+    private long updateTopCalls;
+
     /**
      * Count of pages that have been received by this operator.
      */
@@ -419,7 +421,9 @@ public class TopNOperator implements Operator, Accountable {
             if (sortedInput) {
                 mergeSort(inputSortedVector, page);
             } else {
+                updateTopCalls = 0;
                 combineSorting(inputQueue, page);
+                //System.out.println("updateTop called " + updateTopCalls + " times");
             }
         } finally {
             page.releaseBlocks();
@@ -459,10 +463,15 @@ public class TopNOperator implements Operator, Accountable {
                 Row nextSpare = inputQueue.top();
                 rowFiller.writeValues(i, spare);
                 spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
-                inputQueue.updateTop(spare);
+                updateTop(inputQueue);
                 spare = nextSpare;
             }
         }
+    }
+
+    private void updateTop(Queue inputQueue) {
+        updateTopCalls++;
+        inputQueue.updateTop(spare);
     }
 
     private void mergeSort(BoundedSortedVector sortedData, Page page) {

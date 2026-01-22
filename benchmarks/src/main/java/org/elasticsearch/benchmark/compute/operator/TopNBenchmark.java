@@ -42,6 +42,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
@@ -58,7 +59,7 @@ public class TopNBenchmark {
         BigArrays.NON_RECYCLING_INSTANCE
     );
 
-    private static final int BLOCK_LENGTH = 8 * 1024;
+    private static final int BLOCK_LENGTH = 1 * 1024;
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -88,13 +89,13 @@ public class TopNBenchmark {
         }
     }
 
-    @Param({ LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
+    @Param({ LONGS })
     public String data;
 
     @Param({ "true", "false" })
     public boolean sortedInput;
 
-    @Param({ "10", "1000", "10000" })
+    @Param({ "8192" })
     public int topCount;
 
     private static Operator operator(String data, int topCount, boolean sortedInput) {
@@ -155,8 +156,9 @@ public class TopNBenchmark {
     private static Block block(String data) {
         return switch (data) {
             case LONGS -> {
+                var allInts = new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).sorted().boxed().toList();
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                for (var i : allInts) {
                     builder.appendLong(i);
                 }
                 yield builder.build();

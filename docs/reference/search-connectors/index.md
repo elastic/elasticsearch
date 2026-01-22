@@ -30,7 +30,7 @@ You can set up content connectors in two ways. The availability of each setup mo
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
 | **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
-| **Availability** | Any Elastic environment | {{ecloud}} only ({{ech}}/Serverless), for [{{product.security}}y](docs-content://solutions/security/get-started/content-connectors.md) |
+| **Availability** | Any Elastic environment | {{ecloud}} only ({{ech}}/Serverless), for [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md) |
 | **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
 | **Customization** | Supported | Not supported |
 

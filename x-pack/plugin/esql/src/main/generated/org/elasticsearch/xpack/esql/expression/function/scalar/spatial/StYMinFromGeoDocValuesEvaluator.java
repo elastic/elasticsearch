@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -29,14 +30,18 @@ public final class StYMinFromGeoDocValuesEvaluator implements EvalOperator.Expre
 
   private final EvalOperator.ExpressionEvaluator encodedBlock;
 
+  private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StYMinFromGeoDocValuesEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator encodedBlock,
+      SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +71,7 @@ public final class StYMinFromGeoDocValuesEvaluator implements EvalOperator.Expre
           continue position;
         }
         try {
-          StYMin.fromGeoDocValues(result, p, encodedBlockBlock);
+          StYMin.fromGeoDocValues(result, p, encodedBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -103,14 +108,18 @@ public final class StYMinFromGeoDocValuesEvaluator implements EvalOperator.Expre
 
     private final EvalOperator.ExpressionEvaluator.Factory encodedBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock,
+        Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.encodedBlock = encodedBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
     public StYMinFromGeoDocValuesEvaluator get(DriverContext context) {
-      return new StYMinFromGeoDocValuesEvaluator(source, encodedBlock.get(context), context);
+      return new StYMinFromGeoDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override

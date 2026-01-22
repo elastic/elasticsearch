@@ -10,14 +10,15 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.CartesianPointVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.GeoPointVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,8 +33,11 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.lang.Double.POSITIVE_INFINITY;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
+import static org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude.WRAP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -44,7 +48,6 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  */
 public class StXMin extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StXMin", StXMin::new);
-    private static final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder = new SpatialEnvelopeResults<>();
 
     @FunctionInfo(
         returnType = "double",
@@ -87,17 +90,22 @@ public class StXMin extends SpatialUnaryDocValuesFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        // Create the results-builder as a factory, so thread-local instances can be used in evaluators
+        var resultsBuilder = isSpatialGeo(spatialField().dataType())
+            ? new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(GEO, new GeoPointVisitor(WRAP))
+            : new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(CARTESIAN, new CartesianPointVisitor());
+        var spatial = toEvaluator.apply(spatialField());
         if (spatialDocValues) {
             return switch (spatialField().dataType()) {
-                case GEO_POINT -> new StXMinFromGeoDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-                case CARTESIAN_POINT -> new StXMinFromCartesianDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                case GEO_POINT -> new StXMinFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
+                case CARTESIAN_POINT -> new StXMinFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
                 default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
             };
         }
         if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-            return new StXMinFromGeoWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            return new StXMinFromGeoWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
         }
-        return new StXMinFromCartesianWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return new StXMinFromCartesianWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 
     @Override
@@ -129,25 +137,42 @@ public class StXMin extends SpatialUnaryDocValuesFunction {
     }
 
     @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromCartesianWKB(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMin::buildCartesianEnvelopeResults);
+    static void fromCartesianWKB(
+        DoubleBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StXMin::buildCartesianEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoWKB(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMin::buildGeoEnvelopeResults);
+    static void fromGeoWKB(
+        DoubleBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StXMin::buildGeoEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromCartesianDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+    static void fromCartesianDocValues(
+        DoubleBlock.Builder results,
+        @Position int p,
+        LongBlock encodedBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
+    ) {
         resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, POSITIVE_INFINITY, (v, e) -> Math.min(v, CARTESIAN.decodeX(e)));
     }
 
     @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
-        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMin::buildDocValuesEnvelopeResults);
+    static void fromGeoDocValues(
+        DoubleBlock.Builder results,
+        @Position int p,
+        LongBlock encodedBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromDocValues(results, p, encodedBlock, StXMin::buildDocValuesEnvelopeResults);
     }
 }

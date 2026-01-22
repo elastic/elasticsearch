@@ -10,17 +10,19 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.CartesianPointVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.GeoPointVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -30,10 +32,13 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
+import static org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude.WRAP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
@@ -50,7 +55,14 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         "StEnvelope",
         StEnvelope::new
     );
-    private static final SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder = new SpatialEnvelopeResults<>();
+    private static final SpatialEnvelopeResults<BytesRefBlock.Builder> geoResults = new SpatialEnvelopeResults<>(
+        SpatialCoordinateTypes.GEO,
+        new GeoPointVisitor(WRAP)
+    );
+    private static final SpatialEnvelopeResults<BytesRefBlock.Builder> cartesianResults = new SpatialEnvelopeResults<>(
+        SpatialCoordinateTypes.CARTESIAN,
+        new CartesianPointVisitor()
+    );
     private DataType dataType;
 
     @FunctionInfo(
@@ -105,17 +117,22 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        // Create the results-builder as a factory, so thread-local instances can be used in evaluators
+        var resultsBuilder = isSpatialGeo(spatialField().dataType())
+            ? new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(GEO, new GeoPointVisitor(WRAP))
+            : new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(CARTESIAN, new CartesianPointVisitor());
+        var spatial = toEvaluator.apply(spatialField());
         if (spatialDocValues) {
             return switch (spatialField().dataType()) {
-                case GEO_POINT -> new StEnvelopeFromGeoDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-                case CARTESIAN_POINT -> new StEnvelopeFromCartesianDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                case GEO_POINT -> new StEnvelopeFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
+                case CARTESIAN_POINT -> new StEnvelopeFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
                 default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
             };
         }
         if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-            return new StEnvelopeFromGeoWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            return new StEnvelopeFromGeoWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
         }
-        return new StEnvelopeFromCartesianWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return new StEnvelopeFromCartesianWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 
     @Override
@@ -137,23 +154,20 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     }
 
     static void buildCartesianEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle) {
-        long encodedMin = CARTESIAN.pointAsLong(rectangle.getMinX(), rectangle.getMinY());
-        long encodedMax = CARTESIAN.pointAsLong(rectangle.getMaxX(), rectangle.getMaxY());
-        double minX = CARTESIAN.decodeX(encodedMin);
-        double minY = CARTESIAN.decodeY(encodedMin);
-        double maxX = CARTESIAN.decodeX(encodedMax);
-        double maxY = CARTESIAN.decodeY(encodedMax);
-        rectangle = new Rectangle(minX, maxX, maxY, minY);
-        results.appendBytesRef(UNSPECIFIED.asWkb(rectangle));
+        buildEnvelopeResults(results, rectangle, CARTESIAN);
     }
 
     static void buildGeoEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle) {
-        long encodedMin = GEO.pointAsLong(rectangle.getMinX(), rectangle.getMinY());
-        long encodedMax = GEO.pointAsLong(rectangle.getMaxX(), rectangle.getMaxY());
-        double minX = GEO.decodeX(encodedMin);
-        double minY = GEO.decodeY(encodedMin);
-        double maxX = GEO.decodeX(encodedMax);
-        double maxY = GEO.decodeY(encodedMax);
+        buildEnvelopeResults(results, rectangle, GEO);
+    }
+
+    static void buildEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle, SpatialCoordinateTypes type) {
+        long encodedMin = type.pointAsLong(rectangle.getMinX(), rectangle.getMinY());
+        long encodedMax = type.pointAsLong(rectangle.getMaxX(), rectangle.getMaxY());
+        double minX = type.decodeX(encodedMin);
+        double minY = type.decodeY(encodedMin);
+        double maxX = type.decodeX(encodedMax);
+        double maxY = type.decodeY(encodedMax);
         rectangle = new Rectangle(minX, maxX, maxY, minY);
         results.appendBytesRef(UNSPECIFIED.asWkb(rectangle));
     }
@@ -164,26 +178,42 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     }
 
     @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StEnvelope::buildCartesianEnvelopeResults);
+    static void fromWellKnownBinary(
+        BytesRefBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildCartesianEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoWKB(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StEnvelope::buildGeoEnvelopeResults);
+    static void fromGeoWKB(
+        BytesRefBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildGeoEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromCartesianDocValues(BytesRefBlock.Builder results, @Position int p, LongBlock encodedBlock) {
-        var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
-        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, CARTESIAN, StEnvelope::buildDocValuesEnvelopeResults);
+    static void fromCartesianDocValues(
+        BytesRefBlock.Builder results,
+        @Position int p,
+        LongBlock encodedBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromDocValues(results, p, encodedBlock, StEnvelope::buildDocValuesEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoDocValues(BytesRefBlock.Builder results, @Position int p, LongBlock encodedBlock) {
-        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StEnvelope::buildDocValuesEnvelopeResults);
+    static void fromGeoDocValues(
+        BytesRefBlock.Builder results,
+        @Position int p,
+        LongBlock encodedBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromDocValues(results, p, encodedBlock, StEnvelope::buildDocValuesEnvelopeResults);
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -27,17 +28,19 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * for ST_ENVELOPE, ST_XMAX, ST_XMIN, ST_YMAX and ST_YMIN.
  */
 public class SpatialEnvelopeResults<T extends Block.Builder> {
+    private final SpatialCoordinateTypes spatialCoordinateType;
+    private final SpatialEnvelopeVisitor.PointVisitor pointVisitor;
+
+    public SpatialEnvelopeResults(SpatialCoordinateTypes spatialCoordinateType, SpatialEnvelopeVisitor.PointVisitor pointVisitor) {
+        this.spatialCoordinateType = spatialCoordinateType;
+        this.pointVisitor = pointVisitor;
+    }
 
     /**
      * This version uses the geometry visitor to handle all geometry types correctly.
      */
-    void fromWellKnownBinary(
-        T results,
-        @Position int p,
-        BytesRefBlock wkbBlock,
-        SpatialEnvelopeVisitor.PointVisitor pointVisitor,
-        BiConsumer<T, Rectangle> rectangleResult
-    ) {
+    void fromWellKnownBinary(T results, @Position int p, BytesRefBlock wkbBlock, BiConsumer<T, Rectangle> rectangleResult) {
+        pointVisitor.reset();
         int valueCount = wkbBlock.getValueCount(p);
         if (valueCount == 0) {
             results.appendNull();
@@ -62,14 +65,8 @@ public class SpatialEnvelopeResults<T extends Block.Builder> {
      * This version uses the envelope visitor to handle wrapping longitudes correctly.
      * It should be used for ST_ENVELOPE, and for ST_X/YMIN/MAX with GEO data and x/longitude values.
      */
-    void fromDocValues(
-        T results,
-        @Position int p,
-        LongBlock encodedBlock,
-        SpatialEnvelopeVisitor.PointVisitor pointVisitor,
-        SpatialCoordinateTypes spatialCoordinateType,
-        BiConsumer<T, Rectangle> rectangleResult
-    ) {
+    void fromDocValues(T results, @Position int p, LongBlock encodedBlock, BiConsumer<T, Rectangle> rectangleResult) {
+        pointVisitor.reset();
         int valueCount = encodedBlock.getValueCount(p);
         if (valueCount == 0) {
             results.appendNull();
@@ -114,5 +111,23 @@ public class SpatialEnvelopeResults<T extends Block.Builder> {
             return;
         }
         throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    }
+
+    /**
+     * The factory is used in the toEvaluator method so that new instances can be created for each thread.
+     * This ensures that the point visitor state is not shared between threads.
+     */
+    protected static class Factory<T extends Block.Builder> {
+        private final SpatialCoordinateTypes spatialCoordinateType;
+        private final SpatialEnvelopeVisitor.PointVisitor pointVisitor;
+
+        Factory(SpatialCoordinateTypes spatialCoordinateType, SpatialEnvelopeVisitor.PointVisitor pointVisitor) {
+            this.spatialCoordinateType = spatialCoordinateType;
+            this.pointVisitor = pointVisitor;
+        }
+
+        public SpatialEnvelopeResults<T> get(DriverContext ignored) {
+            return new SpatialEnvelopeResults<>(spatialCoordinateType, pointVisitor);
+        }
     }
 }

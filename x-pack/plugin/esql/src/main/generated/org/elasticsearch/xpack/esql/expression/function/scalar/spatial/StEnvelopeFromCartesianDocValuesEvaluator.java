@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -29,14 +30,18 @@ public final class StEnvelopeFromCartesianDocValuesEvaluator implements EvalOper
 
   private final EvalOperator.ExpressionEvaluator encodedBlock;
 
+  private final SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StEnvelopeFromCartesianDocValuesEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator encodedBlock,
+      SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +71,7 @@ public final class StEnvelopeFromCartesianDocValuesEvaluator implements EvalOper
           continue position;
         }
         try {
-          StEnvelope.fromCartesianDocValues(result, p, encodedBlockBlock);
+          StEnvelope.fromCartesianDocValues(result, p, encodedBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -103,14 +108,18 @@ public final class StEnvelopeFromCartesianDocValuesEvaluator implements EvalOper
 
     private final EvalOperator.ExpressionEvaluator.Factory encodedBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock,
+        Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.encodedBlock = encodedBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
     public StEnvelopeFromCartesianDocValuesEvaluator get(DriverContext context) {
-      return new StEnvelopeFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), context);
+      return new StEnvelopeFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override

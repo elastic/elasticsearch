@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -28,14 +29,18 @@ public final class StEnvelopeFromCartesianWKBEvaluator implements EvalOperator.E
 
   private final EvalOperator.ExpressionEvaluator wkbBlock;
 
+  private final SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StEnvelopeFromCartesianWKBEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator wkbBlock, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator wkbBlock,
+      SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -65,7 +70,7 @@ public final class StEnvelopeFromCartesianWKBEvaluator implements EvalOperator.E
           continue position;
         }
         try {
-          StEnvelope.fromWellKnownBinary(result, p, wkbBlockBlock);
+          StEnvelope.fromWellKnownBinary(result, p, wkbBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -102,14 +107,18 @@ public final class StEnvelopeFromCartesianWKBEvaluator implements EvalOperator.E
 
     private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock,
+        Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.wkbBlock = wkbBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
     public StEnvelopeFromCartesianWKBEvaluator get(DriverContext context) {
-      return new StEnvelopeFromCartesianWKBEvaluator(source, wkbBlock.get(context), context);
+      return new StEnvelopeFromCartesianWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override

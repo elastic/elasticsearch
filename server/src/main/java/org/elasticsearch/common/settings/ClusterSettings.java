@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.WriteAckDelay;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
+import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -679,6 +680,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ActionLogger.ACTION_LOGGER_ENABLED,
         ActionLogger.ACTION_LOGGER_THRESHOLD,
         ActionLogger.ACTION_LOGGER_LEVEL,
-        ActionLogger.ACTION_LOGGER_INCLUDE_USER
+        ActionLogger.ACTION_LOGGER_INCLUDE_USER,
+        SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM
     );
 }

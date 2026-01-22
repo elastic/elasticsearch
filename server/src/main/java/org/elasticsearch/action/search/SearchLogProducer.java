@@ -12,14 +12,32 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.SlowLogFields;
 
 import java.util.Arrays;
+
+import static org.elasticsearch.common.logging.action.ActionLogger.ACTION_LOGGER_SETTINGS_PREFIX;
 
 public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext> {
 
     public static final String LOGGER_NAME = "search.actionlog";
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
+
+    private boolean logSystemSearches = false;
+
+    public static final Setting<Boolean> SEARCH_LOGGER_LOG_SYSTEM = Setting.boolSetting(
+        ACTION_LOGGER_SETTINGS_PREFIX + "search.log_system",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    @SuppressWarnings("this-escape")
+    public SearchLogProducer(ClusterSettings settings) {
+        settings.initializeAndWatch(SEARCH_LOGGER_LOG_SYSTEM, this::setLogSystemSearches);
+    }
 
     @Override
     public ESLogMessage produce(SearchLogContext context, SlowLogFields additionalFields) {
@@ -29,10 +47,18 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
 
     @Override
     public Level logLevel(SearchLogContext context, Level defaultLevel) {
-        // Exclude system searches, exclude empty patterns (can we do this?)
-        if (context.isSystemSearch() || Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
+        if (Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
+            // Exclude no-match pattern searches, there's not much use in them
+            return Level.OFF;
+        }
+        // Exclude system searches, based on option
+        if (logSystemSearches == false && context.isSystemSearch()) {
             return Level.OFF;
         }
         return defaultLevel;
+    }
+
+    public void setLogSystemSearches(boolean logSystemSearches) {
+        this.logSystemSearches = logSystemSearches;
     }
 }

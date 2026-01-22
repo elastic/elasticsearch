@@ -240,7 +240,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.actionLogger = new ActionLogger<>(
             "search",
             clusterService.getClusterSettings(),
-            new SearchLogProducer(),
+            new SearchLogProducer(clusterService.getClusterSettings()),
             new Log4jActionWriter(SearchLogProducer.LOGGER_NAME),
             fieldProvider
         );

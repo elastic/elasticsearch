@@ -387,6 +387,10 @@ public class SnapshotResiliencyTestHelper {
             return Settings.EMPTY;
         }
 
+        protected Set<Setting<?>> clusterSettings() {
+            return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+        }
+
         protected PluginsService createPluginsService(Settings settings, Environment environment) {
             return mock(PluginsService.class);
         }
@@ -1169,10 +1173,6 @@ public class SnapshotResiliencyTestHelper {
 
             public TransportService transportService() {
                 return transportService;
-            }
-
-            protected Set<Setting<?>> clusterSettings() {
-                return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
             }
 
             protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {

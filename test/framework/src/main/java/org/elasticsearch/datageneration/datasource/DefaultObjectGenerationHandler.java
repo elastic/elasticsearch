@@ -87,7 +87,11 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
     // UNSIGNED_LONG is excluded because it is mapped as long
     // and values larger than long fail to parse.
-    private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG, FieldType.PASSTHROUGH);
+    public static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(
+        FieldType.UNSIGNED_LONG,
+        FieldType.PASSTHROUGH,
+        FieldType.FLATTENED
+    );
     private static final Set<FieldType> ALLOWED_FIELD_TYPES = Arrays.stream(FieldType.values())
         .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
         .collect(Collectors.toSet());

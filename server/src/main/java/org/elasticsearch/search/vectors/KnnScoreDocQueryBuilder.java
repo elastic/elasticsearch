@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -27,6 +28,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 
 /**
  * A query that matches the provided docs with their scores. This query is used
@@ -43,6 +46,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     private final VectorData queryVector;
     private final Float vectorSimilarity;
     private final List<QueryBuilder> filterQueries;
+    private final RescoreVectorBuilder rescoreVectorBuilder;
+    private final int k;
 
     /**
      * Creates a query builder.
@@ -55,13 +60,18 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         String fieldName,
         VectorData queryVector,
         Float vectorSimilarity,
-        List<QueryBuilder> filterQueries
+        List<QueryBuilder> filterQueries,
+        RescoreVectorBuilder rescoreVectorBuilder,
+        int k
     ) {
+        assert rescoreVectorBuilder != null;
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.vectorSimilarity = vectorSimilarity;
         this.filterQueries = filterQueries;
+        this.rescoreVectorBuilder = rescoreVectorBuilder;
+        this.k = k;
     }
 
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
@@ -79,6 +89,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         } else {
             this.filterQueries = List.of();
         }
+        this.rescoreVectorBuilder = null;
+        this.k = 42;
     }
 
     @Override
@@ -148,7 +160,22 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return new KnnScoreDocQuery(scoreDocs, context.getIndexReader());
+        var query = new KnnScoreDocQuery(scoreDocs, context.getIndexReader());
+        if(rescoreVectorBuilder.oversample() > 0){
+            assert queryVector.asFloatVector() != null;
+            var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType)context.getFieldType(fieldName);
+            var similarityFunction = fieldType.getSimilarity().vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
+            var adjustedK = Math.min((int) Math.ceil(k * rescoreVectorBuilder.oversample()), OVERSAMPLE_LIMIT);
+            return RescoreKnnVectorQuery.fromInnerQuery(
+                fieldName,
+                queryVector.asFloatVector(),
+                similarityFunction,
+                k,
+                adjustedK,
+                query);
+        }else{
+            return query;
+        }
     }
 
     @Override

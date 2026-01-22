@@ -14,11 +14,14 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -470,11 +473,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
-    public KnnVectorQueryBuilder toQueryBuilder() {
+    public LateRescoringKnnVectorQueryBuilder toQueryBuilder() {
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
+        return new LateRescoringKnnVectorQueryBuilder(field, queryVector.asFloatVector(), k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
+            .boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);
     }
@@ -671,6 +675,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             int adjustedNumCandidates = numCandidates == null
                 ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
                 : numCandidates;
+            rescoreVectorBuilder = rescoreVectorBuilder != null ? rescoreVectorBuilder : RescoreVectorBuilder.DEFAULT_RESCORE_VECTOR_BUILDER;
             return new KnnSearchBuilder(
                 field,
                 queryVectorBuilder,

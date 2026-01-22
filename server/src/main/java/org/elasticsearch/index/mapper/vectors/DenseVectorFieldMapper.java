@@ -1468,12 +1468,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract boolean isFlat();
     }
 
-    abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
+    public abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
         final RescoreVector rescoreVector;
 
         QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector) {
             super(type);
             this.rescoreVector = rescoreVector;
+        }
+
+        public RescoreVector getRescoreVector() {
+            return rescoreVector;
         }
     }
 

@@ -20,15 +20,18 @@ import java.io.IOException;
 public class DfsKnnResults implements Writeable {
     private final String nestedPath;
     private final ScoreDoc[] scoreDocs;
+    private final float oversample;
 
-    public DfsKnnResults(String nestedPath, ScoreDoc[] scoreDocs) {
+    public DfsKnnResults(String nestedPath, ScoreDoc[] scoreDocs, float oversample) {
         this.nestedPath = nestedPath;
         this.scoreDocs = scoreDocs;
+        this.oversample = oversample;
     }
 
     public DfsKnnResults(StreamInput in) throws IOException {
         scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
         nestedPath = in.readOptionalString();
+        oversample = in.readFloat();
     }
 
     public String getNestedPath() {
@@ -39,8 +42,13 @@ public class DfsKnnResults implements Writeable {
         return scoreDocs;
     }
 
+    public float oversample() {
+        return oversample;
+    }
+
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
         out.writeOptionalString(nestedPath);
+        out.writeFloat(oversample);
     }
 }

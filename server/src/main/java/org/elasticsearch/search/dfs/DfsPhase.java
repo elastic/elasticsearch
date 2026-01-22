@@ -19,6 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -33,7 +34,7 @@ import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.LateRescoringKnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -185,26 +186,28 @@ public class DfsPhase {
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
-        List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        List<LateRescoringKnnVectorQueryBuilder> lateRescoringKnnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
-        knnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
+        lateRescoringKnnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
-            for (KnnVectorQueryBuilder knnVectorQueryBuilder : knnVectorQueryBuilders) {
-                knnVectorQueryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
+            for (LateRescoringKnnVectorQueryBuilder lateRescoringKnnVectorQueryBuilder : lateRescoringKnnVectorQueryBuilders) {
+                lateRescoringKnnVectorQueryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
             }
         }
-        List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
+        List<DfsKnnResults> knnResults = new ArrayList<>(lateRescoringKnnVectorQueryBuilders.size());
         final long afterQueryTime;
         final long beforeQueryTime = System.nanoTime();
         var opsListener = context.indexShard().getSearchOperationListener();
         opsListener.onPreQueryPhase(context);
         try {
             for (int i = 0; i < knnSearch.size(); i++) {
-                String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+                String knnField = lateRescoringKnnVectorQueryBuilders.get(i).getFieldName();
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-                Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-                knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+                Query knnQuery = searchExecutionContext.toQuery(lateRescoringKnnVectorQueryBuilders.get(i)).query();
+                int k = lateRescoringKnnVectorQueryBuilders.get(i).k();
+                // todo: pass the rescorer?
+                knnResults.add(singleKnnSearch(knnQuery, k, lateRescoringKnnVectorQueryBuilders.get(i).rescoreVectorBuilder().oversample(), context.getProfilers(), context.searcher(), knnNestedPath));
             }
             afterQueryTime = System.nanoTime();
             opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
@@ -217,10 +220,10 @@ public class DfsPhase {
         context.dfsResult().knnResults(knnResults);
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, float oversample, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
         throws IOException {
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
-            k,
+            Math.round(k * oversample),
             null,
             Integer.MAX_VALUE
         );
@@ -247,6 +250,6 @@ public class DfsPhase {
         if (profilers != null) {
             searcher.setProfiler(profilers.getCurrentQueryProfiler());
         }
-        return new DfsKnnResults(nestedPath, topDocs.scoreDocs);
+        return new DfsKnnResults(nestedPath, topDocs.scoreDocs, oversample);
     }
 }

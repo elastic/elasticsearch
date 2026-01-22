@@ -40,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
+
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
  * search terms used in the actual search query. This phase is very similar to the default query-then-fetch search phase, but it doesn't
@@ -174,8 +176,12 @@ class DfsQueryPhase extends SearchPhase {
                 source.knnSearch().get(i).getField(),
                 source.knnSearch().get(i).getQueryVector(),
                 source.knnSearch().get(i).getSimilarity(),
-                source.knnSearch().get(i).getFilterQueries()
-            ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
+                source.knnSearch().get(i).getFilterQueries(),
+                // todo: check if we need to remove oversample from the DfsKnnResults
+                source.knnSearch().get(i).getRescoreVectorBuilder(),
+                source.knnSearch().get(i).k())
+                .boost(source.knnSearch().get(i).boost())
+                .queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
             }
@@ -217,8 +223,13 @@ class DfsQueryPhase extends SearchPhase {
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
+            var rescoreVectorBuilder = source.knnSearch().get(i).getRescoreVectorBuilder();
+            int k = source.knnSearch().get(i).k();
+            if (rescoreVectorBuilder != null) {
+                k = Math.min((int) Math.ceil(k * rescoreVectorBuilder.oversample()), OVERSAMPLE_LIMIT);
+            }
+            TopDocs mergedTopDocs = TopDocs.merge(k, topDocsLists.get(i).toArray(new TopDocs[0]));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, source.knnSearch().get(i).getRescoreVectorBuilder().oversample()));
         }
         return mergedResults;
     }

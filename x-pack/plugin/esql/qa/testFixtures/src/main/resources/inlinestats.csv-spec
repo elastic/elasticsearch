@@ -5278,3 +5278,34 @@ ROW x = 1
 c1:long	| n1:null	| c2:long	| n2:null
 1      	| null   	| 1      	| null  
 ;
+
+
+inlineStatsGroupByNull_MultipleNullKeys
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c = COUNT(*) BY n1 = null, n2 = null
+| KEEP c, n1, n2
+| LIMIT 1
+;
+
+c:long	| n1:null	| n2:null
+1     	| null   	| null  
+;
+
+
+inlineStatsGroupByNull_MixedNullAndNonNull
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*) BY n = null, emp_no
+| KEEP c, n, emp_no
+| SORT emp_no
+| LIMIT 3
+;
+
+c:long	| n:null	| emp_no:integer
+1     	| null  	| 10001         
+1     	| null  	| 10002         
+1     	| null  	| 10003          
+;

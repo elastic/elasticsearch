@@ -6534,6 +6534,91 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
+     * <pre>{@code
+     * Project[[c{r}#6, n1{r}#8, n2{r}#10]]
+     * \_Limit[1[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[n1{r}#8, n2{r}#10],[n1{r}#8, n2{r}#10]]
+     *     |_Eval[[null[NULL] AS n1#8, null[NULL] AS n2#10]]
+     *     | \_LocalRelation[[x{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     *     \_Aggregate[[n1{r}#8, n2{r}#10],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#6, n1{r}#8, n2{r}#10]]
+     *       \_StubRelation[[x{r}#4, n1{r}#8, n2{r}#10]]
+     * }</pre>
+     */
+    public void testInlineStatsGroupByNull_MultipleNullKeys() {
+        var query = """
+            ROW x = 1
+            | INLINE STATS c = COUNT(*) BY n1 = null, n2 = null
+            | KEEP c, n1, n2
+            | LIMIT 1
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("c", "n1", "n2")));
+        var limit = asLimit(project.child(), 1, false);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("n1", "n2")));
+        // Left branch: Eval with n1 = null, n2 = null
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), is(List.of("n1", "n2")));
+        var localRelation = as(leftEval.child(), LocalRelation.class);
+        // Right branch: Aggregate with COUNT(*) BY n1, n2
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), is(List.of("c", "n1", "n2")));
+        assertThat(Expressions.names(aggregate.groupings()), is(List.of("n1", "n2")));
+        var stub = as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * Expects
+     * <pre>{@code
+     * Project[[c{r}#4, n{r}#6, emp_no{f}#12]]
+     * \_TopN[[Order[emp_no{f}#12,ASC,LAST]],3[INTEGER],false]
+     *   \_InlineJoin[LEFT,[n{r}#6, emp_no{f}#12],[n{r}#6, emp_no{r}#12]]
+     *     |_Eval[[null[NULL] AS n#6]]
+     *     | \_EsRelation[employees][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     *     \_Aggregate[[n{r}#6, emp_no{f}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, n{r}#6, emp_no{f}#12]]
+     *       \_StubRelation[[_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, gender{f}#14, hire_date{f}#19, job{f}#20, job.raw{f}#21, l
+     * anguages{f}#15, last_name{f}#16, long_noidx{f}#22, salary{f}#17, n{r}#6]]
+     * }</pre>
+     */
+    public void testInlineStatsGroupByNull_MixedNullAndNonNull() {
+        var query = """
+            FROM employees
+            | INLINE STATS c = COUNT(*) BY n = null, emp_no
+            | KEEP c, n, emp_no
+            | SORT emp_no
+            | LIMIT 3
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("c", "n", "emp_no")));
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var order = topN.order().get(0);
+        assertThat(Expressions.name(order.child()), is("emp_no"));
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("n", "emp_no")));
+        // Left branch: Eval with n = null on top of EsRelation
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), is(List.of("n")));
+        var esRelation = as(leftEval.child(), EsRelation.class);
+        // Right branch: Aggregate with COUNT(*) BY n, emp_no
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), is(List.of("c", "n", "emp_no")));
+        assertThat(Expressions.names(aggregate.groupings()), is(List.of("n", "emp_no")));
+        var stub = as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * Expects
      *
      * <pre>{@code
      * Project[[salary{f}#19, languages{f}#17, emp_no{f}#14]]

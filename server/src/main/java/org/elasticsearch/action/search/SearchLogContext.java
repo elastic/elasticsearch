@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import joptsimple.internal.Strings;
 
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.action.ActionLoggerContext;
@@ -87,10 +88,21 @@ public class SearchLogContext extends ActionLoggerContext {
 
     boolean isSystemIndex(String index) {
         ProjectMetadata metadata = projectState.metadata();
+
         if (metadata.hasAlias(index) && metadata.aliasedIndices(index).stream().allMatch(i -> metadata.index(i).isSystem())) {
             return true;
         }
-        return metadata.hasIndex(index) && metadata.index(index).isSystem();
+
+        if (metadata.hasIndex(index) && metadata.index(index).isSystem()) {
+            return true;
+        }
+
+        if (metadata.indexIsADataStream(index)) {
+            DataStream ds = metadata.dataStreams().get(index);
+            return ds != null && ds.isSystem();
+        }
+
+        return false;
     }
 
     boolean isSystemSearch() {

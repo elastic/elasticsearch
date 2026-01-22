@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -91,7 +92,9 @@ public class PartitionTimeSeriesTests extends AbstractLocalPhysicalPlanOptimizer
             ByteSizeValue.ofMb(1),
             rateBufferSize,
             10_000,
-            ByteSizeValue.ofMb(1)
+            ByteSizeValue.ofMb(1),
+            MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
+            MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE
         );
         Configuration config = configuration(
             new QueryPragmas(

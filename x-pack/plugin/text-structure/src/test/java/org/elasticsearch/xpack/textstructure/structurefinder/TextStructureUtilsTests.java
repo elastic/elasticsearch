@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -823,6 +824,62 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
+     *  "hosts": { "host": null },
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveWithNullValue() {
+        Map<String, Object> innerMap = new LinkedHashMap<>();
+        innerMap.put("host", null);
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("hosts", innerMap);
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+            assertThat("No mappings other than timestamp", mappings.entrySet(), hasSize(1));
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "hosts": { "host": [] },
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveWithEmptyList() {
+        Map<String, Object> innerMap = new LinkedHashMap<>();
+        innerMap.put("host", List.of());
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("hosts", innerMap);
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+            assertThat("No mappings other than timestamp", mappings.entrySet(), hasSize(1));
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
      *  "level1": { "level2" : { "level3": { "...": { "level10": 1}}}},
      * }
      */
@@ -1397,19 +1454,6 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         Map<String, Object> finalInput = new LinkedHashMap<>(input);
         finalInput.put("timestamp", "1478261151445");
         return finalInput;
-    }
-
-    private void assertKeyAndMappedType(Map<String, Object> mappings, String expectedKey, String expectedType) {
-        assertThat(mappings, hasKey(expectedKey));
-        assertThat(mappings.get(expectedKey), equalTo(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, expectedType)));
-    }
-
-    private void assertKeyAndMappedTime(Map<String, Object> mappings, String expectedKey, String expectedType, String expectedFormat) {
-        assertThat(mappings, hasKey(expectedKey));
-        Map<String, String> expectedTimeMapping = new HashMap<>();
-        expectedTimeMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, expectedType);
-        expectedTimeMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, expectedFormat);
-        assertThat(mappings.get(expectedKey), equalTo(expectedTimeMapping));
     }
 
     private Map<String, String> guessMapping(

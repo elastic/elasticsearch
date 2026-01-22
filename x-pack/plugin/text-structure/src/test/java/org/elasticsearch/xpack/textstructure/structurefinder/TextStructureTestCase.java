@@ -16,9 +16,14 @@ import org.junit.Before;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 
 public abstract class TextStructureTestCase extends ESTestCase {
 
@@ -102,6 +107,19 @@ public abstract class TextStructureTestCase extends ESTestCase {
     );
 
     protected List<String> explanation;
+
+    protected void assertKeyAndMappedType(Map<String, Object> mappings, String expectedKey, String expectedType) {
+        assertThat(mappings, hasKey(expectedKey));
+        assertThat(mappings.get(expectedKey), equalTo(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, expectedType)));
+    }
+
+    protected void assertKeyAndMappedTime(Map<String, Object> mappings, String expectedKey, String expectedType, String expectedFormat) {
+        assertThat(mappings, hasKey(expectedKey));
+        Map<String, String> expectedTimeMapping = new HashMap<>();
+        expectedTimeMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, expectedType);
+        expectedTimeMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, expectedFormat);
+        assertThat(mappings.get(expectedKey), equalTo(expectedTimeMapping));
+    }
 
     @Before
     public void initExplanation() {

@@ -472,6 +472,7 @@ public final class TextStructureUtils {
                 if (currentDepth >= maxDepth) {
                     // Max depth reached - will be mapped as "object" type
                     flattenedResult.put(prefix, Collections.emptyMap());
+                    return;
                 } else {
                     flattenRecordRecursive("", nestedMap, flattenedItem, timeoutChecker, currentDepth + 1, maxDepth);
                 }

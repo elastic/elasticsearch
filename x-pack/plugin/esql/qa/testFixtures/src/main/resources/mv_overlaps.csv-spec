@@ -79,6 +79,7 @@ required_capability: fn_mv_overlaps_v1
 FROM airports
 | WHERE mv_overlaps(type, ["major"]) AND scalerank == 9
 | KEEP scalerank, name, country
+| SORT country 
 // end::mv_overlaps_where[]
 ;
 

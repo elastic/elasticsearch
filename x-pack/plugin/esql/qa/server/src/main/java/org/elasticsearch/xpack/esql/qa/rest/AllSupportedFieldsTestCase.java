@@ -53,6 +53,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 import static org.hamcrest.Matchers.any;
@@ -280,6 +281,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     public final void testFetchAllEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
+        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         // The ENRICH is a no-op because it overwrites columns with the same identical data (except that it messes with
         // the order of the columns, but we don't assert that).
         doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
@@ -638,6 +640,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testRowEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
+        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + ENRICH_POLICY_NAME + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
         Map<String, Object> response = responseAndCoordinatorVersion.v1();
@@ -1016,9 +1019,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case DATE_RANGE -> {
-                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
-                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
-                // will always be null here.
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                    yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
+                }
                 yield nullValue();
             }
 
@@ -1166,9 +1169,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("unsupported");
             }
             case DATE_RANGE -> {
-                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
-                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
-                // will always be "unsupported" here.
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                    yield equalTo("date_range");
+                }
                 yield equalTo("unsupported");
             }
             case HISTOGRAM -> {
@@ -1235,7 +1238,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return minVersion(allNodeToInfo());
     }
 
-    protected static TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) throws IOException {
+    protected static TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) {
         return nodeToInfo.values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
     }
 }

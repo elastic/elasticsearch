@@ -474,7 +474,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, instanceOf(BlockStoredFieldsReader.BytesFromStringsBlockLoader.class));
     }
 
-    public void testBlockLoaderLoadsFromFallbackFieldWhenSyntheticSourceIsEnabled() {
+    public void testBlockLoaderLoadsFromFallbackStoredFieldWhenSyntheticSourceIsEnabled() {
         // given - text field thats not stored and has no synthetic source delegate
         TextFieldType ft = new TextFieldType("field", true, false);
 
@@ -483,7 +483,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
-        assertThat(blockLoader, instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
+        assertThat(blockLoader, instanceOf(BlockStoredFieldsReader.BytesFromStringsBlockLoader.class));
     }
 
     public void testBlockLoaderDelegatesToSyntheticSourceDelegate() {
@@ -547,7 +547,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED
+            IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+            true
         );
 
         // when
@@ -584,7 +585,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            legacyVersion
+            legacyVersion,
+            false
         );
 
         // when
@@ -595,6 +597,43 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         assertThat(blockLoader, instanceOf(BlockStoredFieldsReader.BytesFromStringsBlockLoader.class));
+    }
+
+    public void testBlockLoaderLoadsFromFallbackBinaryDocValuesWhenSyntheticSourceIsEnabled() {
+        // given
+        IndexVersion legacyVersion = IndexVersions.PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES;
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, legacyVersion)
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+
+        TextFieldType ft = new TextFieldType(
+            "field",
+            true,
+            false,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            true,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            legacyVersion,
+            true
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.parentField("field")).thenReturn(null);
+        when(context.indexSettings()).thenReturn(indexSettings);
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then
+        assertThat(blockLoader, instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -97,6 +98,11 @@ public abstract class Plugin implements Closeable {
          * A service to allow retrieving an executor to run an async action
          */
         ThreadPool threadPool();
+
+        /**
+         * A service for allocating (and recycling) sizeable amounts of memory.
+         */
+        BigArrays bigArrays();
 
         /**
          * A service to watch for changes to node local files

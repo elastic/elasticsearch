@@ -75,6 +75,7 @@ public class AllLastBytesRefByTimestampAggregator {
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
+            //TODO check with someone about this '0', shouldn't it be count?
             BytesRefArray a = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
             for (int i = 0; i < count; ++i) {
                 BytesRef bytesScratch = new BytesRef();

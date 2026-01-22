@@ -7,17 +7,17 @@
 
 package org.elasticsearch.compute.aggregation;
 // begin generated imports
-import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * Aggregator state for a single {@code long} and a single {@code BytesRef}, with support for null v2 values.
+ * Aggregator state for a single {@code long} and a single {@code boolean}, with support for null v2 values.
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
-final class AllLongBytesRefState implements AggregatorState {
+final class AllLongBooleanState implements AggregatorState {
     // Whether an observation was recorded in this state
     private boolean observed;
 
@@ -28,7 +28,7 @@ final class AllLongBytesRefState implements AggregatorState {
     private boolean v1Seen;
 
     // The value can be null, single valued of multivalued.
-    private BytesRefArray v2;
+    private BitArray v2;
 
     boolean observed() {
         return observed;
@@ -54,11 +54,11 @@ final class AllLongBytesRefState implements AggregatorState {
         this.v1Seen = v1Seen;
     }
 
-    BytesRefArray v2() {
+    BitArray v2() {
         return v2;
     }
 
-    void v2(BytesRefArray v2) {
+    void v2(BitArray v2) {
         this.v2 = v2;
     }
 
@@ -78,7 +78,11 @@ final class AllLongBytesRefState implements AggregatorState {
         }
 
         int size = (int) v2.size();
-        return driverContext.blockFactory().newBytesRefArrayBlock(v2, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
+        boolean[] values = new boolean[size];
+        for (int i = 0; i < size; ++i) {
+            values[i] = v2.get(i);
+        }
+        return driverContext.blockFactory().newBooleanArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
     }
 
     @Override

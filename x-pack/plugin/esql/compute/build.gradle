@@ -499,7 +499,7 @@ tasks.named('stringTemplates').configure {
    */
   def generateTwoStateFiles = { inputFile, prefix = "" ->
     def v1Props = [longProperties]
-    def v2Props = [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties]
+    def v2Props = [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties, booleanProperties]
     v1Props.forEach { v1 ->
       v2Props.forEach { v2 ->
         def properties = [:]
@@ -967,7 +967,6 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForFloat.java"
   }
 
-  // TODO: add {value}_over_time for other types: boolean, bytes_refs
   def generateTimestampAggregatorClasses = { inputFilename, prefix = "" ->
     def inputFile = file(inputFilename)
     ["First", "Last"].forEach { Occurrence ->
@@ -996,6 +995,11 @@ tasks.named('stringTemplates').configure {
           it.properties = addOccurrence(bytesRefProperties, Occurrence) + [Prefix: prefix]
           it.inputFile = inputFile
           it.outputFile = "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}BytesRefByTimestampAggregator.java"
+        }
+        template {
+          it.properties = addOccurrence(booleanProperties, Occurrence) + [Prefix: prefix]
+          it.inputFile = inputFile
+          it.outputFile = "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}BooleanByTimestampAggregator.java"
         }
       }
     }

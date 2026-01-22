@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.$Type$Array;
+import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -23,7 +23,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.$Type$Block;
+$if(!boolean)$import org.elasticsearch.compute.data.$Type$Block;$endif$
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -79,11 +79,14 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            $if(BytesRef)$
+$if(BytesRef)$
+            //TODO check with someone about this '0', shouldn't it be count?
             BytesRefArray a = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
-            $else$
-            $Type$Array a = BigArrays.NON_RECYCLING_INSTANCE.new$Type$Array(count);
-            $endif$
+$elseif(boolean)$
+            BitArray a = new BitArray(count, BigArrays.NON_RECYCLING_INSTANCE);
+$else$
+            $Array$ a = BigArrays.NON_RECYCLING_INSTANCE.new$Array$(count);
+$endif$
             for (int i = 0; i < count; ++i) {
                 $if(BytesRef)$
                 BytesRef bytesScratch = new BytesRef();
@@ -206,7 +209,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         private LongArray timestamps;
 
         // The group-indexed values
-        private ObjectArray<$if(BytesRef)$BytesRefArray$else$$Type$Array$endif$> values;
+        private ObjectArray<$Array$> values;
 
         $if(BytesRef)$
         private final CircuitBreaker breaker;
@@ -305,11 +308,15 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                     }
                 }
                 $else$
-                $Type$Array a = null;
+                $Array$ a = null;
                 if (valuesBlock.isNull(position) == false) {
                     int count = valuesBlock.getValueCount(position);
                     int offset = valuesBlock.getFirstValueIndex(position);
-                    a = BigArrays.NON_RECYCLING_INSTANCE.new$Type$Array(count);
+$if(boolean)$
+                    a = new BitArray(count, BigArrays.NON_RECYCLING_INSTANCE);
+$else$
+                    a = BigArrays.NON_RECYCLING_INSTANCE.new$Array$(count);
+$endif$
                     for (int i = 0; i < count; ++i) {
                         a.set(i, valuesBlock.get$Type$(i + offset));
                     }

@@ -49,6 +49,36 @@ FIRST(a, @timestamp):integer
 100
 ;
 
+row_boolean
+required_capability: agg_first_last
+ROW a = true, @timestamp = "2025-01-01"::DATETIME
+| STATS FIRST(a, @timestamp)
+;
+
+LAST(a, @timestamp):boolean
+true
+;
+
+row_datetime
+required_capability: agg_first_last
+ROW a = "2025-01-01"::DATETIME, @timestamp = "2025-01-01"::DATETIME
+| STATS FIRST(a, @timestamp)
+;
+
+LAST(a, @timestamp):datetime
+"2025-01-01"
+;
+
+row_ip
+required_capability: agg_first_last
+ROW a = "127.0.0.1"::IP, @timestamp = "2025-01-01"::DATETIME
+| STATS FIRST(a, @timestamp)
+;
+
+LAST(a, @timestamp):ip
+"127.0.0.1"
+;
+
 double_by_null
 required_capability: agg_first_last
 FROM k8s

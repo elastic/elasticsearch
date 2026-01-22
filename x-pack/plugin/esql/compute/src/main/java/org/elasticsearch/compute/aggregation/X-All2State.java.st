@@ -6,15 +6,14 @@
  */
 
 package org.elasticsearch.compute.aggregation;
-
 // begin generated imports
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.$v2_Type$Array;
+$if(BytesRef)$ import org.apache.lucene.util.BytesRef; $endif$
+import org.elasticsearch.common.util.$v2_Array$;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.$v2_Type$Block;
+$if(BytesRef)$ import org.elasticsearch.compute.data.$v2_Type$Block; $endif$
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+$if(BytesRef)$ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder; $endif$
+$if(BytesRef)$ import org.elasticsearch.common.breaker.CircuitBreaker; $endif$
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
@@ -33,7 +32,7 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
     private boolean v1Seen;
 
     // The value can be null, single valued of multivalued.
-    private $v2_Type$Array v2;
+    private $v2_Array$ v2;
 
     boolean observed() {
         return observed;
@@ -59,11 +58,11 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         this.v1Seen = v1Seen;
     }
 
-    $v2_Type$Array v2() {
+    $v2_Array$ v2() {
         return v2;
     }
 
-    void v2($v2_Type$Array v2) {
+    void v2($v2_Array$ v2) {
         this.v2 = v2;
     }
 

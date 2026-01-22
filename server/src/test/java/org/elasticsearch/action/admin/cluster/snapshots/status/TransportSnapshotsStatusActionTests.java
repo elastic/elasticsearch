@@ -56,7 +56,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
     private TransportSnapshotsStatusAction action;
 
     @Before
-    public void initializeComponents() throws Exception {
+    public void initializeComponents() {
         threadPool = new TestThreadPool(TransportSnapshotsStatusActionTests.class.getName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
@@ -90,18 +90,18 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
     }
 
     @After
-    public void shutdownComponents() throws Exception {
+    public void shutdownComponents() {
         threadPool.shutdown();
         repositoriesService.close();
         transportService.close();
         clusterService.close();
     }
 
-    public void testBuildResponseDetectsTaskIsCancelledWhileProcessingCurrentSnapshotEntries() throws Exception {
+    public void testBuildResponseDetectsTaskIsCancelledWhileProcessingCurrentSnapshotEntries() {
         runBasicBuildResponseTest(true);
     }
 
-    public void testBuildResponseInvokesListenerWithResponseWhenTaskIsNotCancelled() throws Exception {
+    public void testBuildResponseInvokesListenerWithResponseWhenTaskIsNotCancelled() {
         runBasicBuildResponseTest(false);
     }
 

@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
@@ -146,7 +145,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         boolean nonEmptyMatcher = id != null;
-        Set<String> seenLabelNames = new LinkedHashSet<>();
 
         PromqlBaseParser.LabelsContext labelsCtx = seriesMatcher.labels();
         if (labelsCtx != null) {
@@ -170,10 +168,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     }
                     // always add as label matcher
                     labels.add(new LabelMatcher(NAME, labelName, LabelMatcher.Matcher.EQ));
-                    // add unresolved attribute on first encounter
-                    if (seenLabelNames.add(NAME)) {
-                        labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
-                    }
+                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
                     nonEmptyMatcher = true;
 
                     continue;
@@ -202,10 +197,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 // always add label matcher
                 LabelMatcher label = new LabelMatcher(labelName, labelValue, matcher);
                 labels.add(label);
-                // add unresolved attribute on first encounter
-                if (seenLabelNames.add(labelName)) {
-                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
-                }
+                labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 
                 // require at least one non-empty matcher
                 if (nonEmptyMatcher == false && label.matchesEmpty() == false) {
@@ -441,25 +433,33 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (paramCount > metadata.arity().max()) {
             throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
         }
-
-        // child plan is always the first parameter
-        LogicalPlan child = params.stream().findFirst().map(param -> switch (param) {
-            case LogicalPlan plan -> plan;
-            case Literal literal -> new LiteralSelector(source, literal);
-            case Node n -> throw new IllegalStateException("Unexpected value: " + n);
-        }).orElse(null);
-
-        // PromQL expects early validation of the tree so let's do it here
-        PromqlDataType expectedInputType = metadata.functionType().inputType();
-        PromqlDataType actualInputType = PromqlPlan.getReturnType(child);
-        if (actualInputType != expectedInputType) {
-            throw new ParsingException(
-                source,
-                "expected type {} in call to function [{}], got {}",
-                expectedInputType,
-                name,
-                actualInputType
-            );
+        LogicalPlan child = null;
+        List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
+        List<PromqlFunctionRegistry.ParamInfo> functionParams = metadata.params();
+        for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
+            PromqlFunctionRegistry.ParamInfo expectedParam = functionParams.get(i);
+            LogicalPlan providedParam = switch (params.get(i)) {
+                case LogicalPlan plan -> plan;
+                case Literal literal -> new LiteralSelector(source, literal);
+                case Node n -> throw new IllegalStateException("Unexpected value: " + n);
+            };
+            PromqlDataType actualType = PromqlPlan.getType(providedParam);
+            PromqlDataType expectedType = expectedParam.type();
+            if (actualType != expectedType) {
+                throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
+            }
+            if (expectedParam.child()) {
+                child = providedParam;
+            } else if (providedParam instanceof LiteralSelector literalSelector) {
+                extraParams.add(literalSelector.literal());
+            } else {
+                throw new ParsingException(
+                    source,
+                    "expected literal parameter in call to function [{}], got {}",
+                    name,
+                    providedParam.nodeName()
+                );
+            }
         }
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
@@ -468,10 +468,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         // explicit grouping
         if (groupingContext != null) {
             var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
-
-            if (grouping != AcrossSeriesAggregate.Grouping.BY) {
-                throw new ParsingException(source, "[{}] clause not supported yet", grouping.name().toLowerCase(Locale.ROOT), name);
-            }
 
             if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {
                 throw new ParsingException(
@@ -488,12 +484,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             for (int i = 0; i < groupingKeys.size(); i++) {
                 groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
             }
-            plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
+            plan = new AcrossSeriesAggregate(source, child, name, extraParams, grouping, groupings);
         } else {
-            List<Expression> extraParams = params.stream()
-                .skip(1) // skip first param (child)
-                .map(Expression.class::cast)
-                .toList();
             plan = switch (metadata.functionType()) {
                 case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
                     source,

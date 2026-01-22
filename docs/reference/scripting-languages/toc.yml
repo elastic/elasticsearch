@@ -3,8 +3,26 @@ toc:
   - file: painless/painless.md
     children:
       - file: painless/brief-painless-walkthrough.md
+        children:
+          - file: painless/painless-walkthrough-access-doc-values.md
+          - file: painless/painless-walkthrough-missing-keys-or-values.md
+          - file: painless/painless-walkthrough-updating-fields.md
+          - file: painless/painless-walkthrough-dates.md
+          - file: painless/painless-walkthrough-regular-expressions.md
       - file: painless/use-painless-scripts-in-runtime-fields.md
       - file: painless/using-datetime-in-painless.md
+        children:
+          - file: painless/painless-datetime-representation.md
+          - file: painless/painless-datetime-parsing-and-formatting.md
+          - file: painless/painless-datetime-conversion.md
+          - file: painless/painless-datetime-pieces.md
+          - file: painless/painless-datetime-modification.md
+          - file: painless/painless-datetime-difference.md
+          - file: painless/painless-datetime-comparison.md
+          - file: painless/painless-datetime-zone.md
+          - file: painless/painless-datetime-input.md
+          - file: painless/painless-datetime-now.md
+          - file: painless/painless-datetime-examples-in-contexts.md
       - file: painless/how-painless-dispatches-function.md
       - file: painless/painless-debugging.md
       - file: painless/painless-api-examples.md

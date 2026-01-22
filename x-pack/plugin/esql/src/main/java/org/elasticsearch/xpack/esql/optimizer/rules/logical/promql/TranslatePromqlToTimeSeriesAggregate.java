@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -99,14 +97,6 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
 
     @Override
     protected LogicalPlan rule(PromqlCommand promqlCommand, LogicalOptimizerContext context) {
-        // Safety check: this should never occur as the parser should reject PromQL when disabled,
-        // but we check here as an additional safety measure
-        if (PromqlFeatures.isEnabled() == false) {
-            throw new EsqlIllegalArgumentException(
-                "PromQL translation attempted but feature is disabled. This should have been caught by the parser."
-            );
-        }
-
         List<Expression> labelFilterConditions = new ArrayList<>();
         Expression value = mapNode(promqlCommand, promqlCommand.promqlPlan(), labelFilterConditions, context);
         LogicalPlan plan = withTimestampFilter(promqlCommand, promqlCommand.child());
@@ -295,7 +285,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         }
 
         List<Expression> extraParams = functionCall.parameters();
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             functionCall.functionName(),
             functionCall.source(),
             target,
@@ -303,6 +293,14 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             window,
             extraParams
         );
+        // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
+        // This is essentially a bug since this limitation doesn't exist in PromQL itself.
+        // Throwing an error here to avoid generating invalid plans with obscure errors downstream.
+        Expression.TypeResolution typeResolution = function.typeResolved();
+        if (typeResolution.unresolved()) {
+            throw new QlIllegalArgumentException("Could not resolve type for function [{}]: {}", function, typeResolution.message());
+        }
+        return function;
     }
 
     private static Expression mapScalarFunction(ScalarFunction function) {

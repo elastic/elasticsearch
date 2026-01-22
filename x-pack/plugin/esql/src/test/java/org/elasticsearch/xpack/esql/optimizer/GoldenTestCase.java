@@ -226,8 +226,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                     }
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                         var finalizedResult = new ReductionPlan(
-                            localOptimize(reductionPlan.nodeReducePlan(), conf),
-                            localOptimize(reductionPlan.dataNodePlan(), conf)
+                            (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), conf),
+                            (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), conf)
                         );
                         result.addAll(
                             addDualPlanResult(
@@ -304,8 +304,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             return PathUtils.get(basePath.toString(), paths);
         }
 
-        private ExchangeSinkExec localOptimize(PhysicalPlan plan, Configuration conf) {
-            return (ExchangeSinkExec) PlannerUtils.localPlan(
+        private PhysicalPlan localOptimize(PhysicalPlan plan, Configuration conf) {
+            return PlannerUtils.localPlan(
                 EsqlTestUtils.TEST_PLANNER_SETTINGS,
                 new EsqlFlags(false),
                 conf,

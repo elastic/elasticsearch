@@ -514,10 +514,28 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             for (Index index : indicesEligibleForAction) {
+                DlmStep stepToExecute = null;
                 for (DlmStep step : action.steps().reversed()) {
-                    boolean stepCompleted;
                     try {
-                        stepCompleted = step.stepCompleted(index, projectState);
+                        if (step.stepCompleted(index, projectState) == false) {
+                            stepToExecute = step;
+                            logger.trace(
+                                "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete",
+                                step.stepName(),
+                                action.name(),
+                                dataStream.getName(),
+                                index.getName()
+                            );
+                        } else {
+                            logger.trace(
+                                "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete",
+                                step.stepName(),
+                                action.name(),
+                                dataStream.getName(),
+                                index.getName()
+                            );
+                            break;
+                        }
                     } catch (Exception ex) {
                         logger.warn(
                             logger.getMessageFactory()
@@ -530,38 +548,43 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                                 ),
                             ex
                         );
+                    }
+                }
+
+                if (stepToExecute != null) {
+                    try {
+                        logger.trace(
+                            "Executing step [{}] for action [{}] on datastream [{}] index [{}]",
+                            stepToExecute.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            action.name()
+                        );
+                        stepToExecute.execute(
+                            new DlmStepContext(
+                                index,
+                                projectState,
+                                transportActionsDeduplicator,
+                                errorStore,
+                                signallingErrorRetryInterval,
+                                client
+                            )
+                        );
+                    } catch (Exception ex) {
+                        logger.warn(
+                            logger.getMessageFactory()
+                                .newMessage(
+                                    "Unable to execute step [{}] for action [{}] on datastream [{}] index [{}]",
+                                    stepToExecute.stepName(),
+                                    action.name(),
+                                    dataStream.getName(),
+                                    index.getName()
+                                ),
+                            ex
+                        );
                         continue;
                     }
-
-                    if (stepCompleted == false) {
-                        try {
-                            step.execute(
-                                new DlmStepContext(
-                                    index,
-                                    projectState,
-                                    transportActionsDeduplicator,
-                                    errorStore,
-                                    signallingErrorRetryInterval,
-                                    client
-                                )
-                            );
-                        } catch (Exception ex) {
-                            logger.warn(
-                                logger.getMessageFactory()
-                                    .newMessage(
-                                        "Unable to execute step [{}] for action [{}] on datastream [{}] index [{}]",
-                                        step.stepName(),
-                                        action.name(),
-                                        dataStream.getName(),
-                                        index.getName()
-                                    ),
-                                ex
-                            );
-                            continue;
-                        }
-                        indicesToExclude.add(index);
-                        break;
-                    }
+                    indicesToExclude.add(index);
                 }
             }
         }

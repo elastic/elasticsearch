@@ -2043,7 +2043,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         assertThat(action.actionScheduleChecked, equalTo(true));
         int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
-        assertThat(step1.completedCheckCount, equalTo(eligibleCount));
+        assertThat(step1.completedCheckCount, equalTo(0));
         assertThat(step2.completedCheckCount, equalTo(eligibleCount));
         assertThat(step1.executeCount, equalTo(0));
         assertThat(step2.executeCount, equalTo(0));
@@ -2052,9 +2052,35 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
     public void testMaybeProcessDlmActionsOneStepCompleted() {
         TestDlmStep step1 = new TestDlmStep();
-        step1.isCompleted = false;
+        step1.isCompleted = true;
         TestDlmStep step2 = new TestDlmStep();
-        step2.isCompleted = true;
+        step2.isCompleted = false;
+        TimeValue schedule = TimeValue.timeValueMillis(1);
+        TestDlmAction action = new TestDlmAction(schedule, step1, step2);
+        actions.add(action);
+
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
+        DataStream dataStream = createDataStream(builder, dataStreamName, 3, 0, settings(IndexVersion.current()), dataLifecycle, null, now);
+        builder.put(dataStream);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Set<Index> indicesToExclude = new HashSet<>();
+        dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
+
+        assertThat(action.actionScheduleChecked, equalTo(true));
+        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
+        assertThat(step1.completedCheckCount, equalTo(eligibleCount));
+        assertThat(step2.completedCheckCount, equalTo(eligibleCount));
+        assertThat(step1.executeCount, equalTo(0));
+        assertThat(step2.executeCount, equalTo(eligibleCount));
+        assertThat(indicesToExclude, hasSize(eligibleCount));
+    }
+
+    public void testMaybeProcessDlmActionsNoStepsCompleted() {
+        TestDlmStep step1 = new TestDlmStep();
+        TestDlmStep step2 = new TestDlmStep();
         TimeValue schedule = TimeValue.timeValueMillis(1);
         TestDlmAction action = new TestDlmAction(schedule, step1, step2);
         actions.add(action);
@@ -2078,36 +2104,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(indicesToExclude, hasSize(eligibleCount));
     }
 
-    public void testMaybeProcessDlmActionsNoStepsCompleted() {
-        TestDlmStep step1 = new TestDlmStep();
-        TestDlmStep step2 = new TestDlmStep();
-        TimeValue schedule = TimeValue.timeValueMillis(1);
-        TestDlmAction action = new TestDlmAction(schedule, step1, step2);
-        actions.add(action);
-
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
-        DataStream dataStream = createDataStream(builder, dataStreamName, 3, 0, settings(IndexVersion.current()), dataLifecycle, null, now);
-        builder.put(dataStream);
-        ProjectState projectState = projectStateFromProject(builder);
-
-        Set<Index> indicesToExclude = new HashSet<>();
-        dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
-
-        assertThat(action.actionScheduleChecked, equalTo(true));
-        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
-        assertThat(step1.completedCheckCount, equalTo(0));
-        assertThat(step2.completedCheckCount, equalTo(eligibleCount));
-        assertThat(step1.executeCount, equalTo(0));
-        assertThat(step2.executeCount, equalTo(eligibleCount));
-        assertThat(indicesToExclude, hasSize(eligibleCount));
-    }
-
     public void testMaybeProcessDlmActionsStepExecutionThrows() {
         TestDlmStep step1 = new TestDlmStep();
         TestDlmStep step2 = new TestDlmStep();
-        step2.throwOnExecute = true;
+        step1.throwOnExecute = true;
         TimeValue schedule = TimeValue.timeValueMillis(1);
         TestDlmAction action = new TestDlmAction(schedule, step1, step2);
         actions.add(action);
@@ -2140,7 +2140,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(step1.completedCheckCount, equalTo(eligibleCount));
         assertThat(step2.completedCheckCount, equalTo(eligibleCount));
         assertThat(step1.executeCount, equalTo(eligibleCount));
-        assertThat(step2.executeCount, equalTo(eligibleCount));
-        assertThat(indicesToExclude, hasSize(eligibleCount));
+        assertThat(step2.executeCount, equalTo(0));
+        assertThat(indicesToExclude, hasSize(0));
     }
 }

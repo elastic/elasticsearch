@@ -232,6 +232,11 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
 
+        // Ensure docker containers are removed after each test. This runs after the TestWatcher (which calls dumpDebug
+        // on failure), so the container is still available when diagnostics are collected.
+        if (distribution().isDocker()) {
+            removeContainer();
+        }
     }
 
     /** The {@link Distribution} that should be tested in this case */

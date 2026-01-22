@@ -120,7 +120,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
-        this.overallTook = in.readOptionalTimeValue();
+        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION) == false) {
+            this.overallTook = in.readOptionalTimeValue();
+        }
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
         if (in.getTransportVersion().supports(EXECUTION_METADATA_VERSION)) {
             this.includeExecutionMetadata = in.readEnum(IncludeExecutionMetadata.class);
@@ -136,7 +138,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalTimeValue(overallTook);
+        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION) == false) {
+            out.writeOptionalTimeValue(overallTook);
+        }
         if (clusterInfo != null && clusterInfoInitializing == false) {
             out.writeCollection(clusterInfo.values());
         } else {

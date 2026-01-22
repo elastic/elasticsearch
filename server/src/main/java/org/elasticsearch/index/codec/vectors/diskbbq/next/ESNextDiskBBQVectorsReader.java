@@ -685,7 +685,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         int docBase = 0;
 
         int vectors;
-        float centroidDp;
+        float centroidToParentSqDist;
         float centroidDistance;
         long slicePos;
 
@@ -709,9 +709,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             this.entry = entry;
             this.fieldInfo = fieldInfo;
             this.acceptDocs = acceptDocs;
-            this.quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
-            this.quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Short.BYTES;
-            this.osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
+            quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
+            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Short.BYTES;
+            osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
                 quantEncoding.bits(),
@@ -725,12 +725,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
             float score = metadata.centroidScore();
             indexInput.seek(metadata.offset());
-            centroidDp = Float.intBitsToFloat(indexInput.readInt());
+            centroidToParentSqDist = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();
             docEncoding = indexInput.readByte();
             docBase = 0;
             slicePos = indexInput.getFilePointer();
-            centroidDistance = similarityFunction == EUCLIDEAN ? ((1 / score) - 1) - centroidDp : score - 1;
+            centroidDistance = switch (similarityFunction) {
+                case EUCLIDEAN -> ((1 / score) - 1) - centroidToParentSqDist;
+                case COSINE, DOT_PRODUCT -> score - 1;
+                case MAXIMUM_INNER_PRODUCT -> score < 1 ? 1 - (1 / score) : score - 1;
+            };
             queryQuantizer.reset(metadata.centroidOrdinal());
             return vectors;
         }

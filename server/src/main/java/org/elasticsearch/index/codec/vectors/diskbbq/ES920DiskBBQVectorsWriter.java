@@ -474,8 +474,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        centroidOutput.writeVInt(centroidGroups.centroids().length);
-        centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
+        centroidOutput.writeVInt(centroidGroups.centroids.length);
+        centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
             CentroidSupplier.fromArray(centroidGroups.centroids, KMeansResult.EMPTY, fieldInfo.getVectorDimension()),
             fieldInfo.getVectorDimension(),
@@ -562,23 +562,23 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     private CentroidGroups buildCentroidGroups(CentroidSupplier centroidSupplier) throws IOException {
-        final KMeansResult clusters = centroidSupplier.secondLevelClusters();
-        final int[] centroidVectorCount = new int[clusters.centroidsSupplier().size()];
-        for (int i = 0; i < clusters.assignments().length; i++) {
-            centroidVectorCount[clusters.assignments()[i]]++;
+        final KMeansResult kMeansResult = centroidSupplier.secondLevelClusters();
+        final int[] centroidVectorCount = new int[kMeansResult.centroidsSupplier().size()];
+        for (int i = 0; i < kMeansResult.assignments().length; i++) {
+            centroidVectorCount[kMeansResult.assignments()[i]]++;
         }
-        final int[][] vectorsPerCentroid = new int[clusters.centroidsSupplier().size()][];
+        final int[][] vectorsPerCentroid = new int[kMeansResult.centroidsSupplier().size()][];
         int maxVectorsPerCentroidLength = 0;
-        for (int i = 0; i < clusters.centroidsSupplier().size(); i++) {
+        for (int i = 0; i < kMeansResult.centroids().length; i++) {
             vectorsPerCentroid[i] = new int[centroidVectorCount[i]];
             maxVectorsPerCentroidLength = Math.max(maxVectorsPerCentroidLength, centroidVectorCount[i]);
         }
         Arrays.fill(centroidVectorCount, 0);
-        for (int i = 0; i < clusters.assignments().length; i++) {
-            final int c = clusters.assignments()[i];
+        for (int i = 0; i < kMeansResult.assignments().length; i++) {
+            final int c = kMeansResult.assignments()[i];
             vectorsPerCentroid[c][centroidVectorCount[c]++] = i;
         }
-        return new CentroidGroups(clusters.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
+        return new CentroidGroups(kMeansResult.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
     }
 
     @Override

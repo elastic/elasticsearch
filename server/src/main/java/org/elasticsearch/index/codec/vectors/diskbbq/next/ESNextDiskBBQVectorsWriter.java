@@ -591,23 +591,23 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         return hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
     }
 
-    private CentroidGroups buildCentroidGroups(KMeansResult clusters) {
-        final int[] centroidVectorCount = new int[clusters.centroidsSupplier().size()];
-        for (int i = 0; i < clusters.assignments().length; i++) {
-            centroidVectorCount[clusters.assignments()[i]]++;
+    private CentroidGroups buildCentroidGroups(KMeansResult kMeansResult) {
+        final int[] centroidVectorCount = new int[kMeansResult.centroids().length];
+        for (int i = 0; i < kMeansResult.assignments().length; i++) {
+            centroidVectorCount[kMeansResult.assignments()[i]]++;
         }
-        final int[][] vectorsPerCentroid = new int[clusters.centroidsSupplier().size()][];
+        final int[][] vectorsPerCentroid = new int[kMeansResult.centroids().length][];
         int maxVectorsPerCentroidLength = 0;
-        for (int i = 0; i < clusters.centroidsSupplier().size(); i++) {
+        for (int i = 0; i < kMeansResult.centroidsSupplier().size(); i++) {
             vectorsPerCentroid[i] = new int[centroidVectorCount[i]];
             maxVectorsPerCentroidLength = Math.max(maxVectorsPerCentroidLength, centroidVectorCount[i]);
         }
         Arrays.fill(centroidVectorCount, 0);
-        for (int i = 0; i < clusters.assignments().length; i++) {
-            final int c = clusters.assignments()[i];
+        for (int i = 0; i < kMeansResult.assignments().length; i++) {
+            final int c = kMeansResult.assignments()[i];
             vectorsPerCentroid[c][centroidVectorCount[c]++] = i;
         }
-        return new CentroidGroups(clusters.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
+        return new CentroidGroups(kMeansResult.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
     }
 
     @Override
@@ -816,7 +816,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
             corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, encoding.bits(), currentCentroid);
-            // TODO HACK, assumes asymmetric centroid quantization, adjust corrections
+            // note, with a parent centroid, our correction needs to take it into account
             if (currentParentCentroid != null) {
                 float additionalCorrection = similarityFunction == VectorSimilarityFunction.EUCLIDEAN
                     ? VectorUtil.squareDistance(vector, currentParentCentroid)

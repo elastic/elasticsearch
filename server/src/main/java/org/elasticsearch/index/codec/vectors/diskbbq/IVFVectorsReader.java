@@ -31,8 +31,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -53,8 +51,6 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
-
-    private static final Logger logger = LogManager.getLogger(IVFVectorsReader.class);
 
     private final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;

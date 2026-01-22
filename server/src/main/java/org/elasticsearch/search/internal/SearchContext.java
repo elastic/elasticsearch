@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -315,7 +316,11 @@ public abstract class SearchContext implements Releasable {
     }
 
     private Sort indexSort() {
-        return searcher().getIndexReader().leaves().getFirst().reader().getMetaData().sort();
+        List<LeafReaderContext> leaves = searcher().getLeafContexts();
+        if (leaves.isEmpty()) {
+            return null;
+        }
+        return leaves.getFirst().reader().getMetaData().sort();
     }
 
     public abstract int from();

@@ -161,6 +161,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -1996,13 +1997,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
 
                 if (searchRequestAttributes == null) {
-                    // All of the shards in the request are for the same search, so the attributes will be the same for all shards.
+                    // Do an initial extraction of the search request attributes which should mostly be the same across shards
                     searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
                         shardSearchRequest,
                         canMatchContext.getTimeRangeFilterFromMillis(),
                         shardSearchRequest.nowInMillis()
                     );
-                }
+                } else if (canMatchContext.getTimeRangeFilterFromMillis() != null
+                    && searchRequestAttributes.containsKey(TIME_RANGE_FILTER_FROM_ATTRIBUTE) == false) {
+                        // Add in the time_range_filter_from attribute if it was missing before due to skipped empty shards
+                        SearchRequestAttributesExtractor.addTimeRangeAttribute(
+                            canMatchContext.getTimeRangeFilterFromMillis(),
+                            shardSearchRequest.nowInMillis(),
+                            searchRequestAttributes
+                        );
+                    }
 
                 indexShard.getSearchOperationListener()
                     .onCanMatchPhase(searchRequestAttributes, System.nanoTime() - shardCanMatchStartTimeInNanos);

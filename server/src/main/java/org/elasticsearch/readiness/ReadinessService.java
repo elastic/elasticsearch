@@ -73,7 +73,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     ) {
         this.clusterService = clusterService;
         this.serverChannel = null;
-        this.clusterService = clusterService;
         this.environment = environment;
         this.socketChannelFactory = socketChannelFactory;
     }

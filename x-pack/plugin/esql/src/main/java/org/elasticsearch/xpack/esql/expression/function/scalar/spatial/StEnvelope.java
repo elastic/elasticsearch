@@ -158,6 +158,11 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         results.appendBytesRef(UNSPECIFIED.asWkb(rectangle));
     }
 
+    static void buildDocValuesEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle) {
+        // We read data from doc-values, so we do not need to quantize again
+        results.appendBytesRef(UNSPECIFIED.asWkb(rectangle));
+    }
+
     @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinary(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
@@ -173,12 +178,12 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromCartesianDocValues(BytesRefBlock.Builder results, @Position int p, LongBlock encodedBlock) {
         var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
-        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, CARTESIAN, StEnvelope::buildCartesianEnvelopeResults);
+        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, CARTESIAN, StEnvelope::buildDocValuesEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromGeoDocValues(BytesRefBlock.Builder results, @Position int p, LongBlock encodedBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StEnvelope::buildGeoEnvelopeResults);
+        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StEnvelope::buildDocValuesEnvelopeResults);
     }
 }

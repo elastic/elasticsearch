@@ -123,6 +123,11 @@ public class StXMin extends SpatialUnaryDocValuesFunction {
         results.appendDouble(GEO.decodeX(GEO.pointAsLong(rectangle.getMinX(), 0)));
     }
 
+    static void buildDocValuesEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
+        // We read from doc-values so we don't need to quantize again
+        results.appendDouble(rectangle.getMinX());
+    }
+
     @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
     static void fromCartesianWKB(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
@@ -143,6 +148,6 @@ public class StXMin extends SpatialUnaryDocValuesFunction {
     @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromGeoDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
-        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMin::buildGeoEnvelopeResults);
+        resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMin::buildDocValuesEnvelopeResults);
     }
 }

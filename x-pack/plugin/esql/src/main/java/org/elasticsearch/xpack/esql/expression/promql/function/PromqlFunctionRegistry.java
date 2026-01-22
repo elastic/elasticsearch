@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -38,7 +39,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -49,11 +52,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.HashMap;
@@ -103,6 +109,14 @@ public class PromqlFunctionRegistry {
         valueTransformationFunction("sqrt", Sqrt::new),
         valueTransformationFunction("log10", Log10::new),
         valueTransformationFunction("floor", Floor::new),
+        valueTransformationFunctionOptionalArg("round", (source, value, toNearest) -> {
+            if (toNearest == null) {
+                return new Round(source, value, null);
+            } else {
+                // round to the nearest multiple of toNearest: round(value / toNearest) * toNearest
+                return new Mul(source, new Round(source, new Div(source, value, toNearest), null), toNearest);
+            }
+        }),
 
         valueTransformationFunction("asin", Asin::new),
         valueTransformationFunction("acos", Acos::new),
@@ -113,8 +127,13 @@ public class PromqlFunctionRegistry {
         valueTransformationFunction("sin", Sin::new),
         valueTransformationFunction("tan", Tan::new),
         valueTransformationFunction("tanh", Tanh::new),
+        valueTransformationFunctionBinary("clamp_min", ClampMin::new),
+        valueTransformationFunctionBinary("clamp_max", ClampMax::new),
+        valueTransformationFunctionTernary("clamp", Clamp::new),
 
-        vector() };
+        vector(),
+
+        scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI)) };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -216,8 +235,23 @@ public class PromqlFunctionRegistry {
     }
 
     @FunctionalInterface
-    protected interface ValueTransformationFunction<T extends UnaryScalarFunction> {
+    protected interface ValueTransformationFunction<T extends ScalarFunction> {
         T build(Source source, Expression value);
+    }
+
+    @FunctionalInterface
+    protected interface ValueTransformationFunctionBinary<T extends ScalarFunction> {
+        T build(Source source, Expression value, Expression arg1);
+    }
+
+    @FunctionalInterface
+    protected interface ValueTransformationFunctionTernary<T extends Expression> {
+        T build(Source source, Expression value, Expression arg1, Expression arg2);
+    }
+
+    @FunctionalInterface
+    protected interface ScalarFunctionBuilder {
+        Expression build(Source source);
     }
 
     private static FunctionDefinition withinSeries(String name, WithinSeries<?> builder) {
@@ -286,8 +320,53 @@ public class PromqlFunctionRegistry {
         );
     }
 
+    private static FunctionDefinition valueTransformationFunctionBinary(String name, ValueTransformationFunctionBinary<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.VALUE_TRANSFORMATION,
+            Arity.TWO,
+            (source, target, timestamp, window, extraParams) -> builder.build(source, target, extraParams.get(0))
+        );
+    }
+
+    private static FunctionDefinition valueTransformationFunctionTernary(String name, ValueTransformationFunctionTernary<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.VALUE_TRANSFORMATION,
+            Arity.fixed(3),
+            (source, target, timestamp, window, extraParams) -> builder.build(source, target, extraParams.get(0), extraParams.get(1))
+        );
+    }
+
+    private static FunctionDefinition valueTransformationFunctionOptionalArg(String name, ValueTransformationFunctionBinary<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.VALUE_TRANSFORMATION,
+            Arity.range(1, 2),
+            (source, target, timestamp, window, extraParams) -> builder.build(
+                source,
+                target,
+                extraParams.isEmpty() ? null : extraParams.getFirst()
+            )
+        );
+    }
+
     private static FunctionDefinition vector() {
-        return new FunctionDefinition("vector", FunctionType.VECTOR, Arity.ONE, (source, target, timestamp, window, extraParams) -> target);
+        return new FunctionDefinition(
+            "vector",
+            FunctionType.VECTOR_CONVERSION,
+            Arity.ONE,
+            (source, target, timestamp, window, extraParams) -> target
+        );
+    }
+
+    private static FunctionDefinition scalarFunction(String name, ScalarFunctionBuilder builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.SCALAR,
+            Arity.NONE,
+            (source, target, timestamp, window, extraParams) -> builder.build(source)
+        );
     }
 
     // PromQL function names not yet implemented
@@ -308,12 +387,8 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
-        "clamp",
-        "clamp_max",
-        "clamp_min",
         "ln",
         "log2",
-        "round",
         "scalar",
         "sgn",
         "sort",
@@ -341,7 +416,7 @@ public class PromqlFunctionRegistry {
         "label_join",
         "label_replace",
 
-        // Special functions
+        // Histogram functions
         "histogram_avg",
         "histogram_count",
         "histogram_fraction",
@@ -349,7 +424,7 @@ public class PromqlFunctionRegistry {
         "histogram_stddev",
         "histogram_stdvar",
         "histogram_sum",
-        "pi",
+        // Scalar functions
         "time"
     );
 

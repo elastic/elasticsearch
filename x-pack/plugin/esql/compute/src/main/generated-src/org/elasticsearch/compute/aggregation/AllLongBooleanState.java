@@ -6,6 +6,7 @@
  */
 
 package org.elasticsearch.compute.aggregation;
+
 // begin generated imports
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;

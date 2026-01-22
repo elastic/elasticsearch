@@ -1039,7 +1039,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/139124")
     public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() {
 
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
@@ -1099,7 +1098,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(restoredIndexGreenListener, restoreSnapshotResponse -> {
             client().search(
-                new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
+                new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseStepListener
             );
         });

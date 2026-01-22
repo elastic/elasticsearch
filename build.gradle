@@ -303,11 +303,6 @@ subprojects { proj ->
 }
 
 allprojects {
-  // TODO remove
-  tasks.withType(Test) {
-    timeout = Duration.ofMinutes(45)
-  }
-
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
@@ -442,6 +437,11 @@ allprojects {
     }
     tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
+    }
+
+    // TODO remove
+    tasks.withType(Test) {
+      timeout = Duration.ofMinutes(45)
     }
 
 /*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->

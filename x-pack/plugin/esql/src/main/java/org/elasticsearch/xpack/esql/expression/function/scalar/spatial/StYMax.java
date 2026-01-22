@@ -20,6 +20,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.CartesianPointVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.GeoPointVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -123,12 +124,8 @@ public class StYMax extends SpatialUnaryDocValuesFunction {
         return NodeInfo.create(this, StYMax::new, spatialField());
     }
 
-    static void buildCartesianEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
-        results.appendDouble(CARTESIAN.decodeY(CARTESIAN.pointAsLong(0, rectangle.getMaxY())));
-    }
-
-    static void buildGeoEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
-        results.appendDouble(GEO.decodeY(GEO.pointAsLong(0, rectangle.getMaxY())));
+    static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle, SpatialCoordinateTypes type) {
+        results.appendDouble(type.decodeY(type.pointAsLong(0, rectangle.getMaxY())));
     }
 
     @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
@@ -138,7 +135,7 @@ public class StYMax extends SpatialUnaryDocValuesFunction {
         BytesRefBlock wkbBlock,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
     ) {
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StYMax::buildCartesianEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StYMax::buildEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
@@ -148,7 +145,7 @@ public class StYMax extends SpatialUnaryDocValuesFunction {
         BytesRefBlock wkbBlock,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
     ) {
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StYMax::buildGeoEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StYMax::buildEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })

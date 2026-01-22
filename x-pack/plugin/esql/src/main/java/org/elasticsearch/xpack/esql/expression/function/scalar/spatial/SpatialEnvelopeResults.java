@@ -31,6 +31,14 @@ public class SpatialEnvelopeResults<T extends Block.Builder> {
     private final SpatialCoordinateTypes spatialCoordinateType;
     private final SpatialEnvelopeVisitor.PointVisitor pointVisitor;
 
+    /**
+     * A functional interface for consuming results that need access to the spatial coordinate type.
+     */
+    @FunctionalInterface
+    public interface TypedResultsConsumer<T> {
+        void accept(T results, Rectangle rectangle, SpatialCoordinateTypes type);
+    }
+
     public SpatialEnvelopeResults(SpatialCoordinateTypes spatialCoordinateType, SpatialEnvelopeVisitor.PointVisitor pointVisitor) {
         this.spatialCoordinateType = spatialCoordinateType;
         this.pointVisitor = pointVisitor;
@@ -40,6 +48,14 @@ public class SpatialEnvelopeResults<T extends Block.Builder> {
      * This version uses the geometry visitor to handle all geometry types correctly.
      */
     void fromWellKnownBinary(T results, @Position int p, BytesRefBlock wkbBlock, BiConsumer<T, Rectangle> rectangleResult) {
+        fromWellKnownBinary(results, p, wkbBlock, (r, rect, type) -> rectangleResult.accept(r, rect));
+    }
+
+    /**
+     * This version uses the geometry visitor to handle all geometry types correctly,
+     * and passes the spatial coordinate type to the results consumer.
+     */
+    void fromWellKnownBinary(T results, @Position int p, BytesRefBlock wkbBlock, TypedResultsConsumer<T> rectangleResult) {
         pointVisitor.reset();
         int valueCount = wkbBlock.getValueCount(p);
         if (valueCount == 0) {
@@ -55,7 +71,7 @@ public class SpatialEnvelopeResults<T extends Block.Builder> {
             geometry.visit(visitor);
         }
         if (pointVisitor.isValid()) {
-            rectangleResult.accept(results, pointVisitor.getResult());
+            rectangleResult.accept(results, pointVisitor.getResult(), spatialCoordinateType);
             return;
         }
         throw new IllegalArgumentException("Cannot determine envelope of geometry");

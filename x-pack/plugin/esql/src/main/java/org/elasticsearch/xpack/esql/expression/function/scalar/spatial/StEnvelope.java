@@ -153,14 +153,6 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         return NodeInfo.create(this, StEnvelope::new, spatialField());
     }
 
-    static void buildCartesianEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle) {
-        buildEnvelopeResults(results, rectangle, CARTESIAN);
-    }
-
-    static void buildGeoEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle) {
-        buildEnvelopeResults(results, rectangle, GEO);
-    }
-
     static void buildEnvelopeResults(BytesRefBlock.Builder results, Rectangle rectangle, SpatialCoordinateTypes type) {
         long encodedMin = type.pointAsLong(rectangle.getMinX(), rectangle.getMinY());
         long encodedMax = type.pointAsLong(rectangle.getMaxX(), rectangle.getMaxY());
@@ -184,7 +176,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         BytesRefBlock wkbBlock,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
     ) {
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildCartesianEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
@@ -194,7 +186,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         BytesRefBlock wkbBlock,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
     ) {
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildGeoEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })

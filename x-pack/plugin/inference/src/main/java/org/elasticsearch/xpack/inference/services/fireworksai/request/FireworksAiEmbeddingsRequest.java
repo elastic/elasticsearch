@@ -41,8 +41,10 @@ public class FireworksAiEmbeddingsRequest implements Request {
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(model.uri());
 
-        Integer dimensions = model.getTaskSettings() != null ? model.getTaskSettings().dimensions() : null;
-        if (dimensions == null) {
+        // Only include dimensions in the request if explicitly set by the user.
+        // Some models don't support the dimensions parameter, so we only send it when user configured it.
+        Integer dimensions = null;
+        if (Boolean.TRUE.equals(model.getServiceSettings().dimensionsSetByUser())) {
             dimensions = model.getServiceSettings().dimensions();
         }
 

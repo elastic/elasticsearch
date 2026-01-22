@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.inference.services.fireworksai.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -21,83 +19,45 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<FireworksAiEmbeddingsTaskSettings> {
 
     public void testIsEmpty() {
-        var randomSettings = createRandom();
-        var stringRep = Strings.toString(randomSettings);
-        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+        var settings = FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS;
+        assertTrue(settings.isEmpty());
     }
 
-    public void testFromMap_WithDimensions() {
+    public void testFromMap_EmptyMap_ReturnsEmptySettings() {
         assertEquals(
-            new FireworksAiEmbeddingsTaskSettings(512),
-            FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 512)))
+            FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>())
         );
     }
 
-    public void testFromMap_MissingDimensions_DoesNotThrowException() {
-        var taskSettings = FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()));
-        assertNull(taskSettings.dimensions());
-    }
-
-    public void testFromMap_DimensionsIsZero_ThrowsException() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 0)))
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [task_settings] Invalid value [0]. [dimensions] must be a positive integer")
+    public void testFromMap_NullMap_ReturnsEmptySettings() {
+        assertEquals(
+            FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            FireworksAiEmbeddingsTaskSettings.fromMap(null)
         );
     }
 
-    public void testFromMap_DimensionsIsNegative_ThrowsException() {
-        var dimensions = randomNegativeInt();
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, dimensions)))
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [%d]. [dimensions] must be a positive integer",
-                    dimensions
-                )
-            )
+    public void testFromMap_WithAnyValues_ReturnsEmptySettings() {
+        // Task settings don't have any fields, so any input returns empty settings
+        assertEquals(
+            FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            FireworksAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of("someKey", "someValue")))
         );
     }
 
-    public void testOf_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = FireworksAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 1024))
-        );
-
+    public void testOf_AlwaysReturnsEmptySettings() {
+        var taskSettings = new FireworksAiEmbeddingsTaskSettings();
         var overriddenTaskSettings = FireworksAiEmbeddingsTaskSettings.of(taskSettings, FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS);
-        assertThat(overriddenTaskSettings, is(taskSettings));
+        assertThat(overriddenTaskSettings, is(FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS));
     }
 
-    public void testOf_UsesOverriddenSettings() {
-        var taskSettings = FireworksAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 1024))
-        );
-
-        var requestTaskSettings = FireworksAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, 512))
-        );
-
-        var overriddenTaskSettings = FireworksAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
-        assertThat(overriddenTaskSettings, is(new FireworksAiEmbeddingsTaskSettings(512)));
-    }
-
-    public void testToXContent_WithoutDimensions() throws IOException {
-        var settings = FireworksAiEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(null));
+    public void testToXContent_ReturnsEmptyObject() throws IOException {
+        var settings = FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS;
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
@@ -106,42 +66,13 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
         assertThat(xContentResult, is("{}"));
     }
 
-    public void testToXContent_WithDimensions() throws IOException {
-        var settings = FireworksAiEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(768));
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        settings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"dimensions":768}"""));
-    }
-
-    public void testUpdatedTaskSettings() {
-        var initialSettings = createRandom();
-        var newSettings = createRandom();
+    public void testUpdatedTaskSettings_ReturnsEmptySettings() {
+        var initialSettings = new FireworksAiEmbeddingsTaskSettings();
         Map<String, Object> newSettingsMap = new HashMap<>();
-        if (newSettings.dimensions() != null) {
-            newSettingsMap.put(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, newSettings.dimensions());
-        }
         FireworksAiEmbeddingsTaskSettings updatedSettings = (FireworksAiEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
             newSettingsMap
         );
-        // updatedTaskSettings returns a new instance from the map, not merged
-        // So it will use values from the map or null
-        if (newSettings.dimensions() == null) {
-            assertNull(updatedSettings.dimensions());
-        } else {
-            assertEquals(newSettings.dimensions(), updatedSettings.dimensions());
-        }
-    }
-
-    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer dimensions) {
-        Map<String, Object> map = new HashMap<>();
-        if (dimensions != null) {
-            map.put(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, dimensions);
-        }
-        return map;
+        assertEquals(FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS, updatedSettings);
     }
 
     @Override
@@ -151,12 +82,13 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected FireworksAiEmbeddingsTaskSettings createTestInstance() {
-        return createRandom();
+        return new FireworksAiEmbeddingsTaskSettings();
     }
 
     @Override
     protected FireworksAiEmbeddingsTaskSettings mutateInstance(FireworksAiEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, FireworksAiEmbeddingsTaskSettingsTests::createRandom);
+        // No mutation possible for empty settings - return same instance
+        return instance;
     }
 
     @Override
@@ -165,9 +97,5 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
         TransportVersion version
     ) {
         return instance;
-    }
-
-    private static FireworksAiEmbeddingsTaskSettings createRandom() {
-        return new FireworksAiEmbeddingsTaskSettings(randomFrom(new Integer[] { null, randomNonNegativeInt() }));
     }
 }

@@ -47,7 +47,6 @@ public class KnnScoreDocQuery extends Query {
 
     // an object identifying the reader context that was used to build this query
     private final Object contextIdentity;
-
     /**
      * Creates a query.
      *

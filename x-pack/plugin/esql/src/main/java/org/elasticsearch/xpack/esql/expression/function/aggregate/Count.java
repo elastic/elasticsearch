@@ -190,7 +190,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 filter(),
                 window(),
                 SummationMode.COMPENSATED_LITERAL
-            ), List.of(new Literal(s, 0, DataType.LONG))));
+            ), List.of(new Literal(s, 0, DataType.DOUBLE))));
         }
 
         if (field.foldable()) {

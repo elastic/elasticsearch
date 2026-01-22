@@ -232,9 +232,12 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
 
-        // Ensure docker containers are removed after each test. This runs after the TestWatcher (which calls dumpDebug
-        // on failure), so the container is still available when diagnostics are collected.
-        if (distribution().isDocker()) {
+        // Ensure docker containers are removed after each test for DockerTests. This runs after the TestWatcher
+        // (which calls dumpDebug on failure), so the container is still available when diagnostics are collected.
+        //
+        // Note: some docker test suites (e.g., KeystoreManagementTests) intentionally keep a container running
+        // across multiple test methods, so we must not enforce per-test cleanup globally.
+        if (distribution().isDocker() && getClass().getName().equals("org.elasticsearch.packaging.test.DockerTests")) {
             removeContainer();
         }
     }

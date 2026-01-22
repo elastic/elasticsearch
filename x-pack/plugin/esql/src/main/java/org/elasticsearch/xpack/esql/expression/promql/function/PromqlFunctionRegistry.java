@@ -250,7 +250,7 @@ public class PromqlFunctionRegistry {
             "sgn",
             Signum::new,
             "Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.",
-            "sgn(rate(http_requests_total[5m]))"
+            "sgn(delta(queue_depth[5m]))"
         ),
         valueTransformationFunction(
             "exp",
@@ -273,14 +273,14 @@ public class PromqlFunctionRegistry {
         valueTransformationFunction(
             "log2",
             (source, value) -> new Log(source, Literal.fromDouble(source, 2d), value),
-            "Calculates the binary logarithm (base 2) for all elements in the input vector.",
-            "log2(http_requests_total)"
+            "Calculates the binary logarithm for all elements in the input vector.",
+            "log2(memory_usage_bytes)"
         ),
         valueTransformationFunction(
             "ln",
             (source, value) -> new Log(source, value, null),
             "Calculates the natural logarithm for all elements in the input vector.",
-            "ln(http_requests_total)"
+            "ln(memory_usage_bytes)"
         ),
         valueTransformationFunction(
             "floor",

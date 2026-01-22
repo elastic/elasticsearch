@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -374,13 +373,16 @@ public class EsqlCCSUtils {
         }
     }
 
-    public static void initCrossClusterState(EsIndex esIndex, EsqlExecutionInfo executionInfo) {
-        esIndex.originalIndices().forEach((clusterAlias, indices) -> {
+    public static void initCrossClusterState(IndexResolution resolution, EsqlExecutionInfo executionInfo) {
+        resolution.get().originalIndices().forEach((clusterAlias, indices) -> {
             executionInfo.initCluster(
                 clusterAlias,
                 EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION,
                 Strings.collectionToCommaDelimitedString(indices)
             );
+        });
+        resolution.failures().forEach((clusterAlias, failures) -> {
+            executionInfo.initCluster(clusterAlias, EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION, "");
         });
     }
 

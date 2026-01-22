@@ -3831,7 +3831,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithMultipleTaskSettings() {
         var plan = as(
             processingCommand(
-                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {\"foo\": \"bar\", \"baz\": \"qux\"} }"
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", "
+                    + "\"task_settings\": {\"foo\": \"bar\", \"baz\": \"qux\"} }"
             ),
             Completion.class
         );
@@ -3844,7 +3845,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNestedTaskSettings() {
         var plan = as(
             processingCommand(
-                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {\"nested_map\": {\"foo\": \"bar\"}} }"
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", "
+                    + "\"task_settings\": {\"nested_map\": {\"foo\": \"bar\"}} }"
             ),
             Completion.class
         );

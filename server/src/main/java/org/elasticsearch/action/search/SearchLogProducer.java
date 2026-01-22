@@ -24,9 +24,6 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     @Override
     public ESLogMessage produce(SearchLogContext context, SlowLogFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        if (isSystemUser(msg)) {
-            return null;
-        }
         return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
     }
 
@@ -37,19 +34,5 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
             return Level.OFF;
         }
         return defaultLevel;
-    }
-
-    /**
-     * A hacky way to determine if this is a system request.
-     * Unfortunately, we do not have direct access to the user info here, and we do not even know if security is enabled at all.
-     * TODO: we may want to think of a better way to do this.
-     */
-    private boolean isSystemUser(ESLogMessage msg) {
-        String realm = msg.get("user.realm");
-        String type = msg.get("auth.type");
-        if (realm == null || type == null) {
-            return false;
-        }
-        return realm.equals("__attach") && type.equals("INTERNAL");
     }
 }

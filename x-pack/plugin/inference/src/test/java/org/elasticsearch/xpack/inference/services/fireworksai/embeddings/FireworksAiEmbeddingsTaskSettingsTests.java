@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.fireworksai.embeddings;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -21,7 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<FireworksAiEmbeddingsTaskSettings> {
+public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<FireworksAiEmbeddingsTaskSettings> {
 
     public void testIsEmpty() {
         var settings = FireworksAiEmbeddingsTaskSettings.EMPTY_SETTINGS;
@@ -87,15 +86,7 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected FireworksAiEmbeddingsTaskSettings mutateInstance(FireworksAiEmbeddingsTaskSettings instance) throws IOException {
-        // No mutation possible for empty settings - return same instance
-        return instance;
-    }
-
-    @Override
-    protected FireworksAiEmbeddingsTaskSettings mutateInstanceForVersion(
-        FireworksAiEmbeddingsTaskSettings instance,
-        TransportVersion version
-    ) {
-        return instance;
+        // All instances are the same and have no fields, nothing to mutate
+        return null;
     }
 }

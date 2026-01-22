@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -106,11 +107,14 @@ public class FireworksAiService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-            );
+            ChunkingSettings chunkingSettings = null;
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
 
-            FireworksAiEmbeddingsModel model = createModel(
+            FireworksAiModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
@@ -130,7 +134,7 @@ public class FireworksAiService extends SenderService {
         }
     }
 
-    private static FireworksAiEmbeddingsModel createModel(
+    private static FireworksAiModel createModel(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -139,23 +143,22 @@ public class FireworksAiService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        if (taskType != TaskType.TEXT_EMBEDDING) {
-            throw ServiceUtils.createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
-
-        return new FireworksAiEmbeddingsModel(
-            inferenceEntityId,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new FireworksAiEmbeddingsModel(
+                inferenceEntityId,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                chunkingSettings,
+                secretSettings,
+                context
+            );
+            default -> throw ServiceUtils.createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+        };
     }
 
     @Override
-    public FireworksAiEmbeddingsModel parsePersistedConfigWithSecrets(
+    public FireworksAiModel parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
@@ -165,7 +168,10 @@ public class FireworksAiService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
 
         return createModel(
             inferenceEntityId,
@@ -179,11 +185,14 @@ public class FireworksAiService extends SenderService {
     }
 
     @Override
-    public FireworksAiEmbeddingsModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public FireworksAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
 
         return createModel(
             inferenceEntityId,
@@ -314,6 +323,20 @@ public class FireworksAiService extends SenderService {
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting output embeddings should have. "
+                            + "Only supported by some models."
+                    )
+                        .setLabel("Dimensions")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
                         .build()
                 );
 

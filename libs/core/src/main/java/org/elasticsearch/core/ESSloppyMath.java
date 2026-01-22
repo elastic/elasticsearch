@@ -27,4 +27,8 @@ public class ESSloppyMath {
     public static double log(double value) {
         return FastMath.log(value);
     }
+
+    public static double acosh(double value) {
+        return FastMath.acosh(value);
+    }
 }

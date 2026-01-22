@@ -1860,14 +1860,14 @@ public class EsqlCapabilities {
         PROMQL_COMMAND_V0,
 
         /**
-         * PromQL acosh function support.
-         */
-        ACOSH_FUNCTION,
-
-        /**
          * Bundle flag for PromQL math functions.
          */
         PROMQL_MATH_V0,
+
+        /**
+         * PromQL acosh function support.
+         */
+        ACOSH_FUNCTION,
 
         /**
          * Initial support for simple binary comparisons in PromQL.

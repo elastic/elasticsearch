@@ -287,7 +287,7 @@ public final class AmazonBedrockConverseUtils {
                 yield Document.fromMap(converted);
             }
             default -> throw new IllegalArgumentException(
-                Strings.format("Unsupported type: %s while convert to Bedrock document representation", value.getClass().getSimpleName())
+                Strings.format("Unsupported type: %s while converting to Bedrock document representation", value.getClass().getSimpleName())
             );
         };
     }

@@ -62,7 +62,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.7, updatedSettings.temperature(), 0.001);
+        assertThat(updatedSettings.temperature(), is(0.7));
         assertEquals(initialSettings.topP(), updatedSettings.topP());
         assertEquals(initialSettings.topK(), updatedSettings.topK());
         assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
@@ -74,7 +74,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.8, updatedSettings.topP(), 0.001);
+        assertThat(updatedSettings.topP(), is(0.8));
         assertEquals(initialSettings.temperature(), updatedSettings.temperature());
         assertEquals(initialSettings.topK(), updatedSettings.topK());
         assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
@@ -86,7 +86,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.9, updatedSettings.topK(), 0.001);
+        assertThat(updatedSettings.topK(), is(0.9));
         assertEquals(initialSettings.temperature(), updatedSettings.temperature());
         assertEquals(initialSettings.topP(), updatedSettings.topP());
         assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
@@ -98,7 +98,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(256, updatedSettings.maxNewTokens(), 0.001);
+        assertThat(updatedSettings.maxNewTokens(), is(256));
         assertEquals(initialSettings.temperature(), updatedSettings.temperature());
         assertEquals(initialSettings.topP(), updatedSettings.topP());
         assertEquals(initialSettings.topK(), updatedSettings.topK());
@@ -110,10 +110,10 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
         AmazonBedrockCompletionTaskSettings updatedSettings = (AmazonBedrockCompletionTaskSettings) initialSettings.updatedTaskSettings(
             newSettings
         );
-        assertEquals(0.7, updatedSettings.temperature(), 0.001);
-        assertEquals(0.8, updatedSettings.topP(), 0.001);
-        assertEquals(0.9, updatedSettings.topK(), 0.001);
-        assertEquals(256, updatedSettings.maxNewTokens(), 0.001);
+        assertThat(updatedSettings.temperature(), is(0.7));
+        assertThat(updatedSettings.topP(), is(0.8));
+        assertThat(updatedSettings.topK(), is(0.9));
+        assertThat(updatedSettings.maxNewTokens(), is(256));
     }
 
     public void testFromMap_AllValues() {

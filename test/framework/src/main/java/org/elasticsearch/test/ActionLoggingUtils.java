@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
 import static org.elasticsearch.common.logging.action.ActionLogger.ACTION_LOGGER_ENABLED;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
 
@@ -31,6 +32,18 @@ public class ActionLoggingUtils {
         for (String logger : loggers) {
             builder.put(ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(logger).getKey(), (String) null);
         }
+        updateClusterSettings(builder);
+    }
+
+    public static void enableLoggingSystem() {
+        var builder = Settings.builder();
+        builder.put(SEARCH_LOGGER_LOG_SYSTEM.getKey(), true);
+        updateClusterSettings(builder);
+    }
+
+    public static void disableLoggingSystem() {
+        var builder = Settings.builder();
+        builder.put(SEARCH_LOGGER_LOG_SYSTEM.getKey(), (String) null);
         updateClusterSettings(builder);
     }
 }

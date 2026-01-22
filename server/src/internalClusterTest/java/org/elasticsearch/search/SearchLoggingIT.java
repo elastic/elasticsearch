@@ -13,6 +13,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
+import org.elasticsearch.action.admin.indices.create.AutoCreateSystemIndexIT;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
@@ -24,18 +28,25 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.indices.TestSystemIndexDescriptor;
+import org.elasticsearch.indices.TestSystemIndexPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ActionLoggingUtils;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -85,6 +96,14 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     @After
     public void restoreLog() {
         ActionLoggingUtils.disableLoggers();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(
+            CollectionUtils.appendToCopy(super.nodePlugins(), TestSystemIndexPlugin.class),
+            AutoCreateSystemIndexIT.UnmanagedSystemIndexTestPlugin.class
+        );
     }
 
     private static final String INDEX_NAME = "test_index";
@@ -239,6 +258,38 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         } finally {
             response.decRef();
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+    }
+
+    public void testLogFiltering() throws Exception {
+        CreateIndexRequest request = new CreateIndexRequest(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME);
+        client().execute(AutoCreateAction.INSTANCE, request).get();
+        // Log empty search
+        assertResponse(
+            prepareSearch(SearchLogProducer.NEVER_MATCH).setQuery(new MatchAllQueryBuilder()),
+            ElasticsearchAssertions::assertNoFailures
+        );
+        assertNull(appender.getLastEventAndReset());
+        // Log system index
+        assertResponse(
+            prepareSearch(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME).setQuery(new MatchAllQueryBuilder()),
+            ElasticsearchAssertions::assertNoFailures
+        );
+        assertNull(appender.getLastEventAndReset());
+        // Log system index with option on
+        ActionLoggingUtils.enableLoggingSystem();
+        try {
+            assertResponse(
+                prepareSearch(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME).setQuery(new MatchAllQueryBuilder()),
+                ElasticsearchAssertions::assertNoFailures
+            );
+            var event = appender.getLastEventAndReset();
+            assertNotNull(event);
+            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+            ESLogMessage message = (ESLogMessage) event.getMessage();
+            assertThat(message.get("indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
+        } finally {
+            ActionLoggingUtils.disableLoggingSystem();
         }
     }
 

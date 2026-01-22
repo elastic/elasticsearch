@@ -36,6 +36,9 @@ public class AccumulatingMockAppender extends MockAppender {
 
     @Override
     public LogEvent getLastEventAndReset() {
+        if (events.isEmpty()) {
+            return null;
+        }
         var event = events.getLast();
         reset();
         return event;

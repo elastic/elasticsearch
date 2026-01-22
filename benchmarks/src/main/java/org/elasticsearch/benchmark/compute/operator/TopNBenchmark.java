@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 @Warmup(iterations = 5)
-@Measurement(iterations = 20)
+@Measurement(iterations = 7)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -97,8 +97,9 @@ public class TopNBenchmark {
 
     /*
         - 4096 is the page size,
-        - 10000 reflects using a LIMIT with smaller pages, which seems to be a more realistic benchmark than having a LIMIT 10 and
-          receiving pages from the data nodes that contain 4096 documents
+        - 10000 reflects using a LIMIT with smaller pages, which seems to be a more realistic
+          benchmark than having a LIMIT 10 and receiving pages from the data nodes that
+          contain 4096 documents
      */
     @Param({ "10", "1000", "4096", "10000" })
     public int topCount;
@@ -158,7 +159,7 @@ public class TopNBenchmark {
         };
     }
 
-    // This creates blocks with uniformly distributed data
+    // This creates blocks with uniformly random distributed and sorted data
     private static Block block(String data) {
         return switch (data) {
             case LONGS -> {

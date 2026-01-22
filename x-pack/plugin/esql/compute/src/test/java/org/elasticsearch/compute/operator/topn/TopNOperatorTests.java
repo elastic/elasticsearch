@@ -180,6 +180,16 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size, boolean sortedInput) {
+        var longs = LongStream.range(0, size).map(l -> ESTestCase.randomLong());
+
+        return new SequenceLongBlockSourceOperator(
+            blockFactory,
+            sortedInput ? longs.sorted() : longs,
+            between(1, size * 2)
+        );
+    }
+
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         for (int i = 0; i < results.size() - 1; i++) {
@@ -240,7 +250,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 long actualEmpty = RamUsageTester.ramUsed(op, acc);
                 assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
                 // But when we fill it then we're quite close
-                for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
+                for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount, sortedInput))) {
                     op.addInput(p);
                 }
                 long actualFull = RamUsageTester.ramUsed(op, acc);

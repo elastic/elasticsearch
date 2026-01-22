@@ -440,8 +440,9 @@ public class TopNOperator implements Operator, Accountable {
                         inputQueue.updateTop(spare);
                         spare = nextSpare;
                     } else if (sortedInput) {
-                        // Queue is full and we can stop the iteration since all the elements from now onwards
-                        // are greater or equal than everything that is in the queue
+                        // Queue is full and we can stop the iteration since all the
+                        // elements from now onwards are greater or equal than
+                        // everything that is in the queue
                         break;
                     }
                 }

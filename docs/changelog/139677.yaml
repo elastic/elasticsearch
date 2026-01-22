@@ -1,6 +1,0 @@
-pr: 139677
-summary: Optimize TopN operator to do a merge soft if input is already sorted
-area: ES|QL
-type: enhancement
-issues:
- - 131221

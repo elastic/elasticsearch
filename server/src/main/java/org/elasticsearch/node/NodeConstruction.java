@@ -1006,6 +1006,7 @@ class NodeConstruction {
             clusterService,
             rerouteService,
             threadPool,
+            bigArrays,
             createResourceWatcherService(settings, threadPool),
             scriptService,
             xContentRegistry,

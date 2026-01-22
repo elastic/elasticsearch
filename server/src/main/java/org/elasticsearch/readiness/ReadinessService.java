@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -50,6 +51,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private final Environment environment;
     private final CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory;
 
+    private volatile ClusterState lastClusterState = null;
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
     // package private for testing
@@ -71,6 +73,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     ) {
         this.clusterService = clusterService;
         this.serverChannel = null;
+        this.clusterService = clusterService;
         this.environment = environment;
         this.socketChannelFactory = socketChannelFactory;
     }
@@ -161,9 +164,14 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     @Override
     protected void doStart() {
         clusterService.addListener(this);
-        // Mark the service as active, we'll start the listener when ES is ready
+        // Mark the service as active, we'll start the tcp listener when ES is ready
         // TODO: active shouldn't be necessary since we now add the listener once the service is started
         this.active = true;
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
+            this.lastClusterState = clusterService.state();
+            checkReadyState(null, lastClusterState);
+        }
+        clusterService.addListener(this);
     }
 
     // package private for testing
@@ -233,9 +241,14 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        ClusterState clusterState = event.state();
+        checkReadyState(lastClusterState, event.state());
+        this.lastClusterState = event.state();
+    }
+
+    private void checkReadyState(ClusterState previousState, ClusterState clusterState) {
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
-        boolean shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
+        String localNodeId = clusterState.nodes().getLocalNodeId();
+        boolean shuttingDown = localNodeId != null && shutdownNodeIds.contains(localNodeId);
 
         if (shuttingDown) {
             // only disable the probe and log if the probe is running
@@ -244,10 +257,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 logger.info("marking node as not ready because it's shutting down");
             }
         } else {
-            boolean masterElected = getReadinessState(clusterState, event.previousState(), this::isMasterElected, "masterElected");
+            boolean masterElected = getReadinessState(clusterState, previousState, this::isMasterElected, "masterElected");
             boolean fileSettingsApplied = getReadinessState(
                 clusterState,
-                event.previousState(),
+                previousState,
                 this::areFileSettingsApplied,
                 "fileSettingsApplied"
             );
@@ -262,7 +275,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         String description
     ) {
         boolean newStateValue = accessor.apply(clusterState);
-        boolean oldStateValue = accessor.apply(previousState);
+        boolean oldStateValue = previousState != null && accessor.apply(previousState);
         if (oldStateValue != newStateValue) {
             logger.info("readiness change: {}={}", description, newStateValue);
         }

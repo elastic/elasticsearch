@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -42,6 +43,7 @@ public record PluginServiceInstances(
     ClusterService clusterService,
     RerouteService rerouteService,
     ThreadPool threadPool,
+    BigArrays bigArrays,
     ResourceWatcherService resourceWatcherService,
     ScriptService scriptService,
     NamedXContentRegistry xContentRegistry,

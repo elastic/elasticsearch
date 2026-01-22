@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -2346,14 +2345,20 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [date_nanos, datetime or numeric]")
+            containsString(
+                "first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be "
+                    + "[date_nanos, datetime, numeric or dense_vector]"
+            )
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = to_string(null) - 1 day
             """));
 
-        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [date_nanos, datetime or numeric]"));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [to_string(null) - 1 day] must be " + "[date_nanos, datetime, numeric or dense_vector]")
+        );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = concat("2024", "-04", "-01") + "1 day"
@@ -2361,7 +2366,10 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [date_nanos, datetime or numeric]")
+            containsString(
+                "first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be "
+                    + "[date_nanos, datetime, numeric or dense_vector]"
+            )
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
@@ -2586,7 +2594,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLimitForPromQL() {
-        assumeTrue("Requires promql support", PromqlFeatures.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         assertDefaultLimitForQuery(analyzer, """
             PROMQL index=test
@@ -4184,13 +4191,16 @@ public class AnalyzerTests extends ESTestCase {
             "wildcard"
         );
 
+        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
+            new IndexPattern(Source.EMPTY, "books"),
+            loadMapping("mapping-all-types.json", "books")
+        );
         for (String fieldName : validFieldNames) {
-            LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
-                    + fieldName
-                    + "` WITH { \"inference_id\" : \"reranking-inference-id\" }",
-                "mapping-all-types.json"
-            );
+            String query = "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
+                + fieldName
+                + "` WITH { \"inference_id\" : \"reranking-inference-id\" }";
+            Configuration configuration = configuration(query);
+            LogicalPlan plan = analyze(query, analyzer(indexResolutions, TEST_VERIFIER, configuration));
 
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             EsRelation relation = as(rerank.child(), EsRelation.class);
@@ -4201,7 +4211,7 @@ public class AnalyzerTests extends ESTestCase {
             } else {
                 assertThat(
                     rerank.rerankFields(),
-                    equalToIgnoringIds(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
+                    equalToIgnoringIds(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute, configuration))))
                 );
             }
         }
@@ -5848,6 +5858,110 @@ public class AnalyzerTests extends ESTestCase {
         var sub = as(Alias.unwrap(eval.fields().get(1)), Sub.class);
         assertThat(add.configuration(), is(configuration));
         assertThat(sub.configuration(), is(configuration));
+    }
+
+    public void testConfigurationAwareCastsResolved() {
+        var query = """
+            from test
+            | eval string = hire_date::string, date = first_name::date, nanos = first_name::date_nanos
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("string", "date", "nanos")));
+        var stringCast = as(Alias.unwrap(eval.fields().get(0)), ToString.class);
+        var dateCast = as(Alias.unwrap(eval.fields().get(1)), ToDatetime.class);
+        var nanosCast = as(Alias.unwrap(eval.fields().get(2)), ToDateNanos.class);
+        assertThat(stringCast.configuration(), is(configuration));
+        assertThat(dateCast.configuration(), is(configuration));
+        assertThat(nanosCast.configuration(), is(configuration));
+    }
+
+    public void testMetadataWildcards() {
+        var query = """
+            from test METADATA _inde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testMetadataWildcardsWithRepetitions() {
+        var query = """
+            from test METADATA  _index, _inde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testMetadataWildcardsWithRepetitionsWildcardFirst() {
+        var query = """
+            from test METADATA  _inde*, _index
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index_mode", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index", DataType.KEYWORD);
+    }
+
+    public void testMetadataLeadingAndTrailingWildcards() {
+        var query = """
+            from test METADATA *nde*
+            """;
+        Configuration configuration = configuration(query);
+        var analyzer = analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
+            TEST_VERIFIER,
+            configuration
+        );
+        var plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var output = relation.output();
+        var metadata = output.stream().filter(MetadataAttribute.class::isInstance).toList();
+        assertEquals(2, metadata.size());
+        verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
+        verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

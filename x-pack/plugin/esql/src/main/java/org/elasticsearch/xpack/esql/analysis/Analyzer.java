@@ -335,7 +335,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = indexResolution.get();
-
             var attributes = mappingAsAttributes(
                 plan.source(),
                 esIndex.mapping(),
@@ -442,7 +441,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
-
             if (t != null) {
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
@@ -479,7 +477,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     );
                     attribute = new UnsupportedAttribute(source, name, unsupportedEsField);
                 }
-
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -1054,7 +1051,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         missing.add(attr);
                     }
                 }
-
                 List<Alias> aliases = missing.stream().map(attr -> {
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.

@@ -22,7 +22,7 @@ public class MixedbreadConstants {
     public static final String DOCUMENTS_FIELD = "documents";
 
     // rerank task settings fields
-    public static final String RETURN_DOCUMENTS_FIELD = "return_documents";
+    public static final String RETURN_DOCUMENTS_FIELD = "return_input";
     public static final String TOP_K_FIELD = "top_k";
 
     private MixedbreadConstants() {}

@@ -30,26 +30,25 @@ public class MixedbreadRerankRequestTests extends ESTestCase {
     public static final String INPUT = "input";
     public static final String MODEL = "model";
     public static final String QUERY = "query";
-    public static final int TOP_N = 1;
+    public static final int TOP_K = 1;
 
     public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
         var request = createRequest(QUERY, INPUT, MODEL, null, null);
         var requestMap = getEntityAsMap(request);
         assertThat(requestMap, aMapWithSize(3));
-        assertThat(requestMap.get("documents"), is(List.of(INPUT)));
+        assertThat(requestMap.get("input"), is(List.of(INPUT)));
         assertThat(requestMap.get("query"), is(QUERY));
         assertThat(requestMap.get("model"), is(MODEL));
     }
 
     public void testCreateRequest_WithAllFieldsSet() throws IOException {
-        var request = createRequest(QUERY, INPUT, MODEL, TOP_N, Boolean.FALSE);
+        var request = createRequest(QUERY, INPUT, MODEL, TOP_K, Boolean.FALSE);
         Map<String, Object> requestMap = getEntityAsMap(request);
-
         assertThat(requestMap, aMapWithSize(5));
-        assertThat(requestMap.get("documents"), is(List.of(INPUT)));
+        assertThat(requestMap.get("input"), is(List.of(INPUT)));
         assertThat(requestMap.get("query"), is(QUERY));
-        assertThat(requestMap.get("top_n"), is(TOP_N));
-        assertThat(requestMap.get("return_documents"), is(Boolean.FALSE));
+        assertThat(requestMap.get("top_k"), is(TOP_K));
+        assertThat(requestMap.get("return_input"), is(Boolean.FALSE));
         assertThat(requestMap.get("model"), is(MODEL));
     }
 

@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.request;
 
+import org.apache.http.HttpHeaders;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadAccount;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettings;
 
-import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class MixedbreadRerankRequest extends MixedbreadRequest {
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+
+public class MixedbreadRerankRequest implements Request {
+    private final MixedbreadRerankModel model;
     private final String query;
     private final List<String> input;
     private final Boolean returnDocuments;
@@ -32,47 +40,49 @@ public class MixedbreadRerankRequest extends MixedbreadRequest {
         @Nullable Integer topN,
         MixedbreadRerankModel model
     ) {
-        super(MixedbreadAccount.of(model), model.getInferenceEntityId(), model.getServiceSettings().modelId(), false);
-
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
         this.returnDocuments = returnDocuments;
         this.topN = topN;
         taskSettings = model.getTaskSettings();
+        this.model = Objects.requireNonNull(model);
+    }
+
+    public HttpRequest createHttpRequest() {
+        HttpPost httpPost = new HttpPost(model.uri());
+
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(
+                new MixedbreadRerankRequestEntity(model.getServiceSettings().modelId(), query, input, topN, returnDocuments, taskSettings)
+            ).getBytes(StandardCharsets.UTF_8)
+        );
+        httpPost.setEntity(byteEntity);
+
+        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
+
+        return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
-    protected List<String> pathSegments() {
-        return List.of(MixedbreadConstants.VERSION_1, MixedbreadConstants.RERANK_PATH);
+    public URI getURI() {
+        return model.uri();
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        builder.field(MixedbreadConstants.MODEL_FIELD, getModelId());
-        builder.field(MixedbreadConstants.QUERY_FIELD, query);
-        builder.field(MixedbreadConstants.DOCUMENTS_FIELD, input);
-
-        // prefer the root level return_documents over task settings
-        if (returnDocuments != null) {
-            builder.field(MixedbreadRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
-        } else if (taskSettings.getDoesReturnDocuments() != null) {
-            builder.field(MixedbreadRerankTaskSettings.RETURN_DOCUMENTS, taskSettings.getDoesReturnDocuments());
-        }
-
-        // prefer the root level top_n over task settings
-        if (topN != null) {
-            builder.field(MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY, topN);
-        } else if (taskSettings.getTopNDocumentsOnly() != null) {
-            builder.field(MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY, taskSettings.getTopNDocumentsOnly());
-        }
-
-        builder.endObject();
-        return builder;
+    public Request truncate() {
+        // no truncation
+        return this;
     }
 
-    public Integer getTopN() {
-        return topN != null ? topN : taskSettings.getTopNDocumentsOnly();
+    @Override
+    public boolean[] getTruncationInfo() {
+        // no truncation
+        return null;
+    }
+
+    @Override
+    public String getInferenceEntityId() {
+        return model.getInferenceEntityId();
     }
 }

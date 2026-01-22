@@ -29,7 +29,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
 
-    static final MixedbreadRerankTaskSettings EMPTY_SETTINGS = new MixedbreadRerankTaskSettings(null, null);
+    public static final MixedbreadRerankTaskSettings EMPTY_SETTINGS = new MixedbreadRerankTaskSettings(null, null);
 
     public static MixedbreadRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -86,7 +86,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
     private final Boolean returnDocuments;
 
     public MixedbreadRerankTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalInt(), in.readOptionalBoolean());
+        this(in.readOptionalVInt(), in.readOptionalBoolean());
     }
 
     public MixedbreadRerankTaskSettings(@Nullable Integer topNDocumentsOnly, @Nullable Boolean doReturnDocuments) {
@@ -124,7 +124,7 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalInt(topNDocumentsOnly);
+        out.writeOptionalVInt(topNDocumentsOnly);
         out.writeOptionalBoolean(returnDocuments);
     }
 
@@ -139,10 +139,6 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(returnDocuments, topNDocumentsOnly);
-    }
-
-    public Boolean getDoesReturnDocuments() {
-        return returnDocuments;
     }
 
     public Integer getTopNDocumentsOnly() {

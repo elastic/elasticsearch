@@ -14,14 +14,14 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettingsTests.getTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class MixedbreadRerankModelTests extends ESTestCase {
 
-    public static final String DEFAULT_URL = "https://api.mixedbread.com/v1/reranking";
-    public static final String CUSTOM_URL = "https://custom.url.com/v1/reranking";
+    public static final String DEFAULT_URL = "https://api.mixedbread.com/v1/rerank";
+    public static final String CUSTOM_URL = "https://custom.url.com/v1/rerank";
     public static final String MODEL_ID = "model_id";
     public static final String API_KEY = "secret";
 
@@ -81,7 +81,7 @@ public class MixedbreadRerankModelTests extends ESTestCase {
     ) {
         return new MixedbreadRerankModel(
             model,
-            new MixedbreadRerankServiceSettings(model, null, null, null),
+            new MixedbreadRerankServiceSettings(model, null, null),
             new MixedbreadRerankTaskSettings(topN, returnDocuments),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
             uri

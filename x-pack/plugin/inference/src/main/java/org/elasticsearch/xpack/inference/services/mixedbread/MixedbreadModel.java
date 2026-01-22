@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,7 +32,7 @@ import java.util.Objects;
 public abstract class MixedbreadModel extends RateLimitGroupingModel {
     private final SecureString apiKey;
     private final MixedbreadRateLimitServiceSettings rateLimitServiceSettings;
-    private final URI uri;
+    protected URI uri;
 
     public MixedbreadModel(
         ModelConfigurations configurations,
@@ -85,7 +86,16 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
         return apiKey().hashCode();
     }
 
+    // Needed for testing only
+    public void setURI(String newUri) {
+        try {
+            this.uri = new URI(newUri);
+        } catch (URISyntaxException e) {
+            // swallow any error
+        }
+    }
+
     public URI baseUri() {
-        return rateLimitServiceSettings.uri();
+        return uri;
     }
 }

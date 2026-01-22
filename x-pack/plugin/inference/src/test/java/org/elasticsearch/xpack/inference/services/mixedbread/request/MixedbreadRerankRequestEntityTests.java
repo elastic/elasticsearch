@@ -42,7 +42,7 @@ public class MixedbreadRerankRequestEntityTests extends ESTestCase {
                     "abc"
                 ],
                 "top_k": 12,
-                "return_documents": true
+                "return_input": true
             }
             """));
     }
@@ -87,7 +87,7 @@ public class MixedbreadRerankRequestEntityTests extends ESTestCase {
                     "def"
                 ],
                 "top_k": 12,
-                "return_documents": false
+                "return_input": false
             }
             """));
     }
@@ -132,7 +132,7 @@ public class MixedbreadRerankRequestEntityTests extends ESTestCase {
                     "abc"
                 ],
                 "top_k": 8,
-                "return_documents": false
+                "return_input": false
             }
             """));
     }
@@ -155,7 +155,7 @@ public class MixedbreadRerankRequestEntityTests extends ESTestCase {
                     "abc"
                 ],
                 "top_k": 8,
-                "return_documents": true
+                "return_input": true
             }
             """));
     }

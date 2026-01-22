@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadConstants;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
@@ -28,11 +29,10 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bu
 public class MixedbreadRerankModel extends MixedbreadModel {
     public static final String HOST = "api.mixedbread.com";
     public static final String VERSION_1 = "v1";
-    public static final String RERANK_PATH = "reranking";
 
     private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
         .setHost(HOST)
-        .setPathSegments(VERSION_1, RERANK_PATH);
+        .setPathSegments(VERSION_1, MixedbreadConstants.RERANK_PATH);
 
     public static MixedbreadRerankModel of(MixedbreadRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = MixedbreadRerankTaskSettings.fromMap(taskSettings);

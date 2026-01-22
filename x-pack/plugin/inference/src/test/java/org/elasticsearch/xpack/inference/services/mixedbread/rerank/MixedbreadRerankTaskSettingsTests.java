@@ -67,7 +67,7 @@ public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTe
         assertThat(thrownException.getMessage(), containsString("field [top_n] is not of the expected type"));
     }
 
-    public void UpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
+    public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new MixedbreadRerankTaskSettings(5, true);
         MixedbreadRerankTaskSettings updatedSettings = (MixedbreadRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
         assertEquals(initialSettings, updatedSettings);
@@ -127,11 +127,11 @@ public class MixedbreadRerankTaskSettingsTests extends AbstractWireSerializingTe
         var map = new HashMap<String, Object>();
 
         if (topNDocumentsOnly != null) {
-            map.put(MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly.toString());
+            map.put(MixedbreadRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly);
         }
 
         if (returnDocuments != null) {
-            map.put(MixedbreadRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments.toString());
+            map.put(MixedbreadRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
         }
 
         return map;

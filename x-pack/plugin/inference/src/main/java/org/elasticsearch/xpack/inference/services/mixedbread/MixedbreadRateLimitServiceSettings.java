@@ -9,12 +9,8 @@ package org.elasticsearch.xpack.inference.services.mixedbread;
 
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URI;
-
 public interface MixedbreadRateLimitServiceSettings {
     RateLimitSettings rateLimitSettings();
-
-    URI uri();
 
     Integer windowSize();
 }

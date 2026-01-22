@@ -44,6 +44,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 public class MixedbreadActionCreatorTests extends ESTestCase {
+    private static final String EXPECTED_EXCEPTION = "Failed to send Mixedbread rerank request. Cause: failed";
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final QueryAndDocsInputs QUERY_AND_DOCS_INPUTS = new QueryAndDocsInputs(
         "popular name",
@@ -103,10 +104,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var action = createAction("model", "secret", getUrl(webServer), null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is("Failed to send Mixedbread rerank request from inference entity id [model]. Cause: failed")
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
@@ -122,10 +120,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var action = createAction("model", "secret", null, null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is("Failed to send Mixedbread rerank request from inference entity id [model]. Cause: failed")
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
     }
 
     public void testExecute_ThrowsException() {
@@ -135,10 +130,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var action = createAction("model", "secret", getUrl(webServer), null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is("Failed to send Mixedbread rerank request from inference entity id [model]. Cause: failed")
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
     }
 
     public void testExecute_ThrowsExceptionWithNullUrl() {
@@ -148,10 +140,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var action = createAction("model", "secret", null, null, null, sender);
         var thrownException = executeActionWithException(action);
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is("Failed to send Mixedbread rerank request from inference entity id [model]. Cause: failed")
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
     }
 
     private static ElasticsearchException executeActionWithException(ExecutableAction action) {

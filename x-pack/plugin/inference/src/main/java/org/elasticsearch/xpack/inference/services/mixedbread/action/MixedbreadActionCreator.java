@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.action;
 
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -23,23 +22,15 @@ import org.elasticsearch.xpack.inference.services.mixedbread.response.Mixedbread
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 public class MixedbreadActionCreator implements MixedbreadActionVisitor {
-    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE = "Failed to send Mixedbread %s request from inference entity id [%s]";
-    private static final String INVALID_REQUEST_TYPE_MESSAGE = "Invalid request type: expected Mixedbread %s request but got %s";
+    private static final String RERANK_ERROR_PREFIX = "Mixedbread rerank";
 
-    private static final ResponseHandler RERANK_HANDLER = new MixedbreadRerankResponseHandler("mixedbread rerank", (request, response) -> {
-        if ((request instanceof MixedbreadRerankRequest) == false) {
-            var errorMessage = format(
-                INVALID_REQUEST_TYPE_MESSAGE,
-                "RERANK",
-                request != null ? request.getClass().getSimpleName() : "null"
-            );
-            throw new IllegalArgumentException(errorMessage);
-        }
-        return MixedbreadRerankResponseEntity.fromResponse(response);
-    });
+    private static final ResponseHandler RERANK_HANDLER = new MixedbreadRerankResponseHandler(
+        "mixedbread rerank",
+        (request, response) -> MixedbreadRerankResponseEntity.fromResponse(response)
+    );
 
     private final Sender sender;
     private final ServiceComponents serviceComponents;
@@ -71,18 +62,7 @@ public class MixedbreadActionCreator implements MixedbreadActionVisitor {
             ),
             QueryAndDocsInputs.class
         );
-        var errorMessage = buildErrorMessage(TaskType.RERANK, model.getInferenceEntityId());
+        var errorMessage = constructFailedToSendRequestMessage(RERANK_ERROR_PREFIX);
         return new SenderExecutableAction(sender, manager, errorMessage);
-    }
-
-    /**
-     * Builds an error message for failed requests.
-     *
-     * @param requestType the type of request that failed
-     * @param inferenceId the inference entity ID associated with the request
-     * @return a formatted error message
-     */
-    public static String buildErrorMessage(TaskType requestType, String inferenceId) {
-        return format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, requestType.toString(), inferenceId);
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.mixedbread;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -28,7 +29,6 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -45,31 +45,22 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
+/**
+ * Mixedbread inference service for reranking tasks.
+ * This service uses the Mixedbread REST API to perform document reranking.
+ */
 public class MixedbreadService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "mixedbread";
-
     public static final String SERVICE_NAME = "Mixedbread";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.RERANK);
 
-    public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING,
-        InputType.INTERNAL_INGEST,
-        InputType.INTERNAL_SEARCH
-    );
+    // private static final TransportVersion MIXEDBREAD_SERVICE = TransportVersion.fromName("mixedbread_service");
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
 
     private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
         "mixedbread-ai/mxbai-rerank-xsmall-v1",
@@ -114,15 +105,11 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         ActionListener<Model> parsedModelListener
     ) {
         try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+            Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
+
             MixedbreadModel model = createModel(
                 inferenceEntityId,
                 taskType,
@@ -133,9 +120,9 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 ConfigurationParseContext.REQUEST
             );
 
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
+            ServiceUtils.throwIfNotEmptyMap(config, NAME);
+            ServiceUtils.throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            ServiceUtils.throwIfNotEmptyMap(taskSettingsMap, NAME);
 
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
@@ -143,7 +130,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         }
     }
 
-    private static MixedbreadModel createModelWithoutLoggingDeprecations(
+    private MixedbreadModel parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -171,10 +158,11 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case RERANK -> new MixedbreadRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
+        if (taskType != TaskType.RERANK) {
+            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+        }
+
+        return new MixedbreadRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
     }
 
     @Override
@@ -184,15 +172,13 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
+        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> secretSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-        return createModelWithoutLoggingDeprecations(
+
+        return parsePersistedConfigWithSecrets(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -204,22 +190,12 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     @Override
     public MixedbreadModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
 
-        return createModelWithoutLoggingDeprecations(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null
-        );
+        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override
@@ -229,7 +205,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -251,7 +227,12 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        throw new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", NAME));
+    }
 
+    @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override
@@ -275,18 +256,11 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     }
 
     @Override
-    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
-    }
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {}
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
-    }
-
-    @Override
-    public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
     }
 
     @Override
@@ -306,9 +280,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
-                        "The name of the model to use for the inference task."
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The model ID to use for Mixedbread requests.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -317,12 +289,12 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

@@ -29,6 +29,8 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class MixedbreadRerankResponseEntity {
+    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Mixedbread rerank response";
+
     /**
      * Parses the Mixedbread rerank response.
 
@@ -101,7 +103,7 @@ public class MixedbreadRerankResponseEntity {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
-        positionParserAtTokenAfterField(parser, "data", "FAILED_TO_FIND_FIELD_TEMPLATE"); // TODO error message
+        positionParserAtTokenAfterField(parser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
 
         token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {

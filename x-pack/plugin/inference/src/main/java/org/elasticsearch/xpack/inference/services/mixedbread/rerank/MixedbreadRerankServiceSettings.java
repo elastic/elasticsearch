@@ -18,47 +18,34 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class MixedbreadRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, MixedbreadRateLimitServiceSettings {
 
-    public static final String NAME = "mixedbread_ai_rerank_service_settings";
+    public static final String NAME = "mixedbread_rerank_service_settings";
     public static final String WINDOWS_SIZE = "windows_size";
 
     /**
-     * Applied different rate limits based on the type of operation performed:
-
-     * Operation Type	Limit	Burst Capacity	Window
-     * Read	    1,200	1,000	1-minute
-     * List	    600	    200	    1-minute
-     * Write	360	    120	    1-minute
-     * Update	480	    160	    1-minute
-     * Delete	240	    80	    1-minute
-     * <a href="https://www.mixedbread.com/api-reference/rate-limits">Rate Limiting</a>.
+     * 100 req / min
+     * <a href="https://www.mixedbread.com/pricing">Rate Limiting</a>.
      */
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(100);
     private static final Integer DEFAULT_WINDOWS_SIZE = 8000;
 
     public static MixedbreadRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer windowsSize = extractOptionalInteger(map, WINDOWS_SIZE, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -72,27 +59,27 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
             throw validationException;
         }
 
-        return new MixedbreadRerankServiceSettings(model, rateLimitSettings, uri, windowsSize);
+        return new MixedbreadRerankServiceSettings(model, rateLimitSettings, windowsSize);
     }
 
     private final String model;
 
     private final RateLimitSettings rateLimitSettings;
-    private final URI uri;
     private final Integer windowsSize;
 
     public MixedbreadRerankServiceSettings(
-        @Nullable String model, @Nullable RateLimitSettings rateLimitSettings, @Nullable URI uri, @Nullable Integer windowsSize) {
+        @Nullable String model,
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable Integer windowsSize
+    ) {
         this.model = model;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        this.uri = uri;
         this.windowsSize = Objects.requireNonNullElse(windowsSize, DEFAULT_WINDOWS_SIZE);
     }
 
     public MixedbreadRerankServiceSettings(StreamInput in) throws IOException {
         this.model = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
-        this.uri = createOptionalUri(in.readOptionalString());
         this.windowsSize = in.readOptionalInt();
     }
 
@@ -107,11 +94,6 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     }
 
     @Override
-    public URI uri() {
-        return uri;
-    }
-
-    @Override
     public Integer windowSize() {
         return windowsSize;
     }
@@ -123,7 +105,13 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        assert false : "should never be called when supportsVersion is used";
+        return MixedbreadUtils.ML_INFERENCE_MIXEDBREAD_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return MixedbreadUtils.supportsMixedbread(version);
     }
 
     @Override
@@ -133,10 +121,6 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
         }
 
         rateLimitSettings.toXContent(builder, params);
-
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
 
         builder.field(WINDOWS_SIZE, windowsSize);
 
@@ -158,8 +142,6 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(model);
         rateLimitSettings.writeTo(out);
-        var uriToWrite = uri != null ? uri.toString() : null;
-        out.writeOptionalString(uriToWrite);
         out.writeOptionalInt(windowsSize);
     }
 

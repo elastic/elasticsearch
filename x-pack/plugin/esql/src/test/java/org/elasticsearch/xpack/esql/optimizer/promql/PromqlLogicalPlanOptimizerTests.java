@@ -7,25 +7,38 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -41,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
@@ -55,9 +69,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -66,8 +84,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     @BeforeClass
     public static void initTest() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(
             new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of())
@@ -80,7 +96,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
                 emptyMap(),
                 enrichResolution,
                 emptyInferenceResolution(),
-                TransportVersion.current()
+                TransportVersion.current(),
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );
@@ -157,40 +174,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(bucketSpan.fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
 
         var tbucketId = bucketAlias.toAttribute().id();
+        assertThat(Expressions.attribute(tsAggregate.groupings().get(1)).id(), equalTo(tbucketId));
+        assertThat(Expressions.attribute(aggregate.groupings().get(0)).id(), equalTo(tbucketId));
+        assertThat(Expressions.attribute(project.projections().get(1)).id(), equalTo(tbucketId));
 
-        // Verify TBUCKET is used as timeBucket in TimeSeriesAggregate
-        // FIXME: looks like we're creating multiple time buckets (one in Eval, one in TSAggregate)
-
-        // var timeBucket = tsAggregate.timeBucket();
-        // assertNotNull(timeBucket);
-        // assertThat(Expressions.attribute(timeBucket).id(), equalTo(tbucketId));
-
-        // assertThat(Expressions.attribute(tsAggregate.groupings().get(0)).id(), equalTo(tbucketId));
-
-        // assertThat(Expressions.attribute(aggregate.groupings().get(1)).id(), equalTo(tbucketId));
-
-        // var orderAttr = Expressions.attribute(topN.order().get(0).child());
-        // assertThat(orderAttr.id(), equalTo(tbucketId));
-
-        // assertThat(Expressions.attribute(project.projections().get(2)).id(), equalTo(tbucketId));
-
-        // Filter should contain: ISNOTNULL(network.bytes_in) AND IN(host-0, host-1, host-2, pod)
+        // Filter should contain: IN(host-0, host-1, host-2, pod)
         var filter = as(evalBucket.child(), Filter.class);
-        var condition = filter.condition();
-        assertThat(condition, instanceOf(And.class));
-        var and = (And) condition;
-
-        // Verify AND contains IsNotNull
-        boolean hasIsNotNull = and.anyMatch(IsNotNull.class::isInstance);
-        assertThat(hasIsNotNull, equalTo(true));
-
-        // Verify AND contains In
-        boolean hasIn = and.anyMatch(In.class::isInstance);
-        assertThat(hasIn, equalTo(true));
-
-        var inConditions = condition.collect(In.class::isInstance);
-        assertThat(inConditions, hasSize(1));
-        var in = (In) inConditions.get(0);
+        var in = as(filter.condition(), In.class);
         assertThat(in.list(), hasSize(3));
 
         as(filter.child(), EsRelation.class);
@@ -295,13 +285,15 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testPromqlMaxOfLongField() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1h (
-                max(network.bytes_in)
-              )
-            """);
+        var plan = planPromql("PROMQL index=k8s step=1h max(network.bytes_in)");
         // In PromQL, the output is always double
         assertThat(plan.output().getFirst().dataType(), equalTo(DataType.DOUBLE));
+        assertThat(plan.output().getFirst().name(), equalTo("max(network.bytes_in)"));
+    }
+
+    public void testPromqlExplicitOutputName() {
+        var plan = planPromql("PROMQL index=k8s step=1h max_bytes=(max(network.bytes_in))");
+        assertThat(plan.output().getFirst().name(), equalTo("max_bytes"));
     }
 
     public void testSort() {
@@ -365,6 +357,30 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
+     * Expect the logical plan structure:
+     * Project
+     * \_Eval
+     *   \_Limit
+     *     \_Aggregate
+     *       \_Eval
+     *         \_TimeSeriesAggregate[[...],[SUM(...,PT10M,...), COUNT(...,PT10M,...), ...], BUCKET(@timestamp,PT5M)]
+     */
+    public void testRangeSelectorWithDifferentStep() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
+            """);
+
+        var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+
+        // Verify bucket is 5 minutes
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+
+        // Verify window is 10 minutes
+        var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
+        assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
+    /**
      * Expect the following logical plan
      *
      * Project[[avg(avg_over_time(network.bytes_in[5m])){r}#423, TBUCKET{r}#424]]
@@ -419,6 +435,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#21) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#9)]
      *               \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#11, cluster{f}#8, eve..]
      */
+
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelector() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -437,6 +455,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorPrefix() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -456,6 +475,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (
@@ -490,6 +510,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#293) AND RLIKE(pod{f}#281, "[a-z]+", false)]
      *               \_EsRelation[k8s][@timestamp{f}#279, client.ip{f}#283, cluster{f}#280, ..]
      */
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorRegex() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (
@@ -501,6 +522,49 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filters, hasSize(1));
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(RegexMatch.class::isInstance), equalTo(true));
+    }
+
+    public void testLabelSelectorNotEquals() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var not = filter.condition().collect(Not.class).getFirst();
+        var in = as(not.field(), In.class);
+        assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(in.list(), hasSize(1));
+        assertThat(as(as(in.list().getFirst(), Literal.class).value(), BytesRef.class).utf8ToString(), equalTo("foo"));
+    }
+
+    public void testLabelSelectorRegexNegation() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var not = filter.condition().collect(Not.class).getFirst();
+        var rLike = as(not.field(), RLike.class);
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("f.o"));
+    }
+
+    public void testLabelSelectors() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var and = as(filter.condition(), And.class);
+        if (and.left() instanceof IsNotNull) {
+            and = as(and.right(), And.class);
+        }
+        var left = as(and.left(), And.class);
+        var podNotFoo = as(as(left.left(), Not.class).field(), In.class);
+        assertThat(podNotFoo.list(), hasSize(1));
+        assertThat(as(podNotFoo.list().getFirst(), Literal.class).value(), equalTo(new BytesRef("foo")));
+
+        var clusterInBarBaz = as(left.right(), In.class);
+        assertThat(clusterInBarBaz.list(), hasSize(2));
+        assertThat(as(clusterInBarBaz.list().get(0), Literal.class).value(), equalTo(new BytesRef("bar")));
+        assertThat(as(clusterInBarBaz.list().get(1), Literal.class).value(), equalTo(new BytesRef("baz")));
+
+        var regionNotUs = as(as(and.right(), Not.class).field(), StartsWith.class);
+        assertThat(as(regionNotUs.prefix(), Literal.class).value(), equalTo(new BytesRef("us-")));
     }
 
     @AwaitsFix(bugUrl = "This should never be called before the attribute is resolved")
@@ -541,31 +605,185 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql(testQuery);
     }
 
-    // public void testPromqlArithmetricOperators() {
-    // // TODO doesn't parse
-    // // line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (1+1)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m ( foo and bar )", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (1+foo)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (foo+bar)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // }
+    public void testScalarAndInstantVectorArithmeticOperators() {
+        LogicalPlan plan;
+        plan = planPromql("PROMQL index=k8s step=5m max(network.bytes_in / 1024) by (pod)");
+        Div div = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Div.class);
+        assertThat(div.left().sourceText(), equalTo("network.bytes_in"));
+        assertThat(as(div.right(), Literal.class).value(), equalTo(1024.0));
+    }
+
+    public void testConstantFoldingArithmeticOperators() {
+        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=5m 1 + 1");
+        var eval = plan.collect(Eval.class).getFirst();
+        var literal = as(eval.fields().getFirst().child(), Literal.class);
+        assertThat(literal.value(), equalTo(2.0));
+    }
+
+    public void testUnsupportedBinaryOperators() {
+        assertThat(
+            error("PROMQL index=k8s step=5m foo or bar", tsAnalyzer),
+            containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m foo > bar", tsAnalyzer),
+            containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
+        );
+    }
+
+    public void testTopLevelBinaryArithmeticQuery() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=1m in_n_out=(
+                network.eth0.rx + network.eth0.tx
+              )
+            | SORT in_n_out""");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
+        Add add = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Add.class);
+        assertThat(add.left().sourceText(), equalTo("network.eth0.rx"));
+        assertThat(add.right().sourceText(), equalTo("network.eth0.tx"));
+    }
+
+    public void testGroupByAllWithinSeriesAggregate() {
+        var plan = planPromql("PROMQL index=k8s step=1m count=(count_over_time(network.bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("count", "step", "_timeseries")));
+    }
+
+    public void testBinaryInstantSelectorAndLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in * 8)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
+
+        Mul mul = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Mul.class);
+        assertThat(as(as(mul.left(), ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
+        assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
+
+        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryAcrossSeriesAndLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in) * 8)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
+
+        Eval eval = plan.collect(Eval.class).getFirst();
+        Mul mul = as(eval.fields().getFirst().child(), Mul.class);
+        assertThat(mul.left().sourceText(), equalTo("max(network.total_bytes_in)"));
+        assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
+
+        Aggregate agg = eval.collect(Aggregate.class).getFirst();
+        Max max = as(Alias.unwrap(agg.aggregates().getFirst()), Max.class);
+        assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
+
+        TimeSeriesAggregate tsAgg = agg.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAgg.timeBucket().buckets().fold(null), equalTo(Duration.ofMinutes(1)));
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
+    }
+
+    public void testAcrossSeriesMultiplicationLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in * 8))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
+
+        Aggregate agg = plan.collect(Aggregate.class).getFirst();
+        Max max = as(Alias.unwrap(agg.aggregates().getFirst()), Max.class);
+        assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.total_bytes_in * 8"));
+
+        Eval eval = agg.collect(Eval.class).getFirst();
+        Mul mul = as(Alias.unwrap(eval.fields().getFirst().child()), Mul.class);
+        assertThat(mul.left().sourceText(), equalTo("network.total_bytes_in"));
+        assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
+
+        TimeSeriesAggregate tsAgg = eval.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAgg.timeBucket().buckets().fold(null), equalTo(Duration.ofMinutes(1)));
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
+    }
+
+    public void testGroupByAllInstantSelector() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("network.bytes_in", "step", "_timeseries")));
+    }
+
+    public void testGroupByAllInstantSelectorRate() {
+        var plan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
+    }
+
+    public void testConstantResults() {
+        assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
+        assertConstantResult("pi()", equalTo(Math.PI));
+        assertConstantResult("abs(vector(-1))", equalTo(1.0));
+        assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
+
+    public void testRound() {
+        assertConstantResult("round(vector(pi()))", equalTo(3.0)); // round down to nearest integer
+        assertConstantResult("round(vector(pi()), 1)", equalTo(3.0)); // same as above but with explicit argument
+        assertConstantResult("round(vector(pi()), 0.01)", equalTo(3.14)); // round down 2 decimal places
+        assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
+        assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
+        assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
+    public void testClamp() {
+        assertConstantResult("clamp(vector(5), 0, 10)", equalTo(5.0));
+        assertConstantResult("clamp(vector(-5), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(15), 0, 10)", equalTo(10.0));
+        assertConstantResult("clamp(vector(0), 0, 10)", equalTo(0.0));
+        assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
+    }
+
+    public void testClampMin() {
+        assertConstantResult("clamp_min(vector(5), 0)", equalTo(5.0));
+        assertConstantResult("clamp_min(vector(-5), 0)", equalTo(0.0));
+        assertConstantResult("clamp_min(vector(0), 0)", equalTo(0.0));
+    }
+
+    public void testClampMax() {
+        assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
+        assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
+        assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
+    }
+
+    private void assertConstantResult(String query, Matcher<Double> matcher) {
+        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m " + query);
+        Eval eval = plan.collect(Eval.class).getFirst();
+        Literal literal = as(eval.fields().getFirst().child(), Literal.class);
+        assertThat(as(literal.value(), Double.class), matcher);
+
+        Aggregate aggregate = eval.collect(Aggregate.class).getFirst();
+        ReferenceAttribute step = as(aggregate.groupings().getFirst(), ReferenceAttribute.class);
+        assertThat(step.name(), equalTo("step"));
+
+        TimeSeriesAggregate tsAgg = aggregate.collect(TimeSeriesAggregate.class).getFirst();
+        ReferenceAttribute stepInTsAgg = as(Alias.unwrap(tsAgg.aggregates().getFirst()), ReferenceAttribute.class);
+        assertThat(stepInTsAgg.name(), equalTo("step"));
+
+        Eval stepEval = tsAgg.collect(Eval.class).getFirst();
+        Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
+        assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
+        assertThat(bucketAlias.id(), equalTo(step.id()));
+    }
 
     protected LogicalPlan planPromql(String query) {
+        return planPromql(query, false);
+    }
+
+    protected LogicalPlan planPromqlExpectNoReferences(String query) {
+        return planPromql(query, true);
+    }
+
+    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        AttributeSet.Builder references = AttributeSet.builder();
+        analyzed.forEachDown(lp -> references.addAll(lp.references()));
+        if (allowEmptyReferences) {
+            assertThat(references.build(), empty());
+        } else {
+            assertThat(references.build(), not(empty()));
+        }
         logger.trace("analyzed plan:\n{}", analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);

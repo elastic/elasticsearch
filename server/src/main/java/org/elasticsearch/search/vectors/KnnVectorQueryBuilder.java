@@ -11,12 +11,13 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
@@ -441,22 +443,18 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, l.delegateFailureAndWrap((ll, v) -> {
+            ctx.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), v -> {
                 toSet.set(v);
                 if (v == null) {
-                    ll.onFailure(
-                        new IllegalArgumentException(
-                            format(
-                                "[%s] with name [%s] returned null query_vector",
-                                QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                                queryVectorBuilder.getWriteableName()
-                            )
+                    throw new IllegalArgumentException(
+                        format(
+                            "[%s] with name [%s] returned null query_vector",
+                            QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                            queryVectorBuilder.getWriteableName()
                         )
                     );
-                    return;
                 }
-                ll.onResponse(null);
-            })));
+            });
             return new KnnVectorQueryBuilder(
                 fieldName,
                 queryVector,
@@ -528,7 +526,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, NUM_CANDS_LIMIT)) : numCands;
 
         if (fieldType == null) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         if (fieldType instanceof DenseVectorFieldType == false) {
             throw new IllegalArgumentException(
@@ -680,5 +678,28 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder setAutoPrefilteringEnabled(boolean isAutoPrefilteringEnabled) {
         this.isAutoPrefilteringEnabled = isAutoPrefilteringEnabled;
         return this;
+    }
+
+    private static final class QueryVectorBuilderAsyncAction extends QueryRewriteAsyncAction<float[], QueryVectorBuilderAsyncAction> {
+        private final QueryVectorBuilder queryVectorBuilder;
+
+        private QueryVectorBuilderAsyncAction(QueryVectorBuilder queryVectorBuilder) {
+            this.queryVectorBuilder = Objects.requireNonNull(queryVectorBuilder);
+        }
+
+        @Override
+        protected void execute(Client client, ActionListener<float[]> listener) {
+            queryVectorBuilder.buildVector(client, listener);
+        }
+
+        @Override
+        public int doHashCode() {
+            return Objects.hash(queryVectorBuilder);
+        }
+
+        @Override
+        public boolean doEquals(QueryVectorBuilderAsyncAction other) {
+            return Objects.equals(queryVectorBuilder, other.queryVectorBuilder);
+        }
     }
 }

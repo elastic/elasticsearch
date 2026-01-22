@@ -477,27 +477,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             return LicenseUtils.newComplianceException("field and document level security");
         } else if (role.hasRemoteClusterPermissions()
-            && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            && clusterService.state().getMinTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS) == false) {
                 return new IllegalStateException(
                     "all nodes must have version ["
                         + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
                         + "] or higher to support remote cluster privileges"
                 );
-            } else if (role.hasDescription() && clusterService.state().getMinTransportVersion().before(SECURITY_ROLE_DESCRIPTION)) {
-                return new IllegalStateException(
-                    "all nodes must have version ["
-                        + SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
-                        + "] or higher to support specifying role description"
-                );
-            } else if (Arrays.stream(role.getConditionalClusterPrivileges())
-                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
-                && clusterService.state().getMinTransportVersion().before(MANAGE_ROLES_PRIVILEGE)) {
+            } else if (role.hasDescription()
+                && clusterService.state().getMinTransportVersion().supports(SECURITY_ROLE_DESCRIPTION) == false) {
                     return new IllegalStateException(
                         "all nodes must have version ["
-                            + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
-                            + "] or higher to support the manage roles privilege"
+                            + SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                            + "] or higher to support specifying role description"
                     );
-                }
+                } else if (Arrays.stream(role.getConditionalClusterPrivileges())
+                    .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
+                    && clusterService.state().getMinTransportVersion().supports(MANAGE_ROLES_PRIVILEGE) == false) {
+                        return new IllegalStateException(
+                            "all nodes must have version ["
+                                + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                                + "] or higher to support the manage roles privilege"
+                        );
+                    }
         try {
             DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {
@@ -661,10 +662,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
 
         if (role.hasRemoteClusterPermissions() == false
-            && clusterService.state().getMinTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            && clusterService.state().getMinTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)) {
             builder.array(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName(), NONE);
         }
-        if (role.hasDescription() == false && clusterService.state().getMinTransportVersion().onOrAfter(SECURITY_ROLE_DESCRIPTION)) {
+        if (role.hasDescription() == false && clusterService.state().getMinTransportVersion().supports(SECURITY_ROLE_DESCRIPTION)) {
             builder.field(RoleDescriptor.Fields.DESCRIPTION.getPreferredName(), "");
         }
 

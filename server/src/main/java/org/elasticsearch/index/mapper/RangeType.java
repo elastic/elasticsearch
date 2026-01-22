@@ -46,6 +46,8 @@ import java.util.function.BiFunction;
 /** Enum defining the type of range */
 public enum RangeType {
     IP("ip_range", LengthType.FIXED_16) {
+        private static final MatchNoDocsQuery NO_DOCS_IN_RANGE = new MatchNoDocsQuery("float range didn't intersect anything");
+
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
             return new InetAddressRange(name, (InetAddress) r.from, (InetAddress) r.to);
@@ -177,11 +179,10 @@ public enum RangeType {
             }
             InetAddress correctedFrom = includeLower ? (InetAddress) lower : nextUp(lower);
             InetAddress correctedTo = includeUpper ? (InetAddress) upper : nextDown(upper);
-            ;
             lowerBytes = InetAddressPoint.encode(correctedFrom);
             upperBytes = InetAddressPoint.encode(correctedTo);
             if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
-                return new MatchNoDocsQuery("float range didn't intersect anything");
+                return NO_DOCS_IN_RANGE;
             } else {
                 return querySupplier.apply(correctedFrom, correctedTo);
             }
@@ -749,6 +750,7 @@ public enum RangeType {
         }
     };
 
+    private static final MatchNoDocsQuery NO_RANGE_MATCH = new MatchNoDocsQuery("range didn't intersect anything");
     public final String name;
     private final NumberFieldMapper.NumberType numberType;
     public final LengthType lengthType;
@@ -795,7 +797,7 @@ public enum RangeType {
         @SuppressWarnings("unchecked")
         T correctedTo = includeTo ? to : (T) rangeType.nextDown(to);
         if (correctedFrom.compareTo(correctedTo) > 0) {
-            return new MatchNoDocsQuery("range didn't intersect anything");
+            return NO_RANGE_MATCH;
         } else {
             return querySupplier.apply(correctedFrom, correctedTo);
         }

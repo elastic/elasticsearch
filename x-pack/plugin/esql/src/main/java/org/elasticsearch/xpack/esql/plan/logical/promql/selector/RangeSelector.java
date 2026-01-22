@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -31,7 +32,7 @@ import java.util.Objects;
  * The range vector selects all samples within the specified duration for each
  * matching time series, preparing data for range functions like rate() or avg_over_time().
  */
-public class RangeSelector extends Selector {
+public final class RangeSelector extends Selector {
     // Time_Period or Duration
     private final Expression range;
 
@@ -96,5 +97,10 @@ public class RangeSelector extends Selector {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), range);
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.RANGE_VECTOR;
     }
 }

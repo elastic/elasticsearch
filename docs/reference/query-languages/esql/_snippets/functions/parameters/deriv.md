@@ -3,7 +3,7 @@
 **Parameters**
 
 `field`
-:   
+:   the metric field to calculate the value for
 
 `window`
 :   the time window over which to compute the derivative over time

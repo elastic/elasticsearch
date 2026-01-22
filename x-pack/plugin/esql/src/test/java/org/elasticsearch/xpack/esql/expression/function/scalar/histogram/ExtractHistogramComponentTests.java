@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,14 +37,18 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (ExponentialHistogramBlock.Component component : ExponentialHistogramBlock.Component.values()) {
+        for (ExponentialHistogramBlock.Component component : HistogramBlock.Component.values()) {
             TestCaseSupplier.TypedDataSupplier componentOrdinalSupplier = new TestCaseSupplier.TypedDataSupplier(
                 "<" + component + ">",
                 component::ordinal,
                 DataType.INTEGER,
                 true
             );
-            for (TestCaseSupplier.TypedDataSupplier histoSupplier : TestCaseSupplier.exponentialHistogramCases()) {
+            List<TestCaseSupplier.TypedDataSupplier> histogramSuppliers = Stream.concat(
+                TestCaseSupplier.exponentialHistogramCases().stream(),
+                TestCaseSupplier.tdigestCases().stream()
+            ).toList();
+            for (TestCaseSupplier.TypedDataSupplier histoSupplier : histogramSuppliers) {
                 suppliers.add(
                     new TestCaseSupplier(
                         "<" + histoSupplier.type().typeName() + "," + component + ">",
@@ -68,21 +75,41 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
     }
 
     private static Object getExpectedValue(TestCaseSupplier.TypedData histogram, ExponentialHistogramBlock.Component component) {
-        ExponentialHistogram value = (ExponentialHistogram) histogram.getValue();
-        if (value == null) {
+        if (histogram.getValue() == null) {
             return null;
         }
-        return switch (component) {
-            case MIN -> {
-                double min = value.min();
-                yield Double.isNaN(min) ? null : min;
+        return switch (histogram.type()) {
+            case EXPONENTIAL_HISTOGRAM -> {
+                ExponentialHistogram value = (ExponentialHistogram) histogram.getValue();
+                yield switch (component) {
+                    case MIN -> {
+                        double min = value.min();
+                        yield Double.isNaN(min) ? null : min;
+                    }
+                    case MAX -> {
+                        double max = value.max();
+                        yield Double.isNaN(max) ? null : max;
+                    }
+                    case SUM -> value.valueCount() > 0 ? value.sum() : null;
+                    case COUNT -> (double) value.valueCount();
+                };
             }
-            case MAX -> {
-                double max = value.max();
-                yield Double.isNaN(max) ? null : max;
+            case TDIGEST -> {
+                TDigestHolder value = (TDigestHolder) histogram.getValue();
+                yield switch (component) {
+                    case MIN -> {
+                        double min = value.getMin();
+                        yield Double.isNaN(min) ? null : min;
+                    }
+                    case MAX -> {
+                        double max = value.getMax();
+                        yield Double.isNaN(max) ? null : max;
+                    }
+                    case SUM -> value.getValueCount() > 0 ? value.getSum() : null;
+                    case COUNT -> (double) value.getValueCount();
+                };
             }
-            case SUM -> value.valueCount() > 0 ? value.sum() : null;
-            case COUNT -> (double) value.valueCount();
+            default -> throw new IllegalStateException("Unexpected histogram type [" + histogram.type() + "]");
         };
     }
 

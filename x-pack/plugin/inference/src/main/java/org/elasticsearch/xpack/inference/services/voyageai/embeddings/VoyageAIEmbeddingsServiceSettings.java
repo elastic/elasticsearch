@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
@@ -35,7 +36,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 
 public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "voyageai_embeddings_service_settings";
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     public static final VoyageAIEmbeddingsServiceSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsServiceSettings(
         null,
         null,
@@ -44,8 +44,6 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         null,
         false
     );
-
-    public static final String EMBEDDING_TYPE = "embedding_type";
 
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
@@ -83,7 +81,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
+        Boolean dimensionsSetByUser = removeAsType(map, ServiceFields.DIMENSIONS_SET_BY_USER, Boolean.class);
         if (dimensionsSetByUser == null) {
             dimensionsSetByUser = Boolean.FALSE;
         }
@@ -111,7 +109,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             case REQUEST, PERSISTENT -> Objects.requireNonNullElse(
                 extractOptionalEnum(
                     map,
-                    EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     VoyageAIEmbeddingType::fromString,
                     EnumSet.allOf(VoyageAIEmbeddingType.class),
@@ -212,7 +210,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
         if (embeddingType != null) {
-            builder.field(EMBEDDING_TYPE, embeddingType);
+            builder.field(ServiceFields.EMBEDDING_TYPE, embeddingType);
         }
         builder.endObject();
         return builder;

@@ -49,7 +49,7 @@ public final class OutboundHandler {
 
     private final String nodeName;
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // only used in assertions, can be dropped in future
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // only used in assertions, can be dropped in future
     private final TransportVersion version;
 
     private final StatsTracker statsTracker;
@@ -368,9 +368,7 @@ public final class OutboundHandler {
     private static StreamOutput wrapCompressed(Compression.Scheme compressionScheme, RecyclerBytesStreamOutput bytesStream)
         throws IOException {
         if (compressionScheme == Compression.Scheme.DEFLATE) {
-            return new OutputStreamStreamOutput(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(org.elasticsearch.core.Streams.noCloseStream(bytesStream))
-            );
+            return CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.noCloseStream(bytesStream));
         } else if (compressionScheme == Compression.Scheme.LZ4) {
             return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
         } else {
@@ -462,8 +460,8 @@ public final class OutboundHandler {
     }
 
     private boolean assertValidTransportVersion(TransportVersion transportVersion) {
-        assert this.version.before(TransportVersion.minimumCompatible()) // running an incompatible-version test
-            || this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        assert this.version.id() < TransportVersion.minimumCompatible().id() // running an incompatible-version test
+            || this.version.id() >= transportVersion.id() : this.version + " vs " + transportVersion;
         return true;
     }
 

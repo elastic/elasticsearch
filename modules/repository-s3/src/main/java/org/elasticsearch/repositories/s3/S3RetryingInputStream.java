@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
@@ -37,7 +38,7 @@ import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForM
  *
  * See https://github.com/aws/aws-sdk-java/issues/856 for the related SDK issue
  */
-class S3RetryingInputStream extends RetryingInputStream<Void> {
+class S3RetryingInputStream extends RetryingInputStream<String> {
 
     private static final Logger logger = LogManager.getLogger(S3RetryingInputStream.class);
 
@@ -50,10 +51,12 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         super(new S3BlobStoreServices(blobStore, blobKey, purpose), purpose, start, end);
     }
 
-    private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose) implements BlobStoreServices<Void> {
+    private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose)
+        implements
+            BlobStoreServices<String> {
 
         @Override
-        public SingleAttemptInputStream<Void> getInputStream(Void version, long start, long end) throws IOException {
+        public SingleAttemptInputStream<String> getInputStream(@Nullable String version, long start, long end) throws IOException {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(blobKey);
                 configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);
@@ -61,9 +64,17 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                     assert start <= end : "requesting beyond end, start = " + start + " end=" + end;
                     getObjectRequestBuilder.range("bytes=" + start + "-" + end);
                 }
+                if (version != null) {
+                    // This is a second or subsequent request, ensure the object hasn't changed since the first request
+                    getObjectRequestBuilder.ifMatch(version);
+                }
                 final var getObjectRequest = getObjectRequestBuilder.build();
                 final var getObjectResponse = clientReference.client().getObject(getObjectRequest);
-                return new SingleAttemptInputStream<>(new S3ResponseWrapperInputStream(getObjectResponse, start, end), start, null);
+                return new SingleAttemptInputStream<>(
+                    new S3ResponseWrapperInputStream(getObjectResponse, start, end),
+                    start,
+                    getObjectResponse.response().eTag()
+                );
             } catch (SdkException e) {
                 if (e instanceof SdkServiceException sdkServiceException) {
                     if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -75,6 +86,16 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                             start,
                             (end < Long.MAX_VALUE - 1) ? end - start + 1 : end,
                             sdkServiceException
+                        );
+                    }
+                    if (version != null && sdkServiceException.statusCode() == RestStatus.PRECONDITION_FAILED.getStatus()) {
+                        throw new NoSuchFileException(
+                            "Blob object ["
+                                + blobKey
+                                + "] with ETag ["
+                                + version
+                                + "] unavailable on resume: "
+                                + sdkServiceException.getMessage()
                         );
                     }
                 }

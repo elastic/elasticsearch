@@ -24,8 +24,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -518,10 +519,15 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> tdigestCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
-            addSuppliers(cases, minRows, maxRows, "empty T-Digest", DataType.TDIGEST, TDigestHolder::empty);
-            addSuppliers(cases, minRows, maxRows, "random T-Digest", DataType.TDIGEST, EsqlTestUtils::randomTDigest);
-        }
+        addSuppliers(cases, minRows, maxRows, "empty T-Digest", DataType.TDIGEST, TDigestHolder::empty);
+        addSuppliers(cases, minRows, maxRows, "random T-Digest", DataType.TDIGEST, EsqlTestUtils::randomTDigest);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> histogramCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "empty histogram", DataType.HISTOGRAM, () -> new BytesRef(""));
+        addSuppliers(cases, minRows, maxRows, "random histogram", DataType.HISTOGRAM, EsqlTestUtils::randomHistogram);
         return cases;
     }
 
@@ -687,5 +693,29 @@ public final class MultiRowTestCaseSupplier {
                 )
             );
         }
+    }
+
+    /**
+     * Generate cases for {@link DataType#DENSE_VECTOR}.
+     */
+    public static List<TypedDataSupplier> denseVectorCases(int minRows, int maxRows) {
+        Holder<Integer> dimensions = new Holder<>();
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<dense vector>", DataType.DENSE_VECTOR, () -> {
+            if (dimensions.get() == null) {
+                dimensions.set(randomIntBetween(64, 128));
+            }
+            return randomDenseVector(dimensions.get());
+        });
+
+        return cases;
+    }
+
+    private static List<Float> randomDenseVector(int dimensions) {
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimensions; i++) {
+            vector.add(randomFloat());
+        }
+        return vector;
     }
 }

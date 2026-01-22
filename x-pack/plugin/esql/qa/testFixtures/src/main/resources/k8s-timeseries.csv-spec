@@ -24,6 +24,7 @@ max_bytes:long | cluster: keyword
 maxRate
 required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max=max(rate(network.total_bytes_in)) | EVAL max=ROUND(max, 6) | KEEP max;
 
 max: double
@@ -33,6 +34,7 @@ max: double
 maxRatePerMinute
 required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max=max(60 * rate(network.total_bytes_in)) | EVAL max=ROUND(max, 6) | KEEP max;
 
 max: double
@@ -41,6 +43,7 @@ max: double
 
 maxCost
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_cost=max(rate(network.total_cost)) | EVAL max_cost=ROUND(max_cost, 6) | KEEP max_cost;
 
 max_cost: double
@@ -49,6 +52,7 @@ max_cost: double
 
 maxRateAndBytes
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(60 * rate(network.total_bytes_in)), max_bytes=max(network.bytes_in) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes;
 
 max_rate: double | max_bytes: long
@@ -57,6 +61,7 @@ max_rate: double | max_bytes: long
 
 maxRateAndBytesExplicit
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(60 * rate(network.total_bytes_in)), max_bytes=max(last_over_time(network.bytes_in)) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes;
 
 max_rate: double | max_bytes: long
@@ -65,6 +70,7 @@ max_rate: double | max_bytes: long
 
 maxRateAndMarkupBytes
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_markup=max(network.bytes_in * 1.05) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_markup;
 
 max_rate: double | max_markup: double
@@ -73,6 +79,7 @@ max_rate: double | max_markup: double
 
 maxRateAndMarkupBytesExplicit
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_bytes_in = max(last_over_time(network.bytes_in) * 1.05) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes_in;
 
 max_rate: double | max_bytes_in: double
@@ -81,6 +88,7 @@ max_rate: double | max_bytes_in: double
 
 maxRateAndLastBytesIn
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_bytes_in = max(last_over_time(network.bytes_in * 1.05)) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes_in;
 
 max_rate: double | max_bytes_in: double
@@ -89,6 +97,7 @@ max_rate: double | max_bytes_in: double
 
 maxRateAndBytesAndCost
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_bytes=max(max_over_time(network.bytes_in)), max_cost=max(rate(network.total_cost)) | EVAL max_rate=ROUND(max_rate, 6), max_cost=ROUND(max_cost, 6) | KEEP max_rate, max_bytes, max_cost;
 
 max_rate:double | max_bytes:long | max_cost:double
@@ -97,6 +106,7 @@ max_rate:double | max_bytes:long | max_cost:double
 
 sumRate
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum_cost=sum(rate(network.total_cost)) BY cluster | EVAL bytes=ROUND(bytes, 6), sum_cost=ROUND(sum_cost, 6) | KEEP bytes, sum_cost, cluster | SORT cluster;
 
 bytes: double | sum_cost: double | cluster: keyword
@@ -107,6 +117,9 @@ bytes: double | sum_cost: double | cluster: keyword
 
 oneRateWithBucket
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 // tag::rate[]
 TS k8s
 | STATS max_rate=MAX(RATE(network.total_bytes_in)) BY time_bucket = TBUCKET(5minute)
@@ -116,38 +129,44 @@ TS k8s
 
 // tag::rate-result[]
 max_rate: double | time_bucket:date
-6.980661         | 2024-05-10T00:20:00.000Z
-23.702206        | 2024-05-10T00:15:00.000Z
+64.5            | 2024-05-10T00:20:00.000Z
+22.359074        | 2024-05-10T00:15:00.000Z
 // end::rate-result[]
 ;
 
 oneRateWithTBucket
 required_capability: ts_command_v0
-required_capability: tbucket
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s
 | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute)
 | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, time_bucket
 | SORT time_bucket DESC | LIMIT 2;
 
 max_rate: double | time_bucket:date
-6.980661         | 2024-05-10T00:20:00.000Z
-23.702206        | 2024-05-10T00:15:00.000Z
+64.5            | 2024-05-10T00:20:00.000Z
+22.359074        | 2024-05-10T00:15:00.000Z
 ;
 
 oneRateWithPromql
-required_capability: promql_pre_tech_preview_v7
+required_capability: promql_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 PROMQL index=k8s step=5m max(rate(network.total_bytes_in[5m]))
 | SORT step DESC | LIMIT 2;
 
 max(rate(network.total_bytes_in[5m])):double | step:datetime
-6.980660660660663                            | 2024-05-10T00:20:00.000Z
-23.70220588235294                            | 2024-05-10T00:15:00.000Z
+64.5                                         | 2024-05-10T00:20:00.000Z
+22.359073868541127                           | 2024-05-10T00:15:00.000Z
 
 ;
 
 oneRateWithSingleTBucket
 required_capability: ts_command_v0
-required_capability: tbucket
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s
 | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = tbucket(1h)
 | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, time_bucket;
@@ -157,7 +176,8 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_pre_tech_preview_v7
+required_capability: promql_command_v0
+required_capability: rate_fix_resets_multiple_segments
 PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]));
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime
@@ -167,65 +187,81 @@ max(rate(network.total_bytes_in[1h])):double | step:datetime
 
 twoRatesWithBucket
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), sum_rate=sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | EVAL max_rate=ROUND(max_rate, 6), sum_rate=ROUND(sum_rate, 6) | KEEP max_rate, sum_rate, time_bucket | SORT time_bucket DESC | LIMIT 3;
 
 max_rate:double | sum_rate:double | time_bucket:datetime    
-6.980661        | 23.959973       | 2024-05-10T00:20:00.000Z
-23.702206       | 94.951751       | 2024-05-10T00:15:00.000Z
-14.970394       | 63.006522       | 2024-05-10T00:10:00.000Z
+64.5            | 109.846376      | 2024-05-10T00:20:00.000Z
+22.359074       | 102.558916      | 2024-05-10T00:15:00.000Z
+13.457087       | 66.566176       | 2024-05-10T00:10:00.000Z
 ;
 
 twoRatesWithTBucket
 required_capability: ts_command_v0
-required_capability: tbucket
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), sum_rate=sum(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute) | EVAL max_rate=ROUND(max_rate, 6), sum_rate=ROUND(sum_rate, 6) | KEEP max_rate, sum_rate, time_bucket | SORT time_bucket DESC | LIMIT 3;
 
 max_rate:double | sum_rate:double | time_bucket:datetime    
-6.980661        | 23.959973       | 2024-05-10T00:20:00.000Z
-23.702206       | 94.951751       | 2024-05-10T00:15:00.000Z
-14.970394       | 63.006522       | 2024-05-10T00:10:00.000Z
+64.5            | 109.846376      | 2024-05-10T00:20:00.000Z
+22.359074       | 102.558916      | 2024-05-10T00:15:00.000Z
+13.457087       | 66.566176       | 2024-05-10T00:10:00.000Z
 ;
 
 oneRateWithBucketAndCluster
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, time_bucket, cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
 max_rate:double | time_bucket:datetime     | cluster:keyword
-6.980661        | 2024-05-10T00:20:00.000Z | prod
-4.05            | 2024-05-10T00:20:00.000Z | qa
+64.5            | 2024-05-10T00:20:00.000Z | prod
+17.226415       | 2024-05-10T00:20:00.000Z | qa
 3.19            | 2024-05-10T00:20:00.000Z | staging
-11.860806       | 2024-05-10T00:15:00.000Z | prod 
-23.702206       | 2024-05-10T00:15:00.000Z | qa 
-7.784912        | 2024-05-10T00:15:00.000Z | staging
+13.765185       | 2024-05-10T00:15:00.000Z | prod
+22.359074       | 2024-05-10T00:15:00.000Z | qa
+9.934874        | 2024-05-10T00:15:00.000Z | staging
 ;
 
 BytesAndCostByBucketAndCluster
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_cost=max(max_over_time(network.cost)) BY time_bucket = bucket(@timestamp,5minute), cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_cost, time_bucket, cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
 max_rate:double | max_cost:double | time_bucket:date         | cluster: keyword
-6.980661                                 | 10.75                                    | 2024-05-10T00:20:00.000Z | prod
-4.05                                     | 11.875                                   | 2024-05-10T00:20:00.000Z | qa
-3.19                                     | 9.5                                      | 2024-05-10T00:20:00.000Z | staging
-11.860806                                | 12.375                                   | 2024-05-10T00:15:00.000Z | prod
-23.702206                                | 12.125                                   | 2024-05-10T00:15:00.000Z | qa
-7.784912                                 | 11.5                                     | 2024-05-10T00:15:00.000Z | staging
+64.5            | 10.75           | 2024-05-10T00:20:00.000Z | prod
+17.226415       | 11.875          | 2024-05-10T00:20:00.000Z | qa
+3.19            | 9.5             | 2024-05-10T00:20:00.000Z | staging
+13.765185       | 12.375          | 2024-05-10T00:15:00.000Z | prod
+22.359074       | 12.125          | 2024-05-10T00:15:00.000Z | qa
+9.934874        | 11.5            | 2024-05-10T00:15:00.000Z | staging
 ;
 
 
 oneRateWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | WHERE cluster=="prod" | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, time_bucket, cluster | SORT time_bucket DESC | LIMIT 3;
 
 max_rate:double | time_bucket:datetime     | cluster:keyword
-6.980661        | 2024-05-10T00:20:00.000Z | prod
-11.860806       | 2024-05-10T00:15:00.000Z | prod
-11.562738       | 2024-05-10T00:10:00.000Z | prod
+64.5            | 2024-05-10T00:20:00.000Z | prod
+13.765185       | 2024-05-10T00:15:00.000Z | prod
+11.132176       | 2024-05-10T00:10:00.000Z | prod
 
 ;
 
 maxRateWithInlineFilter
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) WHERE cluster=="prod" BY cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, cluster | SORT cluster;
 
 max_rate:double | cluster:keyword
@@ -236,6 +272,8 @@ null            | staging
 
 maxRateWithPreFilter
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | WHERE cluster=="prod" | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, cluster | SORT cluster;
 
 max_rate:double | cluster:keyword
@@ -244,19 +282,22 @@ max_rate:double | cluster:keyword
 
 notEnoughSamples
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | WHERE @timestamp <= "2024-05-10T00:06:14.000Z" | STATS max_rate=max(rate(network.total_bytes_in)) BY pod, time_bucket = bucket(@timestamp,1minute) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, pod, time_bucket | SORT pod, time_bucket DESC | LIMIT 10;
 
 max_rate:double | pod:keyword | time_bucket:datetime    
-null            | one         | 2024-05-10T00:06:00.000Z
-0.075           | one         | 2024-05-10T00:05:00.000Z
-null            | one         | 2024-05-10T00:04:00.000Z
+4.25            | one         | 2024-05-10T00:06:00.000Z
+8.760294        | one         | 2024-05-10T00:05:00.000Z
+49.352941       | one         | 2024-05-10T00:04:00.000Z
 16.45           | one         | 2024-05-10T00:03:00.000Z
 null            | one         | 2024-05-10T00:01:00.000Z
-null            | three       | 2024-05-10T00:06:00.000Z
-null            | three       | 2024-05-10T00:05:00.000Z
-1.534414        | three       | 2024-05-10T00:03:00.000Z
-null            | three       | 2024-05-10T00:02:00.000Z
-null            | three       | 2024-05-10T00:01:00.000Z
+10.685714       | three       | 2024-05-10T00:06:00.000Z
+10.685714       | three       | 2024-05-10T00:05:00.000Z
+3.633842        | three       | 2024-05-10T00:03:00.000Z
+10.25           | three       | 2024-05-10T00:02:00.000Z
+18.934896       | three       | 2024-05-10T00:01:00.000Z
 ;
 
 
@@ -499,15 +540,17 @@ distincts:long | distincts_imprecise:long | cluster:keyword | time_bucket:dateti
 
 two_rates
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s | STATS cost_per_mb=max(rate(network.total_bytes_in) / 1024 * 1024 * rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp,5minute) | EVAL cost_per_mb=ROUND(cost_per_mb, 6) | KEEP cost_per_mb, cluster, time_bucket | SORT cost_per_mb DESC, cluster, time_bucket DESC | LIMIT 5;
 
 cost_per_mb:double | cluster:keyword | time_bucket:datetime
-5.119502           | qa              | 2024-05-10T00:15:00.000Z
-4.113506           | qa              | 2024-05-10T00:05:00.000Z
-2.097428           | qa              | 2024-05-10T00:10:00.000Z
-2.071474           | prod            | 2024-05-10T00:15:00.000Z
-1.595565           | staging         | 2024-05-10T00:10:00.000Z
+4.487559           | qa              | 2024-05-10T00:15:00.000Z
+4.073332           | qa              | 2024-05-10T00:05:00.000Z
+3.047125           | qa              | 2024-05-10T00:20:00.000Z
+2.539762           | prod            | 2024-05-10T00:15:00.000Z
+1.845749           | qa              | 2024-05-10T00:10:00.000Z
 ;
 
 present_over_time
@@ -699,6 +742,7 @@ sd:double | var:double | sd_squared:double | cluster:keyword | time_bucket:datet
 
 Max of Rate with Bucket
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s
 | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
@@ -710,6 +754,7 @@ maxRate:double | tbucket:datetime
 
 Max of Rate with Bucket, rename _tsid
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s METADATA _tsid
 | RENAME _tsid AS newTsid
@@ -724,6 +769,7 @@ maxRate:double | tbucket:datetime
 
 Max of Rate with Bucket, drop _tsid
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s METADATA _tsid
 | DROP _tsid
@@ -734,16 +780,24 @@ maxRate:double | tbucket:datetime
 0.05898        | 2024-05-10T00:00:00.000Z
 ;
 
-Rename timestamp when aggs don't require timestamp
-required_capability: ts_command_v0
+instant_selector_dimensions_promql
+required_capability: promql_command_v0
 
-TS k8s 
-| RENAME @timestamp AS newTs 
-| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
+PROMQL index=k8s step=1h network.cost
+| SORT network.cost DESC
 ;
+ignoreOrder:true
 
-mx:integer | tbucket:datetime
-1716       | 2024-05-10T00:00:00.000Z
+network.cost:double | step:datetime            | _timeseries:keyword
+0.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625               | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+7.875               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375               | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9.5                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875              | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
 ;
 
 bare_count_over_time_outputs_dimensions
@@ -792,6 +846,69 @@ count:long | _timeseries:keyword                                                
 29         | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
 ;
 
+bare_count_over_time_with_tbucket_outputs_dimensions_promql
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=1h count=(count_over_time(network.cost[1h]))
+| SORT count DESC
+;
+ignoreOrder:true
+
+count:double | step:datetime            | _timeseries:keyword
+13.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+16.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+20.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+22.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+23.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+24.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+24.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
+bare_metric_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all  
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: ts_stats_binary_ops
+
+TS k8s
+| STATS network.cost BY tbucket = TBUCKET(1 hour)
+| SORT network.cost DESC
+;
+ignoreOrder:true
+
+network.cost:double | _timeseries:keyword                                                   | tbucket:datetime
+0.0                 | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+1.75                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+4.625               | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+6.25                | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+7.875               | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+9.375               | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+9.5                 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+10.75               | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+10.875              | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+;
+
+bare_metric_with_tbucket_outputs_dimensions_promql
+required_capability: promql_command_v0
+PROMQL index=k8s step=1h network.cost
+| SORT network.cost DESC
+;
+ignoreOrder:true
+
+network.cost:double | step:datetime            | _timeseries:keyword
+0.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625               | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+7.875               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375               | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9.5                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875              | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+;
+
 bare_avg_over_time_outputs_dimensions
 required_capability: ts_command_v0
 required_capability: metrics_group_by_all  
@@ -836,6 +953,26 @@ avg:double         | _timeseries:keyword                                        
 6.870689655172414  | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
 7.262931034482759  | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
 8.375              | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+;
+
+bare_avg_over_time_with_tbucket_outputs_dimensions_promql
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=1h avg=(avg_over_time(network.cost[1h]))
+| SORT avg DESC
+;
+ignoreOrder:true
+
+avg:double         | step:datetime            | _timeseries:keyword
+4.0703125          | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+5.1826923076923075 | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+5.586956521739131  | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+5.869791666666667  | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+6.46875            | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+6.635416666666667  | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+6.870689655172414  | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+7.262931034482759  | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+8.375              | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 ;
 
 bare_sum_over_time_outputs_dimensions
@@ -884,70 +1021,76 @@ sum:double | _timeseries:keyword                                                
 210.625    | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
 ;
 
-bare_rate_outputs_dimensions
-required_capability: ts_command_v0
-required_capability: metrics_group_by_all
-required_capability: metrics_group_by_all_with_ts_dimensions
+bare_sum_over_time_with_tbucket_outputs_dimensions_promql
+required_capability: promql_command_v0
 
-
-TS k8s
-| STATS rate=rate(network.total_bytes_in)
-| SORT rate DESC
+PROMQL index=k8s step=1h sum=(sum_over_time(network.cost[1h]))
+| SORT sum DESC
 ;
 ignoreOrder:true
 
-rate:double        | _timeseries:keyword
-4.689830508474576  | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
-6.54326561324304   | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-7.340495867768595  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-7.377611940298507  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-8.434290687554395  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-8.716707021791768  | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-9.485643970467596  | "{""cluster"":""qa"",""pod"":""three""}"
-10.649149922720246 | "{""cluster"":""qa"",""pod"":""one""}"
-13.17372515125324  | "{""cluster"":""qa"",""pod"":""two""}"
-
+sum:double | step:datetime            | _timeseries:keyword
+65.125     | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+67.375     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+128.5      | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+129.375    | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+140.875    | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+159.25     | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+184.25     | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+199.25     | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+210.625    | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
 ;
+
 
 bare_rate_with_tbucket_outputs_dimensions
 required_capability: ts_command_v0
-required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all  
 required_capability: metrics_group_by_all_with_ts_dimensions
 
 TS k8s
-| STATS rate=rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
+| STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
+| EVAL rate=ROUND(rate, 3)
 | SORT rate DESC
 ;
 ignoreOrder:true
 
-rate:double        | _timeseries:keyword                                   | tbucket:datetime
-1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
-2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
-2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
-2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
-2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
-3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
-3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
-3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
-4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
- 
+_timeseries:keyword                                                   | tbucket:datetime         | rate:double
+"{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z | 3.13
+"{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z | 2.83
+"{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z | 2.621
+"{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z | 3.96
+"{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z | 3.346
+"{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z | 4.38
+"{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z | 1.655
+"{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z | 2.526
+"{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z | 2.874  
 ;
 
-wrapped_rate
-required_capability: ts_command_v0
-required_capability: metrics_group_by_all
-required_capability: metrics_group_by_all_with_ts_dimensions
+bare_rate_with_tbucket_outputs_dimensions_promql
+required_capability: promql_command_v0
 
-TS k8s
-| STATS max_rate = MAX(rate(network.total_bytes_in))
-| EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate;
+PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
+| EVAL rate=ROUND(rate, 3)
+| SORT rate DESC
+;
+ignoreOrder:true
 
-max_rate:double 
-13.173725
+step:datetime            | _timeseries:keyword                                                   | rate:double
+2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 3.13
+2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2.83
+2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2.621
+2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"                                | 3.96
+2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"                              | 3.346
+2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"                                | 4.38
+2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 1.655
+2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2.526
+2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2.874
 ;
 
 oneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+
 TS k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -957,16 +1100,16 @@ TS k8s
 | LIMIT 3;
 
 max:double | inc:double | time_bucket:datetime   | cluster:keyword
-6.981      | 2094.198   | 2024-05-10T00:20:00.000Z | prod
-11.861     | 3558.242   | 2024-05-10T00:15:00.000Z | prod
-11.563     | 3468.821   | 2024-05-10T00:10:00.000Z | prod
-
+64.5       | 2287.441   | 2024-05-10T00:20:00.000Z | prod
+13.765     | 4129.556   | 2024-05-10T00:15:00.000Z | prod
+11.132     | 3339.653   | 2024-05-10T00:10:00.000Z | prod
 
 ;
 
 dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos_2
+required_capability: rate_with_interpolation
 
 TS datenanos-k8s
 | WHERE cluster=="prod"
@@ -983,26 +1126,10 @@ max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
 
 ;
 
-oneRateIncreaseWithBucketAndClusterThenFilter
-required_capability: ts_command_v0
-TS k8s
-| WHERE cluster=="prod"
-| STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max=ROUND(max, 5), inc=ROUND(inc, 5)
-| KEEP max, inc, time_bucket, cluster
-| SORT time_bucket DESC 
-| LIMIT 3;
-
-max:double | inc:double | time_bucket:datetime     | cluster:keyword
-6.98066    | 2094.1982  | 2024-05-10T00:20:00.000Z | prod
-11.86081   | 3558.24176 | 2024-05-10T00:15:00.000Z | prod
-11.56274   | 3468.82129 | 2024-05-10T00:10:00.000Z | prod
-
-;
-
 dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos_2
+required_capability: rate_fix_resets_multiple_segments
 
 TS datenanos-k8s
 | WHERE cluster=="prod"
@@ -1050,6 +1177,8 @@ derivative_compared_to_rate
 required_capability: ts_command_v0
 required_capability: ts_linreg_derivative
 required_capability: ts_deriv_datenanos
+required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -1060,11 +1189,11 @@ TS k8s
 ;
 
 max_deriv:double | max_rate:double | time_bucket:datetime   | cluster:keyword
-19.6162          | 8.1208          | 2024-05-10T00:00:00.000Z | prod
-4.9885           | 6.4517          | 2024-05-10T00:05:00.000Z | prod
-8.9937           | 11.5627         | 2024-05-10T00:10:00.000Z | prod
-16.0871          | 11.8608         | 2024-05-10T00:15:00.000Z | prod
-10.2206          | 6.9807          | 2024-05-10T00:20:00.000Z | prod
+19.6162          | 8.0475          | 2024-05-10T00:00:00.000Z | prod
+4.9885           | 5.7361          | 2024-05-10T00:05:00.000Z | prod
+8.9937           | 11.1322         | 2024-05-10T00:10:00.000Z | prod
+16.0871          | 13.7652         | 2024-05-10T00:15:00.000Z | prod
+10.2206          | 64.5            | 2024-05-10T00:20:00.000Z | prod
 
 ;
 
@@ -1115,4 +1244,76 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 8.9937           | 11.5627         | 2024-05-10T00:10:00.000Z | prod
 16.0871          | 11.8608         | 2024-05-10T00:15:00.000Z | prod
 10.2206          | 6.9807          | 2024-05-10T00:20:00.000Z | prod
+;
+
+derivative_of_gauge_metric_promql
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=5m max_deriv=(max by (pod) (deriv(network.cost{pod="three"}[5m])))
+| SORT step
+;
+
+max_deriv:double                              | step:datetime            | pod:keyword
+0.1016742317005992                            | 2024-05-10T00:00:00.000Z | three
+0.04110020549538044                           | 2024-05-10T00:05:00.000Z | three
+-0.017149432096630335                         | 2024-05-10T00:10:00.000Z | three
+-0.0011132215149700642                        | 2024-05-10T00:15:00.000Z | three
+0.019532827926533564                          | 2024-05-10T00:20:00.000Z | three
+
+;
+
+DefaultMetricWithFrom
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+FROM k8s-downsampled
+| STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+max:double | std_dev:double | pod:keyword
+1060.0     | 331.5018947    | one
+824.0      | 151.9744943    | three
+1419.0     | 364.4118888    | two
+;
+
+DefaultMetricWithTS
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+TS k8s-downsampled
+| STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+max:double | std_dev:double | pod:keyword
+1060.0     | 355.3786713    | one
+824.0      | 180.6918802    | three
+815.0      | 102.3469046    | two
+;
+
+DefaultMetricWithFromImplicitCasting
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+FROM k8s*
+| STATS min = min(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+min:double | std_dev:double | pod:keyword
+18.0       | 380.8643432    | one
+48.0       | 340.5483293    | three
+20.0       | 431.2070165    | two
+;
+
+DefaultMetricWithTSImplicitCasting
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+TS k8s*
+| STATS min = min(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+min:double | std_dev:double | pod:keyword
+193.0      | 427.9853269    | one
+715.0      | 208.6955678    | three
+602.0      | 375.7757842    | two
 ;

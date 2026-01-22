@@ -93,7 +93,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        if (dimensionField.name().equals(MetadataAttribute.TIMESERIES)) {
+                        if (MetadataAttribute.isTimeSeriesAttribute(dimensionField)) {
                             var sourceField = new FieldAttribute(
                                 dimensionField.source(),
                                 null,
@@ -161,7 +161,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     private static Attribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {
         if (af instanceof DimensionValues values && values.hasFilter() == false && values.field() instanceof Attribute attr) {
-            if (inputAttributes.contains(attr) == false || attr.name().equals(MetadataAttribute.TIMESERIES)) {
+            if (inputAttributes.contains(attr) == false || MetadataAttribute.isTimeSeriesAttribute(attr)) {
                 return attr;
             }
         }

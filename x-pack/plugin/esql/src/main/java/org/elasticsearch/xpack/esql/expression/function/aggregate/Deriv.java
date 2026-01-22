@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivIntAggregatorFunctionSupplier;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -51,7 +53,11 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     )
     public Deriv(
         Source source,
-        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
+        @Param(
+            name = "field",
+            type = { "long", "integer", "double" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
         @Param(
             name = "window",
             type = { "time_duration" },
@@ -68,7 +74,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
         this.timestamp = timestamp;
     }
 
-    private Deriv(org.elasticsearch.common.io.stream.StreamInput in) throws java.io.IOException {
+    private Deriv(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),

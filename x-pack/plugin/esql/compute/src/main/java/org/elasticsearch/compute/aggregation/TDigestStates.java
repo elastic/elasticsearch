@@ -61,7 +61,7 @@ public final class TDigestStates {
                 return;
             }
             if (merger == null) {
-                merger = TDigestState.create(breaker, COMPRESSION, EXECUTION_HINT);
+                merger = TDigestState.createOfType(breaker, TDigestState.Type.MERGING, COMPRESSION);
             }
             histogram.addTo(merger);
             sum = nanAwareAgg(histogram.getSum(), sum, Double::sum);
@@ -114,13 +114,31 @@ public final class TDigestStates {
         private final BigArrays bigArrays;
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.states = bigArrays.newObjectArray(1);
-            this.minima = bigArrays.newDoubleArray(1);
-            this.maxima = bigArrays.newDoubleArray(1);
-            this.sums = bigArrays.newDoubleArray(1);
-            this.counts = bigArrays.newLongArray(1);
             this.bigArrays = bigArrays;
             this.breaker = breaker;
+            ObjectArray<TDigestState> states = null;
+            DoubleArray minima = null;
+            DoubleArray maxima = null;
+            DoubleArray sums = null;
+            LongArray counts = null;
+            boolean success = false;
+            try {
+                states = bigArrays.newObjectArray(1);
+                minima = bigArrays.newDoubleArray(1);
+                maxima = bigArrays.newDoubleArray(1);
+                sums = bigArrays.newDoubleArray(1);
+                counts = bigArrays.newLongArray(1);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(states, minima, maxima, sums, counts);
+                }
+            }
+            this.states = states;
+            this.minima = minima;
+            this.maxima = maxima;
+            this.sums = sums;
+            this.counts = counts;
         }
 
         TDigestState getOrNull(int position) {
@@ -142,7 +160,7 @@ public final class TDigestStates {
             double sum;
             long count;
             if (state == null) {
-                state = TDigestState.create(breaker, COMPRESSION, EXECUTION_HINT);
+                state = TDigestState.createOfType(breaker, TDigestState.Type.MERGING, COMPRESSION);
                 states.set(groupId, state);
                 min = Double.NaN;
                 max = Double.NaN;
@@ -181,12 +199,12 @@ public final class TDigestStates {
                     TDigestState state = getOrNull(groupId);
                     if (state != null) {
                         seenBuilder.appendBoolean(true);
-                        histoBuilder.append(
+                        histoBuilder.appendTDigest(
                             new TDigestHolder(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId), counts.get(groupId))
                         );
                     } else {
                         seenBuilder.appendBoolean(false);
-                        histoBuilder.append(TDigestHolder.empty());
+                        histoBuilder.appendTDigest(TDigestHolder.empty());
                     }
                 }
                 blocks[offset] = histoBuilder.build();
@@ -200,7 +218,7 @@ public final class TDigestStates {
                     int groupId = selected.getInt(i);
                     TDigestState state = getOrNull(groupId);
                     if (state != null) {
-                        histoBuilder.append(
+                        histoBuilder.appendTDigest(
                             new TDigestHolder(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId), counts.get(groupId))
                         );
                     } else {

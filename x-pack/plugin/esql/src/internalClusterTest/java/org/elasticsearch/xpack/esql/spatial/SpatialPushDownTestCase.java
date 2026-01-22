@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
@@ -24,6 +25,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
@@ -73,7 +75,15 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
     }
 
     protected void initIndexes() {
-        assertAcked(prepareCreate("indexed").setMapping(String.format(Locale.ROOT, """
+        initIndexes(Settings.builder());
+    }
+
+    protected void initIndexes(int numberOfShards) {
+        initIndexes(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards));
+    }
+
+    protected void initIndexes(Settings.Builder indexSettings) {
+        assertAcked(prepareCreate("indexed", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s" }
@@ -81,7 +91,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             }
             """, fieldType())));
 
-        assertAcked(prepareCreate("not-indexed").setMapping(String.format(Locale.ROOT, """
+        assertAcked(prepareCreate("not-indexed", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s",  "index" : false, "doc_values" : true }
@@ -89,7 +99,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             }
             """, fieldType())));
 
-        assertAcked(prepareCreate("not-indexed-nor-doc-values").setMapping(String.format(Locale.ROOT, """
+        assertAcked(prepareCreate("not-indexed-nor-doc-values", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s",  "index" : false, "doc_values" : false }
@@ -97,7 +107,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             }
             """, fieldType())));
 
-        assertAcked(prepareCreate("no-doc-values").setMapping(String.format(Locale.ROOT, """
+        assertAcked(prepareCreate("no-doc-values", indexSettings).setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
                "location": { "type" : "%s",  "index" : true, "doc_values" : false }

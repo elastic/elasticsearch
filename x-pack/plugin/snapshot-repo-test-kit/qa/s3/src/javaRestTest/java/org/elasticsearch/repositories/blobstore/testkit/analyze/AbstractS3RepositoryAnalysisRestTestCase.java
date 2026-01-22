@@ -101,6 +101,8 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             .build();
     }
 
+    abstract S3ConsistencyModel consistencyModel();
+
     @Override
     protected Settings repositorySettings() {
         final String bucket = System.getProperty("test.s3.bucket");
@@ -118,8 +120,7 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             .put("max_copy_size_before_multipart", ByteSizeValue.ofMb(5))
             // verify we always set the x-purpose header even if disabled for other repository operations
             .put(randomBooleanSetting("add_purpose_custom_query_parameter"))
-            // this parameter is ignored for repo analysis
-            .put(randomBooleanSetting("unsafely_incompatible_with_s3_conditional_writes"))
+            .put("unsafely_incompatible_with_s3_conditional_writes", consistencyModel().hasConditionalWrites() == false)
             .build();
     }
 

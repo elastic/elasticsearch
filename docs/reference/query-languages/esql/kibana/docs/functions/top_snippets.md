@@ -4,5 +4,6 @@
 Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a text field.
 
 ```esql
-null
+FROM books
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
 ```

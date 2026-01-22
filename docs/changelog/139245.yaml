@@ -1,0 +1,6 @@
+pr: 139245
+summary: "[Security Solution] Add additional privileges to Kibana System role for\
+  \ `.endpoint-scripts-file*` indexes"
+area: Authorization
+type: enhancement
+issues: []

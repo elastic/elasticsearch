@@ -129,3 +129,11 @@ redirects:
         anchors: { 'querying-semantic-text-fields', 'retrieving-indexed-chunks', 'returning-semantic-field-embeddings', 'returning-semantic-field-embeddings-in-_source', 'reindex-while-preserving-embeddings', 'troubleshooting-semantic-text-fields', 'returning-semantic-field-embeddings-using-fields', 'highlighting-fragments', 'cross-cluster-search' }
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-reference.md'
         anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }
+
+  # Related to https://github.com/elastic/docs-content-internal/issues/595
+  'reference/query-languages/esql/limitations.md':
+    to: 'reference/query-languages/esql/limitations.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/search-functions.md'
+        anchors: { 'esql-limitations-text-fields' }

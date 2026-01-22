@@ -113,7 +113,7 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
         final String textEmbeddingField = randomIdentifier();
 
         for (int i = 0; i < iterations; i++) {
-            final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
+            final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion, maxIndexVersion);
             final Settings indexSettings = generateIndexSettings(indexVersion);
             XContentBuilder mappings = IntegrationTestUtils.generateSemanticTextMapping(
                 Map.of(sparseEmbeddingField, sparseEmbeddingInferenceId, textEmbeddingField, textEmbeddingInferenceId)

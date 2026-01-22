@@ -197,8 +197,6 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertEquals(2, onRemovalCalled.get());
 
         reader.close();
-        loadField1.close();
-        loadField2.close();
         writer.close();
         ifdService.clear();
     }
@@ -253,7 +251,6 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertEquals(1, onCacheCalled.get());
         assertEquals(0, onRemovalCalled.get());
         reader.close();
-        load.close();
         writer.close();
         assertEquals(1, onCacheCalled.get());
         assertEquals(1, onRemovalCalled.get());

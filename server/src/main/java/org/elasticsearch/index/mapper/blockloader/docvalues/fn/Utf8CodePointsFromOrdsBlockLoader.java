@@ -9,25 +9,39 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.ToIntFunction;
 
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
 
 /**
  * A count of utf-8 code points for {@code keyword} style fields that are stored as a lookup table.
  */
 public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+
+    private static final FeatureFlag FAST_CODE_POINT_COUNT_FEATURE_FLAG = new FeatureFlag("fast_code_point_count");
+
+    private static final ToIntFunction<BytesRef> codePointCountProvider = FAST_CODE_POINT_COUNT_FEATURE_FLAG.isEnabled()
+        ? ESVectorUtil::codePointCount
+        : UnicodeUtil::codePointCount;
+
     /**
      * When there are fewer than this many unique values we use much more efficient "low cardinality"
      * loaders. This must be fairly small because we build an untracked int[] with at most this many
@@ -69,7 +83,13 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             return new Singleton(singleton);
         }
-        return new ConstantNullsReader();
+        BinaryDocValues binary = context.reader().getBinaryDocValues(fieldName);
+        if (binary != null) {
+            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+            return new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary);
+        }
+        return ConstantNull.READER;
     }
 
     @Override
@@ -227,7 +247,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = UnicodeUtil.codePointCount(v);
+            int count = codePointCountProvider.applyAsInt(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -362,7 +382,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return cache[ord];
             }
             BytesRef v = ordinals.lookupOrd(ord);
-            int count = UnicodeUtil.codePointCount(v);
+            int count = codePointCountProvider.applyAsInt(v);
             cache[ord] = count;
             cacheEntriesFilled++;
             return count;
@@ -512,8 +532,90 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
          * The {@code ord} must be {@code >= 0} or this will fail.
          */
         private int codePointsAtOrd(long ord) throws IOException {
-            return UnicodeUtil.codePointCount(ordinals.lookupOrd(ord));
+            return codePointCountProvider.applyAsInt(ordinals.lookupOrd(ord));
         }
+    }
+
+    private static class MultiValuedBinaryWithSeparateCounts extends BlockDocValuesReader {
+        private final Warnings warnings;
+        private final NumericDocValues counts;
+        private final BinaryDocValues values;
+
+        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
+            this.warnings = warnings;
+            this.counts = counts;
+            this.values = values;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            int count = docs.count() - offset;
+            if (count == 1) {
+                return blockForSingleDoc(factory, docs.get(offset));
+            }
+
+            try (IntBuilder builder = factory.ints(count)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    appendLength(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            appendLength(docId, (IntBuilder) builder);
+        }
+
+        @Override
+        public int docId() {
+            return counts.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts";
+        }
+
+        private void appendLength(int docId, IntBuilder builder) throws IOException {
+            if (counts.advanceExact(docId) == false) {
+                builder.appendNull();
+            } else {
+                int valueCount = Math.toIntExact(counts.longValue());
+                if (valueCount == 1) {
+                    boolean advanced = values.advanceExact(docId);
+                    assert advanced;
+
+                    BytesRef bytes = values.binaryValue();
+                    int length = codePointCountProvider.applyAsInt(bytes);
+                    builder.appendInt(length);
+                } else {
+                    registerSingleValueWarning(warnings);
+                    builder.appendNull();
+                }
+            }
+        }
+
+        private Block blockForSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (counts.advanceExact(docId) == false) {
+                return factory.constantNulls(1);
+            } else {
+                int valueCount = Math.toIntExact(counts.longValue());
+                if (valueCount == 1) {
+                    boolean advanced = values.advanceExact(docId);
+                    assert advanced;
+
+                    BytesRef bytes = values.binaryValue();
+                    int length = codePointCountProvider.applyAsInt(bytes);
+                    return factory.constantInt(length, 1);
+                } else {
+                    registerSingleValueWarning(warnings);
+                    return factory.constantNulls(1);
+                }
+            }
+        }
+
     }
 
     /**

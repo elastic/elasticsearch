@@ -132,7 +132,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), nullValue());
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
             assertThat(attributes.get("rerouted"), nullValue());
             assertThat(attributes.get("node_id"), nullValue());
         }));
@@ -175,7 +175,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
             assertThat(attributes.get("rerouted"), nullValue());
             assertThat(attributes.get("node_id"), nullValue());
         }));
@@ -216,7 +216,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
             assertThat(attributes.get("rerouted"), nullValue());
             assertThat(attributes.get("node_id"), nullValue());
         }));
@@ -234,7 +234,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -256,7 +256,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(expectedStatus.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -271,7 +271,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("error_type"), nullValue());
         }));
     }
 
@@ -282,7 +282,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("error_type"), nullValue());
         }));
     }
 
@@ -295,7 +295,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -328,7 +328,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("error_type"), nullValue());
         }));
     }
 

@@ -16,7 +16,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -38,14 +37,11 @@ class BenchmarkUtils {
         }
     }
 
-    static void createRandomInt7VectorData(ThreadLocalRandom random, Directory dir, int dims, int numVectors) throws IOException {
+    static void writeInt7VectorData(Directory dir, byte[][] vectors, float[] offsets) throws IOException {
         try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
-            var vec = new byte[dims];
-            for (int v = 0; v < numVectors; v++) {
-                randomInt7BytesBetween(vec);
-                var vecOffset = random.nextFloat();
-                out.writeBytes(vec, 0, vec.length);
-                out.writeInt(Float.floatToIntBits(vecOffset));
+            for (int v = 0; v < vectors.length; v++) {
+                out.writeBytes(vectors[v], vectors[v].length);
+                out.writeInt(Float.floatToIntBits(offsets[v]));
             }
         }
     }
@@ -85,10 +81,10 @@ class BenchmarkUtils {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
     }
 
-    static float readNodeCorrectionConstant(QuantizedByteVectorValues values, int targetOrd) throws IOException {
-        var vectorByteSize = values.getVectorByteLength();
-        var input = (MemorySegmentAccessInput) values.getSlice();
-        long byteOffset = (long) targetOrd * (vectorByteSize + Float.BYTES);
-        return Float.intBitsToFloat(input.readInt(byteOffset + vectorByteSize));
+    static RuntimeException rethrow(Throwable t) {
+        if (t instanceof Error err) {
+            throw err;
+        }
+        return t instanceof RuntimeException re ? re : new RuntimeException(t);
     }
 }

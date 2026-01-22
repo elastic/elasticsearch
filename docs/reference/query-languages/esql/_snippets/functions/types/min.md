@@ -14,6 +14,7 @@
 | ip | ip |
 | keyword | keyword |
 | long | long |
+| tdigest | double |
 | text | keyword |
 | unsigned_long {applies_to}`stack: ga 9.2.0` | unsigned_long |
 | version | version |

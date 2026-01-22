@@ -144,15 +144,15 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(
                 "total_upload_time_in_millis",
                 "total_upload_time",
-                TimeValue.timeValueNanos(totalUploadTimeInNanos).millis()
+                TimeValue.timeValueMillis(TimeUnit.NANOSECONDS.toMillis(totalUploadTimeInNanos))
             );
             builder.humanReadableField(
                 "total_read_time_in_millis",
                 "total_read_time",
-                TimeValue.timeValueNanos(totalUploadReadTimeInNanos).millis()
+                TimeValue.timeValueMillis(TimeUnit.NANOSECONDS.toMillis(totalUploadReadTimeInNanos))
             );
-            builder.humanReadableField("total_upload_time_in_nanos", "total_upload_time_nanos", totalUploadTimeInNanos);
-            builder.humanReadableField("total_read_time_in_nanos", "total_read_time_nanos", totalUploadReadTimeInNanos);
+            builder.field("total_upload_time_in_nanos", totalUploadTimeInNanos);
+            builder.field("total_read_time_in_nanos", totalUploadReadTimeInNanos);
             builder.endObject();
             return builder;
         }

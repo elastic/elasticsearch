@@ -157,7 +157,7 @@ public class KnnIndexTester {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),
-                64,
+                128,
                 elementType,
                 args.onDiskRescore(),
                 exec,
@@ -246,7 +246,7 @@ public class KnnIndexTester {
     private static ParsedArgs parseArgs(String[] args) {
         boolean help = false;
         String configFile = null;
-        int warmUpIterations = 1;
+        int warmUpIterations = 8;
 
         if (args.length > 2) {
             return null; // invalid options

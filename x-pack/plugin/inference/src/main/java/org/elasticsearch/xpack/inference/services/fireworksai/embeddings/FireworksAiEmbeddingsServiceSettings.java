@@ -56,6 +56,7 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
     private static final String DEFAULT_URL = "https://api.fireworks.ai/inference/v1/embeddings";
 
     // FireworksAI default rate limit is 6000 RPM per their documentation
+    // See: https://docs.fireworks.ai/guides/quotas_usage/rate-limits
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(6000);
 
     public static FireworksAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {

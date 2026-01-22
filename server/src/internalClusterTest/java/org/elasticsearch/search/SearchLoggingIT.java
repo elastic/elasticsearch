@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
@@ -217,23 +219,27 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(INDEX_NAME).keepAlive(TimeValue.THIRTY_SECONDS);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         var pitId = response.getPointInTimeId();
-
-        assertSearchHitsWithoutFailures(
-            prepareSearch().setQuery(simpleQueryStringQuery("fox")).setPointInTime(new PointInTimeBuilder(pitId)),
-            "1"
-        );
-        var event = appender.getLastEventAndReset();
-        assertNotNull(event);
-        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
-        ESLogMessage message = (ESLogMessage) event.getMessage();
-        var data = message.getIndexedReadOnlyStringMap();
-        assertThat(message.get("success"), equalTo("true"));
-        assertThat(message.get("type"), equalTo("search"));
-        assertThat(message.get("hits"), equalTo("1"));
-        assertThat(data.getValue("took"), greaterThan(0L));
-        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-        assertThat(message.get("query"), containsString("fox"));
-        assertThat(message.get("indices"), equalTo(INDEX_NAME));
+        try {
+            assertSearchHitsWithoutFailures(
+                prepareSearch().setQuery(simpleQueryStringQuery("fox")).setPointInTime(new PointInTimeBuilder(pitId)),
+                "1"
+            );
+            var event = appender.getLastEventAndReset();
+            assertNotNull(event);
+            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+            ESLogMessage message = (ESLogMessage) event.getMessage();
+            var data = message.getIndexedReadOnlyStringMap();
+            assertThat(message.get("success"), equalTo("true"));
+            assertThat(message.get("type"), equalTo("search"));
+            assertThat(message.get("hits"), equalTo("1"));
+            assertThat(data.getValue("took"), greaterThan(0L));
+            assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+            assertThat(message.get("query"), containsString("fox"));
+            assertThat(message.get("indices"), equalTo(INDEX_NAME));
+        } finally {
+            response.decRef();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
     }
 
     private void setupIndex() {

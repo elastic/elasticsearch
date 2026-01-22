@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTi
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -51,8 +53,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
@@ -61,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -77,13 +82,17 @@ import java.util.Set;
 public class PromqlFunctionRegistry {
 
     // Common parameter definitions
-    private static final ParamInfo RANGE_VECTOR = ParamInfo.of("v", "range_vector", "Range vector input.");
-    private static final ParamInfo INSTANT_VECTOR = ParamInfo.of("v", "instant_vector", "Instant vector input.");
-    private static final ParamInfo SCALAR = ParamInfo.of("s", "scalar", "Scalar value.");
-    private static final ParamInfo QUANTILE = ParamInfo.of("φ", "scalar", "Quantile value (0 ≤ φ ≤ 1).");
-    private static final ParamInfo TO_NEAREST = ParamInfo.optional("to_nearest", "scalar", "Round to nearest multiple of this value.");
-    private static final ParamInfo MIN_SCALAR = ParamInfo.of("min", "scalar", "Minimum value.");
-    private static final ParamInfo MAX_SCALAR = ParamInfo.of("max", "scalar", "Maximum value.");
+    private static final ParamInfo RANGE_VECTOR = ParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
+    private static final ParamInfo INSTANT_VECTOR = ParamInfo.child("v", PromqlDataType.INSTANT_VECTOR, "Instant vector input.");
+    private static final ParamInfo SCALAR = ParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
+    private static final ParamInfo QUANTILE = ParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    private static final ParamInfo TO_NEAREST = ParamInfo.optional(
+        "to_nearest",
+        PromqlDataType.SCALAR,
+        "Round to nearest multiple of this value."
+    );
+    private static final ParamInfo MIN_SCALAR = ParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
+    private static final ParamInfo MAX_SCALAR = ParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
 
     private static final FunctionDefinition[] FUNCTION_DEFINITIONS = new FunctionDefinition[] {
         //
@@ -238,6 +247,12 @@ public class PromqlFunctionRegistry {
             "abs(rate(http_requests_total[5m]))"
         ),
         valueTransformationFunction(
+            "sgn",
+            Signum::new,
+            "Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.",
+            "sgn(delta(queue_depth[5m]))"
+        ),
+        valueTransformationFunction(
             "exp",
             Exp::new,
             "Calculates the exponential function for all elements in the input vector.",
@@ -254,6 +269,18 @@ public class PromqlFunctionRegistry {
             Log10::new,
             "Calculates the decimal logarithm for all elements in the input vector.",
             "log10(http_requests_total)"
+        ),
+        valueTransformationFunction(
+            "log2",
+            (source, value) -> new Log(source, Literal.fromDouble(source, 2d), value),
+            "Calculates the binary logarithm for all elements in the input vector.",
+            "log2(memory_usage_bytes)"
+        ),
+        valueTransformationFunction(
+            "ln",
+            (source, value) -> new Log(source, value, null),
+            "Calculates the natural logarithm for all elements in the input vector.",
+            "ln(memory_usage_bytes)"
         ),
         valueTransformationFunction(
             "floor",
@@ -307,6 +334,18 @@ public class PromqlFunctionRegistry {
             Tanh::new,
             "Calculates the hyperbolic tangent of all elements in the input vector.",
             "tanh(some_metric)"
+        ),
+        valueTransformationFunction(
+            "deg",
+            ToDegrees::new,
+            "Converts input values from radians to degrees for all elements in the input vector.",
+            "deg(some_metric)"
+        ),
+        valueTransformationFunction(
+            "rad",
+            ToRadians::new,
+            "Converts input values from degrees to radians for all elements in the input vector.",
+            "rad(some_metric)"
         ),
         valueTransformationFunctionBinary(
             "clamp_min",
@@ -390,13 +429,17 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    public record ParamInfo(String name, String type, String description, boolean optional) {
-        public static ParamInfo of(String name, String type, String description) {
-            return new ParamInfo(name, type, description, false);
+    public record ParamInfo(String name, PromqlDataType type, String description, boolean optional, boolean child) {
+        public static ParamInfo child(String name, PromqlDataType type, String description) {
+            return new ParamInfo(name, type, description, false, true);
         }
 
-        public static ParamInfo optional(String name, String type, String description) {
-            return new ParamInfo(name, type, description, true);
+        public static ParamInfo of(String name, PromqlDataType type, String description) {
+            return new ParamInfo(name, type, description, false, false);
+        }
+
+        public static ParamInfo optional(String name, PromqlDataType type, String description) {
+            return new ParamInfo(name, type, description, true, false);
         }
     }
 
@@ -425,6 +468,20 @@ public class PromqlFunctionRegistry {
             Objects.requireNonNull(description, "description cannot be null");
             Objects.requireNonNull(params, "params cannot be null");
             Objects.requireNonNull(examples, "examples cannot be null");
+            if (arity.max() != params.size()) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Arity max %d does not match number of parameters %d for function %s",
+                        arity.max(),
+                        params.size(),
+                        name
+                    )
+                );
+            }
+            if (params.isEmpty() == false && params.stream().filter(ParamInfo::child).count() != 1) {
+                throw new IllegalArgumentException("If a function takes parameters, there must be exactly one child parameter");
+            }
         }
     }
 
@@ -668,10 +725,7 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
-        "ln",
-        "log2",
         "scalar",
-        "sgn",
         "sort",
         "sort_desc",
 
@@ -679,8 +733,6 @@ public class PromqlFunctionRegistry {
         "acosh",
         "asinh",
         "atanh",
-        "deg",
-        "rad",
 
         // Time functions
         "day_of_month",

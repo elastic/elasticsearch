@@ -13,11 +13,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class MMRExec extends UnaryExec {
+public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVector;

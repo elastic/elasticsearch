@@ -171,12 +171,14 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                int centroidOrdinal = neighborQueue.pop();
+            public PostingMetadata nextPosting() throws IOException {
+                long centroidOrdinalAndScore = neighborQueue.popRaw();
+                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, score);
             }
         };
     }
@@ -244,18 +246,20 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
 
             @Override
-            public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                int centroidOrdinal = nextCentroid();
+            public PostingMetadata nextPosting() throws IOException {
+                long centroidOrdinalAndScore = nextCentroid();
+                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
+                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new CentroidOffsetAndLength(postingListOffset, postingListLength);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, score);
             }
 
-            private int nextCentroid() throws IOException {
+            private long nextCentroid() throws IOException {
                 if (currentParentQueue.size() > 0) {
                     // return next centroid and maybe add a children from the current parent queue
-                    return neighborQueue.popAndAddRaw(currentParentQueue.popRaw());
+                    return neighborQueue.popRawAndAddRaw(currentParentQueue.popRaw());
                 } else if (parentsQueue.size() > 0) {
                     // current parent queue is empty, populate it again with the next parent
                     int pop = parentsQueue.pop();
@@ -274,7 +278,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
                     );
                     return nextCentroid();
                 } else {
-                    return neighborQueue.pop();
+                    return neighborQueue.popRaw();
                 }
             }
         };
@@ -414,9 +418,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         @Override
-        public int resetPostingsScorer(long offset) throws IOException {
+        public int resetPostingsScorer(PostingMetadata postingMetadata) throws IOException {
             quantized = false;
-            indexInput.seek(offset);
+            indexInput.seek(postingMetadata.offset());
             indexInput.readFloats(centroid, 0, centroid.length);
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();

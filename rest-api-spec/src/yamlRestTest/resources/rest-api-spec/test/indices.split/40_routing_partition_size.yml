@@ -1,4 +1,7 @@
 more than 1:
+  - requires:
+      test_runner_features: [ "warnings", "allowed_warnings" ]
+
   - do:
       indices.create:
         index: source
@@ -12,6 +15,8 @@ more than 1:
           mappings:
             _routing:
               required: true
+        allowed_warnings:
+          - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:
@@ -100,6 +105,9 @@ more than 1:
 
 ---
 exactly 1:
+  - requires:
+      test_runner_features: [ "warnings", "allowed_warnings" ]
+
   - do:
       indices.create:
         index: source
@@ -113,6 +121,8 @@ exactly 1:
           mappings:
             _routing:
               required: true
+        allowed_warnings:
+          - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:
@@ -201,6 +211,9 @@ exactly 1:
 
 ---
 nested:
+  - requires:
+      test_runner_features: [ "warnings", "allowed_warnings" ]
+
   - do:
       indices.create:
         index: source
@@ -217,6 +230,8 @@ nested:
             properties:
               n:
                 type: nested
+        allowed_warnings:
+          - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:

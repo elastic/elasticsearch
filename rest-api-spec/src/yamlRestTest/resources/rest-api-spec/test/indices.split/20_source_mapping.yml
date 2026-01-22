@@ -1,5 +1,7 @@
 ---
 "Split index ignores target template mapping":
+  - requires:
+      test_runner_features: [ "warnings", "allowed_warnings" ]
 
   # create index
   - do:
@@ -15,6 +17,8 @@
             properties:
               count:
                 type: text
+        allowed_warnings:
+          - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   # index document
   - do:

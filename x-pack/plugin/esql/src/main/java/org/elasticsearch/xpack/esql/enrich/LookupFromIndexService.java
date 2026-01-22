@@ -44,7 +44,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -87,7 +86,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
 
-    private final LookupExecutionMapper executionMapper;
+    private final LookupExecutionPlanner executionPlanner;
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -112,7 +111,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             TransportRequest::readFrom,
             projectResolver
         );
-        this.executionMapper = new LookupExecutionMapper(blockFactory, bigArrays, localBreakerSettings);
+        this.executionPlanner = new LookupExecutionPlanner(blockFactory, bigArrays, localBreakerSettings);
     }
 
     @Override
@@ -463,7 +462,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
             );
 
-            LookupQueryPlan lookupQueryPlan = executionMapper.buildOperators(
+            LookupQueryPlan lookupQueryPlan = executionPlanner.buildOperators(
                 physicalOperation,
                 shardContext,
                 releasables,
@@ -489,19 +488,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
      * so they can be reused across multiple calls with different input pages.
      */
     private LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(TransportRequest request) throws IOException {
-        LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
-        try (Releasable ignored = shardContext.release()) {
-            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
-
-            return executionMapper.buildOperatorFactories(request, physicalPlan, BlockOptimization.NONE);
-        }
+        PhysicalPlan physicalPlan = createLookupPhysicalPlan(request);
+        return executionPlanner.buildOperatorFactories(request, physicalPlan, BlockOptimization.NONE);
     }
 
     /**
      * Creates a PhysicalPlan tree representing the lookup operation structure.
      * This plan can be cached and reused across multiple calls with different input data.
      */
-    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request, LookupShardContext shardContext) throws IOException {
+    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request) throws IOException {
         // Create output attributes: doc block
         FieldAttribute docAttribute = new FieldAttribute(
             request.source,
@@ -524,12 +519,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         if (request.extractFields.isEmpty() == false) {
             List<Attribute> extractAttributes = new ArrayList<>();
             for (NamedExpression extractField : request.extractFields) {
-                if (extractField instanceof Alias alias) {
-                    // Extract the underlying attribute from the alias's child
-                    NamedExpression child = (NamedExpression) alias.child();
-                    extractAttributes.add(child.toAttribute());
+                if (extractField instanceof FieldAttribute fieldAttribute) {
+                    extractAttributes.add(fieldAttribute);
                 } else {
-                    extractAttributes.add(extractField.toAttribute());
+                    throw new EsqlIllegalArgumentException(
+                        "Expected extract field to be a FieldAttribute but found [{}]",
+                        extractField.getClass().getSimpleName()
+                    );
                 }
             }
             plan = new FieldExtractExec(request.source, plan, extractAttributes, MappedFieldType.FieldExtractPreference.NONE);
@@ -565,8 +561,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         LookupQueryPlan lookupQueryPlan
     ) {
         Driver driver = new Driver(
-            "enrich-lookup:" + request.sessionId,
-            "enrich",
+            "lookup-join:" + request.sessionId,
+            "lookup-join",
             clusterService.getClusterName().value(),
             clusterService.getNodeName(),
             System.currentTimeMillis(),
@@ -587,21 +583,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
-                List<Page> out = lookupQueryPlan.collectedPages();
-                // Call allowPassingToDifferentDriver on collectedPages so they can be released from a different thread.
-                // Pages are created by operators using the driver's BlockFactory (with LocalCircuitBreaker),
-                // so they need to be switched to the parent breaker before being returned.
-                for (Page page : out) {
-                    page.allowPassingToDifferentDriver();
-                }
-                listener.onResponse(out);
+                listener.onResponse(lookupQueryPlan.collectedPages());
             }
 
             @Override
             public void onFailure(Exception e) {
                 Releasables.closeExpectNoException(
                     Releasables.wrap(() -> Iterators.map(lookupQueryPlan.collectedPages().iterator(), p -> () -> {
-                        p.allowPassingToDifferentDriver();
                         p.releaseBlocks();
                     }))
                 );

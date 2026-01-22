@@ -433,11 +433,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
         for (NamedExpression extractField : extractFields) {
-            String fieldName = extractField instanceof FieldAttribute fa ? fa.fieldName().string()
-                // Cases for Alias and ReferenceAttribute: only required for ENRICH (Alias in case of ENRICH ... WITH x = field)
-                // (LOOKUP JOIN uses FieldAttributes)
-                : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
-                : extractField.name();
+            // Cases for Alias and ReferenceAttribute: only required for ENRICH (Alias in case of ENRICH ... WITH x = field)
+            // (LOOKUP JOIN uses FieldAttributes)
+            String fieldName = extractFieldName(extractField);
             BlockLoader loader = shardContext.blockLoader(
                 fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
@@ -475,10 +473,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Extracts field name from a NamedExpression, handling FieldAttribute and Alias cases.
+     * For Alias, recursively extracts the field name from the child expression.
      */
-    private String extractFieldName(NamedExpression extractField) {
+    private static String extractFieldName(NamedExpression extractField) {
         return extractField instanceof FieldAttribute fa ? fa.fieldName().string()
-            : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
+            : extractField instanceof Alias a ? extractFieldName((NamedExpression) a.child())
             : extractField.name();
     }
 

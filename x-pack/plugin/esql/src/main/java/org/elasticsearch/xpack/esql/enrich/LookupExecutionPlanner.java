@@ -65,7 +65,7 @@ import java.util.function.Function;
  * Converts PhysicalPlan nodes into PhysicalOperation with operator factories
  * Also converts PhysicalOperation into actual Operators
  */
-public class LookupExecutionMapper {
+public class LookupExecutionPlanner {
     /**
      * Functional interface for creating a LookupEnrichQueryGenerator from the necessary parameters.
      */
@@ -156,7 +156,7 @@ public class LookupExecutionMapper {
         }
     }
 
-    public LookupExecutionMapper(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+    public LookupExecutionPlanner(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this.blockFactory = blockFactory;
         this.bigArrays = bigArrays;
         this.localBreakerSettings = localBreakerSettings;

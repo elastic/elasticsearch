@@ -84,7 +84,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LookupExecutionMapperTests extends ESTestCase {
+public class LookupExecutionPlannerTests extends ESTestCase {
     private BlockFactory blockFactory;
     private BigArrays bigArrays;
     private List<Releasable> releasables;

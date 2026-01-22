@@ -18,7 +18,6 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -90,8 +89,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         if (blockOptimization == BlockOptimization.DICTIONARY) {
             if (optimizedPage == null) {
                 // Create optimized page on-demand
-                Block inputBlock = originalPage.getBlock(0);
-                OrdinalBytesRefBlock ordinalsBytesRefBlock = ((BytesRefBlock) inputBlock).asOrdinals();
+                OrdinalBytesRefBlock ordinalsBytesRefBlock = BlockOptimization.extractOrdinalBlock(originalPage);
                 Block optimizedBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
                 Block[] blocks = new Block[originalPage.getBlockCount()];
                 blocks[0] = optimizedBlock;
@@ -250,8 +248,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.shardContext.decRef();
         // Release optimized page if it was created
         if (optimizedPage != null && optimizedPage != originalPage) {
-            optimizedPage.allowPassingToDifferentDriver();
-            Releasables.closeExpectNoException(optimizedPage);
+            Releasables.close(optimizedPage);
         }
     }
 }

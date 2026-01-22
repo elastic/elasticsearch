@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.lookup;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -57,7 +56,6 @@ public final class MergePositionsOperator implements Operator {
     private final BlockFactory blockFactory;
     private final BlockOptimization optimizationState;
     private final Page inputPage;
-    boolean selectedPositionsNeedsRelease = false;
 
     private Page outputPage;
 
@@ -142,13 +140,12 @@ public final class MergePositionsOperator implements Operator {
     public IntBlock getSelectedPositions() {
         if (selectedPositions == null) {
             if (optimizationState == BlockOptimization.DICTIONARY) {
-                Block inputBlock = inputPage.getBlock(0);
-                OrdinalBytesRefBlock ordinalsBytesRefBlock = ((BytesRefBlock) inputBlock).asOrdinals();
+                OrdinalBytesRefBlock ordinalsBytesRefBlock = BlockOptimization.extractOrdinalBlock(inputPage);
                 selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
+                selectedPositions.incRef();
             } else if (optimizationState == BlockOptimization.RANGE) {
                 Block inputBlock = inputPage.getBlock(0);
                 selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock();
-                selectedPositionsNeedsRelease = true;
             } else {
                 throw new IllegalStateException("Unknown optimization state: " + optimizationState);
             }
@@ -162,9 +159,6 @@ public final class MergePositionsOperator implements Operator {
             if (outputPage != null) {
                 outputPage.releaseBlocks();
             }
-        });
-        if (selectedPositionsNeedsRelease) {
-            Releasables.close(selectedPositions);
-        }
+        }, selectedPositions);
     }
 }

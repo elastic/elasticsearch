@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 import java.util.Optional;
@@ -22,7 +23,8 @@ public interface ReindexRelocationNodePicker {
      * Picks a suitable node.
      *
      * @param nodes The set of nodes to pick from
+     * @param nodeShutdowns Information about nodes currently marked for shutdown
      * @return The ID of the selected node, or empty if there are no suitable nodes
      */
-    Optional<String> pickNode(DiscoveryNodes nodes);
+    Optional<String> pickNode(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns);
 }

@@ -87,7 +87,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -110,7 +109,6 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -1013,7 +1011,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testDeduplicatedFailures() throws Exception {
+    public void testMultipleFailuresPerIndexRequest() throws Exception {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
             // Set the coordinating bytes limit high enough to handle all the requests
@@ -1072,7 +1070,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         BulkItemRequest[] items = new BulkItemRequest[docCount];
         for (int i = 0; i < docCount; i++) {
-            // Use a multivalued input to generate multiple failures per index request. These failures should be deduplicated.
+            // Use a multivalued input to generate multiple failures per index request. Only the first failure should be kept.
             List<String> inferenceFieldValue = randomList(2, 5, () -> randomAlphaOfLengthBetween(3, 20));
             items[i] = new BulkItemRequest(
                 i,
@@ -1088,93 +1086,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
         assertThat(coordinatingIndexingPressure, notNullValue());
         verify(coordinatingIndexingPressure).close();
-    }
-
-    public void testEqualFailureSignatures() {
-        for (int i = 0; i < 10; i++) {
-            final int requestId = randomIntBetween(0, Integer.MAX_VALUE);
-            final String requestIndex = randomIndexName();
-            final int causeCount = randomIntBetween(0, 5);
-
-            Exception aCause = null;
-            Exception bCause = null;
-            for (int j = 0; j < causeCount; j++) {
-                String message = randomAlphaOfLengthBetween(5, 10);
-                aCause = new RuntimeException(message, aCause);
-                bCause = new RuntimeException(message, bCause);
-            }
-
-            String message = randomAlphaOfLengthBetween(5, 10);
-            ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                requestId,
-                requestIndex,
-                new RuntimeException(message, aCause)
-            );
-            ShardBulkInferenceActionFilter.FailureSignature bSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                requestId,
-                requestIndex,
-                new RuntimeException(message, bCause)
-            );
-
-            assertThat(aSignature, equalTo(bSignature));
-        }
-    }
-
-    public void testUnequalFailureSignatures() {
-        final BiFunction<String, Exception, Exception> randomDifference = (m, c) -> switch (randomIntBetween(0, 2)) {
-            case 0 -> new IOException(m, c);
-            case 1 -> {
-                String message = randomValueOtherThan(m, () -> randomAlphaOfLengthBetween(5, 10));
-                yield new RuntimeException(message, c);
-            }
-            case 2 -> {
-                Exception cause = c == null ? new RuntimeException(randomAlphaOfLengthBetween(5, 10)) : null;
-                yield new RuntimeException(m, cause);
-            }
-            default -> throw new IllegalStateException("Unhandled value");
-        };
-
-        for (int i = 0; i < 10; i++) {
-            final int causeCount = randomIntBetween(0, 5);
-            final int inequalityLevel = randomIntBetween(0, causeCount);
-
-            Exception aCause = null;
-            Exception bCause = null;
-            for (int j = causeCount; j > 0; j--) {
-                String message = randomAlphaOfLengthBetween(5, 10);
-                aCause = new RuntimeException(message, aCause);
-                bCause = inequalityLevel == j ? randomDifference.apply(message, bCause) : new RuntimeException(message, bCause);
-            }
-
-            final int requestId = randomIntBetween(0, Integer.MAX_VALUE);
-            final String requestIndex = randomIndexName();
-            final String message = randomAlphaOfLengthBetween(5, 10);
-            ShardBulkInferenceActionFilter.FailureSignature aSignature = new ShardBulkInferenceActionFilter.FailureSignature(
-                requestId,
-                requestIndex,
-                new RuntimeException(message, aCause)
-            );
-            ShardBulkInferenceActionFilter.FailureSignature bSignature = inequalityLevel == 0 ? switch (randomIntBetween(0, 2)) {
-                case 0 -> new ShardBulkInferenceActionFilter.FailureSignature(
-                    randomValueOtherThan(requestId, () -> randomIntBetween(0, Integer.MAX_VALUE)),
-                    requestIndex,
-                    new RuntimeException(message, bCause)
-                );
-                case 1 -> new ShardBulkInferenceActionFilter.FailureSignature(
-                    requestId,
-                    randomValueOtherThan(requestIndex, ESTestCase::randomIndexName),
-                    new RuntimeException(message, bCause)
-                );
-                case 2 -> new ShardBulkInferenceActionFilter.FailureSignature(
-                    requestId,
-                    requestIndex,
-                    randomDifference.apply(message, bCause)
-                );
-                default -> throw new IllegalStateException("Unhandled value");
-            } : new ShardBulkInferenceActionFilter.FailureSignature(requestId, requestIndex, new RuntimeException(message, bCause));
-
-            assertThat(aSignature, not(equalTo(bSignature)));
-        }
     }
 
     private static ShardBulkInferenceActionFilter createFilter(

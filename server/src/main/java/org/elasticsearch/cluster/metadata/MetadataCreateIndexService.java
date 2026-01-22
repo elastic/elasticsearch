@@ -143,9 +143,10 @@ public class MetadataCreateIndexService {
         Setting.Property.Dynamic
     );
 
+    // High default value so that is disabled by default.
     public static final Setting<Integer> SETTING_CLUSTER_MAX_INDICES_PER_PROJECT = Setting.intSetting(
         "cluster.max_indices_per_project",
-        0,
+        Integer.MAX_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -227,10 +228,6 @@ public class MetadataCreateIndexService {
     }
 
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
-        if (DiscoveryNode.isStateless(settings) == false) {
-            return;
-        }
-
         if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
             return;
         }

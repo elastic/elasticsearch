@@ -325,11 +325,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(tuple.v1()))
                 .build();
 
-            var settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
-
             IndicesService indicesService = mock(IndicesService.class);
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                settings,
+                Settings.EMPTY,
                 clusterService,
                 indicesService,
                 null,

@@ -8,7 +8,7 @@ navigation_title: Query API key information
 
 # Query API key information examples
 
-This page provides usage examples for the [Query API key information API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-query-api-keys), which retrieves API key metadata in a paginated fashion. These examples demonstrate how to retrieve, filter, sort, and aggregate API key data using query DSL and aggregation features.
+The [Query API key information API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-query-api-keys) retrieves API key metadata in a paginated fashion. This page shows examples to demonstrate how to retrieve, filter, sort, and aggregate API key data using query DSL and aggregation features.
 
 You can learn how to:
 

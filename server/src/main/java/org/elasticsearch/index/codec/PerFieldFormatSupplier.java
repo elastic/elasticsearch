@@ -19,7 +19,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -75,6 +77,8 @@ public class PerFieldFormatSupplier {
     private final ThreadPool threadPool;
 
     private final PostingsFormat defaultPostingsFormat;
+    private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
+    private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
@@ -82,6 +86,12 @@ public class PerFieldFormatSupplier {
         this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
+        this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
+        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(
+            bigArrays,
+            ES94BloomFilterDocValuesFormat.DEFAULT_BLOOM_FILTER_SIZE,
+            IdFieldMapper.NAME
+        );
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -121,6 +131,12 @@ public class PerFieldFormatSupplier {
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {
+        if (useTSDBSyntheticId(field)) {
+            // This gets called during merges where the segment merger
+            // instead of relying on the field format name attribute,
+            // it delegates that decision to the codec.
+            return syntheticIdPostingsFormat;
+        }
         if (useBloomFilter(field)) {
             return bloomFilterPostingsFormat;
         }
@@ -156,6 +172,13 @@ public class PerFieldFormatSupplier {
         }
     }
 
+    private boolean useTSDBSyntheticId(String field) {
+        if (mapperService == null || IdFieldMapper.NAME.equals(field) == false) {
+            return false;
+        }
+        return mapperService.getIndexSettings().useTimeSeriesSyntheticId();
+    }
+
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
@@ -167,11 +190,16 @@ public class PerFieldFormatSupplier {
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (useTSDBSyntheticId(field)) {
+            return idBloomFilterDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
                 ? tsdbDocValuesFormatLargeNumericBlock
                 : tsdbDocValuesFormat;
         }
+
         return docValuesFormat;
     }
 

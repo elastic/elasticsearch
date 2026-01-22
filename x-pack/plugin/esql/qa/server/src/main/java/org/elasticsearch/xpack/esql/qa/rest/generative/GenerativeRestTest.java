@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -75,15 +76,21 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
 
-        // TS-command tests
+        // TS-command tests (acceptable errors)
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "implicit time-series aggregation function .* doesn't support type .*",
+        "implicit time-series aggregation function",
         "INLINE STATS .* can only be used after STATS when used with TS command",
         "cannot group by a metric field .* in a time-series aggregation",
-        "a @timestamp field of type date or date_nanos to be present when run with the TS command, but it was not present",
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        "@timestamp field of type date or date_nanos",
+        "which was either not present in the source index, or has been dropped or renamed",
+        "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+
+        // Ts-command errors awaiting fixes
+        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
+        "Invalid call to dataType on an unresolved object \\?@timestamp", // https://github.com/elastic/elasticsearch/issues/140607
+        "expected named expression for grouping; got Bucket" // https://github.com/elastic/elasticsearch/issues/140606
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -167,7 +174,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            try {
+                EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            } catch (Exception e) {
+                // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
+                boolean knownError = false;
+                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                    if (isAllowedError(e.getMessage(), allowedError)) {
+                        knownError = true;
+                        break;
+                    }
+                }
+                if (knownError == false) {
+                    StringBuilder message = new StringBuilder();
+                    message.append("Generative tests, error generating new command \n");
+                    message.append("Previous query: \n");
+                    message.append(exec.previousResult.query());
+                    fail(e, message.toString());
+                }
+            }
         }
     }
 
@@ -250,8 +275,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return null;
         }
         return cols.stream()
-            .map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
+            .map(x -> new Column(normalizeColumnName((String) x.get(COLUMN_NAME)), (String) x.get(COLUMN_TYPE), originalTypes(x)))
             .collect(Collectors.toList());
+    }
+
+    private static String normalizeColumnName(String name) {
+        return name.contains("-") && name.startsWith("`") == false ? Strings.format("`%s`", name) : name;
     }
 
     @SuppressWarnings("unchecked")

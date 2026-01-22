@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
@@ -267,7 +268,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createCohereService()) {
             var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
-            serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
+            serviceSettings.put(ServiceFields.MODEL_ID, "foo");
 
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), getSecretSettingsMap("secret"));
             config.put("extra_key", "value");
@@ -321,7 +322,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
-            serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
+            serviceSettings.put(ServiceFields.MODEL_ID, "foo");
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), secretSettingsMap);
 
             var failureListener = getModelListenerForException(
@@ -344,7 +345,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             }, (e) -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
-            serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
+            serviceSettings.put(ServiceFields.MODEL_ID, "foo");
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,

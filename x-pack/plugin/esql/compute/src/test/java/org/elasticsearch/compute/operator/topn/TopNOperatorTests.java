@@ -34,6 +34,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TypedAbstractBlockSourceBuilder;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ListMatcher;
@@ -534,7 +535,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders,
         List<Integer> groupKeys
     ) {
-        var page = topNMultipleColumns(
+        var pages = topNMultipleColumns(
             driverContext,
             new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000)),
             limit,
@@ -545,7 +546,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         return pageToTuples(
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
-            page
+            pages
         );
     }
 
@@ -558,28 +559,36 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         List<Integer> groupKeys
     ) {
         var pages = new ArrayList<Page>();
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                sourceOperator,
-                List.of(
-                    new TopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        limit,
-                        sourceOperator.elementTypes(),
-                        encoder,
-                        sortOrders,
-                        groupKeys,
-                        randomPageSize()
-                    )
-                ),
-                new PageConsumerOperator(pages::add)
-            )
-        ) {
-            runDriver(driver);
+        boolean success = false;
+        try {
+            try (
+                Driver driver = TestDriverFactory.create(
+                    driverContext,
+                    sourceOperator,
+                    List.of(
+                        new TopNOperator(
+                            driverContext.blockFactory(),
+                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            limit,
+                            sourceOperator.elementTypes(),
+                            encoder,
+                            sortOrders,
+                            groupKeys(),
+                            randomPageSize()
+                        )
+                    ),
+                    new PageConsumerOperator(pages::add)
+                )
+            ) {
+                runDriver(driver);
+            }
+            assertDriverContext(driverContext);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(pages);
+            }
         }
-        assertDriverContext(driverContext);
         return pages;
     }
 

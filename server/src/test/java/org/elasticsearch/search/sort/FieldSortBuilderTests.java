@@ -692,12 +692,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
     public void testIntRewritesToLong() throws IOException {
         assertIntegerSortRewrite(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
             SortField.Type.LONG
         );
         assertIntegerSortRewrite(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
             ),
@@ -705,14 +704,13 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         );
         assertIntegerSortRewrite(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE)
             ),
             SortField.Type.LONG
         );
         assertIntegerSortRewrite(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE, IndexVersion.current()),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.INDEX_INT_SORT_INT_TYPE, IndexVersion.current()),
             SortField.Type.INT
         );
         assertIntegerSortRewrite(IndexVersion.current(), SortField.Type.INT);

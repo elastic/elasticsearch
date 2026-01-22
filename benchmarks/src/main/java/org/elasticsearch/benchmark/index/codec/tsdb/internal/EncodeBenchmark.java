@@ -10,31 +10,51 @@
 package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public class EncodeBenchmark extends AbstractDocValuesForUtilBenchmark {
-    protected ByteArrayDataOutput dataOutput;
-    protected long[] input;
-    protected byte[] output;
+/**
+ * Encoding benchmark for TSDB doc values.
+ *
+ * <p>Measures the performance of {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder#encode},
+ * which compresses a block of long values into a byte buffer.
+ *
+ * @see DecodeBenchmark
+ */
+public final class EncodeBenchmark extends AbstractTSDBCodecBenchmark {
+
+    private ByteArrayDataOutput dataOutput;
+    private long[] originalInput;
+    private long[] input;
+    private byte[] output;
 
     @Override
-    public void setupIteration(int unUsedBitsPerValue, Supplier<long[]> arraySupplier) throws IOException {
-        this.input = arraySupplier.get();
-        this.output = new byte[Long.BYTES * blockSize];
+    public void setupTrial(Supplier<long[]> arraySupplier) throws IOException {
+        this.originalInput = arraySupplier.get();
+        this.input = new long[originalInput.length];
+        this.output = new byte[Long.BYTES * blockSize + EXTRA_METADATA_SIZE];
         this.dataOutput = new ByteArrayDataOutput(this.output);
     }
 
     @Override
-    public void setupInvocation(int unusedBitsPerValue) {
+    public void setupInvocation() {
+        System.arraycopy(originalInput, 0, input, 0, originalInput.length);
         dataOutput.reset(this.output);
     }
 
     @Override
-    public void benchmark(int bitsPerValue, Blackhole bh) throws IOException {
-        forUtil.encode(this.input, bitsPerValue, this.dataOutput);
-        bh.consume(this.dataOutput);
+    public void run() throws IOException {
+        encoder.encode(this.input, this.dataOutput);
+    }
+
+    @Override
+    protected Object getOutput() {
+        return this.dataOutput;
+    }
+
+    @Override
+    public int getEncodedSize() {
+        return dataOutput.getPosition();
     }
 }

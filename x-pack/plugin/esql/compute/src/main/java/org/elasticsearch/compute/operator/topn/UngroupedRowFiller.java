@@ -48,7 +48,9 @@ final class UngroupedRowFiller implements RowFiller {
         int orderByCompositeKeyCurrentPosition = 0;
         for (int i = 0; i < keyFactories.length; i++) {
             int valueAsBytesSize = keyFactories[i].extractor().writeKey(row.keys(), position);
-            assert valueAsBytesSize > 0 : valueAsBytesSize;
+            if (valueAsBytesSize < 0) {
+                throw new IllegalStateException("empty keys to allowed. " + valueAsBytesSize + " must be > 0");
+            }
             orderByCompositeKeyCurrentPosition += valueAsBytesSize;
             row.bytesOrder().endOffsets[i] = orderByCompositeKeyCurrentPosition - 1;
         }

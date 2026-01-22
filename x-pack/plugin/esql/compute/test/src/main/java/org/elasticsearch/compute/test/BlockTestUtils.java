@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -263,6 +264,10 @@ public class BlockTestUtils {
             b.append(histogram);
             return;
         }
+        if (builder instanceof TDigestBlockBuilder b && value instanceof TDigestHolder histogram) {
+            b.appendTDigest(histogram);
+            return;
+        }
         if (value instanceof List<?> l && l.isEmpty()) {
             builder.appendNull();
             return;
@@ -365,6 +370,24 @@ public class BlockTestUtils {
             result.add(positionValues);
         }
         return result;
+    }
+
+    /**
+     * Extracts values from a block at a particular position.
+     *
+     * @param block The block to extract the values from
+     * @param position The position at which to extract the values
+     * @param emptyIfNull Whether to return an empty list if there are no values at the position
+     *
+     * @return List of values
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> valuesAtPosition(Block block, int position, boolean emptyIfNull) {
+        List<Object> values = valuesAtPositions(block, position, position + 1).getFirst();
+        if (values == null) {
+            return emptyIfNull ? new ArrayList<>() : null;
+        }
+        return (List<T>) values;
     }
 
     /**

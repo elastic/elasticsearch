@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.junit.BeforeClass;
 
 import java.util.List;
 
@@ -24,18 +22,6 @@ public class PromqlVerifierTests extends ESTestCase {
 
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
-    @BeforeClass
-    public static void checkPromqlEnabled() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-    }
-
-    public void testPromqlMissingAcrossSeriesAggregation() {
-        assertThat(error("""
-            PROMQL index=test step=5m (
-              rate(network.bytes_in[5m])
-            )""", tsdb), equalTo("2:3: top-level within-series aggregations are not supported at this time [rate(network.bytes_in[5m])]"));
-    }
-
     public void testPromqlRangeVector() {
         assertThat(
             error("PROMQL index=test step=5m network.bytes_in[5m]", tsdb),
@@ -47,16 +33,6 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(
             error("PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])", tsdb),
             equalTo("1:31: binary expression must contain only scalar and instant vector types")
-        );
-    }
-
-    public void testPromqlStepAndRangeMisaligned() {
-        assertThat(
-            error("""
-                PROMQL index=test step=1m (
-                  avg(rate(network.bytes_in[5m]))
-                )""", tsdb),
-            equalTo("2:29: the duration for range vector selector [5m] must be equal to the query's step for range queries at this time")
         );
     }
 
@@ -75,21 +51,6 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(
             error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
             equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:1m]]")
-        );
-    }
-
-    public void testTopLevelArithmeticOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m 1+foo", tsdb),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo+bar", tsdb),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsdb),
-            containsString("top-level binary operators are not supported at this time")
         );
     }
 
@@ -129,9 +90,37 @@ public class PromqlVerifierTests extends ESTestCase {
         List.of("and", "or", "unless").forEach(op -> {
             assertThat(
                 error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
-                containsString("top-level binary operators are not supported at this time")
+                containsString("VectorBinarySet queries are not supported at this time")
             );
         });
+    }
+
+    public void testPromqlInstantQuery() {
+        assertThat(
+            error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
+            equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+        );
+    }
+
+    public void testNoMetricNameMatcherNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m {foo=\"bar\"}", tsdb),
+            containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
+        );
+    }
+
+    public void testWithoutNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
+            containsString("'without' grouping is not supported at this time")
+        );
+    }
+
+    public void groupModifiersNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
+            containsString("queries with group modifiers are not supported at this time")
+        );
     }
 
     @Override

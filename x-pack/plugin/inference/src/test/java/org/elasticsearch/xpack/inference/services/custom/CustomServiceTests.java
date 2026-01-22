@@ -177,7 +177,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
         var settingsMap = new HashMap<>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 "http://www.abc.com",
                 CustomServiceSettings.HEADERS,
                 Map.of("key", "value"),
@@ -656,7 +656,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
             var settingsMap = new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     "http://www.abc.com",
                     CustomServiceSettings.HEADERS,
                     Map.of("key", "value"),
@@ -691,7 +691,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         try (var service = createService(threadPool, clientManager)) {
             Map<String, Object> serviceSettingsMap = new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     "http://www.abc.com",
                     CustomServiceSettings.HEADERS,
                     Map.of("key", "value"),

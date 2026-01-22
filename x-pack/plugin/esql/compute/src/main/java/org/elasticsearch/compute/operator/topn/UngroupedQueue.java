@@ -21,23 +21,35 @@ import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 final class UngroupedQueue implements TopNQueue {
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(UngroupedQueue.class) + shallowSizeOfInstance(PriorityQueue.class);
 
-    private final PriorityQueue<Row> pq;
+    private final PriorityQueueHack pq;
     private final CircuitBreaker breaker;
     private final int topCount;
+    private Object[] heapForClosing;
 
     static UngroupedQueue build(CircuitBreaker breaker, int topCount) {
         breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "topn");
         return new UngroupedQueue(breaker, topCount);
     }
 
+    // FIXME(gal, NOCOMMIT) yuck, hack
+    private static class PriorityQueueHack extends PriorityQueue<Row> {
+        PriorityQueueHack(int maxSize) {
+            super(maxSize);
+        }
+
+        Object[] getHeapArrayHack() {
+            return getHeapArray();
+        }
+
+        @Override
+        protected boolean lessThan(Row r1, Row r2) {
+            return TopNOperator.compareRows(r1, r2) < 0;
+        }
+    }
+
     private UngroupedQueue(CircuitBreaker breaker, int topCount) {
         // FIXME(gal, NOCOMMIT) Verify with Nik that composition over inheritance is fine here.
-        this.pq = new PriorityQueue<>(topCount) {
-            @Override
-            protected boolean lessThan(Row r1, Row r2) {
-                return TopNOperator.compareRows(r1, r2) < 0;
-            }
-        };
+        this.pq = new PriorityQueueHack(topCount);
         this.breaker = breaker;
         this.topCount = topCount;
     }
@@ -93,9 +105,26 @@ final class UngroupedQueue implements TopNQueue {
 
     @Override
     public void close() {
+
         Releasables.close(
-            // Release all entries in the topn
-            Releasables.wrap(pq),
+            /*
+             * Release all entries in the topn, nulling references to each row after closing them
+             * so they can be GC immediately. Without this nulling very large heaps can race with
+             * the circuit breaker itself. With this we're still racing, but we're only racing a
+             * single row at a time. And single rows can only be so large. And we have enough slop
+             * to live with being inaccurate by one row.
+             */
+            () -> {
+                var heapArray = pq.getHeapArrayHack();
+                for (int i = 0; i < heapArray.length; i++) {
+                    Row row = (Row) heapArray[i];
+                    if (row != null) {
+                        row.close();
+                        heapArray[i] = null;
+                    }
+                }
+            },
+
             // Release the array itself
             () -> breaker.addWithoutBreaking(-sizeOf(topCount))
         );

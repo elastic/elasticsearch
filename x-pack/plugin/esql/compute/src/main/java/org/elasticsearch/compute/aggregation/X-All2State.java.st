@@ -6,6 +6,7 @@
  */
 
 package org.elasticsearch.compute.aggregation;
+
 // begin generated imports
 $if(BytesRef)$ import org.apache.lucene.util.BytesRef; $endif$
 import org.elasticsearch.common.util.$v2_Array$;

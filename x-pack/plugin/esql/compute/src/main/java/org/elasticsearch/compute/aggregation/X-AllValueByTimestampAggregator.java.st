@@ -80,7 +80,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
 $if(BytesRef)$
-            //TODO check with someone about this '0', shouldn't it be count?
+            // TODO check with someone about this '0', shouldn't it be count?
             BytesRefArray a = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
 $elseif(boolean)$
             BitArray a = new BitArray(count, BigArrays.NON_RECYCLING_INSTANCE);

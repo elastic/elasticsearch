@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -110,6 +111,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -613,6 +615,58 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("model"), Matchers.is("model"));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+        }
+    }
+
+    public void testInfer_ReturnsErrorWhenCallingInfer_WithChatCompletion() throws IOException {
+        var sender = mock(HttpRequestSender.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(sender).startAsynchronously(any());
+
+        var s = mock(HttpRequestSender.Factory.class);
+        when(s.createSender()).thenReturn(sender);
+
+        try (var service = new OpenAiService(s, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            var endpointId = "endpoint_id";
+            var model = OpenAiChatCompletionModelTests.createModelWithTaskType(
+                endpointId,
+                getUrl(webServer),
+                "org",
+                "secret",
+                "model",
+                "user",
+                TaskType.CHAT_COMPLETION
+            );
+
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    Strings.format(
+                        "The task type for the inference entity is chat_completion, "
+                            + "please use the _inference/chat_completion/%s/_stream URL",
+                        endpointId
+                    )
+                )
+            );
         }
     }
 

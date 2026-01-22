@@ -64,7 +64,7 @@ public final class AmazonBedrockProviderCapabilities {
 
     private static boolean providerAllowsTaskType(AmazonBedrockProvider provider, TaskType taskType) {
         switch (taskType) {
-            case COMPLETION -> {
+            case COMPLETION, CHAT_COMPLETION -> {
                 return chatCompletionProviders.contains(provider);
             }
             case TEXT_EMBEDDING -> {

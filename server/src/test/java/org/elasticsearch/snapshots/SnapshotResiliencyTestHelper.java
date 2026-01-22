@@ -13,6 +13,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -166,6 +167,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -351,14 +353,10 @@ public class SnapshotResiliencyTestHelper {
             disconnectedNodes.forEach(nodeName -> {
                 if (nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = nodes.get(nodeName).node;
-                    nodes.values()
-                        .forEach(
-                            n -> n.transportService.openConnection(
-                                node,
-                                null,
-                                ActionTestUtils.assertNoFailureListener(c -> logger.debug("--> Connected [{}] to [{}]", n.node, node))
-                            )
-                        );
+                    nodes.values().forEach(n -> n.transportService.openConnection(node, null, ActionTestUtils.assertNoFailureListener(c -> {
+                        logger.debug("--> Connected [{}] to [{}]", n.node, node);
+                        n.mockTransport.deliverBlackholedRequests();
+                    })));
                 }
             });
         }
@@ -387,6 +385,10 @@ public class SnapshotResiliencyTestHelper {
 
         protected Settings nodeSettings(DiscoveryNode node) {
             return Settings.EMPTY;
+        }
+
+        protected Set<Setting<?>> clusterSettings() {
+            return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
         }
 
         protected PluginsService createPluginsService(Settings settings, Environment environment) {
@@ -540,7 +542,9 @@ public class SnapshotResiliencyTestHelper {
                     @Override
                     protected void execute(Runnable runnable) {
                         final Runnable wrappedRunnable = DeterministicTaskQueue.onNodeLog(getLocalNode(), runnable);
-                        scheduleNow(wrappedRunnable);
+                        if (maybeExecuteTransportRunnable(wrappedRunnable) == false) {
+                            scheduleNow(wrappedRunnable);
+                        }
                     }
 
                     @Override
@@ -1066,6 +1070,20 @@ public class SnapshotResiliencyTestHelper {
                         projectResolver
                     )
                 );
+                actions.put(
+                    TransportClusterHealthAction.TYPE,
+                    new TransportClusterHealthAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        allocationService,
+                        projectResolver
+                    )
+                );
+
+                doInit(actions, actionFilters);
 
                 client.initialize(
                     actions,
@@ -1084,25 +1102,53 @@ public class SnapshotResiliencyTestHelper {
                         + "See the breaking changes documentation for the next major version." };
             }
 
+            protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
+
+            /**
+             * Maybe execute the given transport runnable inline. If executed, return true, else return false to schedule it.
+             * @param runnable The transport layer runnable, i.e. request and response.
+             * @return true if executed, false to schedule it.
+             */
+            protected boolean maybeExecuteTransportRunnable(Runnable runnable) {
+                return false;
+            }
+
             public void restart() {
+                restart(() -> true);
+            }
+
+            /**
+             * Restart this node by stopping, recreation and starting with the cluster state before stop.
+             * @param scheduleCondition A condition to satisfy before actually starting the node. If the condition is not satisfied,
+             *                          reschedule the start at a future time.
+             */
+            public void restart(BooleanSupplier scheduleCondition) {
                 disconnectNode(this);
                 final ClusterState oldState = this.clusterService.state();
                 stop();
                 nodes.remove(node.getName());
 
-                scheduleSoon(() -> {
-                    try {
-                        final TestClusterNode restartedNode = newNode(
-                            DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles()),
-                            transportInterceptorFactory
-                        );
-                        restartedNode.init();
-                        nodes.put(node.getName(), restartedNode);
-                        restartedNode.start(oldState);
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
+                final Runnable startRunnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        if (scheduleCondition.getAsBoolean() == false) {
+                            TestClusterNode.this.scheduleSoon(this);
+                            return;
+                        }
+                        try {
+                            final TestClusterNode restartedNode = newNode(
+                                DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles()),
+                                transportInterceptorFactory
+                            );
+                            restartedNode.init();
+                            nodes.put(node.getName(), restartedNode);
+                            restartedNode.start(oldState);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
                     }
-                });
+                };
+                scheduleSoon(startRunnable);
             }
 
             public DiscoveryNode node() {
@@ -1127,10 +1173,6 @@ public class SnapshotResiliencyTestHelper {
 
             public TransportService transportService() {
                 return transportService;
-            }
-
-            protected Set<Setting<?>> clusterSettings() {
-                return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
             }
 
             protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {

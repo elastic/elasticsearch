@@ -1825,9 +1825,9 @@ public class EsqlCapabilities {
         PROMQL_MATH_V0(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
-         * Bundle flag for PromQL scalar functions (time, pi, etc.).
+         * Support for PromQL time() function.
          */
-        PROMQL_SCALAR_V0(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * KNN function adds support for k and visit_percentage options

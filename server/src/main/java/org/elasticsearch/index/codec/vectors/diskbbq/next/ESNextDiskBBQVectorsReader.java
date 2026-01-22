@@ -571,7 +571,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         return new MemorySegmentPostingsVisitor(queryQuantizer, quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
     }
 
-    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget){}
+    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
 
     private static class QueryQuantizer {
         private final Cache<Integer, QueryQuantizerResult> cache;
@@ -639,7 +639,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                     assert nextCentroidOrdinal == -1;
                     queryCentroid = globalCentroid;
                 }
-                OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(target, scratch, quantizationScratch, quantEncoding.queryBits(), queryCentroid);
+                OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
+                    target,
+                    scratch,
+                    quantizationScratch,
+                    quantEncoding.queryBits(),
+                    queryCentroid
+                );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
                 result = new QueryQuantizerResult(queryCorrections, quantizedQuery);

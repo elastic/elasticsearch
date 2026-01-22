@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMin}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMinFromGeoWKBEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMinFromGeoWKBEvaluator.class);
+public final class StXMinFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMinFromWKBEvaluator.class);
 
   private final Source source;
 
@@ -36,7 +36,7 @@ public final class StXMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
 
   private Warnings warnings;
 
-  public StXMinFromGeoWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
+  public StXMinFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
       SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
@@ -70,7 +70,7 @@ public final class StXMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         try {
-          StXMin.fromGeoWKB(result, p, wkbBlockBlock, this.resultsBuilder);
+          StXMin.fromWKB(result, p, wkbBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -82,7 +82,7 @@ public final class StXMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public String toString() {
-    return "StXMinFromGeoWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StXMinFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
   }
 
   @Override
@@ -117,13 +117,13 @@ public final class StXMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public StXMinFromGeoWKBEvaluator get(DriverContext context) {
-      return new StXMinFromGeoWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+    public StXMinFromWKBEvaluator get(DriverContext context) {
+      return new StXMinFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMinFromGeoWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StXMinFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
     }
   }
 }

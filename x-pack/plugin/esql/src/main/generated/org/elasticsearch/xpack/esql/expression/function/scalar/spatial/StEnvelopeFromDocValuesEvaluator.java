@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StEnvelopeFromGeoDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromGeoDocValuesEvaluator.class);
+public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromDocValuesEvaluator.class);
 
   private final Source source;
 
@@ -36,7 +36,7 @@ public final class StEnvelopeFromGeoDocValuesEvaluator implements EvalOperator.E
 
   private Warnings warnings;
 
-  public StEnvelopeFromGeoDocValuesEvaluator(Source source,
+  public StEnvelopeFromDocValuesEvaluator(Source source,
       EvalOperator.ExpressionEvaluator encodedBlock,
       SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
@@ -71,7 +71,7 @@ public final class StEnvelopeFromGeoDocValuesEvaluator implements EvalOperator.E
           continue position;
         }
         try {
-          StEnvelope.fromGeoDocValues(result, p, encodedBlockBlock, this.resultsBuilder);
+          StEnvelope.fromDocValues(result, p, encodedBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -83,7 +83,7 @@ public final class StEnvelopeFromGeoDocValuesEvaluator implements EvalOperator.E
 
   @Override
   public String toString() {
-    return "StEnvelopeFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StEnvelopeFromDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -118,13 +118,13 @@ public final class StEnvelopeFromGeoDocValuesEvaluator implements EvalOperator.E
     }
 
     @Override
-    public StEnvelopeFromGeoDocValuesEvaluator get(DriverContext context) {
-      return new StEnvelopeFromGeoDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+    public StEnvelopeFromDocValuesEvaluator get(DriverContext context) {
+      return new StEnvelopeFromDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StEnvelopeFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StEnvelopeFromDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

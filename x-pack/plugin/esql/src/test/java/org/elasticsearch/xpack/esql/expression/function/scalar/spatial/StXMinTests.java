@@ -38,13 +38,12 @@ public class StXMinTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StXMinFromGeoWKBEvaluator[wkbBlock=Attribute[channel=0]]";
-        String expectedCartesian = "StXMinFromCartesianWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String expected = "StXMinFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StXMinTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StXMinTests::valueOfCartesian, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StXMinTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StXMinTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expected, DOUBLE, StXMinTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expected, DOUBLE, StXMinTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, expected, DOUBLE, StXMinTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, expected, DOUBLE, StXMinTests::valueOfCartesian, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

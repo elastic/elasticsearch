@@ -38,13 +38,12 @@ public class StYMinTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StYMinFromGeoWKBEvaluator[wkbBlock=Attribute[channel=0]]";
-        String expectedCartesian = "StYMinFromCartesianWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String expected = "StYMinFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StYMinTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StYMinTests::valueOfCartesian, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StYMinTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StYMinTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expected, DOUBLE, StYMinTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expected, DOUBLE, StYMinTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, expected, DOUBLE, StYMinTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, expected, DOUBLE, StYMinTests::valueOfCartesian, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

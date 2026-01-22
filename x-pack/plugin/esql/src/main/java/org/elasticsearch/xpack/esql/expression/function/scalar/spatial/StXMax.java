@@ -37,8 +37,8 @@ import static java.lang.Double.NEGATIVE_INFINITY;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude.WRAP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -97,16 +97,15 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
             : new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
         var spatial = toEvaluator.apply(spatialField());
         if (spatialDocValues) {
-            return switch (spatialField().dataType()) {
-                case GEO_POINT -> new StXMaxFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-                case CARTESIAN_POINT -> new StXMaxFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-                default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
-            };
+            if (isSpatialPoint(spatialField().dataType())) {
+                // Cartesian: use linear optimization; Geo: use envelope visitor for longitude wrapping
+                return isSpatialGeo(spatialField().dataType())
+                    ? new StXMaxFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get)
+                    : new StXMaxFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
+            }
+            throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
         }
-        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-            return new StXMaxFromGeoWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
-        }
-        return new StXMaxFromCartesianWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
+        return new StXMaxFromWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 
     @Override
@@ -133,8 +132,8 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
         results.appendDouble(rectangle.getMaxX());
     }
 
-    @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromCartesianWKB(
+    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromWKB(
         DoubleBlock.Builder results,
         @Position int p,
         BytesRefBlock wkbBlock,
@@ -143,16 +142,7 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
         resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StXMax::buildEnvelopeResults);
     }
 
-    @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoWKB(
-        DoubleBlock.Builder results,
-        @Position int p,
-        BytesRefBlock wkbBlock,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
-    ) {
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StXMax::buildEnvelopeResults);
-    }
-
+    // Cartesian optimization: simple linear reduction without envelope visitor
     @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromCartesianDocValues(
         DoubleBlock.Builder results,
@@ -163,6 +153,7 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
         resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, NEGATIVE_INFINITY, (v, e) -> Math.max(v, CARTESIAN.decodeX(e)));
     }
 
+    // Geo requires envelope visitor for correct longitude wrapping
     @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromGeoDocValues(
         DoubleBlock.Builder results,

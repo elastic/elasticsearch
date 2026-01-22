@@ -37,8 +37,8 @@ import static java.lang.Double.POSITIVE_INFINITY;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude.WRAP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -97,16 +97,15 @@ public class StYMin extends SpatialUnaryDocValuesFunction {
             : new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
         var spatial = toEvaluator.apply(spatialField());
         if (spatialDocValues) {
-            return switch (spatialField().dataType()) {
-                case GEO_POINT -> new StYMinFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-                case CARTESIAN_POINT -> new StYMinFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-                default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
-            };
+            if (isSpatialPoint(spatialField().dataType())) {
+                // Both use linear optimization with different decode functions
+                return isSpatialGeo(spatialField().dataType())
+                    ? new StYMinFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get)
+                    : new StYMinFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
+            }
+            throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
         }
-        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-            return new StYMinFromGeoWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
-        }
-        return new StYMinFromCartesianWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
+        return new StYMinFromWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 
     @Override
@@ -128,8 +127,8 @@ public class StYMin extends SpatialUnaryDocValuesFunction {
         results.appendDouble(type.decodeY(type.pointAsLong(0, rectangle.getMinY())));
     }
 
-    @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromCartesianWKB(
+    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromWKB(
         DoubleBlock.Builder results,
         @Position int p,
         BytesRefBlock wkbBlock,
@@ -138,16 +137,7 @@ public class StYMin extends SpatialUnaryDocValuesFunction {
         resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StYMin::buildEnvelopeResults);
     }
 
-    @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoWKB(
-        DoubleBlock.Builder results,
-        @Position int p,
-        BytesRefBlock wkbBlock,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
-    ) {
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StYMin::buildEnvelopeResults);
-    }
-
+    // Cartesian and Geo both use linear optimization but with different decode functions
     @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromCartesianDocValues(
         DoubleBlock.Builder results,

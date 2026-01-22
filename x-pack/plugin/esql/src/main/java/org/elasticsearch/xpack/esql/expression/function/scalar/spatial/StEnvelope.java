@@ -35,10 +35,10 @@ import java.util.List;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude.WRAP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
@@ -123,16 +123,12 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
             : new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
         var spatial = toEvaluator.apply(spatialField());
         if (spatialDocValues) {
-            return switch (spatialField().dataType()) {
-                case GEO_POINT -> new StEnvelopeFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-                case CARTESIAN_POINT -> new StEnvelopeFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-                default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
-            };
+            if (isSpatialPoint(spatialField().dataType())) {
+                return new StEnvelopeFromDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
+            }
+            throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
         }
-        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-            return new StEnvelopeFromGeoWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
-        }
-        return new StEnvelopeFromCartesianWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
+        return new StEnvelopeFromWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 
     @Override
@@ -169,7 +165,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         results.appendBytesRef(UNSPECIFIED.asWkb(rectangle));
     }
 
-    @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinary(
         BytesRefBlock.Builder results,
         @Position int p,
@@ -179,28 +175,8 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildEnvelopeResults);
     }
 
-    @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoWKB(
-        BytesRefBlock.Builder results,
-        @Position int p,
-        BytesRefBlock wkbBlock,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
-    ) {
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StEnvelope::buildEnvelopeResults);
-    }
-
-    @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromCartesianDocValues(
-        BytesRefBlock.Builder results,
-        @Position int p,
-        LongBlock encodedBlock,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder
-    ) {
-        resultsBuilder.fromDocValues(results, p, encodedBlock, StEnvelope::buildDocValuesEnvelopeResults);
-    }
-
-    @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromGeoDocValues(
+    @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromDocValues(
         BytesRefBlock.Builder results,
         @Position int p,
         LongBlock encodedBlock,

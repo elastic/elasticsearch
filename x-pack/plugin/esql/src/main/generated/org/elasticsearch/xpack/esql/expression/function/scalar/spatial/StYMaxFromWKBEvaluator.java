@@ -11,6 +11,7 @@ import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -19,24 +20,24 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StEnvelopeFromGeoWKBEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromGeoWKBEvaluator.class);
+public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMaxFromWKBEvaluator.class);
 
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator wkbBlock;
 
-  private final SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder;
+  private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StEnvelopeFromGeoWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
-      SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder, DriverContext driverContext) {
+  public StYMaxFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
+      SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
     this.resultsBuilder = resultsBuilder;
@@ -57,8 +58,8 @@ public final class StEnvelopeFromGeoWKBEvaluator implements EvalOperator.Express
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!wkbBlockBlock.isNull(p)) {
@@ -69,7 +70,7 @@ public final class StEnvelopeFromGeoWKBEvaluator implements EvalOperator.Express
           continue position;
         }
         try {
-          StEnvelope.fromGeoWKB(result, p, wkbBlockBlock, this.resultsBuilder);
+          StYMax.fromWKB(result, p, wkbBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -81,7 +82,7 @@ public final class StEnvelopeFromGeoWKBEvaluator implements EvalOperator.Express
 
   @Override
   public String toString() {
-    return "StEnvelopeFromGeoWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StYMaxFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
   }
 
   @Override
@@ -106,23 +107,23 @@ public final class StEnvelopeFromGeoWKBEvaluator implements EvalOperator.Express
 
     private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
 
-    private final Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder;
+    private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock,
-        Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder) {
+        Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.wkbBlock = wkbBlock;
       this.resultsBuilder = resultsBuilder;
     }
 
     @Override
-    public StEnvelopeFromGeoWKBEvaluator get(DriverContext context) {
-      return new StEnvelopeFromGeoWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+    public StYMaxFromWKBEvaluator get(DriverContext context) {
+      return new StYMaxFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StEnvelopeFromGeoWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StYMaxFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
     }
   }
 }

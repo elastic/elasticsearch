@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMaxFromCartesianWKBEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromCartesianWKBEvaluator.class);
+public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromWKBEvaluator.class);
 
   private final Source source;
 
@@ -36,7 +36,7 @@ public final class StXMaxFromCartesianWKBEvaluator implements EvalOperator.Expre
 
   private Warnings warnings;
 
-  public StXMaxFromCartesianWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
+  public StXMaxFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
       SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
@@ -70,7 +70,7 @@ public final class StXMaxFromCartesianWKBEvaluator implements EvalOperator.Expre
           continue position;
         }
         try {
-          StXMax.fromCartesianWKB(result, p, wkbBlockBlock, this.resultsBuilder);
+          StXMax.fromWKB(result, p, wkbBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -82,7 +82,7 @@ public final class StXMaxFromCartesianWKBEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "StXMaxFromCartesianWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StXMaxFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
   }
 
   @Override
@@ -117,13 +117,13 @@ public final class StXMaxFromCartesianWKBEvaluator implements EvalOperator.Expre
     }
 
     @Override
-    public StXMaxFromCartesianWKBEvaluator get(DriverContext context) {
-      return new StXMaxFromCartesianWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+    public StXMaxFromWKBEvaluator get(DriverContext context) {
+      return new StXMaxFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMaxFromCartesianWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StXMaxFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
     }
   }
 }

@@ -37,25 +37,12 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StEnvelopeFromGeoWKBEvaluator[wkbBlock=Attribute[channel=0]]";
-        String expectedCartesian = "StEnvelopeFromCartesianWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String expected = "StEnvelopeFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(
-            suppliers,
-            expectedCartesian,
-            CARTESIAN_SHAPE,
-            StEnvelopeTests::valueOfCartesian,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(
-            suppliers,
-            expectedCartesian,
-            CARTESIAN_SHAPE,
-            StEnvelopeTests::valueOfCartesian,
-            List.of()
-        );
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expected, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expected, CARTESIAN_SHAPE, StEnvelopeTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, expected, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, expected, CARTESIAN_SHAPE, StEnvelopeTests::valueOfCartesian, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 

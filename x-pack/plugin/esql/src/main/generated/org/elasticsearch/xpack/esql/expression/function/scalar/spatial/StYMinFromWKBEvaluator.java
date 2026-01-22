@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMin}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StYMinFromGeoWKBEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMinFromGeoWKBEvaluator.class);
+public final class StYMinFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMinFromWKBEvaluator.class);
 
   private final Source source;
 
@@ -36,7 +36,7 @@ public final class StYMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
 
   private Warnings warnings;
 
-  public StYMinFromGeoWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
+  public StYMinFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
       SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
@@ -70,7 +70,7 @@ public final class StYMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         try {
-          StYMin.fromGeoWKB(result, p, wkbBlockBlock, this.resultsBuilder);
+          StYMin.fromWKB(result, p, wkbBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -82,7 +82,7 @@ public final class StYMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public String toString() {
-    return "StYMinFromGeoWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StYMinFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
   }
 
   @Override
@@ -117,13 +117,13 @@ public final class StYMinFromGeoWKBEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public StYMinFromGeoWKBEvaluator get(DriverContext context) {
-      return new StYMinFromGeoWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+    public StYMinFromWKBEvaluator get(DriverContext context) {
+      return new StYMinFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StYMinFromGeoWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StYMinFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
     }
   }
 }

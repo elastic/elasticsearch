@@ -21,6 +21,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
@@ -310,18 +311,42 @@ public final class InstrumenterImpl implements Instrumenter {
         }
 
         private void invokeInstrumentationMethod() {
-            mv.visitMethodInsn(
-                INVOKEINTERFACE,
-                checkMethod.className(),
-                checkMethod.methodName(),
-                Type.getMethodDescriptor(
-                    Type.VOID_TYPE,
-                    checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
-                ),
-                true
-            );
+            if ("check$java_nio_file_Files$$exists".equals(checkMethod.methodName())) {
+                Label tryStart = new Label();
+                Label tryEnd = new Label();
+                Label catchStart = new Label();
+                Label catchEnd = new Label();
+                mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "java/security/AccessControlException");
+                mv.visitLabel(tryStart);
+                mv.visitMethodInsn(
+                    INVOKEINTERFACE,
+                    checkMethod.className(),
+                    checkMethod.methodName(),
+                    Type.getMethodDescriptor(
+                        Type.VOID_TYPE,
+                        checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
+                    ),
+                    true
+                );
+                mv.visitLabel(tryEnd);
+                mv.visitJumpInsn(Opcodes.GOTO, catchEnd);
+                mv.visitLabel(catchStart);
+                mv.visitInsn(Opcodes.ICONST_0);
+                mv.visitInsn(Opcodes.IRETURN);
+                mv.visitLabel(catchEnd);
+            } else {
+                mv.visitMethodInsn(
+                    INVOKEINTERFACE,
+                    checkMethod.className(),
+                    checkMethod.methodName(),
+                    Type.getMethodDescriptor(
+                        Type.VOID_TYPE,
+                        checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
+                    ),
+                    true
+                );
+            }
         }
-
     }
 
     record ClassFileInfo(String fileName, byte[] bytecodes) {}

@@ -308,13 +308,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .get(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.getKey());
             var indexLimit = clusterService.getClusterSettings().get(Objects.requireNonNull(indexLimitSetting));
             var totalUserIndices = indexLimit + randomIntBetween(1, 10);
-            String[] userIndices = new String[totalUserIndices];
-            for (int i = 0; i < userIndices.length; i++) {
-                userIndices[i] = "index-" + i;
+            String[] indices = new String[totalUserIndices + randomIntBetween(1, 10)];
+            for (int i = 0; i < totalUserIndices; i++) {
+                indices[i] = "index-" + i;
+            }
+            for (int i = totalUserIndices; i < indices.length; i++) {
+                indices[i] = randomFrom(".synonyms-000000", ".tasks-000000") + i;
             }
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(newNode("node1")).build();
             final Tuple<ProjectMetadata.Builder, RoutingTable.Builder> tuple = ClusterStateCreationUtils
-                .projectWithAssignedPrimariesAndReplicas(projectId, userIndices, 1, 0, discoveryNodes);
+                .projectWithAssignedPrimariesAndReplicas(projectId, indices, 1, 0, discoveryNodes);
 
             ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
                 .nodes(discoveryNodes)
@@ -322,9 +325,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(tuple.v1()))
                 .build();
 
-            var settings = Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-                .build();
+            var settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
 
             IndicesService indicesService = mock(IndicesService.class);
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(

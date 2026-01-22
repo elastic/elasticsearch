@@ -37,6 +37,7 @@ import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -756,6 +757,7 @@ public class ClusterStateCreationUtils {
         final Iterator<DiscoveryNode> nodeIterator = Iterators.cycling(nodes);
         for (String index : indices) {
             final String uuid = UUIDs.base64UUID();
+            boolean isSystem = EmptySystemIndices.INSTANCE.isSystemIndex(index);
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
                     indexSettings(IndexVersion.current(), numberOfShards, replicaRoles.size()).put(
@@ -765,6 +767,7 @@ public class ClusterStateCreationUtils {
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
                 .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
+                .system(isSystem)
                 .build();
             projectBuilder.put(indexMetadata, false);
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());

@@ -89,15 +89,15 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
             return switch (spatialField().dataType()) {
-                case GEO_POINT -> new StXMaxFromDocValuesGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-                case CARTESIAN_POINT -> new StXMaxFromDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                case GEO_POINT -> new StXMaxFromGeoDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                case CARTESIAN_POINT -> new StXMaxFromCartesianDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
                 default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
             };
         }
         if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-            return new StXMaxFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            return new StXMaxFromGeoWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         }
-        return new StXMaxFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return new StXMaxFromCartesianWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override
@@ -115,7 +115,7 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
         return NodeInfo.create(this, StXMax::new, spatialField());
     }
 
-    static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
+    static void buildCartesianEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
         results.appendDouble(CARTESIAN.decodeX(CARTESIAN.pointAsLong(rectangle.getMaxX(), 0)));
     }
 
@@ -123,25 +123,25 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
         results.appendDouble(GEO.decodeX(GEO.pointAsLong(rectangle.getMaxX(), 0)));
     }
 
-    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+    @Evaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromCartesianWKB(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
-        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMax::buildEnvelopeResults);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMax::buildCartesianEnvelopeResults);
     }
 
-    @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinaryGeo(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+    @Evaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromGeoWKB(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
         resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StXMax::buildGeoEnvelopeResults);
     }
 
-    @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+    @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromCartesianDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
         resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, NEGATIVE_INFINITY, (v, e) -> Math.max(v, CARTESIAN.decodeX(e)));
     }
 
-    @Evaluator(extraName = "FromDocValuesGeo", warnExceptions = { IllegalArgumentException.class })
-    static void fromDocValuesGeo(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+    @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromGeoDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
         var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
         resultsBuilder.fromDocValues(results, p, encodedBlock, counter, GEO, StXMax::buildGeoEnvelopeResults);
     }

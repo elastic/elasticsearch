@@ -19,11 +19,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMin}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMinFromWKBGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMinFromWKBGeoEvaluator.class);
+public final class StYMaxFromCartesianWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMaxFromCartesianWKBEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class StXMinFromWKBGeoEvaluator implements EvalOperator.ExpressionE
 
   private Warnings warnings;
 
-  public StXMinFromWKBGeoEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
+  public StYMaxFromCartesianWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
       DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
@@ -66,7 +66,7 @@ public final class StXMinFromWKBGeoEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         try {
-          StXMin.fromWellKnownBinaryGeo(result, p, wkbBlockBlock);
+          StYMax.fromCartesianWKB(result, p, wkbBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +78,7 @@ public final class StXMinFromWKBGeoEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public String toString() {
-    return "StXMinFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StYMaxFromCartesianWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
   }
 
   @Override
@@ -109,13 +109,13 @@ public final class StXMinFromWKBGeoEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public StXMinFromWKBGeoEvaluator get(DriverContext context) {
-      return new StXMinFromWKBGeoEvaluator(source, wkbBlock.get(context), context);
+    public StYMaxFromCartesianWKBEvaluator get(DriverContext context) {
+      return new StYMaxFromCartesianWKBEvaluator(source, wkbBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMinFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StYMaxFromCartesianWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
     }
   }
 }

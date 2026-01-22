@@ -19,11 +19,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMin}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMin}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StYMinFromDocValuesGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMinFromDocValuesGeoEvaluator.class);
+public final class StXMinFromGeoDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMinFromGeoDocValuesEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class StYMinFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
   private Warnings warnings;
 
-  public StYMinFromDocValuesGeoEvaluator(Source source,
+  public StXMinFromGeoDocValuesEvaluator(Source source,
       EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
@@ -66,7 +66,7 @@ public final class StYMinFromDocValuesGeoEvaluator implements EvalOperator.Expre
           continue position;
         }
         try {
-          StYMin.fromDocValuesGeo(result, p, encodedBlockBlock);
+          StXMin.fromGeoDocValues(result, p, encodedBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +78,7 @@ public final class StYMinFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "StYMinFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StXMinFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -109,13 +109,13 @@ public final class StYMinFromDocValuesGeoEvaluator implements EvalOperator.Expre
     }
 
     @Override
-    public StYMinFromDocValuesGeoEvaluator get(DriverContext context) {
-      return new StYMinFromDocValuesGeoEvaluator(source, encodedBlock.get(context), context);
+    public StXMinFromGeoDocValuesEvaluator get(DriverContext context) {
+      return new StXMinFromGeoDocValuesEvaluator(source, encodedBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StYMinFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StXMinFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

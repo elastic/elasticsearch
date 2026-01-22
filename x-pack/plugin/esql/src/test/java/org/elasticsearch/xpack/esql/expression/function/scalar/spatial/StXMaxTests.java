@@ -38,8 +38,8 @@ public class StXMaxTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StXMaxFromWKBGeoEvaluator[wkbBlock=Attribute[channel=0]]";
-        String expectedCartesian = "StXMaxFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String expectedGeo = "StXMaxFromGeoWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String expectedCartesian = "StXMaxFromCartesianWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StXMaxTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StXMaxTests::valueOfCartesian, List.of());

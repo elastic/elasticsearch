@@ -19,11 +19,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMin}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMinFromDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMinFromDocValuesEvaluator.class);
+public final class StYMaxFromGeoDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMaxFromGeoDocValuesEvaluator.class);
 
   private final Source source;
 
@@ -33,8 +33,8 @@ public final class StXMinFromDocValuesEvaluator implements EvalOperator.Expressi
 
   private Warnings warnings;
 
-  public StXMinFromDocValuesEvaluator(Source source, EvalOperator.ExpressionEvaluator encodedBlock,
-      DriverContext driverContext) {
+  public StYMaxFromGeoDocValuesEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
     this.driverContext = driverContext;
@@ -66,7 +66,7 @@ public final class StXMinFromDocValuesEvaluator implements EvalOperator.Expressi
           continue position;
         }
         try {
-          StXMin.fromDocValues(result, p, encodedBlockBlock);
+          StYMax.fromGeoDocValues(result, p, encodedBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +78,7 @@ public final class StXMinFromDocValuesEvaluator implements EvalOperator.Expressi
 
   @Override
   public String toString() {
-    return "StXMinFromDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StYMaxFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -109,13 +109,13 @@ public final class StXMinFromDocValuesEvaluator implements EvalOperator.Expressi
     }
 
     @Override
-    public StXMinFromDocValuesEvaluator get(DriverContext context) {
-      return new StXMinFromDocValuesEvaluator(source, encodedBlock.get(context), context);
+    public StYMaxFromGeoDocValuesEvaluator get(DriverContext context) {
+      return new StYMaxFromGeoDocValuesEvaluator(source, encodedBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMinFromDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StYMaxFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

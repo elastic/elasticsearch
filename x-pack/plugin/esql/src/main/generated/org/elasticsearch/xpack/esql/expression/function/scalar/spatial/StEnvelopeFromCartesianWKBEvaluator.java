@@ -10,7 +10,6 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -19,11 +18,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMax}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMaxFromWKBEvaluator.class);
+public final class StEnvelopeFromCartesianWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromCartesianWKBEvaluator.class);
 
   private final Source source;
 
@@ -33,8 +32,8 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings;
 
-  public StYMaxFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
-      DriverContext driverContext) {
+  public StEnvelopeFromCartesianWKBEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator wkbBlock, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
     this.driverContext = driverContext;
@@ -54,8 +53,8 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
     return baseRamBytesUsed;
   }
 
-  public DoubleBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!wkbBlockBlock.isNull(p)) {
@@ -66,7 +65,7 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
           continue position;
         }
         try {
-          StYMax.fromWellKnownBinary(result, p, wkbBlockBlock);
+          StEnvelope.fromWellKnownBinary(result, p, wkbBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +77,7 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "StYMaxFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StEnvelopeFromCartesianWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
   }
 
   @Override
@@ -109,13 +108,13 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
     }
 
     @Override
-    public StYMaxFromWKBEvaluator get(DriverContext context) {
-      return new StYMaxFromWKBEvaluator(source, wkbBlock.get(context), context);
+    public StEnvelopeFromCartesianWKBEvaluator get(DriverContext context) {
+      return new StEnvelopeFromCartesianWKBEvaluator(source, wkbBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StYMaxFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StEnvelopeFromCartesianWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
     }
   }
 }

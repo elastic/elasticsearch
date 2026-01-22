@@ -9,7 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -19,11 +19,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMin}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StEnvelopeFromDocValuesGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromDocValuesGeoEvaluator.class);
+public final class StYMinFromCartesianDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMinFromCartesianDocValuesEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class StEnvelopeFromDocValuesGeoEvaluator implements EvalOperator.E
 
   private Warnings warnings;
 
-  public StEnvelopeFromDocValuesGeoEvaluator(Source source,
+  public StYMinFromCartesianDocValuesEvaluator(Source source,
       EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
@@ -54,8 +54,8 @@ public final class StEnvelopeFromDocValuesGeoEvaluator implements EvalOperator.E
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, LongBlock encodedBlockBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, LongBlock encodedBlockBlock) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!encodedBlockBlock.isNull(p)) {
@@ -66,7 +66,7 @@ public final class StEnvelopeFromDocValuesGeoEvaluator implements EvalOperator.E
           continue position;
         }
         try {
-          StEnvelope.fromDocValuesGeo(result, p, encodedBlockBlock);
+          StYMin.fromCartesianDocValues(result, p, encodedBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +78,7 @@ public final class StEnvelopeFromDocValuesGeoEvaluator implements EvalOperator.E
 
   @Override
   public String toString() {
-    return "StEnvelopeFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StYMinFromCartesianDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -109,13 +109,13 @@ public final class StEnvelopeFromDocValuesGeoEvaluator implements EvalOperator.E
     }
 
     @Override
-    public StEnvelopeFromDocValuesGeoEvaluator get(DriverContext context) {
-      return new StEnvelopeFromDocValuesGeoEvaluator(source, encodedBlock.get(context), context);
+    public StYMinFromCartesianDocValuesEvaluator get(DriverContext context) {
+      return new StYMinFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StEnvelopeFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StYMinFromCartesianDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

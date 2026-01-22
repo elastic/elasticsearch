@@ -9,7 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -19,11 +19,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMax}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromDocValuesGeoEvaluator.class);
+public final class StEnvelopeFromGeoDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromGeoDocValuesEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
   private Warnings warnings;
 
-  public StXMaxFromDocValuesGeoEvaluator(Source source,
+  public StEnvelopeFromGeoDocValuesEvaluator(Source source,
       EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
@@ -54,8 +54,8 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
     return baseRamBytesUsed;
   }
 
-  public DoubleBlock eval(int positionCount, LongBlock encodedBlockBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, LongBlock encodedBlockBlock) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!encodedBlockBlock.isNull(p)) {
@@ -66,7 +66,7 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
           continue position;
         }
         try {
-          StXMax.fromDocValuesGeo(result, p, encodedBlockBlock);
+          StEnvelope.fromGeoDocValues(result, p, encodedBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +78,7 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "StXMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StEnvelopeFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -109,13 +109,13 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
     }
 
     @Override
-    public StXMaxFromDocValuesGeoEvaluator get(DriverContext context) {
-      return new StXMaxFromDocValuesGeoEvaluator(source, encodedBlock.get(context), context);
+    public StEnvelopeFromGeoDocValuesEvaluator get(DriverContext context) {
+      return new StEnvelopeFromGeoDocValuesEvaluator(source, encodedBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StEnvelopeFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

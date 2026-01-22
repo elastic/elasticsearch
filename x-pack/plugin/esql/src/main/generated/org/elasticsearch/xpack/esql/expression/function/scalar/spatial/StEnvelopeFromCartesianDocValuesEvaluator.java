@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromDocValuesEvaluator.class);
+public final class StEnvelopeFromCartesianDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromCartesianDocValuesEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.Expr
 
   private Warnings warnings;
 
-  public StEnvelopeFromDocValuesEvaluator(Source source,
+  public StEnvelopeFromCartesianDocValuesEvaluator(Source source,
       EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
@@ -66,7 +66,7 @@ public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.Expr
           continue position;
         }
         try {
-          StEnvelope.fromDocValues(result, p, encodedBlockBlock);
+          StEnvelope.fromCartesianDocValues(result, p, encodedBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +78,7 @@ public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.Expr
 
   @Override
   public String toString() {
-    return "StEnvelopeFromDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StEnvelopeFromCartesianDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -109,13 +109,13 @@ public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.Expr
     }
 
     @Override
-    public StEnvelopeFromDocValuesEvaluator get(DriverContext context) {
-      return new StEnvelopeFromDocValuesEvaluator(source, encodedBlock.get(context), context);
+    public StEnvelopeFromCartesianDocValuesEvaluator get(DriverContext context) {
+      return new StEnvelopeFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StEnvelopeFromDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StEnvelopeFromCartesianDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

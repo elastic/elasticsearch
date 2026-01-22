@@ -304,6 +304,10 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName()));
             assumeFalse(
+                "can't load metrics in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_CLAMP.capabilityName())
+            );
+            assumeFalse(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
@@ -681,6 +685,7 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
+            null,
             null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );

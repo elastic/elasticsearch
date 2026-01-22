@@ -58,7 +58,7 @@ setup:
             - ts_command_v0
             - cosine_vector_similarity_function
             - inline_stats
-            - promql_pre_tech_preview_v14
+            - promql_command_v0
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -216,7 +216,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0 ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }

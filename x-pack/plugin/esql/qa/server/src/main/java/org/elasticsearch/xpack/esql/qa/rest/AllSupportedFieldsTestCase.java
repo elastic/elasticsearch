@@ -55,14 +55,14 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -165,6 +165,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
+    protected boolean lookupJoinOnAllIndicesSupported() throws IOException {
+        return true;
+    }
+
     private static Boolean supportsNodeAssignment;
 
     protected boolean supportsNodeAssignment() throws IOException {
@@ -231,40 +235,50 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     public void createIndices() throws IOException {
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
-                createIndexForNode(client(), e.getKey(), e.getValue().id(), indexMode);
+                createIndexForNode(client(), minVersion(), e.getKey(), e.getValue().id(), indexMode);
             }
         } else {
-            createIndexForNode(client(), null, null, indexMode);
+            createIndexForNode(client(), minVersion(), null, null, indexMode);
         }
 
         // We need a single lookup index that has the same name across all clusters, as well as a single enrich policy per cluster.
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(LOOKUP_INDEX_NAME) == false && indexMode == IndexMode.LOOKUP) {
-            createAllTypesIndex(client(), LOOKUP_INDEX_NAME, null, indexMode);
-            createAllTypesDoc(client(), LOOKUP_INDEX_NAME);
-            createEnrichPolicy(client(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
+            createAllTypesIndex(client(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode);
+            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME);
+            createEnrichPolicy(client(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
 
     /**
-     * Make sure the test doesn't run on snapshot builds. Release builds only.
+     * Make sure the test doesn't run on builds that have nodes in both snapshot and release builds at the same time, as snapshot builds
+     * will assume support for new data types on earlier versions than release builds.
      * <p>
-     *     {@link Build#isSnapshot()} checks if the version under test is a snapshot.
-     *     But! This test runs against many versions and if *any* are snapshots
-     *     then this will fail. So we check the versions of each node in the cluster too.
-     * </p>
+     * Our bwc tests in release mode may still use snapshot builds for older versions that just aren't released yet. E.g. if we run
+     * bwc tests against 9.x.1 and this patch version is not yet released because 9.x.1 is going to be the next patch release, its build
+     * will be in snapshot mode. But bwc tests with 9.x.0  will consistently use release builds for all nodes if 9.x.0 is already released.
      */
     @Before
-    public void skipSnapshots() throws IOException {
-        if (isSingleNodeSnapshot()) {
-            return;
-        }
-        assumeFalse("Only supported on production builds", Build.current().isSnapshot());
+    public void skipPartialSnapshots() throws IOException {
+        boolean someNodesOnReleaseBuild = false;
+        boolean someNodesOnSnapshotBuild = false;
         for (NodeInfo n : allNodeToInfo().values()) {
-            assumeFalse("Only supported on production builds", n.snapshot());
+            if (n.snapshot) {
+                someNodesOnSnapshotBuild = true;
+            } else {
+                someNodesOnReleaseBuild = true;
+            }
         }
+        assumeFalse(
+            "Skipped due to having nodes from both snapshot and release builds",
+            someNodesOnReleaseBuild && someNodesOnSnapshotBuild
+        );
     }
 
+    /**
+     * Is the test running for a single node on snapshot version?
+     * If so, we'll assert the profile of the field readers.
+     */
     protected boolean isSingleNodeSnapshot() {
         return false;
     }
@@ -278,7 +292,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     public final void testFetchAllEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", isSingleNodeSnapshot());
+        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         // The ENRICH is a no-op because it overwrites columns with the same identical data (except that it messes with
         // the order of the columns, but we don't assert that).
         doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
@@ -290,6 +304,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     public final void testFetchAllLookupJoin() throws IOException {
         assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
+        assumeTrue("Skipped in CCS tests if old nodes don't support remote lookup joins", lookupJoinOnAllIndicesSupported());
         // The LOOKUP JOIN is a no-op because it overwrites columns with the same identical data (except that it messes with
         // the order of the columns, but we don't assert that).
         // We force the lookup join on to the remotes by having a SORT after it.
@@ -320,13 +335,22 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
 
-        MapMatcher expectedColumns = allTypesColumnsMatcher(coordinatorVersion, minVersion(), true, true);
+        MapMatcher expectedColumns = allTypesColumnsMatcher(coordinatorVersion, minVersion(), minVersion(), indexMode, true, true);
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
         for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode, nodesContributingIndices).entrySet()) {
             String indexName = e.getKey();
-            MapMatcher expectedValues = allTypesValuesMatcher(coordinatorVersion, minVersion(), true, true, indexName);
+            MapMatcher expectedValues = allTypesValuesMatcher(
+                coordinatorVersion,
+                minVersion(),
+                minVersion(),
+                indexMode,
+                extractPreference,
+                true,
+                true,
+                indexName
+            );
             expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
         }
         assertMap(indexToRow(columns, values), expectedAllValues);
@@ -351,19 +375,24 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected MapMatcher allTypesColumnsMatcher(
         TransportVersion coordinatorVersion,
-        TransportVersion minimumVersion,
+        TransportVersion minimumVersionAcrossInvolvedNodes,
+        TransportVersion minimumVersionAcrossAllNodes,
+        IndexMode indexMode,
         boolean expectMetadataFields,
         boolean expectNonEnrichableFields
     ) {
         MapMatcher expectedColumns = matchesMap().entry(LOOKUP_ID_FIELD, "integer");
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type, minimumVersion) == false) {
+            if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
                 continue;
             }
-            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type, coordinatorVersion, minimumVersion, indexMode));
+            expectedColumns = expectedColumns.entry(
+                fieldName(type),
+                expectedType(type, coordinatorVersion, minimumVersionAcrossInvolvedNodes, indexMode)
+            );
         }
         if (expectMetadataFields) {
             expectedColumns = expectedColumns.entry("_id", "keyword")
@@ -379,7 +408,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected MapMatcher allTypesValuesMatcher(
         TransportVersion coordinatorVersion,
-        TransportVersion minimumVersion,
+        TransportVersion minimumVersionAcrossInvolvedNodes,
+        TransportVersion minimumVersionAcrossAllNodes,
+        IndexMode indexMode,
+        MappedFieldType.FieldExtractPreference extractPreference,
         boolean expectMetadataFields,
         boolean expectNonEnrichableFields,
         String indexName
@@ -387,7 +419,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         MapMatcher expectedValues = matchesMap();
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type, minimumVersion) == false) {
+            if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -395,7 +427,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             expectedValues = expectedValues.entry(
                 fieldName(type),
-                expectedValue(type, coordinatorVersion, minimumVersion, indexMode, extractPreference)
+                expectedValue(type, coordinatorVersion, minimumVersionAcrossInvolvedNodes, indexMode, extractPreference)
             );
         }
         if (expectMetadataFields) {
@@ -472,7 +504,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
-            expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
+            if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
+                expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
+            } else {
+                // While dense_vector was under construction, we could've also encountered other values here, e.g. [0.04, 0.86, 0.51].
+                // We'll ignore the exact value here.
+                expectedValues = expectedValues.entry("f_dense_vector", instanceOf(List.class));
+            }
             expectedValues = expectedValues.entry("_index", indexName);
             expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
         }
@@ -556,7 +594,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected String fromAllQuery(String restOfQuery) {
-        return fromAllQuery("*:%mode%*,%mode%*", restOfQuery);
+        return fromAllQuery(allIndexPattern(), restOfQuery);
+    }
+
+    protected String allIndexPattern() {
+        return "%mode%*";
     }
 
     public void testRow() throws IOException {
@@ -587,17 +629,33 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
 
-        MapMatcher expectedColumns = allTypesColumnsMatcher(coordinatorVersion, expectedMinimumVersion, false, true);
+        MapMatcher expectedColumns = allTypesColumnsMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            minVersion(),
+            indexMode,
+            false,
+            true
+        );
         assertMap(nameToType(columns), expectedColumns);
 
-        MapMatcher expectedValues = allTypesValuesMatcher(coordinatorVersion, expectedMinimumVersion, false, true, null);
+        MapMatcher expectedValues = allTypesValuesMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            minVersion(),
+            indexMode,
+            extractPreference,
+            false,
+            true,
+            null
+        );
         assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
     }
 
     @SuppressWarnings("unchecked")
     public void testRowEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", isSingleNodeSnapshot());
+        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + ENRICH_POLICY_NAME + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
         Map<String, Object> response = responseAndCoordinatorVersion.v1();
@@ -611,10 +669,26 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
 
-        MapMatcher expectedColumns = allTypesColumnsMatcher(coordinatorVersion, expectedMinimumVersion, false, false);
+        MapMatcher expectedColumns = allTypesColumnsMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            minVersion(),
+            indexMode,
+            false,
+            false
+        );
         assertMap(nameToType(columns), expectedColumns);
 
-        MapMatcher expectedValues = allTypesValuesMatcher(coordinatorVersion, expectedMinimumVersion, false, false, null);
+        MapMatcher expectedValues = allTypesValuesMatcher(
+            coordinatorVersion,
+            expectedMinimumVersion,
+            minVersion(),
+            indexMode,
+            extractPreference,
+            false,
+            false,
+            null
+        );
         assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
     }
 
@@ -691,11 +765,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void createIndexForNode(RestClient client, String nodeName, String nodeId, IndexMode mode) throws IOException {
+    protected static void createIndexForNode(
+        RestClient client,
+        TransportVersion minimumVersionAcrossAllNodes,
+        String nodeName,
+        String nodeId,
+        IndexMode mode
+    ) throws IOException {
         String indexName = indexName(mode, nodeName);
         if (false == indexExists(client, indexName)) {
-            createAllTypesIndex(client, indexName, nodeId, mode);
-            createAllTypesDoc(client, indexName);
+            createAllTypesIndex(client, minimumVersionAcrossAllNodes, indexName, nodeId, mode);
+            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName);
         }
     }
 
@@ -709,10 +789,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private static final String LOOKUP_ID_FIELD = "lookup_id";
 
-    protected static void createAllTypesIndex(RestClient client, String indexName, String nodeId, IndexMode mode) throws IOException {
-        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
-        TransportVersion minimumVersion = minVersion(nodeInfoMap);
-
+    protected static void createAllTypesIndex(
+        RestClient client,
+        TransportVersion minimumVersionAcrossAllNodes,
+        String indexName,
+        String nodeId,
+        IndexMode mode
+    ) throws IOException {
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         {
             config.startObject("settings");
@@ -735,7 +818,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.endObject();
 
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type, minimumVersion) == false) {
+                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
                 config.startObject(fieldName(type));
@@ -773,15 +856,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void createAllTypesDoc(RestClient client, String indexName) throws IOException {
-        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
-        TransportVersion minimumVersion = minVersion(nodeInfoMap);
-
+    protected static void createAllTypesDoc(RestClient client, TransportVersion minimumVersionAcrossAllNodes, String indexName)
+        throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type, minimumVersion) == false) {
+            if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             doc.field(fieldName(type));
@@ -862,10 +943,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         doc.endObject();
     }
 
-    protected static void createEnrichPolicy(RestClient client, String indexName, String policyName) throws IOException {
-        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
-        TransportVersion minimumVersion = minVersion(nodeInfoMap);
-
+    protected static void createEnrichPolicy(
+        RestClient client,
+        TransportVersion minimumVersionAcrossAllNodes,
+        String indexName,
+        String policyName
+    ) throws IOException {
         XContentBuilder policyConfig = JsonXContent.contentBuilder().startObject();
         {
             policyConfig.startObject("match");
@@ -874,7 +957,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             policyConfig.field("match_field", LOOKUP_ID_FIELD);
             List<String> enrichFields = new ArrayList<>();
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type, minimumVersion) == false || supportedInEnrich(type) == false) {
+                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false || supportedInEnrich(type) == false) {
                     continue;
                 }
                 enrichFields.add(fieldName(type));
@@ -920,31 +1003,45 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
                 // See expectedType for an explanation
-                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minimumVersion.supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
-                    yield nullValue();
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, false)
+                    && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
+                    yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
                 }
-                yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(nullValue(), equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}"));
+                }
+                yield nullValue();
             }
             case EXPONENTIAL_HISTOGRAM -> equalTo(
                 xContentToMap(builder -> ExponentialHistogramXContent.serialize(builder, EXPONENTIAL_HISTOGRAM_VALUE))
             );
             case TDIGEST -> equalTo(xContentToJson(AllSupportedFieldsTestCase::createTDigestValue));
-            case HISTOGRAM -> equalTo(xContentToJson(AllSupportedFieldsTestCase::createHistogramValue));
+            case HISTOGRAM -> {
+                if (HISTOGRAM.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                    yield equalTo(xContentToJson(AllSupportedFieldsTestCase::createHistogramValue));
+                }
+                yield nullValue();
+            }
             case DENSE_VECTOR -> {
                 // See expectedType for an explanation
-                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minimumVersion.supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
-                    yield nullValue();
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
+                    && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
+                    yield equalTo(List.of(0.5, 10.0, 5.9999995));
                 }
-                yield equalTo(List.of(0.5, 10.0, 5.9999995));
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // On previous versions where DENSE_VECTOR was still under construction, we could end up with
+                    // [0.04283529, 0.85670584, 0.5140235] instead of [0.5, 10.0, 5.9999995]. We'll ignore the exact value for versions
+                    // before the actual release of the type.
+                    if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                        yield anyOf(nullValue(), instanceOf(List.class));
+                    }
+                }
+                yield nullValue();
             }
             case DATE_RANGE -> {
-                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
-                if (isSingleNodeSnapshot()) {
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
                 }
-                // All other builds are not snapshot, so this will always be null here.
                 yield nullValue();
             }
 
@@ -968,7 +1065,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     /**
      * Is the type supported in indices?
      */
-    private static boolean supportedInIndex(DataType t, TransportVersion minimumVersion) {
+    private static boolean supportedInIndex(DataType t, TransportVersion version) {
         return switch (t) {
             // These are supported but implied by the index process.
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
@@ -979,8 +1076,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
-            case TDIGEST -> DataType.TDIGEST.supportedVersion().supportedOn(minimumVersion, false);
-            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false);
+            // EXPONENTIAL_HISTOGRAM was added to ES and ES|QL at the same time, which is why we can use supportedVersion()
+            // to decide whether indices can have fields of this type.
+            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion()
+                .supportedOn(version, Build.current().isSnapshot());
+            case TDIGEST -> DataType.TDIGEST.supportedVersion().supportedOn(version, Build.current().isSnapshot());
             default -> true;
         };
     }
@@ -1039,7 +1139,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    private Matcher<String> expectedType(
+    private static Matcher<String> expectedType(
         DataType type,
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersion,
@@ -1061,28 +1161,37 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // (Unless the query uses functions that depend on this type, which is a workaround
                 // for missing version-awareness in 9.2.0, and not considered here.)
                 // RESOLVE_FIELDS_RESPONSE_USED_TV is newer and marks the point when coordinators
-                // started to be able to plan for this data type, and will consider it supported if
-                // all nodes are on ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION or newer.
-                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minimumVersion.supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
-                    yield equalTo("unsupported");
+                // started to be able to plan for this data type if the field caps response indicated
+                // a sufficiently high minimum transport version across all nodes.
+                // On SNAPSHOT builds, we considered the type supported since the moment it was added.
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, false)
+                    && (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV))) {
+                    yield equalTo("aggregate_metric_double");
                 }
-                yield equalTo("aggregate_metric_double");
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // In CCS, a new coordinating cluster with an old remote cluster may end up treating the type as unsupported
+                    // because the old remote may not tell us its minimum transport version in the field caps response.
+                    // In this case, the coordinator has to assume the minimum compatible transport version, which may not support
+                    // the type, yet.
+                    yield anyOf(equalTo("aggregate_metric_double"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
             }
             case DENSE_VECTOR -> {
                 // Same dance as for AGGREGATE_METRIC_DOUBLE
-                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minimumVersion.supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
-                    yield equalTo("unsupported");
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
+                    && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
+                    yield equalTo("dense_vector");
                 }
-                yield equalTo("dense_vector");
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("dense_vector"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
             }
             case DATE_RANGE -> {
-                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
-                if (isSingleNodeSnapshot()) {
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     yield equalTo("date_range");
                 }
-                // We're running non-snapshot nodes.
                 yield equalTo("unsupported");
             }
             case HISTOGRAM -> {
@@ -1149,7 +1258,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return minVersion(allNodeToInfo());
     }
 
-    protected static TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) throws IOException {
+    protected static TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) {
         return nodeToInfo.values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
     }
 

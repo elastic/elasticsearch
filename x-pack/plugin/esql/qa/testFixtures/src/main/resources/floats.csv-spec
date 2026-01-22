@@ -311,6 +311,7 @@ a:double | acos:double
 ;
 
 acosh
+required_capability: acosh_function
 // tag::acosh[]
 ROW a=1.8
 | EVAL acosh=ACOSH(a)

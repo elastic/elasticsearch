@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeSet;
 
 public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
 
@@ -41,7 +40,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
 
-                        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", new TreeSet<>());
+                        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
                         var countField = new NumericDocValuesField("field.counts", 1);
 
@@ -87,7 +86,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document document = new Document();
 
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", new TreeSet<>());
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
                 var countField = new NumericDocValuesField("field.counts", 1);
                 document.add(field);

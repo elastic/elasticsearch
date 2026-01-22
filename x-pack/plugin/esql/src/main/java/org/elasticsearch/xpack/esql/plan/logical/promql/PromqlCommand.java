@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
@@ -243,7 +245,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append(" start=[").append(start);
@@ -257,31 +259,26 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
+    protected AttributeSet computeReferences() {
+        // Ensures field resolution is aware of all attributes used in the PromQL plan.
+        AttributeSet.Builder references = AttributeSet.builder();
+        promqlPlan().forEachDown(lp -> references.addAll(lp.references()));
+        return references.build();
+    }
+
+    @Override
     public void postAnalysisVerification(Failures failures) {
         LogicalPlan p = promqlPlan();
+        // TODO(sidosera): Remove once instant query support is added.
+        if (isInstantQuery()) {
+            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
+            return;
+        }
 
-        // Validate top-level expression
-        switch (p) {
-            case VectorBinaryOperator vectorBinaryOperator -> failures.add(
-                // TODO add support for top-level binary operators in TranslateTimeSeriesAggregate
-                // The limitation is in TS|STATS aggregation translation, not in PromQL support.
-                // We do support VectorBinaryArithmetic operators as nested expressions, but not at the top-level of a query.
-                fail(p, "top-level binary operators are not supported at this time [{}]", p.sourceText())
+        if (p instanceof RangeSelector && isRangeQuery()) {
+            failures.add(
+                fail(p, "invalid expression type \"range vector\" for range query, must be scalar or instant vector", p.sourceText())
             );
-            case RangeSelector rangeSelector -> {
-                if (isRangeQuery()) {
-                    failures.add(
-                        fail(
-                            p,
-                            "invalid expression type \"range vector\" for range query, must be scalar or instant vector",
-                            p.sourceText()
-                        )
-                    );
-                }
-            }
-            default -> {
-                // ok
-            }
         }
 
         // Validate entire plan
@@ -291,6 +288,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 case Selector s -> {
                     if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
                         failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
+                    }
+                    if (s.series() == null) {
+                        failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
                     }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
@@ -315,7 +315,13 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                                 )
                             );
                         }
+                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
+                        }
                     }
+                }
+                case ScalarFunction scalarFunction -> {
+                    // ok
                 }
                 case VectorBinaryOperator binaryOperator -> {
                     binaryOperator.children().forEach(child -> {
@@ -325,6 +331,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                             );
                         }
                     });
+                    if (binaryOperator.match() != VectorMatch.NONE) {
+                        failures.add(
+                            fail(
+                                lp,
+                                "{} queries with group modifiers are not supported at this time [{}]",
+                                lp.getClass().getSimpleName(),
+                                lp.sourceText()
+                            )
+                        );
+                    }
                     if ((binaryOperator instanceof VectorBinaryArithmetic) == false) {
                         failures.add(
                             fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())

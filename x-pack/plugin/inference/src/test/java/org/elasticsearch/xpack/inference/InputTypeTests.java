@@ -44,6 +44,14 @@ public class InputTypeTests extends ESTestCase {
             );
     }
 
+    public static InputType randomRequestType() {
+        return randomFrom(InputType.INGEST, InputType.SEARCH, InputType.CLUSTERING, InputType.CLASSIFICATION);
+    }
+
+    public static InputType randomRequestTypeWithNull() {
+        return randomFrom(InputType.INGEST, InputType.SEARCH, InputType.CLUSTERING, InputType.CLASSIFICATION, null);
+    }
+
     public static InputType randomSearchAndIngestWithNull() {
         return randomBoolean()
             ? null

@@ -1575,10 +1575,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         if (randomBoolean()) {
-            settings.put(
-                SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current())
-            );
+            settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()));
         }
         request.settings(settings.build());
         IllegalArgumentException error = expectThrows(
@@ -1612,7 +1609,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
-        settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0));
+        settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0));
         request.settings(settings.build());
         aggregateIndexSettings(
             ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(ProjectMetadata.builder(projectId).build()).build(),
@@ -1677,7 +1674,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             assertThat(updatedClusterState.routingTable(projectId).index("test"), is(notNullValue()));
         }
         {
-            var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+            var minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
             var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .putProjectMetadata(ProjectMetadata.builder(projectId))
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
@@ -1715,7 +1712,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
         boolean useRefreshBlock = randomBoolean();
-        var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        var minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
             Settings.builder()

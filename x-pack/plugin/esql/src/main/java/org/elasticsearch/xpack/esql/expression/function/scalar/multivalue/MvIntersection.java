@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -21,13 +20,10 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -37,30 +33,19 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Adds a function to return a result set with multivalued items that are contained in the input sets.
  * Example:
  *   Given set A = {"a","b","c"} and set B = {"b","c","d"}, MV_INTERSECTION(A, B) returns {"b", "c"}
  */
-public class MvIntersection extends BinaryScalarFunction implements EvaluatorMapper {
+public class MvIntersection extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvIntersection",
         MvIntersection::new
     );
-
-    private DataType dataType;
 
     @FunctionInfo(
         returnType = {
@@ -147,85 +132,53 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
-    @Override
-    public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
-    }
-
     @Evaluator(extraName = "Boolean")
     static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field1, BooleanBlock field2) {
-        processIntersectionSet(
+        processSetOperation(
             builder,
             position,
             field1,
             field2,
-            (p, block) -> ((BooleanBlock) block).getBoolean(p),
-            builder::appendBoolean
+            (p, b) -> ((BooleanBlock) b).getBoolean(p),
+            builder::appendBoolean,
+            Set::retainAll
         );
     }
 
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field1, BytesRefBlock field2) {
-        processIntersectionSet(builder, position, field1, field2, (p, block) -> {
-            BytesRef value = new BytesRef();
-            return ((BytesRefBlock) block).getBytesRef(p, value);
-        }, builder::appendBytesRef);
+        processSetOperation(
+            builder,
+            position,
+            field1,
+            field2,
+            (p, b) -> ((BytesRefBlock) b).getBytesRef(p, new BytesRef()),
+            builder::appendBytesRef,
+            Set::retainAll
+        );
     }
 
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
-        processIntersectionSet(builder, position, field1, field2, (p, block) -> ((IntBlock) block).getInt(p), builder::appendInt);
+        processSetOperation(builder, position, field1, field2, (p, b) -> ((IntBlock) b).getInt(p), builder::appendInt, Set::retainAll);
     }
 
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
-        processIntersectionSet(builder, position, field1, field2, (p, block) -> ((LongBlock) block).getLong(p), builder::appendLong);
+        processSetOperation(builder, position, field1, field2, (p, b) -> ((LongBlock) b).getLong(p), builder::appendLong, Set::retainAll);
     }
 
     @Evaluator(extraName = "Double")
     static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field1, DoubleBlock field2) {
-        processIntersectionSet(builder, position, field1, field2, (p, block) -> ((DoubleBlock) block).getDouble(p), builder::appendDouble);
-    }
-
-    @Override
-    public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
-        return dataType;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        if (left().dataType() != DataType.NULL && right().dataType() != DataType.NULL) {
-            this.dataType = left().dataType().noText();
-            return isType(
-                right(),
-                t -> t.noText() == left().dataType().noText(),
-                sourceText(),
-                SECOND,
-                left().dataType().noText().typeName()
-            );
-        }
-
-        Expression evaluatedField = left().dataType() == DataType.NULL ? right() : left();
-
-        this.dataType = evaluatedField.dataType().noText();
-
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
-            evaluatedField,
-            sourceText(),
-            FIRST
+        processSetOperation(
+            builder,
+            position,
+            field1,
+            field2,
+            (p, b) -> ((DoubleBlock) b).getDouble(p),
+            builder::appendDouble,
+            Set::retainAll
         );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return resolution;
     }
 
     @Override
@@ -259,65 +212,5 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
     @Override
     public Nullability nullable() {
         return Nullability.TRUE;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(left(), right());
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvIntersection other = (MvIntersection) obj;
-        return Objects.equals(other.left(), left()) && Objects.equals(other.right(), right());
-    }
-
-    static <T> void processIntersectionSet(
-        Block.Builder builder,
-        int position,
-        Block field1,
-        Block field2,
-        BiFunction<Integer, Block, T> getValueFunction,
-        Consumer<T> addValueFunction
-    ) {
-        int firstValueCount = field1.getValueCount(position);
-        int secondValueCount = field2.getValueCount(position);
-
-        if (firstValueCount == 0 || secondValueCount == 0) {
-            // If either block has no values, there will be no intersection
-            builder.appendNull();
-            return;
-        }
-
-        // Extract values from first field into OperationalSet (preserves order)
-        MvSetOperationHelper.OperationalSet<T> firstSet = new MvSetOperationHelper.OperationalSet<>();
-        int firstValueIndex = field1.getFirstValueIndex(position);
-        for (int i = 0; i < firstValueCount; i++) {
-            firstSet.add(getValueFunction.apply(firstValueIndex + i, field1));
-        }
-
-        // Extract values from second field (HashSet - order doesn't matter for lookup)
-        Set<T> secondSet = new HashSet<>();
-        int secondValueIndex = field2.getFirstValueIndex(position);
-        for (int i = 0; i < secondValueCount; i++) {
-            secondSet.add(getValueFunction.apply(secondValueIndex + i, field2));
-        }
-
-        // Compute intersection in-place
-        Set<T> result = firstSet.intersect(secondSet);
-
-        if (result.isEmpty()) {
-            builder.appendNull();
-            return;
-        }
-
-        builder.beginPositionEntry();
-        for (T value : result) {
-            addValueFunction.accept(value);
-        }
-        builder.endPositionEntry();
     }
 }

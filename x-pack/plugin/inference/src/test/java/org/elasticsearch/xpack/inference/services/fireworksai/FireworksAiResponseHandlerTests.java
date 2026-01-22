@@ -44,7 +44,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor503() {
+    public void testCheckForFailureStatusCode_ThrowsFor503_WithShouldRetryFalse() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, "id"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -64,7 +64,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor401() {
+    public void testCheckForFailureStatusCode_ThrowsFor401_WithShouldRetryFalse() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, "inferenceEntityId"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -76,7 +76,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor400() {
+    public void testCheckForFailureStatusCode_ThrowsFor400_WithShouldRetryFalse() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(400, "id"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -86,7 +86,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor300() {
+    public void testCheckForFailureStatusCode_ThrowsFor300_WithShouldRetryFalse() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(300, "id"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(

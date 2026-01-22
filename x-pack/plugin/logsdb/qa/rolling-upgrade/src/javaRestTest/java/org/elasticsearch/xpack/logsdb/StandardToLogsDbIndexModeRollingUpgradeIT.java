@@ -44,7 +44,11 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractStringTyp
         }""";
 
     @ClassRule
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionClusterWithLogsDisabled(USER, PASS);
+    public static final ElasticsearchCluster cluster = Clusters.oldVersionClusterWithLogsDisabled(
+        USER,
+        PASS,
+        () -> initTestSeed().nextBoolean()
+    );
 
     @Override
     protected ElasticsearchCluster getCluster() {

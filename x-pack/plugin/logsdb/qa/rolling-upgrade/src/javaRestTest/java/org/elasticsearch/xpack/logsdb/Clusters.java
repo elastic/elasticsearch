@@ -12,7 +12,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
-import static org.elasticsearch.test.ESTestCase.initTestSeed;
+import java.util.function.Supplier;
 
 public class Clusters {
 
@@ -20,20 +20,20 @@ public class Clusters {
         return clusterBuilder(user, pass).build();
     }
 
-    public static ElasticsearchCluster oldVersionClusterWithLogsDisabled(String user, String pass) {
+    public static ElasticsearchCluster oldVersionClusterWithLogsDisabled(String user, String pass, Supplier<Boolean> useTrialLicense) {
         var cluster = clusterBuilder(user, pass);
 
         // LogsDB is enabled by default for data streams matching the logs-*-* pattern, and since we upgrade from standard to logsdb,
         // we need to start with logsdb disabled, then later enable it and rollover
         cluster.setting("cluster.logsdb.enabled", "false")
-                .setting("stack.templates.enabled", "false")
-                .module("constant-keyword")
-                .module("data-streams")
-                .module("mapper-extras")
-                .module("x-pack-aggregate-metric")
-                .module("x-pack-stack")
-                .setting("xpack.security.autoconfiguration.enabled", "false")
-                .setting("xpack.license.self_generated.type", initTestSeed().nextBoolean() ? "trial" : "basic");
+            .setting("stack.templates.enabled", "false")
+            .module("constant-keyword")
+            .module("data-streams")
+            .module("mapper-extras")
+            .module("x-pack-aggregate-metric")
+            .module("x-pack-stack")
+            .setting("xpack.security.autoconfiguration.enabled", "false")
+            .setting("xpack.license.self_generated.type", useTrialLicense.get() ? "trial" : "basic");
 
         return cluster.build();
     }
@@ -46,12 +46,12 @@ public class Clusters {
 
         // define cluster
         var cluster = ElasticsearchCluster.local()
-                .distribution(DistributionType.DEFAULT)
-                .setting("xpack.security.enabled", "true")
-                .user(user, pass)
-                .keystore("bootstrap.password", pass)
-                .jvmArg("-da:org.elasticsearch.index.translog.TranslogWriter")
-                .setting("xpack.license.self_generated.type", "trial");
+            .distribution(DistributionType.DEFAULT)
+            .setting("xpack.security.enabled", "true")
+            .user(user, pass)
+            .keystore("bootstrap.password", pass)
+            .jvmArg("-da:org.elasticsearch.index.translog.TranslogWriter")
+            .setting("xpack.license.self_generated.type", "trial");
 
         // add nodes
         int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
@@ -68,6 +68,6 @@ public class Clusters {
 
     private static boolean supportRetryOnShardFailures(Version version) {
         return version.onOrAfter(Version.fromString("9.1.0"))
-                || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
     }
 }

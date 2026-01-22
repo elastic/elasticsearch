@@ -95,8 +95,8 @@ public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotStats.shardSnapshotsInProgress(), equalTo(0L));
         assertThat(snapshotStats.numberOfBlobsUploaded(), greaterThan(0L));
         assertThat(snapshotStats.numberOfBytesUploaded(), greaterThan(0L));
-        assertThat(snapshotStats.totalUploadTimeInMillis(), greaterThan(0L));
-        assertThat(snapshotStats.totalUploadReadTimeInMillis(), greaterThan(0L));
-        assertThat(snapshotStats.totalUploadReadTimeInMillis(), lessThanOrEqualTo(snapshotStats.totalUploadTimeInMillis()));
+        assertThat(snapshotStats.totalUploadTimeInNanos(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadReadTimeInNanos(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadReadTimeInNanos(), lessThanOrEqualTo(snapshotStats.totalUploadTimeInNanos()));
     }
 }

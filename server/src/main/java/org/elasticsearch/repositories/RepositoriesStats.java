@@ -52,6 +52,19 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(repositorySnapshotStats);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RepositoriesStats that = (RepositoriesStats) o;
+        return repositorySnapshotStats.equals(that.repositorySnapshotStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return repositorySnapshotStats.hashCode();
+    }
+
     public record SnapshotStats(
         long shardSnapshotsStarted,
         long shardSnapshotsCompleted,
@@ -60,13 +73,14 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         long totalWriteThrottledNanos,
         long numberOfBlobsUploaded,
         long numberOfBytesUploaded,
-        long totalUploadTimeInMillis,
-        long totalUploadReadTimeInMillis
+        long totalUploadTimeInNanos,
+        long totalUploadReadTimeInNanos
     ) implements ToXContentObject, Writeable {
 
         private static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = TransportVersion.fromName(
             "extended_snapshot_stats_in_node_info"
         );
+        static final TransportVersion UPLOAD_TIME_NANOS = TransportVersion.fromName("snapshot_upload_time_nanos");
 
         public static final SnapshotStats ZERO = new SnapshotStats(0, 0);
 
@@ -74,16 +88,35 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             final long totalReadThrottledNanos = in.readVLong();
             final long totalWriteThrottledNanos = in.readVLong();
             if (in.getTransportVersion().supports(EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
+                final long shardSnapshotsStarted = in.readVLong();
+                final long shardSnapshotsCompleted = in.readVLong();
+                final long shardSnapshotsInProgress = in.readVLong();
+                final long numberOfBlobsUploaded = in.readVLong();
+                final long numberOfBytesUploaded = in.readVLong();
+
+                final long uploadTimeNanos;
+                final long uploadReadTimeNanos;
+                // If we support nanoseconds, then no need to modify the value
+                if (in.getTransportVersion().supports(UPLOAD_TIME_NANOS)) {
+                    uploadTimeNanos = in.readVLong();
+                    uploadReadTimeNanos = in.readVLong();
+                }
+                // For older transport versions, we have to convert the milliseconds into nanoseconds
+                else {
+                    uploadTimeNanos = TimeUnit.MILLISECONDS.toNanos(in.readVLong());
+                    uploadReadTimeNanos = TimeUnit.MILLISECONDS.toNanos(in.readVLong());
+                }
+
                 return new SnapshotStats(
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
+                    shardSnapshotsStarted,
+                    shardSnapshotsCompleted,
+                    shardSnapshotsInProgress,
                     totalReadThrottledNanos,
                     totalWriteThrottledNanos,
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong()
+                    numberOfBlobsUploaded,
+                    numberOfBytesUploaded,
+                    uploadTimeNanos,
+                    uploadReadTimeNanos
                 );
             } else {
                 return new SnapshotStats(totalReadThrottledNanos, totalWriteThrottledNanos);
@@ -111,13 +144,15 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(
                 "total_upload_time_in_millis",
                 "total_upload_time",
-                TimeValue.timeValueMillis(totalUploadTimeInMillis)
+                TimeValue.timeValueNanos(totalUploadTimeInNanos).millis()
             );
             builder.humanReadableField(
                 "total_read_time_in_millis",
                 "total_read_time",
-                TimeValue.timeValueMillis(totalUploadReadTimeInMillis)
+                TimeValue.timeValueNanos(totalUploadReadTimeInNanos).millis()
             );
+            builder.humanReadableField("total_upload_time_in_nanos", "total_upload_time_nanos", totalUploadTimeInNanos);
+            builder.humanReadableField("total_read_time_in_nanos", "total_read_time_nanos", totalUploadReadTimeInNanos);
             builder.endObject();
             return builder;
         }
@@ -132,8 +167,17 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
                 out.writeVLong(shardSnapshotsInProgress);
                 out.writeVLong(numberOfBlobsUploaded);
                 out.writeVLong(numberOfBytesUploaded);
-                out.writeVLong(totalUploadTimeInMillis);
-                out.writeVLong(totalUploadReadTimeInMillis);
+
+                // If we support nanoseconds, then no need to modify the value
+                if (out.getTransportVersion().supports(UPLOAD_TIME_NANOS)) {
+                    out.writeVLong(totalUploadTimeInNanos);
+                    out.writeVLong(totalUploadReadTimeInNanos);
+                }
+                // For older transport versions, we have to convert the nanoseconds back to milliseconds
+                else {
+                    out.writeVLong(TimeUnit.NANOSECONDS.toMillis(totalUploadTimeInNanos));
+                    out.writeVLong(TimeUnit.NANOSECONDS.toMillis(totalUploadReadTimeInNanos));
+                }
             }
         }
     }

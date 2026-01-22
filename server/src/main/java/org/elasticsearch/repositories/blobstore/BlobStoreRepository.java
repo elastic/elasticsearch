@@ -4232,18 +4232,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read() throws IOException {
                         checkAborted();
-                        final long beforeReadMillis = threadPool.rawRelativeTimeInMillis();
+                        final long beforeReadNanos = threadPool.relativeTimeInNanos();
                         int value = super.read();
-                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.rawRelativeTimeInMillis() - beforeReadMillis);
+                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.relativeTimeInNanos() - beforeReadNanos);
                         return value;
                     }
 
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         checkAborted();
-                        final long beforeReadMillis = threadPool.rawRelativeTimeInMillis();
+                        final long beforeReadNanos = threadPool.relativeTimeInNanos();
                         int amountRead = super.read(b, off, len);
-                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.rawRelativeTimeInMillis() - beforeReadMillis);
+                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.relativeTimeInNanos() - beforeReadNanos);
                         return amountRead;
                     }
 

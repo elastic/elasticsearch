@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -223,18 +222,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         String content = str.utf8ToString();
         List<String> chunks = chunkText(content, chunkingSettings);
         emitChunks(builder, chunks);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Chunk chunk = (Chunk) o;
-        return Objects.equals(field(), chunk.field()) && Objects.equals(chunkingSettings(), chunk.chunkingSettings());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), chunkingSettings());
     }
 
     @Override

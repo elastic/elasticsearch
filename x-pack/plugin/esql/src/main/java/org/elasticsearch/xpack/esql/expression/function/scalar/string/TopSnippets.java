@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -245,18 +244,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         List<ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, queryString, numSnippets, false);
         List<String> snippets = scoredChunks.stream().map(ScoredChunk::content).limit(numSnippets).toList();
         emitChunks(builder, snippets);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        TopSnippets chunk = (TopSnippets) o;
-        return Objects.equals(field, chunk.field) && Objects.equals(query, chunk.query) && Objects.equals(options, chunk.options);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, query, options);
     }
 
     @Override

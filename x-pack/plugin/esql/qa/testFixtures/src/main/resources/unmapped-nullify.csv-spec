@@ -427,16 +427,15 @@ null           |1985           |null           |abc            |fork3
 
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
-required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
-# `c` should be just 0 : https://github.com/elastic/elasticsearch/issues/139887
 x:integer      |does_not_exist:null|c:long         |s:double       |d:null
-1              |null               |null           |null           |null
+1              |null               |1              |null           |null
 ;
 
 lookupJoin

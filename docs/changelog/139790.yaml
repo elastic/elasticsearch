@@ -1,0 +1,5 @@
+pr: 139790
+summary: Add `semantic_text` field type to MMR Result Diversification Retriever
+area: Search
+type: feature
+issues: []

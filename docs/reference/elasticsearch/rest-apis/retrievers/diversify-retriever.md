@@ -29,7 +29,7 @@ The ordering of results returned from the inner retriever is preserved.
 :   (Required, string)
 
     The name of the field that will use its values for the diversification process.
-    The field must be a `dense_vector` type.
+    The field type must be a `dense_vector` or a `semantic_text` field with dense vector embeddings.
 
 `rank_window_size`
 :   (Optional, integer)
@@ -58,7 +58,6 @@ The ordering of results returned from the inner retriever is preserved.
     Defines a [model](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to build a query vector.
     If you provide a `query_vector_builder`, you cannot also provide a `query_vector`.
 
-
 `lambda`
 :   (Required for `mmr`, float)
 
@@ -68,6 +67,15 @@ The ordering of results returned from the inner retriever is preserved.
 :   (Optional, only if `mmr` is used, integer)
 
     The maximum number of top-N results to return. Defaults to 10.
+
+`top_n_chunks`
+:    (Optional, integer)
+
+    **This parameter applies to `semantic_text` fields only**.
+    The maximum number of chunks to be considered for diversification.
+    If a query vector or builder is provided, the top N chunks most relevant to the query vector are used.
+    If no query vector is available, the first N chunks are used.
+    Defaults to 100.
 
 ## Example
 

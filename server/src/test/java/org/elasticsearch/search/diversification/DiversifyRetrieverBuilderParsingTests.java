@@ -60,7 +60,8 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             size,
             queryVector,
             null,
-            lambda
+            lambda,
+            100
         );
     }
 

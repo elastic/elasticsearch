@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.inference.Utils;
 import org.junit.Assume;
 
 import java.util.Arrays;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -143,7 +142,8 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
                             testConfiguration.commonConfig().createModelSecrets()
                         ),
                         getModelCreator(),
-                        TaskType.ANY
+                        // We expect failure, so the expected task type is irrelevant
+                        null
                     ).expectFailure().build() } }
         );
     }
@@ -166,25 +166,27 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
 
     public void testBuildModelFromConfigAndSecrets() {
         var commonConfig = testConfiguration.commonConfig();
+        // If the service doesn't support the expected task type, then skip the test
+        Assume.assumeTrue(
+            "Service doesn't support task type",
+            testCase.expectedTaskType == null || commonConfig.supportedTaskTypes().contains(testCase.expectedTaskType)
+        );
+        var modelConfigAndSecrets = testCase.createModelConfigAndSecrets.apply(testConfiguration);
+        var service = commonConfig.createService(threadPool, clientManager);
         if (testCase.expectFailure == false) {
-            // If the service doesn't support the expected task type, then skip the test
-            Assume.assumeTrue("service doesn't support task type", commonConfig.supportedTaskTypes().contains(testCase.expectedTaskType));
 
             // If the test case expects success, verify model creation success
-            buildModelAndAssert(commonConfig, this::assertSuccessfulModelCreation);
+            assertSuccessfulModelCreation(service, modelConfigAndSecrets);
         } else {
             // If the test case expects failure, ignore expected task type and verify model creation failure
-            buildModelAndAssert(commonConfig, this::assertFailedModelCreation);
+            assertFailedModelCreation(service, modelConfigAndSecrets);
         }
     }
 
-    private void buildModelAndAssert(
-        CommonConfig commonConfig,
-        BiConsumer<SenderService, Utils.ModelConfigAndSecrets> assertionBiConsumer
-    ) {
-        var modelConfigAndSecrets = testCase.createModelConfigAndSecrets.apply(testConfiguration);
-        var service = commonConfig.createService(threadPool, clientManager);
-        assertionBiConsumer.accept(service, modelConfigAndSecrets);
+    private void assertSuccessfulModelCreation(SenderService service, Utils.ModelConfigAndSecrets persistedConfig) {
+        var model = testCase.modelCreator.buildModel(new ModelCreatorParams(service, persistedConfig, testConfiguration));
+
+        testConfiguration.commonConfig().assertModel(model, testCase.expectedTaskType, true, ConfigurationParseContext.PERSISTENT);
     }
 
     private void assertFailedModelCreation(SenderService service, Utils.ModelConfigAndSecrets modelConfigAndSecrets) {
@@ -199,11 +201,5 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
                 Strings.format("service does not support task type [%s]", testConfiguration.commonConfig().unsupportedTaskType())
             )
         );
-    }
-
-    private void assertSuccessfulModelCreation(SenderService service, Utils.ModelConfigAndSecrets persistedConfig) {
-        var model = testCase.modelCreator.buildModel(new ModelCreatorParams(service, persistedConfig, testConfiguration));
-
-        testConfiguration.commonConfig().assertModel(model, testCase.expectedTaskType, true, ConfigurationParseContext.PERSISTENT);
     }
 }

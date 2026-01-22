@@ -110,141 +110,236 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                 // Test cases for parsePersistedConfig method
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config without chunking settings",
-                        testConfiguration -> getPersistedConfigMap(
-                            testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
-                            null
-                        ),
-                        params -> params.service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, params.persistedConfig.config()),
+                        "Test parsing text embedding persisted config without chunking settings returns model",
+                        persistedConfigBasic(TaskType.TEXT_EMBEDDING),
+                        getServiceParser(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with chunking settings",
-                        testConfiguration -> getPersistedConfigMap(
-                            testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
-                            createRandomChunkingSettingsMap(),
-                            null
-                        ),
-                        params -> params.service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, params.persistedConfig.config()),
+                        "Test parsing text embedding persisted config with chunking settings returns model",
+                        persistedConfigWithChunking(TaskType.TEXT_EMBEDDING),
+                        getServiceParser(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing sparse embedding persisted config without chunking settings returns model",
+                        persistedConfigBasic(TaskType.SPARSE_EMBEDDING),
+                        getServiceParser(TaskType.SPARSE_EMBEDDING),
+                        TaskType.SPARSE_EMBEDDING
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing sparse embedding persisted config with chunking settings returns model",
+                        persistedConfigWithChunking(TaskType.SPARSE_EMBEDDING),
+                        getServiceParser(TaskType.SPARSE_EMBEDDING),
+                        TaskType.SPARSE_EMBEDDING
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing embedding persisted config without chunking settings returns model",
+                        persistedConfigBasic(TaskType.EMBEDDING),
+                        getServiceParser(TaskType.EMBEDDING),
+                        TaskType.EMBEDDING
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing embedding persisted config with chunking settings returns model",
+                        persistedConfigWithChunking(TaskType.EMBEDDING),
+                        getServiceParser(TaskType.EMBEDDING),
+                        TaskType.EMBEDDING
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing completion persisted config returns model",
+                        persistedConfigBasic(TaskType.COMPLETION),
+                        getServiceParser(TaskType.COMPLETION),
+                        TaskType.COMPLETION
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing chat completion persisted config returns model",
+                        persistedConfigBasic(TaskType.CHAT_COMPLETION),
+                        getServiceParser(TaskType.CHAT_COMPLETION),
+                        TaskType.CHAT_COMPLETION
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing rerank persisted config returns model",
+                        persistedConfigBasic(TaskType.RERANK),
+                        getServiceParser(TaskType.RERANK),
+                        TaskType.RERANK
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config throws exception for unsupported task type",
+                        testConfiguration -> getPersistedConfigMap(
+                            testConfiguration.commonConfig()
+                                .createServiceSettingsMap(
+                                    testConfiguration.commonConfig().targetTaskType(),
+                                    ConfigurationParseContext.PERSISTENT
+                                ),
+                            testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
+                            null
+                        ),
+                        params -> params.service.parsePersistedConfig(
+                            "id",
+                            params.testConfiguration.commonConfig().unsupportedTaskType(),
+                            params.persistedConfig.config()
+                        ),
+                        // We expect failure, so the expected task type is irrelevant
+                        null
+                    ).expectFailure().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing persisted config does not throw when an extra key exists in config",
                         testConfiguration -> {
                             var persistedConfigMap = getPersistedConfigMap(
                                 testConfiguration.commonConfig()
-                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
+                                    .createServiceSettingsMap(
+                                        testConfiguration.commonConfig().targetTaskType(),
+                                        ConfigurationParseContext.PERSISTENT
+                                    ),
+                                testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
                                 null
                             );
                             persistedConfigMap.config().put("extra_key", "value");
                             return persistedConfigMap;
                         },
-                        params -> params.service.parsePersistedConfig("id", TaskType.COMPLETION, params.persistedConfig.config()),
-                        TaskType.COMPLETION
+                        params -> params.service.parsePersistedConfig(
+                            "id",
+                            params.testConfiguration.commonConfig().targetTaskType(),
+                            params.persistedConfig.config()
+                        ),
+                        // Test expected task type is the target task type
+                        null
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing persisted config does not throw when an extra key exists in service settings",
                         testConfiguration -> {
                             var serviceSettings = testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT);
+                                .createServiceSettingsMap(
+                                    testConfiguration.commonConfig().targetTaskType(),
+                                    ConfigurationParseContext.PERSISTENT
+                                );
                             serviceSettings.put("extra_key", "value");
 
                             return getPersistedConfigMap(
                                 serviceSettings,
-                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
+                                testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
                                 null
                             );
                         },
-                        params -> params.service.parsePersistedConfig("id", TaskType.COMPLETION, params.persistedConfig.config()),
-                        TaskType.COMPLETION
+                        params -> params.service.parsePersistedConfig(
+                            "id",
+                            params.testConfiguration.commonConfig().targetTaskType(),
+                            params.persistedConfig.config()
+                        ),
+                        // Test expected task type is the target task type
+                        null
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing persisted config does not throw when an extra key exists in task settings",
                         testConfiguration -> {
-                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION);
+                            var taskSettingsMap = testConfiguration.commonConfig()
+                                .createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType());
                             taskSettingsMap.put("extra_key", "value");
 
                             return getPersistedConfigMap(
                                 testConfiguration.commonConfig()
-                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
+                                    .createServiceSettingsMap(
+                                        testConfiguration.commonConfig().targetTaskType(),
+                                        ConfigurationParseContext.PERSISTENT
+                                    ),
                                 taskSettingsMap,
                                 null
                             );
                         },
-                        params -> params.service.parsePersistedConfig("id", TaskType.COMPLETION, params.persistedConfig.config()),
-                        TaskType.COMPLETION
+                        params -> params.service.parsePersistedConfig(
+                            "id",
+                            params.testConfiguration.commonConfig().targetTaskType(),
+                            params.persistedConfig.config()
+                        ),
+                        // Test expected task type is the target task type
+                        null
                     ).build() },
                 // Test cases for parsePersistedConfigWithSecrets method
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with secrets creates an embeddings model",
-                        testConfiguration -> getPersistedConfigMap(
-                            testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
-                            testConfiguration.commonConfig().createSecretSettingsMap()
-                        ),
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            TaskType.TEXT_EMBEDDING,
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
-                        ),
+                        "Test parsing text embeddings persisted config with secrets, without chunking settings returns model",
+                        persistedConfigWithSecrets(TaskType.TEXT_EMBEDDING),
+                        getServiceParserWithSecrets(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with with secrets creates an embeddings "
-                            + "model when chunking settings are provided",
-                        testConfiguration -> getPersistedConfigMap(
-                            testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
-                            createRandomChunkingSettingsMap(),
-                            testConfiguration.commonConfig().createSecretSettingsMap()
-                        ),
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            TaskType.TEXT_EMBEDDING,
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
-                        ),
+                        "Test parsing text embeddings persisted config with secrets, with chunking settings returns model",
+                        persistedConfigWithSecretsAndChunking(TaskType.TEXT_EMBEDDING),
+                        getServiceParserWithSecrets(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with with secrets creates a completion "
-                            + "model when chunking settings are not provided",
-                        testConfiguration -> getPersistedConfigMap(
-                            testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
-                            testConfiguration.commonConfig().createSecretSettingsMap()
-                        ),
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            TaskType.COMPLETION,
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
-                        ),
+                        "Test parsing sparse embeddings persisted config with secrets, without chunking settings returns model",
+                        persistedConfigWithSecrets(TaskType.SPARSE_EMBEDDING),
+                        getServiceParserWithSecrets(TaskType.SPARSE_EMBEDDING),
+                        TaskType.SPARSE_EMBEDDING
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing sparse embeddings persisted config with secrets, with chunking settings returns model",
+                        persistedConfigWithSecretsAndChunking(TaskType.SPARSE_EMBEDDING),
+                        getServiceParserWithSecrets(TaskType.SPARSE_EMBEDDING),
+                        TaskType.SPARSE_EMBEDDING
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing embeddings persisted config with secrets, without chunking settings returns model",
+                        persistedConfigWithSecrets(TaskType.EMBEDDING),
+                        getServiceParserWithSecrets(TaskType.EMBEDDING),
+                        TaskType.EMBEDDING
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing embeddings persisted config with secrets, with chunking settings returns model",
+                        persistedConfigWithSecretsAndChunking(TaskType.EMBEDDING),
+                        getServiceParserWithSecrets(TaskType.EMBEDDING),
+                        TaskType.EMBEDDING
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing completion persisted config with secrets returns model",
+                        persistedConfigWithSecrets(TaskType.COMPLETION),
+                        getServiceParserWithSecrets(TaskType.COMPLETION),
                         TaskType.COMPLETION
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with with secrets throws exception for unsupported task type",
+                        "Test parsing chat completion persisted config with secrets returns model",
+                        persistedConfigWithSecrets(TaskType.CHAT_COMPLETION),
+                        getServiceParserWithSecrets(TaskType.CHAT_COMPLETION),
+                        TaskType.CHAT_COMPLETION
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing rerank persisted config with secrets returns model",
+                        persistedConfigWithSecrets(TaskType.RERANK),
+                        getServiceParserWithSecrets(TaskType.RERANK),
+                        TaskType.RERANK
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config with secrets throws exception for unsupported task type",
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                            testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
+                                .createServiceSettingsMap(
+                                    testConfiguration.commonConfig().targetTaskType(),
+                                    ConfigurationParseContext.PERSISTENT
+                                ),
+                            testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
                         params -> params.service.parsePersistedConfigWithSecrets(
@@ -253,16 +348,20 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             params.persistedConfig.config(),
                             params.persistedConfig.secrets()
                         ),
-                        TaskType.COMPLETION
+                        // We expect failure, so the expected task type is irrelevant
+                        null
                     ).withSecrets().expectFailure().build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with with secrets does not throw when an extra key exists in config",
+                        "Test parsing persisted config with secrets does not throw when an extra key exists in config",
                         testConfiguration -> {
                             var persistedConfigMap = getPersistedConfigMap(
                                 testConfiguration.commonConfig()
-                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
+                                    .createServiceSettingsMap(
+                                        testConfiguration.commonConfig().targetTaskType(),
+                                        ConfigurationParseContext.PERSISTENT
+                                    ),
+                                testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
                                 testConfiguration.commonConfig().createSecretSettingsMap()
                             );
                             persistedConfigMap.config().put("extra_key", "value");
@@ -270,89 +369,152 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                         },
                         params -> params.service.parsePersistedConfigWithSecrets(
                             "id",
-                            TaskType.COMPLETION,
+                            params.testConfiguration.commonConfig().targetTaskType(),
                             params.persistedConfig.config(),
                             params.persistedConfig.secrets()
                         ),
-                        TaskType.COMPLETION
+                        null
+                        // Test expected task type is the target task type
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with with secrets does not throw when an extra key exists in service settings",
+                        "Test parsing persisted config with secrets does not throw when an extra key exists in service settings",
                         testConfiguration -> {
                             var serviceSettings = testConfiguration.commonConfig()
-                                .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT);
+                                .createServiceSettingsMap(
+                                    testConfiguration.commonConfig().targetTaskType(),
+                                    ConfigurationParseContext.PERSISTENT
+                                );
                             serviceSettings.put("extra_key", "value");
 
                             return getPersistedConfigMap(
                                 serviceSettings,
-                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
+                                testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
                                 testConfiguration.commonConfig().createSecretSettingsMap()
                             );
                         },
                         params -> params.service.parsePersistedConfigWithSecrets(
                             "id",
-                            TaskType.COMPLETION,
+                            params.testConfiguration.commonConfig().targetTaskType(),
                             params.persistedConfig.config(),
                             params.persistedConfig.secrets()
                         ),
-                        TaskType.COMPLETION
+                        // Test expected task type is the target task type
+                        null
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with with secrets does not throw when an extra key exists in task settings",
+                        "Test parsing persisted config with secrets does not throw when an extra key exists in task settings",
                         testConfiguration -> {
-                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION);
+                            var taskSettingsMap = testConfiguration.commonConfig()
+                                .createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType());
                             taskSettingsMap.put("extra_key", "value");
 
                             return getPersistedConfigMap(
                                 testConfiguration.commonConfig()
-                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
+                                    .createServiceSettingsMap(
+                                        testConfiguration.commonConfig().targetTaskType(),
+                                        ConfigurationParseContext.PERSISTENT
+                                    ),
                                 taskSettingsMap,
                                 testConfiguration.commonConfig().createSecretSettingsMap()
                             );
                         },
                         params -> params.service.parsePersistedConfigWithSecrets(
                             "id",
-                            TaskType.COMPLETION,
+                            params.testConfiguration.commonConfig().targetTaskType(),
                             params.persistedConfig.config(),
                             params.persistedConfig.secrets()
                         ),
-                        TaskType.COMPLETION
+                        // Test expected task type is the target task type
+                        null
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
-                        "Test parsing persisted config with with secrets does not throw when an extra key exists in secret settings",
+                        "Test parsing persisted config with secrets does not throw when an extra key exists in secret settings",
                         testConfiguration -> {
                             var secretSettingsMap = testConfiguration.commonConfig().createSecretSettingsMap();
                             secretSettingsMap.put("extra_key", "value");
 
                             return getPersistedConfigMap(
                                 testConfiguration.commonConfig()
-                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
-                                testConfiguration.commonConfig().createTaskSettingsMap(TaskType.COMPLETION),
+                                    .createServiceSettingsMap(
+                                        testConfiguration.commonConfig().targetTaskType(),
+                                        ConfigurationParseContext.PERSISTENT
+                                    ),
+                                testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
                                 secretSettingsMap
                             );
                         },
                         params -> params.service.parsePersistedConfigWithSecrets(
                             "id",
-                            TaskType.COMPLETION,
+                            params.testConfiguration.commonConfig().targetTaskType(),
                             params.persistedConfig.config(),
                             params.persistedConfig.secrets()
                         ),
-                        TaskType.COMPLETION
+                        // Test expected task type is the target task type
+                        null
                     ).withSecrets().build() } }
         );
     }
 
+    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigBasic(TaskType taskType) {
+        return testConfiguration -> getPersistedConfigMap(
+            testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+            testConfiguration.commonConfig().createTaskSettingsMap(taskType),
+            null
+        );
+    }
+
+    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigWithChunking(TaskType taskType) {
+        return testConfiguration -> getPersistedConfigMap(
+            testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+            testConfiguration.commonConfig().createTaskSettingsMap(taskType),
+            createRandomChunkingSettingsMap(),
+            null
+        );
+    }
+
+    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigWithSecrets(TaskType taskType) {
+        return testConfiguration -> getPersistedConfigMap(
+            testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+            testConfiguration.commonConfig().createTaskSettingsMap(taskType),
+            testConfiguration.commonConfig().createSecretSettingsMap()
+        );
+    }
+
+    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigWithSecretsAndChunking(TaskType taskType) {
+        return testConfiguration -> getPersistedConfigMap(
+            testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+            testConfiguration.commonConfig().createTaskSettingsMap(taskType),
+            createRandomChunkingSettingsMap(),
+            testConfiguration.commonConfig().createSecretSettingsMap()
+        );
+    }
+
+    private static ServiceParser getServiceParser(TaskType taskType) {
+        return params -> params.service.parsePersistedConfig("id", taskType, params.persistedConfig.config());
+    }
+
+    private static ServiceParser getServiceParserWithSecrets(TaskType taskType) {
+        return params -> params.service.parsePersistedConfigWithSecrets(
+            "id",
+            taskType,
+            params.persistedConfig.config(),
+            params.persistedConfig.secrets()
+        );
+    }
+
     public void testPersistedConfig() throws Exception {
+        CommonConfig commonConfig = testConfiguration.commonConfig();
         // If the service doesn't support the expected task type, then skip the test
-        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(testCase.expectedTaskType));
+        Assume.assumeTrue(
+            "Service doesn't support task type",
+            testCase.expectedTaskType == null || commonConfig.supportedTaskTypes().contains(testCase.expectedTaskType)
+        );
 
-        var parseConfigTestConfig = testConfiguration.commonConfig();
         var persistedConfig = testCase.createPersistedConfig.apply(testConfiguration);
-
-        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
+        try (var service = commonConfig.createService(threadPool, clientManager)) {
 
             if (testCase.expectFailure) {
                 assertFailedParse(service, persistedConfig);
@@ -376,7 +538,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
         );
     }
 
-    private void assertSuccessfulParse(SenderService service, Utils.PersistedConfig persistedConfig) throws Exception {
+    private void assertSuccessfulParse(SenderService service, Utils.PersistedConfig persistedConfig) {
         var model = testCase.serviceParser.parseConfigs(new ServiceParserParams(service, persistedConfig, testConfiguration));
 
         if (persistedConfig.config().containsKey(ModelConfigurations.CHUNKING_SETTINGS)) {
@@ -387,6 +549,12 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
             assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
         }
 
-        testConfiguration.commonConfig().assertModel(model, testCase.expectedTaskType, testCase.modelIncludesSecrets);
+        testConfiguration.commonConfig()
+            .assertModel(
+                model,
+                // Use the expected task type from the test case if provided, otherwise use the task type from the model configurations
+                testCase.expectedTaskType != null ? testCase.expectedTaskType : model.getConfigurations().getTaskType(),
+                testCase.modelIncludesSecrets
+            );
     }
 }

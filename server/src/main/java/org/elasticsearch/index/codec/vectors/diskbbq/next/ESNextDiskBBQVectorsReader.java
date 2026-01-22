@@ -283,7 +283,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrd);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new PostingMetadata(postingListOffset, postingListLength, centroidOrd, score);
+                return new PostingMetadata(postingListOffset, postingListLength, -1, score);
             }
         };
     }
@@ -543,11 +543,17 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         IndexInput centroidSlice
     ) throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
+        final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
+        final long sizeLookup = directWriterSizeOnDisk(
+            getReaderForField(fieldInfo.name).getFloatVectorValues(fieldInfo.name).size(),
+            bitsRequired
+        );
+        centroidSlice.skipBytes(sizeLookup);
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ((NextFieldEntry) entry).quantEncoding();
         int numParents = centroidSlice.readVInt();
         final QueryQuantizer queryQuantizer;
         if (numParents > 0) {
-            // unusd
+            // unused
             int longestPostingList = centroidSlice.readVInt();
             IndexInput parentsSlice = centroidSlice.slice(
                 "parents-slice",

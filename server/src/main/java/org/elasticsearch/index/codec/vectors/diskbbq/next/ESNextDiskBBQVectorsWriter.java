@@ -144,11 +144,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int[] cluster = assignmentsByCluster[c];
             long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
             offsets.add(offset);
-            // TODO ASYMMETRIC WRITE
-            // PUT DOWN THE CENTROID ORDINAL SO WE CAN MAP IT TO THE PARENT DURING QUERYING
-            // write raw centroid for quantizing the query vectors
-            // write centroid distance between parent centroid for query corrections
-            // TODO ASYMMETRIC EUCLIDEAN
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
             int size = cluster.length;
             // write docIds
@@ -221,8 +216,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     quantEncoding.bits(),
                     centroid
                 );
-                // TODO HACK FOR ASYMMETRIC QUANTIZATION DOT PRODUCT ONLY
-                // MUST BE CENTERED ON OWN CENTROID
                 if (parentCentroid != null) {
                     float additionalCorrection = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN
                         ? VectorUtil.squareDistance(vector, parentCentroid)
@@ -242,8 +235,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     float[] overspillParentCentroid = centroidClusters.getCentroid(s);
                     // write the overspill vector as well
                     result = quantizer.scalarQuantize(vector, scratch, quantized, quantEncoding.bits(), overspillCentroid);
-                    // TODO HACK FOR ASYMMETRIC QUANTIZATION DOT PRODUCT ONLY
-                    // MUST BE CENTERED
                     if (overspillParentCentroid != null) {
                         float additionalCorrection = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN
                             ? VectorUtil.squareDistance(vector, overspillParentCentroid)
@@ -323,9 +314,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 boolean[] isOverspill = isOverspillByCluster[c];
                 long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
                 offsets.add(offset);
-                // TODO ASYMMETRIC WRITE
-                // PUT DOWN THE CENTROID ORDINAL SO WE CAN MAP IT TO THE PARENT DURING QUERYING
-                // TODO ASYMMETRIC EUCLIDEAN
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
                 // write docIds
                 int size = cluster.length;

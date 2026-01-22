@@ -243,7 +243,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
-    private FlatVectorsReader getReaderForField(String field) {
+    protected FlatVectorsReader getReaderForField(String field) {
         FieldInfo info = fieldInfos.fieldInfo(field);
         if (info == null) throw new IllegalArgumentException("Could not find field [" + field + "]");
         return genericReaders.getReaderForField(info.number);

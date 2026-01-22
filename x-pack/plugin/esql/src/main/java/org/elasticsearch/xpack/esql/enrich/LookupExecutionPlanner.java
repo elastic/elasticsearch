@@ -386,7 +386,7 @@ public class LookupExecutionPlanner {
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
             Warnings warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
+                driverContext.warningsMode(),
                 lookupDriverContext.request().source.source().getLineNumber(),
                 lookupDriverContext.request().source.source().getColumnNumber(),
                 lookupDriverContext.request().source.text()

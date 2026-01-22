@@ -23,7 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -173,7 +172,6 @@ public class Driver implements Releasable, Describable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
-        assert Transports.assertNotTransportThread("Driver must not run on transport thread");
         updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running");
         long maxTimeNanos = maxTime.nanos();
         // Start time, used to stop the calculations after maxTime has passed.

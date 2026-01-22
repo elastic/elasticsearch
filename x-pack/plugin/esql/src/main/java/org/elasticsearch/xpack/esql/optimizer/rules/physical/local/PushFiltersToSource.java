@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -25,11 +29,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,20 +44,27 @@ import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.transla
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
-public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<FilterExec, LocalPhysicalOptimizerContext> {
+public class PushFiltersToSource extends ParameterizedRule<PhysicalPlan, PhysicalPlan, LocalPhysicalOptimizerContext> {
 
     @Override
-    protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
-        PhysicalPlan plan = filterExec;
-        if (filterExec.child() instanceof EsQueryExec queryExec) {
-            plan = planFilterExec(filterExec, queryExec, ctx);
-        } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
-            plan = planFilterExec(filterExec, evalExec, queryExec, ctx);
-        }
-        return plan;
+    public PhysicalPlan apply(PhysicalPlan rootPlan, LocalPhysicalOptimizerContext ctx) {
+        return rootPlan.transformDown(FilterExec.class, filterExec -> {
+            if (filterExec.child() instanceof EsQueryExec queryExec) {
+                return planFilterExec(filterExec, queryExec, ctx, timestampFieldForTimeSeries(rootPlan, queryExec));
+            } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
+                return planFilterExec(filterExec, evalExec, queryExec, ctx, timestampFieldForTimeSeries(rootPlan, queryExec));
+            } else {
+                return filterExec;
+            }
+        });
     }
 
-    private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+    private static PhysicalPlan planFilterExec(
+        FilterExec filterExec,
+        EsQueryExec queryExec,
+        LocalPhysicalOptimizerContext ctx,
+        Expression timestampField
+    ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
@@ -66,14 +78,15 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 }
             }
         }
-        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, List.of());
+        return rewrite(ctx, pushdownPredicates, filterExec, queryExec, pushable, nonPushable, List.of(), timestampField);
     }
 
     private static PhysicalPlan planFilterExec(
         FilterExec filterExec,
         EvalExec evalExec,
         EsQueryExec queryExec,
-        LocalPhysicalOptimizerContext ctx
+        LocalPhysicalOptimizerContext ctx,
+        Expression timestampField
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
@@ -92,7 +105,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+        return rewrite(ctx, pushdownPredicates, filterExec, queryExec, pushable, nonPushable, evalExec.fields(), timestampField);
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -106,44 +119,60 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     private static PhysicalPlan rewrite(
+        LocalPhysicalOptimizerContext ctx,
         LucenePushdownPredicates pushdownPredicates,
         FilterExec filterExec,
         EsQueryExec queryExec,
         List<Expression> pushable,
         List<Expression> nonPushable,
-        List<Alias> evalFields
+        List<Alias> evalFields,
+        Expression timestampField
     ) {
-        // Combine GT, GTE, LT and LTE in pushable to Range if possible
-        List<Expression> newPushable = combineEligiblePushableToRange(pushable);
-        if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
-            QueryBuilder planQuery = queryDSL.toQueryBuilder();
-            Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));
-            queryExec = new EsQueryExec(
-                queryExec.source(),
-                queryExec.indexPattern(),
-                queryExec.indexMode(),
-                queryExec.output(),
-                queryExec.limit(),
-                queryExec.sorts(),
-                queryExec.estimatedRowSize(),
-                List.of(new EsQueryExec.QueryBuilderAndTags(query, List.of()))
+        EsQueryExec newQueryExec = null;
+        if (queryExec.indexMode() == IndexMode.TIME_SERIES && timestampField != null) {
+            newQueryExec = TimeSeriesSourcePartitioner.partitionTimeSeriesSource(
+                ctx,
+                timestampField,
+                pushdownPredicates,
+                queryExec,
+                pushable
             );
+        }
+        if (newQueryExec == null) {
+            // Combine GT, GTE, LT and LTE in pushable to Range if possible
+            List<Expression> newPushable = combineEligiblePushableToRange(pushable);
+            if (newPushable.isEmpty() == false) {
+                Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
+                QueryBuilder planQuery = queryDSL.toQueryBuilder();
+                Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
+                var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));
+                newQueryExec = new EsQueryExec(
+                    queryExec.source(),
+                    queryExec.indexPattern(),
+                    queryExec.indexMode(),
+                    queryExec.output(),
+                    queryExec.limit(),
+                    queryExec.sorts(),
+                    queryExec.estimatedRowSize(),
+                    List.of(new EsQueryExec.QueryBuilderAndTags(query, List.of()))
+                );
+            }
+        }
+        if (newQueryExec != null) {
             // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
-            PhysicalPlan plan = evalFields.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, evalFields);
-            if (nonPushable.size() > 0) {
-                // update filter with remaining non-pushable conditions
-                return new FilterExec(filterExec.source(), plan, Predicates.combineAnd(nonPushable));
-            } else {
+            PhysicalPlan plan = evalFields.isEmpty() ? newQueryExec : new EvalExec(filterExec.source(), newQueryExec, evalFields);
+            if (nonPushable.isEmpty()) {
                 // prune Filter entirely
                 return plan;
+            } else {
+                // update filter with remaining non-pushable conditions
+                return new FilterExec(filterExec.source(), plan, Predicates.combineAnd(nonPushable));
             }
-        } // else: nothing changes
+        }
         return filterExec;
     }
 
-    private static List<Expression> combineEligiblePushableToRange(List<Expression> pushable) {
+    static List<Expression> combineEligiblePushableToRange(List<Expression> pushable) {
         List<EsqlBinaryComparison> bcs = new ArrayList<>();
         List<Range> ranges = new ArrayList<>();
         List<Expression> others = new ArrayList<>();
@@ -156,6 +185,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 } else {
                     others.add(e);
                 }
+            } else if (e instanceof Range r) {
+                ranges.add(r);
             } else {
                 others.add(e);
             }
@@ -214,5 +245,23 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
         return changed ? CollectionUtils.combine(others, bcs, ranges) : pushable;
+    }
+
+    private static Expression timestampFieldForTimeSeries(PhysicalPlan plan, EsQueryExec queryExec) {
+        if (queryExec.indexMode() != IndexMode.TIME_SERIES) {
+            return null;
+        }
+        Holder<Expression> timestampHolder = new Holder<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, ts -> {
+            for (NamedExpression agg : ts.aggregates()) {
+                if (Alias.unwrap(agg) instanceof TimestampAware timestampAware) {
+                    if (timestampAware.timestamp() != null) {
+                        timestampHolder.set(timestampAware.timestamp());
+                        return;
+                    }
+                }
+            }
+        });
+        return timestampHolder.get();
     }
 }

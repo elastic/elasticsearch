@@ -7,20 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
-import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 
-import java.util.ArrayDeque;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -28,31 +24,26 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStreamOutput, StreamingChatCompletionResults.Results> {
-    private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingChatProcessor.class);
+abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<ConverseStreamOutput, T> {
+    private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingProcessor.class);
 
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
-    private final AtomicLong demand = new AtomicLong(0);
-    private final AtomicBoolean isDone = new AtomicBoolean(false);
-    private final AtomicBoolean onCompleteCalled = new AtomicBoolean(false);
     private final AtomicBoolean onErrorCalled = new AtomicBoolean(false);
     private final ThreadPool threadPool;
-    private volatile Flow.Subscriber<? super StreamingChatCompletionResults.Results> downstream;
-    private volatile Flow.Subscription upstream;
+    /**
+     * The purpose of demand is solely to guard against the situation where the bedrock sdk can complete the future before the publisher
+     * and subscriber aren't connected together via {@link #subscribe(Flow.Subscriber)} and {@link AmazonBedrockInferenceClient}
+     * getAmazonBedrockStreamingProcessor(). We should refactor this logic to be like
+     * {@link org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient} which tracks the subscriber and publisher via atomic
+     * references instead of using a demand variable.
+     */
+    final AtomicLong demand = new AtomicLong(0);
+    final AtomicBoolean isDone = new AtomicBoolean(false);
+    final AtomicBoolean onCompleteCalled = new AtomicBoolean(false);
 
-    AmazonBedrockStreamingChatProcessor(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
+    volatile Flow.Subscription upstream;
 
-    @Override
-    public void subscribe(Flow.Subscriber<? super StreamingChatCompletionResults.Results> subscriber) {
-        if (downstream == null) {
-            downstream = subscriber;
-            downstream.onSubscribe(new StreamSubscription());
-        } else {
-            subscriber.onError(new IllegalStateException("Subscriber already set."));
-        }
-    }
+    volatile Flow.Subscriber<? super T> downstream;
 
     @Override
     public void onSubscribe(Flow.Subscription subscription) {
@@ -68,24 +59,13 @@ class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStre
     }
 
     @Override
-    public void onNext(ConverseStreamOutput item) {
-        if (item.sdkEventType() == ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA) {
-            demand.set(0); // reset demand before we fork to another thread
-            item.accept(ConverseStreamResponseHandler.Visitor.builder().onContentBlockDelta(this::sendDownstreamOnAnotherThread).build());
+    public void subscribe(Flow.Subscriber<? super T> subscriber) {
+        if (downstream == null) {
+            downstream = subscriber;
+            downstream.onSubscribe(new StreamSubscription());
         } else {
-            upstream.request(1);
+            subscriber.onError(new IllegalStateException("Subscriber already set."));
         }
-    }
-
-    // this is always called from a netty thread maintained by the AWS SDK, we'll move it to our thread to process the response
-    private void sendDownstreamOnAnotherThread(ContentBlockDeltaEvent event) {
-        runOnUtilityThreadPool(() -> {
-            var text = event.delta().text();
-            var result = new ArrayDeque<StreamingChatCompletionResults.Result>(1);
-            result.offer(new StreamingChatCompletionResults.Result(text));
-            var results = new StreamingChatCompletionResults.Results(result);
-            downstream.onNext(results);
-        });
     }
 
     @Override
@@ -113,7 +93,11 @@ class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStre
         }
     }
 
-    private void runOnUtilityThreadPool(Runnable runnable) {
+    protected AmazonBedrockStreamingProcessor(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
+
+    void runOnUtilityThreadPool(Runnable runnable) {
         try {
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(runnable);
         } catch (Exception e) {
@@ -121,7 +105,7 @@ class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStre
         }
     }
 
-    private class StreamSubscription implements Flow.Subscription {
+    class StreamSubscription implements Flow.Subscription {
         @Override
         public void request(long n) {
             if (n > 0L) {

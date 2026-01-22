@@ -43,6 +43,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -208,6 +209,9 @@ public abstract class Plugin implements Closeable {
 
         /** A resolver for project routing information */
         ProjectRoutingResolver projectRoutingResolver();
+
+        /** A utility for executing transport actions on remote nodes */
+        RemoteTransportClient remoteTransportClient();
     }
 
     /**

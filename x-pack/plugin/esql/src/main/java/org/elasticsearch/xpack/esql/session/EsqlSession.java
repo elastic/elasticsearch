@@ -569,15 +569,13 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         Map<String, List<FieldCapabilitiesFailure>> failures,
         FailureCollector failureCollector
-    ) throws Exception {
+    ) {
         for (var e : failures.entrySet()) {
             String clusterAlias = e.getKey();
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
             if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                 assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
-                continue;
-            }
-            if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+            } else if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                 for (FieldCapabilitiesFailure failure : e.getValue()) {
                     failureCollector.unwrapAndCollect(failure.getException());
                 }
@@ -587,11 +585,10 @@ public class EsqlSession {
                     if (ExceptionsHelper.unwrapCause(f.getException()) instanceof ElasticsearchException es) {
                         shardId = es.getShardId();
                     }
-                    if (shardId != null) {
-                        return new ShardSearchFailure(f.getException(), new SearchShardTarget(null, shardId, clusterAlias));
-                    } else {
-                        return new ShardSearchFailure(f.getException());
-                    }
+                    return new ShardSearchFailure(
+                        f.getException(),
+                        shardId != null ? new SearchShardTarget(null, shardId, clusterAlias) : null
+                    );
                 }).toList();
                 executionInfo.swapCluster(
                     clusterAlias,
@@ -1056,9 +1053,9 @@ public class EsqlSession {
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
-                EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
-                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(
                     result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())

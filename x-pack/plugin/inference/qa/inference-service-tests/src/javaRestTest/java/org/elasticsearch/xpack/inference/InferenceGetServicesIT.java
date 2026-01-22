@@ -208,7 +208,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "mistral",
                     "nvidia",
-                    "watsonxai"
+                    "watsonxai",
+                    "amazonbedrock"
                 ).toArray()
             )
         );

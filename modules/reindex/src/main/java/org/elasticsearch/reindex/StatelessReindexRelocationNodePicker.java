@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -31,7 +32,7 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
     }
 
     @Override
-    public Optional<String> pickNode(DiscoveryNodes nodes) {
+    public Optional<String> pickNode(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns) {
         String currentNodeId = nodes.getLocalNodeId();
         if (currentNodeId == null) {
             logger.warn(
@@ -47,6 +48,7 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
             .filter(node -> node.getRoles().isEmpty())
             .map(DiscoveryNode::getId)
             .filter(id -> id.equals(currentNodeId) == false)
+            .filter(id -> nodeShutdowns.contains(id) == false)
             .toList();
         if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {
             String newNodeId = selectRandomNodeIdFrom(eligibleDedicatedCoordinatingNodes);
@@ -59,6 +61,7 @@ class StatelessReindexRelocationNodePicker implements ReindexRelocationNodePicke
             .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
             .map(DiscoveryNode::getId)
             .filter(id -> id.equals(currentNodeId) == false)
+            .filter(id -> nodeShutdowns.contains(id) == false)
             .toList();
         if (eligibleIndexingNodes.isEmpty() == false) {
             String newNodeId = selectRandomNodeIdFrom(eligibleIndexingNodes);

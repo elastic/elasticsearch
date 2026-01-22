@@ -40,6 +40,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+/**
+ * Opens a TCP server {@link #PORT} when Elasticsearch is ready to accept work.
+ * That port can be used as a readiness probe by external components, like a control plane.
+ */
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
@@ -67,8 +71,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         Environment environment,
         CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory
     ) {
-        this.serverChannel = null;
         this.clusterService = clusterService;
+        this.serverChannel = null;
         this.environment = environment;
         this.socketChannelFactory = socketChannelFactory;
     }
@@ -147,6 +151,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 for (BoundAddressListener listener : boundAddressListeners) {
                     listener.addressBound(boundAddress);
                 }
+                boundAddressListeners.clear();
             }
         } catch (Exception e) {
             throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
@@ -157,7 +162,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doStart() {
+        clusterService.addListener(this);
         // Mark the service as active, we'll start the tcp listener when ES is ready
+        // TODO: active shouldn't be necessary since we now add the listener once the service is started
         this.active = true;
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
             this.lastClusterState = clusterService.state();
@@ -301,8 +308,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         var b = boundAddress();
         if (b != null) {
             listener.addressBound(b);
+        } else {
+            boundAddressListeners.add(listener);
         }
-        boundAddressListeners.add(listener);
     }
 
     /**

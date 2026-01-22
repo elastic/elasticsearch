@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
@@ -30,7 +31,7 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
     }
 
     @Override
-    public Optional<String> pickNode(DiscoveryNodes nodes) {
+    public Optional<String> pickNode(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns) {
         String currentNodeId = nodes.getLocalNodeId();
         if (currentNodeId == null) {
             logger.warn(
@@ -45,13 +46,19 @@ class StatefulReindexRelocationNodePicker implements ReindexRelocationNodePicker
             .filter(node -> node.getRoles().isEmpty())
             .map(DiscoveryNode::getId)
             .filter(id -> id.equals(currentNodeId) == false)
+            .filter(id -> nodeShutdowns.contains(id) == false)
             .toList();
         if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {
             String newNodeId = selectRandomNodeIdFrom(eligibleDedicatedCoordinatingNodes);
             logger.debug("Chose dedicated coordinating node ID {} for relocating a reindex task from node {}", newNodeId, currentNodeId);
             return Optional.of(newNodeId);
         }
-        List<String> eligibleDataNodes = nodes.getDataNodes().keySet().stream().filter(id -> id.equals(currentNodeId) == false).toList();
+        List<String> eligibleDataNodes = nodes.getDataNodes()
+            .keySet()
+            .stream()
+            .filter(id -> id.equals(currentNodeId) == false)
+            .filter(id -> nodeShutdowns.contains(id) == false)
+            .toList();
         if (eligibleDataNodes.isEmpty() == false) {
             String newNodeId = selectRandomNodeIdFrom(eligibleDataNodes);
             logger.debug(

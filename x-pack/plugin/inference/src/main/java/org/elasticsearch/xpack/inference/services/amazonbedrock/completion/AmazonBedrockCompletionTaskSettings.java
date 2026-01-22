@@ -30,17 +30,17 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_P_FIELD;
 
-public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
+public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "amazon_bedrock_chat_completion_task_settings";
 
-    public static final AmazonBedrockChatCompletionRequestTaskSettings EMPTY_SETTINGS = new AmazonBedrockChatCompletionRequestTaskSettings(
-        null,
-        null,
-        null,
-        null
-    );
+    // Default for testing
+    static final AmazonBedrockCompletionTaskSettings EMPTY_SETTINGS = new AmazonBedrockCompletionTaskSettings(null, null, null, null);
 
-    public static AmazonBedrockChatCompletionTaskSettings fromMap(Map<String, Object> settings) {
+    public static AmazonBedrockCompletionTaskSettings fromMap(Map<String, Object> settings) {
+        if (settings.isEmpty()) {
+            return EMPTY_SETTINGS;
+        }
+
         ValidationException validationException = new ValidationException();
 
         Double temperature = extractOptionalDoubleInRange(
@@ -78,19 +78,26 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
             throw validationException;
         }
 
-        return new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
+        return new AmazonBedrockCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
     }
 
-    public static AmazonBedrockChatCompletionTaskSettings of(
-        AmazonBedrockChatCompletionTaskSettings originalSettings,
-        AmazonBedrockChatCompletionRequestTaskSettings requestSettings
+    public static AmazonBedrockCompletionTaskSettings of(
+        AmazonBedrockCompletionTaskSettings originalSettings,
+        AmazonBedrockCompletionTaskSettings requestSettings
     ) {
         var temperature = requestSettings.temperature() == null ? originalSettings.temperature() : requestSettings.temperature();
         var topP = requestSettings.topP() == null ? originalSettings.topP() : requestSettings.topP();
         var topK = requestSettings.topK() == null ? originalSettings.topK() : requestSettings.topK();
         var maxNewTokens = requestSettings.maxNewTokens() == null ? originalSettings.maxNewTokens() : requestSettings.maxNewTokens();
 
-        return new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
+        if (Objects.equals(temperature, originalSettings.temperature())
+            && Objects.equals(topP, originalSettings.topP())
+            && Objects.equals(topK, originalSettings.topK())
+            && Objects.equals(maxNewTokens, originalSettings.maxNewTokens)) {
+            return originalSettings;
+        }
+
+        return new AmazonBedrockCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
     }
 
     private final Double temperature;
@@ -98,7 +105,7 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     private final Double topK;
     private final Integer maxNewTokens;
 
-    public AmazonBedrockChatCompletionTaskSettings(
+    public AmazonBedrockCompletionTaskSettings(
         @Nullable Double temperature,
         @Nullable Double topP,
         @Nullable Double topK,
@@ -110,7 +117,7 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
         this.maxNewTokens = maxNewTokens;
     }
 
-    public AmazonBedrockChatCompletionTaskSettings(StreamInput in) throws IOException {
+    public AmazonBedrockCompletionTaskSettings(StreamInput in) throws IOException {
         this.temperature = in.readOptionalDouble();
         this.topP = in.readOptionalDouble();
         this.topK = in.readOptionalDouble();
@@ -181,7 +188,7 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AmazonBedrockChatCompletionTaskSettings that = (AmazonBedrockChatCompletionTaskSettings) o;
+        AmazonBedrockCompletionTaskSettings that = (AmazonBedrockCompletionTaskSettings) o;
         return Objects.equals(temperature, that.temperature)
             && Objects.equals(topP, that.topP)
             && Objects.equals(topK, that.topK)
@@ -195,9 +202,7 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AmazonBedrockChatCompletionRequestTaskSettings requestSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        var requestSettings = AmazonBedrockCompletionTaskSettings.fromMap(new HashMap<>(newSettings));
         return of(this, requestSettings);
     }
 }

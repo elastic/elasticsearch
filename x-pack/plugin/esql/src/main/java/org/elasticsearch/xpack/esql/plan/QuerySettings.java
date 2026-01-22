@@ -54,8 +54,7 @@ public class QuerySettings {
     @Param(
         name = "time_zone",
         type = { "keyword" },
-        description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC.\n"
-            + "See <<esql-timezones,timezones>>"
+        description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC"
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(

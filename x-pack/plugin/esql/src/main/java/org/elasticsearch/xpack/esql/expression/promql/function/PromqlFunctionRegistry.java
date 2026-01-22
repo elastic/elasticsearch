@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTi
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -51,8 +53,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
@@ -243,6 +247,12 @@ public class PromqlFunctionRegistry {
             "abs(rate(http_requests_total[5m]))"
         ),
         valueTransformationFunction(
+            "sgn",
+            Signum::new,
+            "Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.",
+            "sgn(delta(queue_depth[5m]))"
+        ),
+        valueTransformationFunction(
             "exp",
             Exp::new,
             "Calculates the exponential function for all elements in the input vector.",
@@ -259,6 +269,18 @@ public class PromqlFunctionRegistry {
             Log10::new,
             "Calculates the decimal logarithm for all elements in the input vector.",
             "log10(http_requests_total)"
+        ),
+        valueTransformationFunction(
+            "log2",
+            (source, value) -> new Log(source, Literal.fromDouble(source, 2d), value),
+            "Calculates the binary logarithm for all elements in the input vector.",
+            "log2(memory_usage_bytes)"
+        ),
+        valueTransformationFunction(
+            "ln",
+            (source, value) -> new Log(source, value, null),
+            "Calculates the natural logarithm for all elements in the input vector.",
+            "ln(memory_usage_bytes)"
         ),
         valueTransformationFunction(
             "floor",
@@ -312,6 +334,18 @@ public class PromqlFunctionRegistry {
             Tanh::new,
             "Calculates the hyperbolic tangent of all elements in the input vector.",
             "tanh(some_metric)"
+        ),
+        valueTransformationFunction(
+            "deg",
+            ToDegrees::new,
+            "Converts input values from radians to degrees for all elements in the input vector.",
+            "deg(some_metric)"
+        ),
+        valueTransformationFunction(
+            "rad",
+            ToRadians::new,
+            "Converts input values from degrees to radians for all elements in the input vector.",
+            "rad(some_metric)"
         ),
         valueTransformationFunctionBinary(
             "clamp_min",
@@ -691,10 +725,7 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
-        "ln",
-        "log2",
         "scalar",
-        "sgn",
         "sort",
         "sort_desc",
 
@@ -702,8 +733,6 @@ public class PromqlFunctionRegistry {
         "acosh",
         "asinh",
         "atanh",
-        "deg",
-        "rad",
 
         // Time functions
         "day_of_month",

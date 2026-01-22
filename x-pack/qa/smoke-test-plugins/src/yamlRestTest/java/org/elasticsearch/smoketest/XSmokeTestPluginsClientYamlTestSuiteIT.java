@@ -24,17 +24,11 @@ public class XSmokeTestPluginsClientYamlTestSuiteIT extends ESClientYamlSuiteTes
     private static final String PASS = "x-pack-test-password";
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .apply(c -> {
-            for (String plugin : System.getProperty("tests.plugin.names").split(",")) {
-                c.plugin(plugin);
-            }
-        })
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.license.self_generated.type", "trial")
-        .user(USER, PASS)
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().distribution(DistributionType.DEFAULT).apply(c -> {
+        for (String plugin : System.getProperty("tests.plugin.names").split(",")) {
+            c.plugin(plugin);
+        }
+    }).setting("xpack.security.enabled", "true").setting("xpack.license.self_generated.type", "trial").user(USER, PASS).build();
 
     public XSmokeTestPluginsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

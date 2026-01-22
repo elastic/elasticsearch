@@ -155,12 +155,12 @@ public class ServerUtils {
             return executor.execute(request).returnResponse();
         } catch (Exception e) {
             logger.warn(
-                "Failed to execute request [{}] with username/password [{}/{}] and caCert [{}]",
+                "Failed to execute request [{}] with username/password [{}/{}] and caCert [{}], exception: {}",
                 request.toString(),
                 username,
                 password,
                 caCert,
-                e
+                e.getMessage()
             );
             throw e;
         }

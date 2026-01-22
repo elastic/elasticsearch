@@ -1,5 +1,5 @@
 pr: 137130
 summary: Add FireworksAI inference service for embeddings
-area: Machine Learning
+area: Inference
 type: enhancement
 issues: []

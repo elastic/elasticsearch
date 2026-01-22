@@ -48,9 +48,10 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
      * the stream of pages is consumed.
      */
     private final Integer estimatedRowSize;
+    private final boolean sortedInput;
 
     public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize) {
-        this(source, child, order, limit, estimatedRowSize, Set.of());
+        this(source, child, order, limit, estimatedRowSize, Set.of(), false);
     }
 
     private TopNExec(
@@ -59,12 +60,25 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         List<Order> order,
         Expression limit,
         Integer estimatedRowSize,
-        Set<Attribute> docValuesAttributes
+        boolean sortedInput
+    ) {
+        this(source, child, order, limit, estimatedRowSize, Set.of(), sortedInput);
+    }
+
+    private TopNExec(
+        Source source,
+        PhysicalPlan child,
+        List<Order> order,
+        Expression limit,
+        Integer estimatedRowSize,
+        Set<Attribute> docValuesAttributes,
+        boolean sortedInput
     ) {
         super(source, child);
         this.order = order;
         this.limit = limit;
         this.estimatedRowSize = estimatedRowSize;
+        this.sortedInput = sortedInput;
         this.docValuesAttributes = docValuesAttributes;
     }
 
@@ -74,7 +88,8 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalVInt()
+            in.readOptionalVInt(),
+            in.readBoolean()
         );
         // docValueAttributes are only used on the data node and never serialized.
     }
@@ -86,6 +101,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         out.writeCollection(order());
         out.writeNamedWriteable(limit());
         out.writeOptionalVInt(estimatedRowSize());
+        out.writeBoolean(sortedInput);
         // docValueAttributes are only used on the data node and never serialized.
     }
 
@@ -101,11 +117,15 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public TopNExec replaceChild(PhysicalPlan newChild) {
-        return new TopNExec(source(), newChild, order, limit, estimatedRowSize, docValuesAttributes);
+        return new TopNExec(source(), newChild, order, limit, estimatedRowSize, docValuesAttributes, sortedInput);
     }
 
     public TopNExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes);
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, sortedInput);
+    }
+
+    public TopNExec withSortedInput() {
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, true);
     }
 
     public Expression limit() {
@@ -137,12 +157,12 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new TopNExec(source(), child(), order, limit, size, docValuesAttributes);
+            : new TopNExec(source(), child(), order, limit, size, docValuesAttributes, sortedInput);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes);
+        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes, sortedInput);
     }
 
     @Override
@@ -156,5 +176,9 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(docValuesAttributes, other.docValuesAttributes);
         }
         return equals;
+    }
+
+    public boolean sortedInput() {
+        return sortedInput;
     }
 }

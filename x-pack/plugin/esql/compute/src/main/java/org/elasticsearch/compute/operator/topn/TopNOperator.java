@@ -252,7 +252,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        boolean sortedInput
     ) implements OperatorFactory {
         public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -271,7 +272,8 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize
+                maxPageSize,
+                sortedInput
             );
         }
 
@@ -285,6 +287,8 @@ public class TopNOperator implements Operator, Accountable {
                 + encoders
                 + ", sortOrders="
                 + sortOrders
+                + ", sortedInput="
+                + sortedInput
                 + "]";
         }
     }
@@ -328,6 +332,8 @@ public class TopNOperator implements Operator, Accountable {
      */
     private long rowsEmitted;
 
+    private final boolean sortedInput;
+
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -335,7 +341,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        boolean sortedInput
     ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
@@ -344,6 +351,7 @@ public class TopNOperator implements Operator, Accountable {
         this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.inputQueue = Queue.build(breaker, topCount);
+        this.sortedInput = sortedInput;
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -399,37 +407,43 @@ public class TopNOperator implements Operator, Accountable {
          * inputQueue or because we hit an allocation failure while building it.
          */
         try {
-            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+            if (inputQueue.topCount > 0) {
+                RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
 
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                if (spare == null) {
-                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
-                } else {
-                    spare.keys.clear();
-                    spare.values.clear();
-                    spare.clearRefCounters();
-                }
-                rowFiller.writeKey(i, spare);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    if (spare == null) {
+                        spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+                    } else {
+                        spare.keys.clear();
+                        spare.values.clear();
+                        spare.clearRefCounters();
+                    }
+                    rowFiller.writeKey(i, spare);
 
-                // When rows are very long, appending the values one by one can lead to lots of allocations.
-                // To avoid this, pre-allocate at least as much size as in the last seen row.
-                // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
-                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
+                    // When rows are very long, appending the values one by one can lead to lots of allocations.
+                    // To avoid this, pre-allocate at least as much size as in the last seen row.
+                    // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
+                    spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
 
-                // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
-                if (inputQueue.size() < inputQueue.topCount) {
-                    // Heap not yet full, just add elements
-                    rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
-                    inputQueue.add(spare);
-                    spare = null;
-                } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
-                    // Heap full AND this node fit in it.
-                    Row nextSpare = inputQueue.top();
-                    rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
-                    inputQueue.updateTop(spare);
-                    spare = nextSpare;
+                    // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
+                    if (inputQueue.size() < inputQueue.topCount) {
+                        // Heap not yet full, just add elements
+                        rowFiller.writeValues(i, spare);
+                        spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                        inputQueue.add(spare);
+                        spare = null;
+                    } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
+                        // Heap full AND this node fit in it.
+                        Row nextSpare = inputQueue.top();
+                        rowFiller.writeValues(i, spare);
+                        spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                        inputQueue.updateTop(spare);
+                        spare = nextSpare;
+                    } else if (sortedInput) {
+                        // Queue is full and we can stop the iteration since all the elements from now onwards
+                        // are greater or equal than everything that is in the queue
+                        break;
+                    }
                 }
             }
         } finally {
@@ -543,6 +557,8 @@ public class TopNOperator implements Operator, Accountable {
             + encoders
             + ", sortOrders="
             + sortOrders
+            + ", sortedInput="
+            + sortedInput
             + "]";
     }
 
@@ -611,7 +627,7 @@ public class TopNOperator implements Operator, Accountable {
             );
         }
 
-        public static long sizeOf(int topCount) {
+        private static long sizeOf(int topCount) {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)

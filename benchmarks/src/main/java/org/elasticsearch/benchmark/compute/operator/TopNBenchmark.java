@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -41,11 +42,12 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 @Warmup(iterations = 5)
-@Measurement(iterations = 7)
+@Measurement(iterations = 20)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -57,7 +59,7 @@ public class TopNBenchmark {
         BigArrays.NON_RECYCLING_INSTANCE
     );
 
-    private static final int BLOCK_LENGTH = 8 * 1024;
+    private static final int BLOCK_LENGTH = 4 * 1024;
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -68,6 +70,7 @@ public class TopNBenchmark {
     private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
 
     static {
+        LogConfigurator.configureESLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
         selfTest();
     }
@@ -76,7 +79,9 @@ public class TopNBenchmark {
         try {
             for (String data : TopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
                 for (String topCount : TopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
-                    run(data, Integer.parseInt(topCount));
+                    for (String sortedInput : TopNBenchmark.class.getField("sortedInput").getAnnotationsByType(Param.class)[0].value()) {
+                        run(data, Integer.parseInt(topCount), Boolean.parseBoolean(sortedInput));
+                    }
                 }
             }
         } catch (NoSuchFieldException e) {
@@ -87,10 +92,18 @@ public class TopNBenchmark {
     @Param({ LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
     public String data;
 
-    @Param({ "10", "10000" })
+    @Param({ "true", "false" })
+    public boolean sortedInput;
+
+    /*
+        - 4096 is the page size,
+        - 10000 reflects using a LIMIT with smaller pages, which seems to be a more realistic benchmark than having a LIMIT 10 and
+          receiving pages from the data nodes that contain 4096 documents
+     */
+    @Param({ "10", "1000", "4096", "10000" })
     public int topCount;
 
-    private static Operator operator(String data, int topCount) {
+    private static Operator operator(String data, int topCount, boolean sortedInput) {
         int count = switch (data) {
             case LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS -> 1;
             case TWO_LONGS, LONGS_AND_BYTES_REFS -> 2;
@@ -125,8 +138,9 @@ public class TopNBenchmark {
             topCount,
             elementTypes,
             encoders,
-            IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, false, false)).toList(),
-            16 * 1024
+            IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, true, false)).toList(),
+            8 * 1024,
+            sortedInput
         );
     }
 
@@ -144,27 +158,28 @@ public class TopNBenchmark {
         };
     }
 
+    // This creates blocks with uniformly distributed data
     private static Block block(String data) {
         return switch (data) {
             case LONGS -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendLong(i);
-                }
+
+                new Random().longs(BLOCK_LENGTH, 0, Long.MAX_VALUE).sorted().forEachOrdered(builder::appendLong);
+
                 yield builder.build();
             }
             case INTS -> {
                 var builder = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendInt(i);
-                }
+
+                new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).sorted().forEachOrdered(builder::appendInt);
+
                 yield builder.build();
             }
             case DOUBLES -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendDouble(i);
-                }
+
+                new Random().doubles(BLOCK_LENGTH, 0, Double.MAX_VALUE).sorted().forEachOrdered(builder::appendDouble);
+
                 yield builder.build();
             }
             case BOOLEANS -> {
@@ -188,11 +203,14 @@ public class TopNBenchmark {
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
     public void run() {
-        run(data, topCount);
+        run(data, topCount, sortedInput);
     }
 
-    private static void run(String data, int topCount) {
-        try (Operator operator = operator(data, topCount)) {
+    private static void run(String data, int topCount, boolean sortedInput) {
+        if (sortedInput && (data.equals(BOOLEANS) || data.equals(BYTES_REFS))) {
+            return;
+        }
+        try (Operator operator = operator(data, topCount, sortedInput)) {
             Page page = page(data);
             for (int i = 0; i < 1024; i++) {
                 operator.addInput(page.shallowCopy());

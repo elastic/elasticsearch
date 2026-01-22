@@ -22,6 +22,7 @@ import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -511,6 +512,7 @@ public class ApproximationTests extends ESTestCase {
         return new Approximation(
             getLogicalPlan(query),
             ApproximationSettings.DEFAULT,
+            mock(EsqlExecutionInfo.class),
             new LogicalPlanOptimizer(
                 new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), EsqlTestUtils.randomMinimumVersion())
             ),

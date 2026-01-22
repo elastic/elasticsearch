@@ -428,6 +428,7 @@ public class EsqlSession {
             new Approximation(
                 optimizedPlan,
                 statement.setting(QuerySettings.APPROXIMATION),
+                executionInfo,
                 logicalPlanOptimizer,
                 p -> logicalPlanToPhysicalPlan(
                     // TODO: don't run the full optimizer twice, because it may break things.

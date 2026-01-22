@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -310,6 +311,7 @@ public class Approximation {
 
     private final LogicalPlan logicalPlan;
     private final ApproximationSettings settings;
+    private final EsqlExecutionInfo executionInfo;
     private final QueryProperties queryProperties;
     private final EsqlSession.PlanRunner runner;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
@@ -323,6 +325,7 @@ public class Approximation {
     public Approximation(
         LogicalPlan logicalPlan,
         ApproximationSettings settings,
+        EsqlExecutionInfo executionInfo,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Function<LogicalPlan, PhysicalPlan> toPhysicalPlan,
         EsqlSession.PlanRunner runner,
@@ -332,6 +335,7 @@ public class Approximation {
     ) {
         this.logicalPlan = logicalPlan;
         this.settings = settings;
+        this.executionInfo = executionInfo;
         this.queryProperties = verifyPlan(logicalPlan);
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.toPhysicalPlan = toPhysicalPlan;
@@ -415,6 +419,7 @@ public class Approximation {
     public void approximate(ActionListener<Result> listener) {
         // TODO: check if the plan can be translated to an EsStatsQuery.
         // If so, don't query approximation, because it's slower.
+        executionInfo.startSubPlans();
         runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, planTimeProfile, sourceCountListener(listener));
     }
 
@@ -501,6 +506,7 @@ public class Approximation {
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
+                executionInfo.finishSubPlans();
                 runner.run(
                     toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
                     configuration,
@@ -513,6 +519,7 @@ public class Approximation {
             double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
+                executionInfo.finishSubPlans();
                 runner.run(
                     toPhysicalPlan.apply(approximationPlan(sampleProbability)),
                     configuration,
@@ -524,6 +531,7 @@ public class Approximation {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
+                executionInfo.finishSubPlans();
                 runner.run(
                     toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
                     configuration,
@@ -597,6 +605,7 @@ public class Approximation {
             if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
+                executionInfo.finishSubPlans();
                 runner.run(
                     toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()),
                     configuration,
@@ -615,6 +624,7 @@ public class Approximation {
                     countListener(newSampleProbability, countListener)
                 );
             } else {
+                executionInfo.finishSubPlans();
                 runner.run(
                     toPhysicalPlan.apply(approximationPlan(newSampleProbability)),
                     configuration,

@@ -459,7 +459,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
             return RandomBlock.randomBlock(
                 elementType,
                 positionCount,
-                elementType == ElementType.NULL | randomBoolean(),
+                (elementType == ElementType.NULL) || randomBoolean(),
                 1,
                 maxValuesPerPosition,
                 0,

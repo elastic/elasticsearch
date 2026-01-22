@@ -12,12 +12,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +66,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Map<String, EsField> metricMapping;
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
+    protected static Analyzer unionIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
     protected static Analyzer subqueryAnalyzer;
     protected static Map<String, EsField> mappingBaseConversion;
@@ -173,12 +175,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         List<EsIndex> metricIndices = new ArrayList<>();
-        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.isEnabled()) {
-            Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
-            metricIndices.add(
-                EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
-            );
-        }
+        Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
+        metricIndices.add(
+            EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
+        );
+        Map<String, EsField> tdigestMapping = loadMapping("tdigest_timeseries_index-mappings.json");
+        metricIndices.add(
+            EsIndexGenerator.esIndex("tdigest_timeseries_index", tdigestMapping, Map.of("tdigest_timeseries_index", IndexMode.TIME_SERIES))
+        );
         metricMapping = loadMapping("k8s-mappings.json");
         metricIndices.add(EsIndexGenerator.esIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
@@ -210,6 +214,32 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 indexResolutions(multiIndex),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        // Create a union index with conflicting types (keyword vs integer) for field 'id'
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("test1"));
+        typesToIndices.put("integer", Set.of("test2"));
+        EsField idField = new InvalidMappedField("id", typesToIndices);
+        EsField fooField = new EsField("foo", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var unionIndex = new EsIndex(
+            "union_index*",
+            Map.of("id", idField, "foo", fooField),
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        unionIndexAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(unionIndex),
+                defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -310,6 +340,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planMultiIndex(String query) {
         return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.parseQuery(query)));
+    }
+
+    protected LogicalPlan planUnionIndex(String query) {
+        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(parser.parseQuery(query)));
     }
 
     protected LogicalPlan planSample(String query) {

@@ -920,10 +920,10 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> getTransportVersion().onOrAfter(V_8_7_0)
+            case 9 -> getTransportVersion().supports(V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getTransportVersion().onOrAfter(V_8_7_0)
+            case 10 -> getTransportVersion().supports(V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();

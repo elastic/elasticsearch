@@ -1,9 +1,0 @@
-{
-    "properties" : {
-        "session_id" : {
-            "type" : "keyword",
-            "ignore_above" : 15,
-            "doc_values" : false
-        }
-    }
-}

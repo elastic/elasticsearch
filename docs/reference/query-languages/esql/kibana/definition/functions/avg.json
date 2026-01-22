@@ -63,6 +63,18 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression that outputs values to average."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [

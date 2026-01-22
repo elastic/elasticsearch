@@ -26,7 +26,7 @@ Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) com
 
 **Column handling:**
 - `FORK` branches can output different columns
-- Columns with the same name must have the same data type across all branches  
+- Columns with the same name must have the same data type across all branches
 - Missing columns are filled with `null` values
 
 **Row ordering:**
@@ -41,7 +41,7 @@ Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) com
 **Limitations**
 
 - `FORK` supports at most 8 execution branches.
-- Using remote cluster references and `FORK` is not supported.
+- In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 - Using more than one `FORK` command in a query is not supported.
 
 **Examples**

@@ -59,7 +59,6 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected IndexVersion getVersion() {
         return IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_8_8_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ID_HASHING)
         );

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -71,20 +72,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
-        "Potential cycle detected", // https://github.com/elastic/elasticsearch/issues/138346
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
 
-        // TS-command tests
+        // TS-command tests (acceptable errors)
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "implicit time-series aggregation function .* doesn't support type .*",
+        "implicit time-series aggregation function",
         "INLINE STATS .* can only be used after STATS when used with TS command",
         "cannot group by a metric field .* in a time-series aggregation",
-        "a @timestamp field of type date or date_nanos to be present when run with the TS command, but it was not present",
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        "@timestamp field of type date or date_nanos",
+        "which was either not present in the source index, or has been dropped or renamed",
+        "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+
+        // Ts-command errors awaiting fixes
+        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
+        "Invalid call to dataType on an unresolved object \\?@timestamp", // https://github.com/elastic/elasticsearch/issues/140607
+        "expected named expression for grouping; got Bucket" // https://github.com/elastic/elasticsearch/issues/140606
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -251,8 +257,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return null;
         }
         return cols.stream()
-            .map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
+            .map(x -> new Column(normalizeColumnName((String) x.get(COLUMN_NAME)), (String) x.get(COLUMN_TYPE), originalTypes(x)))
             .collect(Collectors.toList());
+    }
+
+    private static String normalizeColumnName(String name) {
+        return name.contains("-") && name.startsWith("`") == false ? Strings.format("`%s`", name) : name;
     }
 
     @SuppressWarnings("unchecked")
@@ -265,7 +275,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

@@ -25,9 +25,12 @@ import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -48,6 +51,7 @@ import java.util.Map;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.fail;
@@ -58,6 +62,8 @@ import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,6 +87,11 @@ public class BlockTestUtils {
                 randomDouble(),
                 randomNonNegativeInt()
             );
+            case LONG_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
                 randomInt(),
@@ -223,6 +234,20 @@ public class BlockTestUtils {
                 return;
             }
         }
+        if (builder instanceof LongRangeBlockBuilder b) {
+            if (value instanceof LongRangeBlockBuilder.LongRange v) {
+                b.appendLongRange(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendLongRange((LongRangeBlockBuilder.LongRange) l.get(0));
+                    default -> throw new IllegalArgumentException("LONG_RANGE does not support multi-valued positions");
+                }
+                return;
+            }
+        }
         if (builder instanceof AggregateMetricDoubleBlockBuilder b
             && value instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
             b.min().appendDouble(aggMetric.min());
@@ -237,6 +262,10 @@ public class BlockTestUtils {
         }
         if (builder instanceof ExponentialHistogramBlockBuilder b && value instanceof ExponentialHistogram histogram) {
             b.append(histogram);
+            return;
+        }
+        if (builder instanceof TDigestBlockBuilder b && value instanceof TDigestHolder histogram) {
+            b.appendTDigest(histogram);
             return;
         }
         if (value instanceof List<?> l && l.isEmpty()) {
@@ -324,6 +353,12 @@ public class BlockTestUtils {
                         yield literal;
 
                     }
+                    case LONG_RANGE -> {
+                        var b = (LongRangeBlock) block;
+                        var lit = new LongRangeBlockBuilder.LongRange(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                        i++;
+                        yield lit;
+                    }
                     case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
                         i++,
                         new ExponentialHistogramScratch()
@@ -335,6 +370,24 @@ public class BlockTestUtils {
             result.add(positionValues);
         }
         return result;
+    }
+
+    /**
+     * Extracts values from a block at a particular position.
+     *
+     * @param block The block to extract the values from
+     * @param position The position at which to extract the values
+     * @param emptyIfNull Whether to return an empty list if there are no values at the position
+     *
+     * @return List of values
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> valuesAtPosition(Block block, int position, boolean emptyIfNull) {
+        List<Object> values = valuesAtPositions(block, position, position + 1).getFirst();
+        if (values == null) {
+            return emptyIfNull ? new ArrayList<>() : null;
+        }
+        return (List<T>) values;
     }
 
     /**

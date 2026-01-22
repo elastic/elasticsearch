@@ -16,7 +16,7 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.util.List;
 
-public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted implements TDigestBlock {
+public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDigestBlock> implements TDigestBlock {
     private final DoubleBlock minima;
     private final DoubleBlock maxima;
     private final DoubleBlock sums;
@@ -66,13 +66,21 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         }
     }
 
-    private List<Block> getSubBlocks() {
-        return List.of(minima, maxima, sums, valueCounts, encodedDigests);
+    @Override
+    protected List<Block> getSubBlocks() {
+        return List.of(encodedDigests, minima, maxima, sums, valueCounts);
     }
 
     @Override
-    protected void closeInternal() {
-        Releasables.close(getSubBlocks());
+    protected TDigestArrayBlock buildFromSubBlocks(List<Block> subBlocks) {
+        assert subBlocks.size() == 5;
+        return new TDigestArrayBlock(
+            (BytesRefBlock) subBlocks.get(0),
+            (DoubleBlock) subBlocks.get(1),
+            (DoubleBlock) subBlocks.get(2),
+            (DoubleBlock) subBlocks.get(3),
+            (LongBlock) subBlocks.get(4)
+        );
     }
 
     @Override
@@ -81,18 +89,13 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     }
 
     @Override
-    public int getTotalValueCount() {
-        return encodedDigests.getTotalValueCount();
-    }
-
-    @Override
-    public int getPositionCount() {
-        return encodedDigests.getPositionCount();
-    }
-
-    @Override
     public int getFirstValueIndex(int position) {
         return position;
+    }
+
+    @Override
+    public int getTotalValueCount() {
+        return encodedDigests.getTotalValueCount();
     }
 
     @Override
@@ -103,16 +106,6 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     @Override
     public ElementType elementType() {
         return ElementType.TDIGEST;
-    }
-
-    @Override
-    public BlockFactory blockFactory() {
-        return encodedDigests.blockFactory();
-    }
-
-    @Override
-    public void allowPassingToDifferentDriver() {
-        getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
     }
 
     @Override
@@ -141,56 +134,6 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     }
 
     @Override
-    public Block filter(int... positions) {
-        /*
-         TODO: Refactor this degelation pattern.  In fact, both AggregateMetricDoubleArrayBlock and ExponentialHistogramArrayBlock
-               use the same pattern.  We should extract a composite block abstract class, I think.
-        */
-        DoubleBlock filteredMinima = null;
-        DoubleBlock filteredMaxima = null;
-        DoubleBlock filteredSums = null;
-        LongBlock filteredValueCounts = null;
-        BytesRefBlock filteredEncodedDigests = null;
-        boolean success = false;
-        try {
-            filteredEncodedDigests = encodedDigests.filter(positions);
-            filteredMinima = minima.filter(positions);
-            filteredMaxima = maxima.filter(positions);
-            filteredSums = sums.filter(positions);
-            filteredValueCounts = valueCounts.filter(positions);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.close(filteredMinima, filteredMaxima, filteredSums, filteredValueCounts, filteredEncodedDigests);
-            }
-        }
-        return new TDigestArrayBlock(filteredEncodedDigests, filteredMinima, filteredMaxima, filteredSums, filteredValueCounts);
-    }
-
-    @Override
-    public Block keepMask(BooleanVector mask) {
-        DoubleBlock filteredMinima = null;
-        DoubleBlock filteredMaxima = null;
-        DoubleBlock filteredSums = null;
-        LongBlock filteredValueCounts = null;
-        BytesRefBlock filteredEncodedDigests = null;
-        boolean success = false;
-        try {
-            filteredEncodedDigests = encodedDigests.keepMask(mask);
-            filteredMinima = minima.keepMask(mask);
-            filteredMaxima = maxima.keepMask(mask);
-            filteredSums = sums.keepMask(mask);
-            filteredValueCounts = valueCounts.keepMask(mask);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.close(filteredMinima, filteredMaxima, filteredSums, filteredValueCounts, filteredEncodedDigests);
-            }
-        }
-        return new TDigestArrayBlock(filteredEncodedDigests, filteredMinima, filteredMaxima, filteredSums, filteredValueCounts);
-    }
-
-    @Override
     public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         throw new UnsupportedOperationException("Lookup is not supported on TDigestArrayBlock");
     }
@@ -207,29 +150,6 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         return this;
     }
 
-    @Override
-    public Block deepCopy(BlockFactory blockFactory) {
-        DoubleBlock copiedMinima = null;
-        DoubleBlock copiedMaxima = null;
-        DoubleBlock copiedSums = null;
-        LongBlock copiedValueCounts = null;
-        BytesRefBlock copiedEncodedDigests = null;
-        boolean success = false;
-        try {
-            copiedEncodedDigests = encodedDigests.deepCopy(blockFactory);
-            copiedMinima = minima.deepCopy(blockFactory);
-            copiedMaxima = maxima.deepCopy(blockFactory);
-            copiedSums = sums.deepCopy(blockFactory);
-            copiedValueCounts = valueCounts.deepCopy(blockFactory);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.close(copiedMinima, copiedMaxima, copiedSums, copiedValueCounts, copiedEncodedDigests);
-            }
-        }
-        return new TDigestArrayBlock(copiedEncodedDigests, copiedMinima, copiedMaxima, copiedSums, copiedValueCounts);
-    }
-
     void copyInto(
         BytesRefBlock.Builder encodedDigestsBuilder,
         DoubleBlock.Builder minimaBuilder,
@@ -244,6 +164,40 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         maximaBuilder.copyFrom(maxima, beginInclusive, endExclusive);
         sumsBuilder.copyFrom(sums, beginInclusive, endExclusive);
         valueCountsBuilder.copyFrom(valueCounts, beginInclusive, endExclusive);
+    }
+
+    @Override
+    public DoubleBlock buildHistogramComponentBlock(Component component) {
+        // as soon as we support multi-values, we need to implement this differently,
+        // as the sub-blocks will be flattened and the position count won't match anymore
+        // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
+        assert doesHaveMultivaluedFields() == false;
+        return switch (component) {
+            case MIN -> {
+                minima.incRef();
+                yield minima;
+            }
+            case MAX -> {
+                maxima.incRef();
+                yield maxima;
+            }
+            case SUM -> {
+                sums.incRef();
+                yield sums;
+            }
+            case COUNT -> {
+                try (var doubleBuilder = blockFactory().newDoubleBlockBuilder(valueCounts.getPositionCount())) {
+                    for (int i = 0; i < valueCounts.getPositionCount(); i++) {
+                        if (isNull(i)) {
+                            doubleBuilder.appendNull();
+                        } else {
+                            doubleBuilder.appendDouble(valueCounts.getLong(valueCounts.getFirstValueIndex(i)));
+                        }
+                    }
+                    yield doubleBuilder.build();
+                }
+            }
+        };
     }
 
     @Override
@@ -276,15 +230,6 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
             }
         }
         return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, valueCounts);
-    }
-
-    @Override
-    public long ramBytesUsed() {
-        long bytes = 0;
-        for (Block b : getSubBlocks()) {
-            bytes += b.ramBytesUsed();
-        }
-        return bytes;
     }
 
     @Override

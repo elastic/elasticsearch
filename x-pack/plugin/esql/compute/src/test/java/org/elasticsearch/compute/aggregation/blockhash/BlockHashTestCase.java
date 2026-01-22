@@ -57,7 +57,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
     }
 
     // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    private static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
         return breakerService;

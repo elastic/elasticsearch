@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,6 +56,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -98,6 +100,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile boolean diskThresholdEnabled;
     private volatile boolean estimatedHeapThresholdEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
+    private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
@@ -145,9 +148,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
             this::setEstimatedHeapThresholdEnabled
         );
-
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
+            this::setWriteLoadDeciderShardLevelWriteLoadType
+        );
     }
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
@@ -160,6 +166,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
         this.writeLoadConstraintEnabled = writeLoadConstraintEnabled;
+    }
+
+    private void setWriteLoadDeciderShardLevelWriteLoadType(WriteLoadDeciderShardWriteLoadType type) {
+        this.writeLoadDeciderShardWriteLoadType = type;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -367,7 +377,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
                                     dataPath,
-                                    reservedSpaceBuilders
+                                    reservedSpaceBuilders,
+                                    writeLoadDeciderShardWriteLoadType
                                 );
 
                                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
@@ -605,7 +616,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
         Map<ClusterInfo.NodeAndShard, String> dataPathByShard,
-        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
+        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard,
+        WriteLoadDeciderShardWriteLoadType shardWriteLoadType
     ) {
         for (ShardStats s : stats) {
             final ShardRouting shardRouting = s.getShardRouting();
@@ -633,7 +645,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
             final IndexingStats indexingStats = s.getStats().getIndexing();
             if (indexingStats != null) {
-                final double shardWriteLoad = indexingStats.getTotal().getPeakWriteLoad();
+                final double shardWriteLoad = shardWriteLoadType.getWriteLoad(indexingStats);
                 if (shardWriteLoad > shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
                     shardWriteLoads.put(shardRouting.shardId(), shardWriteLoad);
                 }

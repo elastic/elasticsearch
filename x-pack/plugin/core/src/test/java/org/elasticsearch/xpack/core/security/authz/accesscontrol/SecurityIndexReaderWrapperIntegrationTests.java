@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
@@ -199,7 +198,10 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
 
-            Integer totalHits = indexSearcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(indexSearcher.getSlices()));
+            Integer totalHits = indexSearcher.search(
+                Queries.ALL_DOCS_INSTANCE,
+                new TotalHitCountCollectorManager(indexSearcher.getSlices())
+            );
             assertThat(totalHits, equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
@@ -325,7 +327,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             true
         );
 
-        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        ScoreDoc[] hits = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();
         for (ScoreDoc doc : hits) {
             actualDocIds.add(doc.doc);
@@ -501,7 +503,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             true
         );
 
-        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        ScoreDoc[] hits = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1000).scoreDocs;
         assertThat(Arrays.stream(hits).map(h -> h.doc).collect(Collectors.toSet()), containsInAnyOrder(4, 5, 6, 7, 11, 12, 13));
 
         hits = indexSearcher.search(Queries.newNonNestedFilter(context.indexVersionCreated()), 1000).scoreDocs;

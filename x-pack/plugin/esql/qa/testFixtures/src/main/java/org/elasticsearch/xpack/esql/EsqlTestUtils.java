@@ -25,6 +25,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -41,6 +42,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -81,6 +83,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -120,6 +123,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -164,6 +168,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -188,6 +193,7 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.fail;
@@ -217,6 +223,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -519,7 +526,7 @@ public final class EsqlTestUtils {
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     public static TransportVersion randomMinimumVersion() {
-        return TransportVersionUtils.randomCompatibleVersion(ESTestCase.random());
+        return TransportVersionUtils.randomCompatibleVersion();
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -544,6 +551,26 @@ public final class EsqlTestUtils {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
     ) {
+        return testAnalyzerContext(
+            configuration,
+            functionRegistry,
+            indexResolutions,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            UNMAPPED_FIELDS.defaultValue()
+        );
+    }
+
+    public static MutableAnalyzerContext testAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        UnmappedResolution unmappedResolution
+    ) {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
@@ -551,7 +578,8 @@ public final class EsqlTestUtils {
             lookupResolution,
             enrichResolution,
             inferenceResolution,
-            randomMinimumVersion()
+            randomMinimumVersion(),
+            unmappedResolution
         );
     }
 
@@ -564,6 +592,7 @@ public final class EsqlTestUtils {
     public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
         DataPartitioning.AUTO,
         ByteSizeValue.ofMb(1),
+        ByteSizeValue.ofMb(2),
         10_000,
         ByteSizeValue.ofMb(1)
     );
@@ -611,6 +640,7 @@ public final class EsqlTestUtils {
     public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
         return new Configuration(
             statement.setting(QuerySettings.TIME_ZONE),
+            Instant.now(),
             Locale.US,
             null,
             null,
@@ -1066,6 +1096,11 @@ public final class EsqlTestUtils {
                 randomDouble(),
                 randomInt()
             );
+            case DATE_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
             case NULL -> null;
             case SOURCE -> {
                 try {
@@ -1077,6 +1112,7 @@ public final class EsqlTestUtils {
                 }
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
+            case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE -> throw new IllegalArgumentException(
@@ -1154,6 +1190,29 @@ public final class EsqlTestUtils {
         return returnValue;
     }
 
+    public static BytesRef randomHistogram() {
+        List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+        values.sort(Double::compareTo);
+        // Note - we need the three parameter version of random list here to ensure it's always the same length as values
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        try {
+            for (int i = 0; i < values.size(); i++) {
+                long count = counts.get(i);
+                // Presuming I didn't mess up the data generation, we should never generate a zero here, so no need to account for it.
+                assert count > 0;
+                streamOutput.writeVLong(count);
+                streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+            }
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            return docValue;
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        throw new IllegalArgumentException("Unreachable");
+    }
+
     static Version randomVersion() {
         // TODO degenerate versions and stuff
         return switch (between(0, 2)) {
@@ -1180,12 +1239,37 @@ public final class EsqlTestUtils {
         return routingPathFields.buildHash();
     }
 
+    // lifted from org.elasticsearch.http.HttpClientStatsTrackerTests
+    public static String randomizeCase(String s) {
+        final char[] chars = s.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            chars[i] = randomizeCase(chars[i]);
+        }
+        return new String(chars);
+    }
+
+    private static char randomizeCase(char c) {
+        return switch (between(1, 3)) {
+            case 1 -> Character.toUpperCase(c);
+            case 2 -> Character.toLowerCase(c);
+            default -> c;
+        };
+    }
+
     public static WildcardLike wildcardLike(Expression left, String exp) {
         return new WildcardLike(EMPTY, left, new WildcardPattern(exp), false);
     }
 
     public static RLike rlike(Expression left, String exp) {
         return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
+    public static QueryParams paramsAsConstant(String key, Object value) {
+        return new QueryParams(List.of(paramAsConstant(key, value)));
+    }
+
+    public static QueryParams paramsAsConstant(Map<String, Object> params) {
+        return new QueryParams(params.entrySet().stream().map(e -> paramAsConstant(e.getKey(), e.getValue())).toList());
     }
 
     public static QueryParam paramAsConstant(String name, Object value) {
@@ -1344,6 +1428,46 @@ public final class EsqlTestUtils {
 
     private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
 
+    /**
+     * Checks if a query contains any of the specified indices in its source command.
+     * This is useful for determining if a query uses indices that are loaded into both clusters
+     * (like enrich source indices or lookup indices), which may require special handling.
+     *
+     * @param query The ESQL query to check
+     * @param indicesToCheck Set of index names to check for (case-insensitive)
+     * @return true if the query contains any of the specified indices, false otherwise
+     */
+    public static boolean queryContainsIndices(String query, Set<String> indicesToCheck) {
+        String[] commands = query.split("\\|");
+        // remove subqueries
+        String first = commands[0].split(",\\s+\\(")[0].trim();
+        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        int lastSetDelimiterPosition = -1;
+        if (setMatcher.find()) {
+            lastSetDelimiterPosition = setMatcher.end();
+        }
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+        String command = commandParts[0].trim();
+        if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
+            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+                .collect(UnresolvedRelation.class)
+                .getFirst()
+                .indexPattern()
+                .indexPattern()
+                .split(",");
+            for (String index : indices) {
+                String indexName = index.trim().toLowerCase(Locale.ROOT);
+                if (indicesToCheck.contains(indexName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");
         // remove subqueries
@@ -1374,7 +1498,7 @@ public final class EsqlTestUtils {
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
-                if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                if (queryContainsIndices(query, lookupIndices)) {
                     // If the query contains lookup indices, use only remotes to avoid duplication
                     onlyRemotes = true;
                 }

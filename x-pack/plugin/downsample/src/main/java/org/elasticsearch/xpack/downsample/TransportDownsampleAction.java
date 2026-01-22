@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
@@ -370,15 +371,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             }
 
             /*
-             * When creating the downsample index, we copy the index.number_of_shards from source index,
-             * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
+             * When creating the downsample index, we copy the index.number_of_shards from source index.
+             * We set minNumReplicas to 0 if running in stateful mode, to avoid replicating the index being built.
+             * If running in stateless mode, we set minNumReplicas to 1. This is because in stateless deployments, indices without replicas
+             * are not readable, and that would break our persistent task recovery mechanism which relies on reading the latest written
+             * tsid into the downsampling target index. Not having replicas in stateless would result in downsampling persistent tasks to
+             * always start from scratch.
              * Also, we set the index.refresh_interval to -1.
              * We will set the correct number of replicas and refresh the index later.
              *
              * We should note that there is a risk of losing a node during the downsample process. In this
              * case downsample will fail.
              */
-            int minNumReplicas = clusterService.getSettings().getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME, 0);
+            int minNumReplicas = DiscoveryNode.isStateless(clusterService.getSettings()) ? 1 : 0;
 
             // 3. Create downsample index
             createDownsampleIndex(

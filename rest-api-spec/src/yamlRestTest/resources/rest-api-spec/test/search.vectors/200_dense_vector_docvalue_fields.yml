@@ -81,12 +81,8 @@ setup:
 ---
 "Enable docvalue_fields parameter for dense_vector fields":
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ dense_vector_docvalue_fields ]
-      test_runner_features: capabilities
-      reason: "Support for dense vector doc value fields capability required"
+      cluster_features: [ "mapper.fix_dense_vector_wrong_fields" ]
+      reason: "fix for ensuring proper data read for denormalized vectors"
   - do:
       search:
         _source: false

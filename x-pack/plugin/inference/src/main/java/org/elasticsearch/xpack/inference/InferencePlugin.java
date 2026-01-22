@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
@@ -69,7 +67,7 @@ import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointActi
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
@@ -86,7 +84,7 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpoint
 import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
-import org.elasticsearch.xpack.inference.action.TransportGetInferenceFieldsAction;
+import org.elasticsearch.xpack.inference.action.TransportGetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAction;
@@ -209,8 +207,6 @@ public class InferencePlugin extends Plugin
         ClusterPlugin,
         PersistentTaskPlugin {
 
-    private static final Logger logger = LogManager.getLogger(InferencePlugin.class);
-
     /**
      * When this setting is true the verification check that
      * connects to the external service will not be made at
@@ -243,7 +239,7 @@ public class InferencePlugin extends Plugin
     public static final LicensedFeature.Momentary EIS_INFERENCE_FEATURE = LicensedFeature.momentary(
         "inference",
         "Elastic Inference Service",
-        License.OperationMode.BASIC
+        License.OperationMode.ENTERPRISE
     );
 
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
@@ -293,7 +289,7 @@ public class InferencePlugin extends Plugin
             new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
             new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
             new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
-            new ActionHandler(GetInferenceFieldsAction.INSTANCE, TransportGetInferenceFieldsAction.class),
+            new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class)
         );
     }
@@ -357,12 +353,7 @@ public class InferencePlugin extends Plugin
         var inferenceServiceSettings = new CCMInformedSettings(settings, ccmFeature.get());
         inferenceServiceSettings.init(services.clusterService());
 
-        var eisRequestSenderFactoryComponents = createEisRequestSenderFactory(
-            services,
-            throttlerManager,
-            inferenceServiceSettings,
-            ccmFeature.get()
-        );
+        var eisRequestSenderFactoryComponents = createEisRequestSenderComponents(services, throttlerManager, inferenceServiceSettings);
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
@@ -487,7 +478,9 @@ public class InferencePlugin extends Plugin
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool(),
-            ccmAuthApplierFactory
+            ccmAuthApplierFactory,
+            ccmFeature,
+            ccmService
         );
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(
@@ -517,33 +510,21 @@ public class InferencePlugin extends Plugin
 
     private record EisRequestSenderComponents(HttpRequestSender.Factory factory, HttpClientManager httpClientManager) {}
 
-    private EisRequestSenderComponents createEisRequestSenderFactory(
+    private EisRequestSenderComponents createEisRequestSenderComponents(
         PluginServices services,
         ThrottlerManager throttlerManager,
-        ElasticInferenceServiceSettings inferenceServiceSettings,
-        CCMFeature ccmFeature
+        ElasticInferenceServiceSettings inferenceServiceSettings
     ) {
-        // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
-        HttpClientManager manager;
-        if (ccmFeature.isCcmSupportedEnvironment()) {
-            // If ccm is configurable then we aren't using mTLS so ignore the ssl service
-            manager = HttpClientManager.create(
-                settings,
-                services.threadPool(),
-                services.clusterService(),
-                throttlerManager,
-                inferenceServiceSettings.getConnectionTtl()
-            );
-        } else {
-            manager = HttpClientManager.create(
-                settings,
-                services.threadPool(),
-                services.clusterService(),
-                throttlerManager,
-                getSslService(),
-                inferenceServiceSettings.getConnectionTtl()
-            );
-        }
+        // Always use the SSL service to respect SSL settings like verification_mode even in CCM mode.
+        // This allows local development with self-signed certificates when verification_mode=none.
+        var manager = HttpClientManager.create(
+            settings,
+            services.threadPool(),
+            services.clusterService(),
+            throttlerManager,
+            getSslService(),
+            inferenceServiceSettings.getConnectionTtl()
+        );
 
         return new EisRequestSenderComponents(
             new HttpRequestSender.Factory(serviceComponents.get(), manager, services.clusterService()),

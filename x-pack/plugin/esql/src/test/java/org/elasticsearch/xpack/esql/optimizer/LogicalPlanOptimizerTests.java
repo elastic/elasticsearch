@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -149,7 +150,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
@@ -173,6 +173,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
@@ -202,7 +203,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -268,7 +271,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop salary
             """);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(project.expressions(), is(empty()));
         var limit = as(project.child(), Limit.class);
         as(limit.child(), EsRelation.class);
@@ -292,7 +295,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expects
      *
      * <pre>{@code
-     * EsqlProject[[x{r}#6]]
+     * Project[[x{r}#6]]
      * \_Eval[[1[INTEGER] AS x]]
      *   \_Limit[1000[INTEGER]]
      *     \_LocalRelation[[{e}#18],[ConstantNullBlock[positions=1]]]
@@ -325,7 +328,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * <pre>{@code
-     * EsqlProject[[x{r}#8]]
+     * Project[[x{r}#8]]
      * \_Eval[[1[INTEGER] AS x]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[[emp_no{f}#15],[emp_no{f}#15]]
@@ -1031,7 +1034,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * <pre>{@code
-     * EsqlProject[[x{r}#3, y{r}#6]]
+     * Project[[x{r}#3, y{r}#6]]
      * \_Eval[[emp_no{f}#9 + 2[INTEGER] AS x, salary{f}#14 + 3[INTEGER] AS y]]
      *   \_Limit[10000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
@@ -1613,7 +1616,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * <pre>{@code
      * Limit[1000[INTEGER],true]
      * \_MvExpand[x{r}#4,x{r}#19]
-     *   \_EsqlProject[[first_name{f}#9 AS x]]
+     *   \_Project[[first_name{f}#9 AS x]]
      *     \_Limit[1000[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      * }</pre>
@@ -1628,7 +1631,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = asLimit(plan, 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var keep = as(mvExpand.child(), EsqlProject.class);
+        var keep = as(mvExpand.child(), Project.class);
         var limitPastMvExpand = asLimit(keep.child(), 1000, false);
         as(limitPastMvExpand.child(), EsRelation.class);
     }
@@ -1664,7 +1667,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * <pre>{@code
      * Limit[10[INTEGER],true]
      * \_MvExpand[first_name{f}#7,first_name{r}#17]
-     *   \_EsqlProject[[first_name{f}#7, last_name{f}#10]]
+     *   \_Project[[first_name{f}#7, last_name{f}#10]]
      *     \_Limit[1[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      * }</pre>
@@ -1680,7 +1683,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = asLimit(plan, 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var project = as(mvExpand.child(), EsqlProject.class);
+        var project = as(mvExpand.child(), Project.class);
         var limit2 = asLimit(project.child(), 1, false);
         as(limit2.child(), EsRelation.class);
     }
@@ -1716,7 +1719,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#19, first_name{r}#30, languages{f}#22, lll{r}#9, salary{r}#31]]
+     * Project[[emp_no{f}#19, first_name{r}#30, languages{f}#22, lll{r}#9, salary{r}#31]]
      * \_TopN[[Order[salary{r}#31,DESC,FIRST]],5[INTEGER]]
      *   \_Limit[5[INTEGER],true]
      *     \_MvExpand[salary{f}#24,salary{r}#31]
@@ -1746,7 +1749,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort salary desc
             """);
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
@@ -1821,7 +1824,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#10, first_name{r}#21, salary{f}#15]]
+     * Project[[emp_no{f}#10, first_name{r}#21, salary{f}#15]]
      * \_TopN[[Order[salary{f}#15,ASC,LAST], Order[first_name{r}#21,ASC,LAST]],5[INTEGER]]
      *   \_MvExpand[first_name{f}#11,first_name{r}#21,null]
      *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
@@ -1836,7 +1839,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort salary, first_name
             | limit 5""");
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary", "first_name"));
@@ -1847,7 +1850,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#2560, first_name{r}#2571, salary{f}#2565]]
+     * Project[[emp_no{f}#2560, first_name{r}#2571, salary{f}#2565]]
      * \_TopN[[Order[first_name{r}#2571,ASC,LAST]],5[INTEGER]]
      *   \_TopN[[Order[salary{f}#2565,ASC,LAST]],5[INTEGER]]
      *     \_MvExpand[first_name{f}#2561,first_name{r}#2571,null]
@@ -1864,7 +1867,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | limit 5
             | sort first_name""");
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("first_name"));
@@ -1981,7 +1984,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[first_name{f}#11, emp_no{f}#10, salary{f}#12, b{r}#4]]
+     * Project[[first_name{f}#11, emp_no{f}#10, salary{f}#12, b{r}#4]]
      *  \_TopN[[Order[salary{f}#12,ASC,LAST]],5[INTEGER]]
      *    \_Eval[[100[INTEGER] AS b]]
      *      \_MvExpand[first_name{f}#11]
@@ -1998,7 +2001,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | limit 5
             | keep first_name, emp_no, salary, b""");
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
@@ -2010,7 +2013,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#5885, first_name{r}#5896, salary{f}#5890]]
+     * Project[[emp_no{f}#5885, first_name{r}#5896, salary{f}#5890]]
      * \_TopN[[Order[salary{f}#5890,ASC,LAST], Order[first_name{r}#5896,ASC,LAST]],1000[INTEGER]]
      *   \_Filter[gender{f}#5887 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#5896)]
      *     \_MvExpand[first_name{f}#5886,first_name{r}#5896,null]
@@ -2027,7 +2030,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep emp_no, first_name, salary
             | sort salary, first_name""");
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
         assertThat(orderNames(topN), contains("salary", "first_name"));
@@ -2133,7 +2136,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * <pre>{@code
      * Limit[10000[INTEGER],true]
      * \_MvExpand[c{r}#7,c{r}#16]
-     *   \_EsqlProject[[c{r}#7, a{r}#3]]
+     *   \_Project[[c{r}#7, a{r}#3]]
      *     \_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
      *       \_Limit[7300[INTEGER],true]
      *         \_MvExpand[b{r}#5,b{r}#15]
@@ -2154,7 +2157,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit10kBefore = asLimit(plan, 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
-        var project = as(mvExpand.child(), EsqlProject.class);
+        var project = as(mvExpand.child(), Project.class);
         var topN = as(project.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
         assertThat(orderNames(topN), contains("a"));
@@ -2231,7 +2234,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#3517, first_name{r}#3528, salary{f}#3522]]
+     * Project[[emp_no{f}#3517, first_name{r}#3528, salary{f}#3522]]
      * \_TopN[[Order[salary{f}#3522,ASC,LAST], Order[first_name{r}#3528,ASC,LAST]],15[INTEGER]]
      *   \_Filter[gender{f}#3519 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#3528)]
      *     \_MvExpand[first_name{f}#3518,first_name{r}#3528,null]
@@ -2249,7 +2252,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort salary, first_name
             | limit 15""");
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(15));
         assertThat(orderNames(topN), contains("salary", "first_name"));
@@ -2262,7 +2265,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#3421, first_name{r}#3432, salary{f}#3426]]
+     * Project[[emp_no{f}#3421, first_name{r}#3432, salary{f}#3426]]
      * \_TopN[[Order[salary{f}#3426,ASC,LAST], Order[first_name{r}#3432,ASC,LAST]],15[INTEGER]]
      *   \_Filter[gender{f}#3423 == [46][KEYWORD] AND salary{f}#3426 > 60000[INTEGER]]
      *     \_MvExpand[first_name{f}#3422,first_name{r}#3432,null]
@@ -2280,7 +2283,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort salary, first_name
             | limit 15""");
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(15));
         assertThat(orderNames(topN), contains("salary", "first_name"));
@@ -2293,7 +2296,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#2085, first_name{r}#2096 AS x, salary{f}#2090]]
+     * Project[[emp_no{f}#2085, first_name{r}#2096 AS x, salary{f}#2090]]
      * \_TopN[[Order[salary{f}#2090,ASC,LAST], Order[first_name{r}#2096,ASC,LAST]],15[INTEGER]]
      *   \_Filter[gender{f}#2087 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#2096)]
      *     \_MvExpand[first_name{f}#2086,first_name{r}#2096,null]
@@ -2527,7 +2530,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * EsqlProject[[emp_no{f}#9, first_name{f}#10, languages{f}#12, language_code{r}#3, language_name{r}#22]]
+     * Project[[emp_no{f}#9, first_name{f}#10, languages{f}#12, language_code{r}#3, language_name{r}#22]]
      * \_Eval[[null[INTEGER] AS language_code#3, null[KEYWORD] AS language_name#22]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
@@ -3148,7 +3151,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * <pre>{@code
-     * EsqlProject[[a{r}#3, last_name{f}#9]]
+     * Project[[a{r}#3, last_name{f}#9]]
      * \_Eval[[__a_SUM_123{r}#12 / __a_COUNT_150{r}#13 AS a]]
      *   \_Limit[10000[INTEGER]]
      *     \_Aggregate[[last_name{f}#9],[SUM(salary{f}#10) AS __a_SUM_123, COUNT(salary{f}#10) AS __a_COUNT_150, last_nam
@@ -3185,7 +3188,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * <pre>{@code
-     * EsqlProject[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
+     * Project[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
      * \_Eval[[s{r}#9 / c{r}#6 AS a]]
      *   \_Limit[10000[INTEGER]]
      *     \_Aggregate[[last_name{f}#15],[COUNT(salary{f}#16) AS c, SUM(salary{f}#16) AS s, last_name{f}#15]]
@@ -3213,7 +3216,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * <pre>{@code
-     * EsqlProject[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
+     * Project[[a{r}#3, c{r}#6, s{r}#9, last_name{f}#15]]
      * \_Eval[[s{r}#9 / __a_COUNT@xxx{r}#18 AS a]]
      *   \_Limit[10000[INTEGER]]
      *     \_Aggregate[[last_name{f}#15],[COUNT(salary{f}#16) AS __a_COUNT@xxx, COUNT(languages{f}#14) AS c, SUM(salary{f}#16) AS
@@ -4741,7 +4744,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *
      * <pre>{@code
      * Limit[1000[INTEGER]]
-     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
+     * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *     \_Eval[[COALESCE(MVCOUNT([1, 2][INTEGER]),0[INTEGER]) * $$COUNT$s$0{r}#26 AS s, COALESCE(MVCOUNT(314.0[DOUBLE] / 100[
      * INTEGER]),0[INTEGER]) * $$COUNT$s$0{r}#26 AS s_expr, COALESCE(MVCOUNT(null[NULL]),0[INTEGER]) * $$COUNT$s$0{r}#26 AS s_null]]
@@ -4761,8 +4764,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """, new TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
-        var esqlProject = as(limit.child(), EsqlProject.class);
-        var project = as(esqlProject.child(), Project.class);
+        var topProject = as(limit.child(), Project.class);
+        var project = as(topProject.child(), Project.class);
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
@@ -4813,7 +4816,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *
      * <pre>{@code
      * Limit[1000[INTEGER]]
-     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
+     * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *     \_Eval[[MVSUM([1, 2][INTEGER]) * $$COUNT$s$0{r}#25 AS s, MVSUM(314.0[DOUBLE] / 100[INTEGER]) * $$COUNT$s$0{r}#25 AS s
      * _expr, MVSUM(null[NULL]) * $$COUNT$s$0{r}#25 AS s_null]]
@@ -4833,8 +4836,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """, new TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
-        var esqlProject = as(limit.child(), EsqlProject.class);
-        var project = as(esqlProject.child(), Project.class);
+        var topProject = as(limit.child(), Project.class);
+        var project = as(topProject.child(), Project.class);
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
@@ -4913,7 +4916,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *
      * <pre>{@code
      * Limit[1000[INTEGER]]
-     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
+     * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
      *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
      *       \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
@@ -4940,8 +4943,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var plan = plan(query, new TestSubstitutionOnlyOptimizer());
 
             var limit = as(plan, Limit.class);
-            var esqlProject = as(limit.child(), EsqlProject.class);
-            var project = as(esqlProject.child(), Project.class);
+            var topProject = as(limit.child(), Project.class);
+            var project = as(topProject.child(), Project.class);
             var eval = as(project.child(), Eval.class);
             var singleRowRelation = as(eval.child(), LocalRelation.class);
             var singleRow = singleRowRelation.supplier().get();
@@ -4959,7 +4962,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *
      * <pre>{@code
      * Limit[1000[INTEGER]]
-     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
+     * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
      *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
      *       \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
@@ -4988,8 +4991,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var plan = plan(query, new TestSubstitutionOnlyOptimizer());
 
             var limit = as(plan, Limit.class);
-            var esqlProject = as(limit.child(), EsqlProject.class);
-            var project = as(esqlProject.child(), Project.class);
+            var topProject = as(limit.child(), Project.class);
+            var project = as(topProject.child(), Project.class);
             var eval = as(project.child(), Eval.class);
             var agg = as(eval.child(), Aggregate.class);
             assertThat(agg.child(), instanceOf(EsRelation.class));
@@ -5352,7 +5355,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // | EVAL y = to_integer(x), y = y + 1
         new PushdownShadowingGeneratingPlanTestCase((plan, attr) -> {
             Alias y1 = new Alias(EMPTY, "y", new ToInteger(EMPTY, attr));
-            Alias y2 = new Alias(EMPTY, "y", new Add(EMPTY, y1.toAttribute(), new Literal(EMPTY, 1, INTEGER)));
+            Alias y2 = new Alias(EMPTY, "y", new Add(EMPTY, y1.toAttribute(), new Literal(EMPTY, 1, INTEGER), TEST_CFG));
             return new Eval(EMPTY, plan, List.of(y1, y2));
         }, new PushDownEval()),
         // | DISSECT x "%{y} %{y}"
@@ -5738,7 +5741,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[emp_no{f}#16, count{r}#7]]
+     * Project[[emp_no{f}#16, count{r}#7]]
      * \_TopN[[Order[emp_no{f}#16,ASC,LAST]],5[INTEGER]]
      *   \_InlineJoin[LEFT,[salaryK{r}#5],[salaryK{r}#5],[salaryK{r}#5]]
      *     |_Eval[[salary{f}#21 / 1000[INTEGER] AS salaryK#5]]
@@ -5878,10 +5881,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[emp_no{f}#26, salaryK{r}#4, count{r}#6, min{r}#19]]
+     * Project[[emp_no{f}#26, salaryK{r}#4, count{r}#6, min{r}#19]]
      * \_TopN[[Order[emp_no{f}#26,ASC,LAST]],5[INTEGER]]
      *   \_InlineJoin[LEFT,[salaryK{r}#4],[salaryK{r}#4]]
-     *     |_EsqlProject[[_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, gender{f}#28, hire_date{f}#33, job{f}#34, job.raw{f}#35,
+     *     |_Project[[_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, gender{f}#28, hire_date{f}#33, job{f}#34, job.raw{f}#35,
      *              languages{f}#29, last_name{f}#30, long_noidx{f}#36, salary{f}#31, count{r}#6, salaryK{r}#4, hire_date_string{r}#10,
      *              date{r}#15]]
      *     | \_Dissect[hire_date_string{r}#10,Parser[pattern=%{date}, appendSeparator=,
@@ -5962,7 +5965,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[emp_no{f}#917]]
+     * Project[[emp_no{f}#917]]
      * \_TopN[[Order[emp_no{f}#917,ASC,LAST]],5[INTEGER]]
      *   \_Dissect[hire_date_string{r}#898,Parser[pattern=%{date}, appendSeparator=,
      *          parser=org.elasticsearch.dissect.DissectParser@46132aa7],[date{r}#903]] <-- TODO: Dissect & Eval could/should be dropped
@@ -6081,7 +6084,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[avg{r}#1053, decades{r}#1049, avgavg{r}#1063]]
+     * Project[[avg{r}#1053, decades{r}#1049, avgavg{r}#1063]]
      * \_Limit[1000[INTEGER],true]
      *   \_InlineJoin[LEFT,[],[],[]]
      *     |_Project[[avg{r}#1053, decades{r}#1049, idecades{r}#1056]]
@@ -6114,7 +6117,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades", "avgavg")));
         var limit = asLimit(project.child(), 1000, false);
         var inlineJoin = as(limit.child(), InlineJoin.class);
@@ -6180,7 +6183,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[avg{r}#4, emp_no{f}#9, first_name{f}#10]]
+     * Project[[avg{r}#4, emp_no{f}#9, first_name{f}#10]]
      * \_Limit[10[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
      *     |_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
@@ -6203,15 +6206,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var esqlProject = as(plan, EsqlProject.class);
-        assertThat(Expressions.names(esqlProject.projections()), is(List.of("avg", "emp_no", "first_name")));
-        var upperLimit = asLimit(esqlProject.child(), 10, false);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no", "first_name")));
+        var upperLimit = asLimit(project.child(), 10, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
         assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
-        var project = as(inlineJoin.right(), Project.class);
+        project = as(inlineJoin.right(), Project.class);
         assertThat(Expressions.names(project.projections()), contains("avg", "emp_no"));
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
@@ -6221,7 +6224,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[emp_no{r}#5]]
+     * Project[[emp_no{r}#5]]
      * \_Limit[1000[INTEGER],false]
      *   \_LocalRelation[[salary{r}#3, emp_no{r}#5, gender{r}#7],
      *      org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@9d5b596d]
@@ -6238,9 +6241,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var esqlProject = as(plan, Project.class);
-        assertThat(Expressions.names(esqlProject.projections()), is(List.of("emp_no")));
-        var limit = asLimit(esqlProject.child(), 1000, false);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
+        var limit = asLimit(project.child(), 1000, false);
         var localRelation = as(limit.child(), LocalRelation.class);
         assertThat(
             localRelation.output(),
@@ -6253,7 +6256,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[a{r}#4]]
+     * Project[[a{r}#4]]
      * \_Limit[2[INTEGER],false]
      *   \_InlineJoin[LEFT,[],[],[]]
      *     |_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
@@ -6276,7 +6279,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("a")));
         var limit = asLimit(project.child(), 2, false);
         var inlineJoin = as(limit.child(), InlineJoin.class);
@@ -6296,7 +6299,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_Aggregate[[],[VALUES(max_lang{r}#7,true[BOOLEAN]) AS v#11]]
      *   \_Limit[1[INTEGER],false]
      *     \_InlineJoin[LEFT,[gender{f}#14],[gender{f}#14],[gender{r}#14]]
-     *       |_EsqlProject[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
+     *       |_Project[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
      *       | \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      *       \_Aggregate[[gender{f}#14],[MAX(languages{f}#15,true[BOOLEAN]) AS max_lang#7, gender{f}#14]]
      *         \_StubRelation[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
@@ -6320,7 +6323,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var innerLimit = asLimit(aggregate.child(), 1, false);
         var inlineJoin = as(innerLimit.child(), InlineJoin.class);
         // Left
-        var project = as(inlineJoin.left(), EsqlProject.class);
+        var project = as(inlineJoin.left(), Project.class);
         var relation = as(project.child(), EsRelation.class);
         // Right
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -6328,7 +6331,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EsqlProject[[c{r}#7, b{r}#5, a{r}#14]]
+     * Project[[c{r}#7, b{r}#5, a{r}#14]]
      * \_Eval[[[KEYWORD] AS a#14]]
      *   \_Limit[1000[INTEGER],false]
      *     \_LocalRelation[[a{r}#3, b{r}#5, c{r}#7],Page{blocks=[ConstantNullBlock[positions=1], IntVectorBlock[vector=ConstantIntVector[p
@@ -6787,7 +6790,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expects
      * <pre>{@code
      * Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
-     * |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9 AS int
+     * |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9 AS int
      * , last_name{f}#10, long_noidx{f}#15, salary{f}#11]]
      * | \_Limit[1000[INTEGER]]
      * |   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
@@ -6817,7 +6820,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         // Left is the rest of the query
-        var left = as(join.left(), EsqlProject.class);
+        var left = as(join.left(), Project.class);
         assertThat(left.output().toString(), containsString("int{r}"));
         var limit = as(left.child(), Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
@@ -6868,7 +6871,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Limit[1000[INTEGER]]
      * \_Aggregate[[name{r}#20],[MIN(emp_no{f}#9) AS MIN(emp_no), name{r}#20]]
      *   \_Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
-     *     |_EsqlProject[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, job{f}#16, job.raw{f}#17, languages{f}#12 AS
+     *     |_Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, job{f}#16, job.raw{f}#17, languages{f}#12 AS
      * int, last_name{f}#13, long_noidx{f}#18, salary{f}#14]]
      *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      *     \_LocalRelation[[int{f}#19, name{f}#20],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
@@ -6907,7 +6910,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         // Left is the rest of the query
-        var left = as(join.left(), EsqlProject.class);
+        var left = as(join.left(), Project.class);
         assertThat(left.output().toString(), containsString("int{r}"));
         as(left.child(), EsRelation.class);
 
@@ -7282,7 +7285,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * <p>
      * Expects
      * <pre>{@code
-     * EsqlProject[[languages{f}#21]]
+     * Project[[languages{f}#21]]
      * \_Limit[1000[INTEGER],true]
      *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#29]]
      *     |_Project[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27, l
@@ -7421,13 +7424,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(2));
-        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
-        assertThat(aggsByTsid.aggregates(), hasSize(2));
-        assertNull(aggsByTsid.timeBucket());
-        Eval addEval = as(aggsByTsid.child(), Eval.class);
+        Eval addEval = as(finalAggs.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
         Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
-        EsRelation relation = as(addEval.child(), EsRelation.class);
+        TimeSeriesAggregate aggsByTsid = as(addEval.child(), TimeSeriesAggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2));
+        assertNull(aggsByTsid.timeBucket());
+
+        EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
@@ -7436,14 +7440,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         Max maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), Max.class);
         assertThat(Expressions.attribute(maxRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
-        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(addEval.fields().get(0).id()));
         assertThat(finalAggs.groupings(), empty());
 
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        LastOverTime lastCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), LastOverTime.class);
-        assertThat(Expressions.attribute(lastCost.field()).id(), equalTo(addEval.fields().get(0).id()));
-        assertThat(Expressions.attribute(add.left()).name(), equalTo("network.cost"));
+        Alias lastCostAlias = as(aggsByTsid.aggregates().get(1), Alias.class);
+        LastOverTime lastCost = as(Alias.unwrap(lastCostAlias), LastOverTime.class);
+        assertThat(lastCostAlias.id(), equalTo(Expressions.attribute(add.left()).id()));
+        as(add.left(), ReferenceAttribute.class);
         assertThat(add.right().fold(FoldContext.small()), equalTo(0.2));
     }
 
@@ -7490,11 +7495,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
-        var unpackCluster = as(Alias.unwrap(eval.fields().get(0)), UnpackDimension.class);
+        var unpackCluster = as(Alias.unwrap(eval.fields().get(1)), UnpackDimension.class);
         assertThat(Expressions.name(unpackCluster), equalTo("cluster"));
-        var unpackPod = as(Alias.unwrap(eval.fields().get(1)), UnpackDimension.class);
+        var unpackPod = as(Alias.unwrap(eval.fields().get(2)), UnpackDimension.class);
         assertThat(Expressions.name(unpackPod), equalTo("pod"));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
 
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAggs.aggregates().get(1).id()));
@@ -7554,7 +7559,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         Eval packDimensions = as(finalAgg.child(), Eval.class);
@@ -7620,7 +7625,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         Eval packDimensions = as(finalAgg.child(), Eval.class);
@@ -7663,8 +7668,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval evalDiv = as(topN.child(), Eval.class);
         assertThat(evalDiv.fields(), hasSize(2));
-        as(Alias.unwrap(evalDiv.fields().get(0)), UnpackDimension.class);
-        Div div = as(Alias.unwrap(evalDiv.fields().get(1)), Div.class);
+        as(Alias.unwrap(evalDiv.fields().get(1)), UnpackDimension.class);
+        Div div = as(Alias.unwrap(evalDiv.fields().get(0)), Div.class);
 
         Aggregate finalAgg = as(evalDiv.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7853,8 +7858,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
         assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
-        DateTrunc dateTrunc = as(Alias.unwrap(evalBucket.fields().get(0)), DateTrunc.class);
-        assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
+        Expression bucketFunction = Alias.unwrap(evalBucket.fields().get(0));
+        if (bucketFunction instanceof Bucket bucket) {
+            // if the date_trunc isn't defined in a nested EVAL, it will be a Bucket function here
+            assertThat(as(bucket.buckets(), Literal.class).value(), equalTo(Duration.ofMinutes(1)));
+            assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        } else if (bucketFunction instanceof DateTrunc dateTrunc) {
+            assertThat(as(dateTrunc.interval(), Literal.class).value(), equalTo(Duration.ofMinutes(1)));
+            assertThat(Expressions.attribute(dateTrunc.field()).name(), equalTo("@timestamp"));
+        } else {
+            fail("Expected Bucket or DateTrunc function");
+        }
         assertTrue(lastOverTime.hasFilter());
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
@@ -8013,6 +8027,69 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
+        assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
+
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testTranslateTDigestSumWithImplicitMergeOverTime() {
+        var query = """
+            TS tdigest_timeseries_index | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
+            """;
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        Eval sumExtractionEval = as(finalAgg.child(), Eval.class); // extracts sum from merged per-series histograms
+        TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+
+        var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertFalse(crossSeriesSum.hasFilter());
+
+        var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
+
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        assertFalse(mergePerSeries.hasFilter());
+        assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
+
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testTranslateTDigestPercentileWithImplicitMergeOverTime() {
+        var query = """
+            TS tdigest_timeseries_index | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
+            """;
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var project = as(plan, Project.class);
+        var percentileExtractionEval = as(project.child(), Eval.class);
+        var limit = as(percentileExtractionEval.child(), Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+
+        var percentileExtraction = as(Alias.unwrap(percentileExtractionEval.expressions().get(0)), HistogramPercentile.class);
+
+        var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
+        assertFalse(crossSeriesMerge.hasFilter());
+
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
@@ -9500,7 +9577,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * EsqlProject[[@timestamp{r}#3]]
+     * Project[[@timestamp{r}#3]]
      * \_Eval[[1715300259000[DATETIME] AS @timestamp#3]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[k8s][@timestamp{f}#5, client.ip{f}#9, cluster{f}#6, ...]
@@ -9579,7 +9656,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * EsqlProject[[to_long{r}#2754, to_integer{r}#2757]]
+     * Project[[to_long{r}#2754, to_integer{r}#2757]]
      * \_Eval[[TOLONG(string{f}#2761) AS to_long#2754, TOINTEGER(string{f}#2761) AS to_integer#2757]]
      *         ^                                       ^
      *         one argument to_long(value) is rewritten to ToLong
@@ -9615,7 +9692,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * EsqlProject[[to_long{r}#2445, to_integer{r}#2449]]
+     * Project[[to_long{r}#2445, to_integer{r}#2449]]
      * \_Eval[[TOLONGBASE(string{f}#2453,base{f}#2454) AS to_long#2445, TOINTEGERBASE(string{f}#2453,base{f}#2454) AS to_integer#2449]]
      *         ^                                                        ^
      *         two argument to_long(string, base) is rewritten to ToLongBase
@@ -9651,7 +9728,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * EsqlProject[[ubase{r}#1871, to_long{r}#1875, to_integer{r}#1879]]
+     * Project[[ubase{r}#1871, to_long{r}#1875, to_integer{r}#1879]]
      * \_Eval[[TOUNSIGNEDLONG(base{f}#1885) AS ubase#1871,
      *         TOLONGBASE(string{f}#1884,TOINTEGER(ubase{r}#1871)) AS to_long#1875,
      *         TOINTEGERBASE(string{f}#1884,TOINTEGER(ubase{r}#1871)) AS to_integer#1879]]
@@ -9780,56 +9857,171 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals("test", relation.indexPattern());
     }
 
+    /**
+     * Project[[foo{r}#12, $$id$converted_to$keyword{f$}#13 AS id#9]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[foo{f}#11,foo{r}#12]
+     *     \_Project[[!id, foo{f}#11, $$id$converted_to$keyword{f$}#13]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[union_index*][foo{f}#11, !id, $$id$converted_to$keyword{f$}#13]
+     */
+    public void testUnionTypesResolvePastProjections() {
+        LogicalPlan plan = planUnionIndex("""
+            FROM union_index*
+            | KEEP id, foo
+            | MV_EXPAND foo
+            | EVAL id = id::keyword
+            """);
+
+        Project topProject = as(plan, Project.class);
+        var topOutput = topProject.output();
+        assertThat(topOutput, hasSize(2));
+
+        var idAttr = topOutput.get(1);
+        assertThat(idAttr.name(), equalTo("id"));
+
+        // The id attribute should be a ReferenceAttribute that references the converted field
+        ReferenceAttribute idRef = as(idAttr, ReferenceAttribute.class);
+        assertThat(idRef.dataType(), equalTo(KEYWORD));
+
+        Limit limit1 = asLimit(topProject.child(), 1000, true);
+        MvExpand mvExpand = as(limit1.child(), MvExpand.class);
+
+        Project innerProject = as(mvExpand.child(), Project.class);
+        var innerOutput = innerProject.output();
+        assertThat(innerOutput, hasSize(3));
+        assertThat(Expressions.names(innerOutput), containsInAnyOrder("id", "foo", "$$id$converted_to$keyword"));
+
+        Limit limit2 = asLimit(innerProject.child(), 1000, false);
+        EsRelation relation = as(limit2.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(3));
+
+        assertThat(relationOutput.get(0).name(), equalTo("foo"));
+        assertThat(relationOutput.get(0).dataType(), equalTo(KEYWORD));
+
+        assertThat(relationOutput.get(1).name(), equalTo("id"));
+        assertThat(relationOutput.get(1).dataType(), equalTo(UNSUPPORTED));
+
+        assertThat(relationOutput.get(2).name(), equalTo("$$id$converted_to$keyword"));
+        assertThat(relationOutput.get(2).dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * Project[[!id, $$id$converted_to$long{f$}#9 AS x#6]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_EsRelation[union_index*][foo{f}#7, !id, $$id$converted_to$long{f$}#9]
+     */
+    public void testExplicitRetainOriginalFieldWithCast() {
+        LogicalPlan plan = planUnionIndex("""
+            FROM union_index*
+            | KEEP id
+            | EVAL x = id::long
+            """);
+
+        Project topProject = as(plan, Project.class);
+        var projections = topProject.projections();
+        assertThat(projections, hasSize(2));
+        assertThat(projections.get(0).name(), equalTo("id"));
+        assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+
+        Alias xAlias = as(projections.get(1), Alias.class);
+        assertThat(xAlias.name(), equalTo("x"));
+        assertThat(xAlias.dataType(), equalTo(LONG));
+        FieldAttribute syntheticFieldAttr = as(xAlias.child(), FieldAttribute.class);
+        assertThat(syntheticFieldAttr.name(), equalTo("$$id$converted_to$long"));
+        ReferenceAttribute xRef = as(topProject.output().get(1), ReferenceAttribute.class);
+        assertThat(xRef, is(xAlias.toAttribute()));
+
+        Limit limit = asLimit(topProject.child(), 1000, false);
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(3));
+        assertThat(relationOutput.get(1).name(), equalTo("id"));
+        assertThat(relationOutput.get(1).dataType(), equalTo(UNSUPPORTED));
+        var syntheticField = relationOutput.get(2);
+        assertThat(syntheticField.name(), equalTo("$$id$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+        assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
+    }
+
     /*
      * Renaming or shadowing the @timestamp field prior to running stats with TS command is not allowed.
      */
     public void testTranslateMetricsAfterRenamingTimestamp() {
         assertThat(
             expectThrows(
-                IllegalArgumentException.class,
+                VerificationException.class,
                 () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
                     TS k8s |
                     EVAL @timestamp = region |
                     STATS max(network.cost), count(network.eth0.rx)
                     """)))
             ).getMessage(),
-            containsString("""
-                Functions [count(network.eth0.rx), max(network.cost)] require a @timestamp field of type date or date_nanos \
-                to be present when run with the TS command, but it was not present.""")
+            containsString(
+                "second argument of [implicit time-series aggregation function (LastOverTime) for network.cost] "
+                    + "must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
+            )
         );
 
         assertThat(
             expectThrows(
-                IllegalArgumentException.class,
+                VerificationException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(last_over_time(network.cost)), count(last_over_time(network.eth0.rx))
+                    """)))
+            ).getMessage(),
+            containsString(
+                "second argument of [last_over_time(network.cost)] must be [date_nanos or datetime], "
+                    + "found value [@timestamp] type [keyword]"
+            )
+        );
+
+        assertThat(
+            expectThrows(
+                VerificationException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(max_over_time(network.cost)), count(count_over_time(network.eth0.rx))
+                    """)))
+            ).getMessage(),
+            containsString("the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [keyword]")
+        );
+
+        assertThat(
+            expectThrows(
+                VerificationException.class,
                 () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
                     TS k8s |
                     DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
                     STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
                     """)))
             ).getMessage(),
-            containsString("""
-                Function [avg(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
-                to be present when run with the TS command, but it was not present.""")
+            containsString(
+                "second argument of [implicit time-series aggregation function (LastOverTime) for "
+                    + "network.eth0.currently_connected_clients] must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
+            )
         );
 
-        // we may want to allow this later
-        assertThat(
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
-                    TS k8s |
-                    EVAL `@timestamp` = @timestamp + 1day |
-                    STATS std_dev(network.eth0.currently_connected_clients)
-                    """)))
-            ).getMessage(),
-            containsString("""
-                Function [std_dev(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
-                to be present when run with the TS command, but it was not present.""")
-        );
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+            TS k8s |
+            EVAL `@timestamp` = @timestamp + 1day |
+            STATS std_dev(network.eth0.currently_connected_clients)
+            """)));
+        var tsStats = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsStats.timestamp().dataType(), equalTo(DataType.DATETIME));
+        LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
+        assertThat(lastOverTime.timestamp(), equalTo(tsStats.timestamp()));
     }
 
     /**
-     * EsqlProject[[first_name{r}#32]]
+     * Project[[first_name{r}#32]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[_fork{r}#33 == fork1[KEYWORD]]
      *     \_Fork[[first_name{r}#32, _fork{r}#33]]
@@ -9855,7 +10047,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | DROP _fork
             """;
         var plan = optimizedPlan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("first_name"));
         var limit = as(project.child(), Limit.class);
@@ -9877,7 +10069,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * EsqlProject[[_fork{r}#76, emp_no{r}#62, x{r}#73, y{r}#74, z{r}#75]]
+     * Project[[_fork{r}#76, emp_no{r}#62, x{r}#73, y{r}#74, z{r}#75]]
      * \_TopN[[Order[_fork{r}#76,ASC,LAST], Order[emp_no{r}#62,ASC,LAST]],1000[INTEGER],false]
      *   \_Fork[[emp_no{r}#62, x{r}#73, y{r}#74, z{r}#75, _fork{r}#76]]
      *     |_Project[[emp_no{f}#37, x{r}#15, y{r}#16, z{r}#17, _fork{r}#5]]
@@ -9911,7 +10103,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
              | SORT _fork, emp_no
             """;
         var plan = optimizedPlan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(5));
         assertThat(Expressions.names(project.projections()), containsInAnyOrder("_fork", "emp_no", "x", "y", "z"));
         var topN = as(project.child(), TopN.class);
@@ -10052,7 +10244,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * EsqlProject[[languages{r}#33]]
+     * Project[[languages{r}#33]]
      * \_Limit[10000[INTEGER],false,false]
      *   \_Filter[_fork{r}#34 == fork1[KEYWORD]]
      *     \_Fork[[languages{r}#33, _fork{r}#34]]
@@ -10079,7 +10271,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop _fork
             """;
         var plan = optimizedPlan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
         var limit = as(project.child(), Limit.class);
@@ -10105,7 +10297,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * EsqlProject[[languages{r}#55]]
+     * Project[[languages{r}#55]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[_fork{r}#57 == fork1[KEYWORD]]
      *     \_Fork[[languages{r}#55, _fork{r}#57]]
@@ -10130,7 +10322,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep languages
             """;
         var plan = optimizedPlan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
         var limit = as(project.child(), Limit.class);
@@ -10172,7 +10364,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * EsqlProject[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
+     * <pre>{@code
+     * Project[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
      * ast_name{r}#55, long_noidx{r}#56, salary{r}#57]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[_fork{r}#59 == fork1[KEYWORD]]
@@ -10183,13 +10376,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       | \_Eval[[fork1[KEYWORD] AS _fork#9]]
      *       |   \_Limit[1000[INTEGER],false,false]
      *       |     \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     *       |_LocalRelation[[_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, gender{f}#28, hire_date{f}#33, job{f}#34, job.raw{f}#35, l
-     * ast_name{f}#30, long_noidx{f}#36, salary{f}#31, _fork{r}#9],EMPTY]
      *       \_Project[[_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, gender{f}#39, hire_date{f}#44, job{f}#45, job.raw{f}#46, l
      * ast_name{f}#41, long_noidx{f}#47, salary{f}#42, _fork{r}#9]]
      *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
      *           \_Limit[1000[INTEGER],false,false]
      *             \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
+     * }</pre>
      */
     public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
         var query = """
@@ -10203,12 +10395,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop languages
             """;
         var plan = optimizedPlan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var fork = as(filter.child(), Fork.class);
         assertThat(fork.output().size(), equalTo(11));
+
+        // second branch is completely removed
+        assertEquals(2, fork.children().size());
 
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
@@ -10223,27 +10418,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
         );
 
-        var secondBranch = fork.children().get(1);
-        var secondBranchLocalRelation = as(secondBranch, LocalRelation.class);
-        assertThat(
-            secondBranchLocalRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
-            hasItems(
-                "_meta_field",
-                "emp_no",
-                "first_name",
-                "gender",
-                "hire_date",
-                "job",
-                "job.raw",
-                "last_name",
-                "long_noidx",
-                "salary",
-                "_fork"
-            )
-        );
-        assertThat(secondBranchLocalRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
-
-        var thirdBranch = fork.children().get(2);
+        var thirdBranch = fork.children().get(1);
         var thirdBranchProject = as(thirdBranch, Project.class);
         assertThat(thirdBranchProject.projections().size(), equalTo(11));
         var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);
@@ -10258,7 +10433,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * EsqlProject[[a{r}#45]]
+     * Project[[a{r}#45]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Fork[[a{r}#45]]
      *     |_Project[[a{r}#5]]
@@ -10278,7 +10453,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
              | KEEP a
             """;
         var plan = optimizedPlan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("a"));
         var limit = as(project.child(), Limit.class);
@@ -10298,13 +10473,356 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
+    /**
+     * Verifies that multi-value constant literals used as GROUP BY keys are not propagated
+     * after the Aggregate node. GROUP BY explodes multi-values into single values, so propagating
+     * the original multi-value literal would be incorrect.
+     *
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[a{r}#4 > 1[INTEGER]]
+     *   \_Aggregate[[a{r}#4],[SUM(a{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS c#8, a{r}#4]]
+     *     \_LocalRelation[[a{r}#4],Page{blocks=[IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayV
+     * ector[positions=2, values=[1, 2]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantGroupByWhere() {
+        var plan = plan("""
+            ROW a = [1, 2]
+            | STATS c = SUM(a) BY a
+            | WHERE a > 1
+            """);
+
+        // Plan structure: Limit -> Filter -> Aggregate -> LocalRelation
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        // The key assertion: `a` in the filter should be a ReferenceAttribute, NOT a Literal
+        // If it were a Literal([1, 2]), that would indicate incorrect constant propagation
+        var condition = as(filter.condition(), GreaterThan.class);
+        var left = as(condition.left(), ReferenceAttribute.class);
+        assertThat(Expressions.name(left), equalTo("a"));
+
+        var agg = as(filter.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * Verifies that multi-value constant literals in aggregate expressions referencing
+     * grouping keys are not incorrectly propagated.
+     *
+     * <pre>{@code
+     * Project[[a + SUM(a){r}#8, a{r}#4]]
+     * \_Eval[[a{r}#4 + $$SUM$a_+_SUM(a)$0{r$}#9 AS a + SUM(a)#8]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Aggregate[[a{r}#4],[SUM(a{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a_+_SUM(a)$0#9, a{r}#4]]
+     *       \_LocalRelation[[a{r}#4],Page{blocks=[IntArrayBlock[positions=1, mvOrdering=SORTED_ASCENDING, vector=IntArrayVector[positions=2
+     * , values=[1, 2]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantGroupByAggExpr() {
+        var plan = plan("""
+            ROW a = [1, 2]
+            | STATS a + SUM(a) BY a
+            """);
+
+        // Plan structure: Project -> Eval -> Limit -> Aggregate -> LocalRelation
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+
+        // The EVAL expression `a + $$SUM$...` contains `a` which should be a ReferenceAttribute
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var addExpr = as(alias.child(), Add.class);
+
+        // Left side of add should be a reference to `a`, not a literal [1, 2]
+        var left = as(addExpr.left(), ReferenceAttribute.class);
+        assertThat(Expressions.name(left), equalTo("a"));
+
+        // Right side should be a reference to the SUM result
+        var right = as(addExpr.right(), ReferenceAttribute.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * Verifies that multi-value constant literals used as GROUP BY keys are not propagated
+     * into EVAL expressions after the Aggregate.
+     *
+     * <pre>{@code
+     * Eval[[a{r}#4 AS b#10]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Aggregate[[a{r}#4],[SUM(a{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS SUM(a)#7, a{r}#4]]
+     *     \_LocalRelation[[a{r}#4],Page{blocks=[IntArrayBlock[positions=1, mvOrdering=UNORDERED, vector=IntArrayVector[positions=2, value
+     * s=[1, 2]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantGroupByEval() {
+        var plan = plan("""
+            ROW a = [1, 2]
+            | STATS SUM(a) BY a
+            | EVAL b = a
+            """);
+
+        // Plan structure: Eval -> Limit -> Aggregate -> LocalRelation
+        var eval = as(plan, Eval.class);
+
+        // The EVAL expression `b = a` should reference `a` as an attribute, not a literal
+        assertThat(eval.fields(), hasSize(1));
+        var bAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(bAlias.name(), equalTo("b"));
+
+        // The child of the alias should be a ReferenceAttribute to `a`, not a Literal([1, 2])
+        var a = as(bAlias.child(), ReferenceAttribute.class);
+        assertThat(Expressions.name(a), equalTo("a"));
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT($$TO_LOWER(langua>$COUNT$0{r$}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#12, COUNT($$language_name$t
+     * emp_name$23{r}#25,true[BOOLEAN],PT0S[TIME_DURATION]) AS b#15]]
+     *   \_Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
+     *     \_Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,{"match":{"indices":[],"match_field":"id","enrich_fields":["langua
+     * ge_code","language_name"]}},{=languages_idx},[language_code{r}#20, language_name{r}#24 AS $$language_name$temp_n
+     * ame$23#25]]
+     *       \_Join[LEFT,[language_code{r}#4],[language_code{f}#16],null]
+     *         |_LocalRelation[[language_code{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     * }</pre>
+     */
+    public void testCircularRefEnrichStats() {
+        var query = """
+            ROW language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RENAME language_name AS message
+            | ENRICH languages_idx ON message
+            | STATS a = COUNT(TO_LOWER(language_name)), b = COUNT(language_name)
+            """;
+        var plan = optimizedPlan(query);
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit(), is(new Literal(Source.EMPTY, 1000, DataType.INTEGER)));
+
+        // Aggregate[[],[COUNT(...) AS a, COUNT(...) AS b]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(0));
+        assertThat(aggregate.aggregates(), hasSize(2));
+
+        var agg1 = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(agg1.name(), is("a"));
+        var count1 = as(agg1.child(), Count.class);
+        var field1 = as(count1.field(), ReferenceAttribute.class);
+        assertThat(field1.name(), is("$$TO_LOWER(langua>$COUNT$0"));
+
+        var agg2 = as(aggregate.aggregates().get(1), Alias.class);
+        assertThat(agg2.name(), is("b"));
+        var count2 = as(agg2.child(), Count.class);
+        var field2 = as(count2.field(), ReferenceAttribute.class);
+        assertThat(field2.name(), startsWith("$$language_name$temp_name$"));
+
+        // Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var evalField = as(evalFieldAlias.child(), ToLower.class);
+
+        assertThat(evalFieldAlias.name(), is("$$TO_LOWER(langua>$COUNT$0"));
+        assertThat(count1.field(), is(evalFieldAlias.toAttribute()));
+        assertThat(evalField.source().text(), is("TO_LOWER(language_name)"));
+
+        // Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,...]
+        var enrich = as(eval.child(), Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("languages_idx")));
+        assertThat(enrich.enrichFields(), hasSize(2));
+
+        // Join[LEFT,[language_code{r}#4],[language_code{f}#16],null]
+        var join = as(enrich.child(), Join.class);
+        assertThat(join.config().type(), is(JoinTypes.LEFT));
+
+        // LocalRelation[[language_code{r}#4],Page{blocks=[IntVectorBlock[...]]}]
+        var localRelation = as(join.left(), LocalRelation.class);
+        assertThat(localRelation.output(), hasSize(1));
+        assertThat(localRelation.output().get(0).name(), is("language_code"));
+
+        // EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+        var esRelation = as(join.right(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), is("languages_lookup"));
+        assertThat(esRelation.indexMode(), is(IndexMode.LOOKUP));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],false,false]
+     * \_Fork[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
+     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38, _fork{r}#39]]
+     *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, _fork{r}#4]]
+     *   | \_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *   |   \_Limit[10[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#6 > 100[INTEGER]]
+     *   |       \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * anguages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, _fork{r}#4]]
+     *     \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *       \_Limit[10[INTEGER],false,false]
+     *         \_Filter[emp_no{f}#17 < 10[INTEGER]]
+     *           \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
+     */
+    public void testPushDownLimitInFork() {
+        var query = """
+            from employees
+             | fork (where emp_no > 100)
+                    (where emp_no < 10)
+             | limit 10
+            """;
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        var fork = as(limit.child(), Fork.class);
+
+        assertThat(fork.children(), hasSize(2));
+
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            var branchEval = as(branchProject.child(), Eval.class);
+            var branchLimit = as(branchEval.child(), Limit.class);
+
+            assertThat(((Literal) branchLimit.limit()).value(), equalTo(10));
+
+            var branchFilter = as(branchLimit.child(), Filter.class);
+            assertThat(branchFilter.child(), instanceOf(EsRelation.class));
+        }
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],false,false]
+     * \_Fork[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
+     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38, _fork{r}#39]]
+     *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, _fork{r}#4]]
+     *   | \_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *   |   \_Limit[5[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#6 > 100[INTEGER]]
+     *   |       \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * anguages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, _fork{r}#4]]
+     *     \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *       \_Limit[10[INTEGER],false,false]
+     *         \_Filter[emp_no{f}#17 < 10[INTEGER]]
+     *           \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
+     */
+    public void testPushDownLimitOnlyInOneForkBranch() {
+        var query = """
+            from employees
+             | fork (where emp_no > 100 | limit 5)
+                    (where emp_no < 10 | limit 100)
+             | limit 10
+            """;
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        var fork = as(limit.child(), Fork.class);
+
+        assertThat(fork.children(), hasSize(2));
+
+        // first branch
+        var firstBranchProject = as(fork.children().getFirst(), Project.class);
+        var firstBranchEval = as(firstBranchProject.child(), Eval.class);
+        var firstBranchLimit = as(firstBranchEval.child(), Limit.class);
+        // Limit stays the same
+        assertThat(((Literal) firstBranchLimit.limit()).value(), equalTo(5));
+
+        var firstBranchFilter = as(firstBranchLimit.child(), Filter.class);
+        assertThat(firstBranchFilter.child(), instanceOf(EsRelation.class));
+
+        // second branch
+        var secondBranchProject = as(fork.children().get(1), Project.class);
+        var secondBranchEval = as(secondBranchProject.child(), Eval.class);
+        var secondBranchLimit = as(secondBranchEval.child(), Limit.class);
+        // Limit outside of fork was pushed down
+        assertThat(((Literal) secondBranchLimit.limit()).value(), equalTo(10));
+
+        var secondBranchFilter = as(secondBranchLimit.child(), Filter.class);
+        assertThat(secondBranchFilter.child(), instanceOf(EsRelation.class));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],true,false]
+     * \_MvExpand[emp_no{r}#33,emp_no{r}#44]
+     *   \_Eval[[1[INTEGER] AS x#7]]
+     *     \_Limit[10[INTEGER],false,false]
+     *       \_Fork[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38, l
+     * anguages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42, _fork{r}#43]]
+     *         |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19, l
+     * anguages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, _fork{r}#4]]
+     *         | \_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *         |   \_Limit[10[INTEGER],false,false]
+     *         |     \_Filter[emp_no{f}#10 > 100[INTEGER]]
+     *         |       \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *         \_Project[[_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30, l
+     * anguages{f}#24, last_name{f}#25, long_noidx{f}#31, salary{f}#26, _fork{r}#4]]
+     *           \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *             \_Limit[10[INTEGER],false,false]
+     *               \_Filter[emp_no{f}#21 < 10[INTEGER]]
+     *                 \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     * }</pre>
+     */
+    public void testPushDownLimitInForkPastEvalAndMvExpand() {
+        var query = """
+            from employees
+             | fork (where emp_no > 100 | LIMIT 500)
+                    (where emp_no < 10 | LIMIT 500)
+             | eval x = 1
+             | mv_expand emp_no
+             | limit 10
+            """;
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+
+        var mvExpand = as(limit.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+
+        var mvExpandLimit = as(eval.child(), Limit.class);
+        assertThat(((Literal) mvExpandLimit.limit()).value(), equalTo(10));
+
+        var fork = as(mvExpandLimit.child(), Fork.class);
+        assertThat(fork.children(), hasSize(2));
+
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            var branchEval = as(branchProject.child(), Eval.class);
+            var branchLimit = as(branchEval.child(), Limit.class);
+
+            assertThat(((Literal) branchLimit.limit()).value(), equalTo(10));
+
+            var branchFilter = as(branchLimit.child(), Filter.class);
+            assertThat(branchFilter.child(), instanceOf(EsRelation.class));
+        }
+    }
+
     /*
      * https://github.com/elastic/elasticsearch/issues/138283
      *
      * Optimized plan:
      * Limit[1000[INTEGER],false,false]
      * \_InlineJoin[LEFT,[],[]]
-     *   |_EsqlProject[[salary{f}#23, languages1{r}#7, languages{f}#21]]
+     *   |_Project[[salary{f}#23, languages1{r}#7, languages{f}#21]]
      *   | \_Eval[[MVAVG(languages{f}#21) AS languages1#7]]
      *   |   \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      *   \_Project[[languages2{r}#14, avg{r}#17]]
@@ -10317,7 +10835,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Final plan execution:
      * Limit[1000[INTEGER],false,false]
      * \_Eval[[5.5[DOUBLE] AS languages2#14, 1[DOUBLE] AS avg#17]]
-     *   \_EsqlProject[[salary{f}#23, languages1{r}#7, languages{f}#21]]
+     *   \_Project[[salary{f}#23, languages1{r}#7, languages{f}#21]]
      *     \_Eval[[MVAVG(languages{f}#21) AS languages1#7]]
      *       \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
@@ -10336,7 +10854,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var p = as(plan, Limit.class);
         var join = as(p.child(), InlineJoin.class);
         // Left
-        var leftProject = as(join.left(), EsqlProject.class);
+        var leftProject = as(join.left(), Project.class);
         assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "languages1", "languages")));
         var leftEval = as(leftProject.child(), Eval.class);
         var leftRelation = as(leftEval.child(), EsRelation.class);
@@ -10367,7 +10885,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         p = as(newMainPlan, Limit.class);
         var eval = as(p.child(), Eval.class);
         assertMap(Expressions.names(eval.fields()), is(List.of("languages2", "avg")));
-        leftProject = as(eval.child(), EsqlProject.class);
+        leftProject = as(eval.child(), Project.class);
         assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "languages1", "languages")));
         var mvAvgEval = as(leftProject.child(), Eval.class);
         assertMap(Expressions.names(mvAvgEval.fields()), is(List.of("languages1")));

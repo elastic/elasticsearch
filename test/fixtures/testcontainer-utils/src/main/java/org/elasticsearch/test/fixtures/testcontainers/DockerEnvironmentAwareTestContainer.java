@@ -23,7 +23,7 @@ import java.util.concurrent.Future;
 
 import static org.elasticsearch.test.fixtures.testcontainers.DockerAvailability.assumeDockerIsAvailable;
 
-public class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer>
+public abstract class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer>
     implements
         TestRule,
         CacheableTestFixture {

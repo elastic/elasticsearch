@@ -58,6 +58,6 @@ public class TestQueryRulesetActionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(TransportVersion.minimumCompatible())).collect(Collectors.toList());
+        return getAllBWCVersions().stream().filter(v -> v.supports(TransportVersion.minimumCompatible())).collect(Collectors.toList());
     }
 }

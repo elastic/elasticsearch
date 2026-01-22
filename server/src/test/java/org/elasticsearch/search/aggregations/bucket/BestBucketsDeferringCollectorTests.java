@@ -19,7 +19,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -28,6 +27,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -86,12 +86,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
         }
 
-        topDocs = indexSearcher.search(new MatchAllDocsQuery(), numDocs);
+        topDocs = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, numDocs);
         collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, true);
         deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), collector.asCollector());
+        indexSearcher.search(Queries.ALL_DOCS_INSTANCE, collector.asCollector());
         collector.postCollection();
         collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
@@ -206,7 +206,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader);
 
-                Query query = new MatchAllDocsQuery();
+                Query query = Queries.ALL_DOCS_INSTANCE;
                 BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(query, indexSearcher, false);
 
                 CollectingBucketCollector finalCollector = new CollectingBucketCollector();

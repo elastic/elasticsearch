@@ -118,7 +118,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         this.repositoriesService = repositoriesService;
 
         // construct (and therefore implicitly register) the subsidiary actions
-        new BlobAnalyzeAction(transportService, actionFilters, repositoriesService);
+        new BlobAnalyzeAction(transportService, clusterService.getSettings(), actionFilters, repositoriesService);
         new GetBlobChecksumAction(transportService, actionFilters, repositoriesService);
         new ContendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
         new UncontendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
@@ -519,15 +519,17 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
                 final boolean abortWrite = smallBlob && request.isAbortWritePermitted() && rarely(random);
-                final boolean doCopy = minClusterTransportVersion.supports(REPO_ANALYSIS_COPY_BLOB) && rarely(random) && i > 0;
+                final boolean doCopy = minClusterTransportVersion.supports(REPO_ANALYSIS_COPY_BLOB) && rarely(random) && i < blobCount - 1;
                 final String blobName = "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random);
-                String copyBlobName = null;
+                final String copyBlobName;
                 if (doCopy) {
                     copyBlobName = blobName + "-copy";
                     blobCount--;
                     if (i >= blobCount) {
                         break;
                     }
+                } else {
+                    copyBlobName = null;
                 }
                 final BlobAnalyzeAction.Request blobAnalyzeRequest = new BlobAnalyzeAction.Request(
                     request.getRepositoryName(),
@@ -596,7 +598,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                                     responses.add(response);
                                 }
                             }
-                            summary.add(response);
+                            summary.add(request, response);
                         }
 
                         @Override

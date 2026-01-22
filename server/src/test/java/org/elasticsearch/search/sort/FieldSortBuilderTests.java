@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
@@ -691,12 +692,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
     public void testIntRewritesToLong() throws IOException {
         assertIntegerSortRewrite(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
             SortField.Type.LONG
         );
         assertIntegerSortRewrite(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
             ),
@@ -704,14 +704,13 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         );
         assertIntegerSortRewrite(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE)
             ),
             SortField.Type.LONG
         );
         assertIntegerSortRewrite(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE, IndexVersion.current()),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.INDEX_INT_SORT_INT_TYPE, IndexVersion.current()),
             SortField.Type.INT
         );
         assertIntegerSortRewrite(IndexVersion.current(), SortField.Type.INT);
@@ -720,6 +719,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     private void assertIntegerSortRewrite(IndexVersion version, SortField.Type expectedType) throws IOException {
         FieldSortBuilder builder = new FieldSortBuilder("custom-integer");
         SortFieldAndFormat sff = builder.build(createMockSearchExecutionContext(version));
+        if (sff.field().getType() == SortField.Type.LONG) {
+            assertThat(sff.field(), instanceOf(SortedNumericSortField.class));
+        }
         SortField sf = Lucene.rewriteMergeSortField(sff.field());
         assertThat(sf.getType(), equalTo(expectedType));
     }

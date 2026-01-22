@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -770,25 +771,21 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    private static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         if (MODE.get(s) == IndexMode.TIME_SERIES) {
-            if (DiscoveryNode.isStateless(s)) {
-                if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
-                    return "true";
-                } else {
-                    return "false";
-                }
+            if (DOC_VALUES_SKIPPER && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+                return "true";
             }
-            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+            if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
                 return "true";
             }
             return "false";
         } else {
-            if (DiscoveryNode.isStateless(s)) {
-                return "false";
-            }
-            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+            if (DOC_VALUES_SKIPPER
+                && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
+                && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
                 return "true";
             }
             return "false";
@@ -975,6 +972,14 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<Boolean> INTRA_MERGE_PARALLELISM_ENABLED_SETTING = Setting.boolSetting(
+        "index.merge.intra_merge_parallelism_enabled",
+        // default to true with snapshot for now, false otherwise.
+        Build.current().isSnapshot(),
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -1084,6 +1089,11 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+
+    /**
+     * Is intra merge parallelism enabled
+     */
+    private volatile boolean intraMergeParallelismEnabled;
 
     private final IndexRouting indexRouting;
     private final SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions;
@@ -1263,6 +1273,7 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
+        intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
             assert false;
@@ -1399,6 +1410,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2098,5 +2110,16 @@ public final class IndexSettings {
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {
         return seqNoIndexOptions;
+    }
+
+    /**
+     * @return is intra-merge parallelism enabled for this index
+     */
+    public boolean isIntraMergeParallelismEnabled() {
+        return this.intraMergeParallelismEnabled;
+    }
+
+    private void setIntraMergeParallelismEnabled(boolean enabled) {
+        this.intraMergeParallelismEnabled = enabled;
     }
 }

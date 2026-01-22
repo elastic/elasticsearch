@@ -41,12 +41,12 @@ import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.search.internal.FilterFloatVectorValues;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -85,7 +85,6 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
             state.segmentSuffix,
             ES816BinaryQuantizedVectorsFormat.META_EXTENSION
         );
-        boolean success = false;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
             Throwable priorE = null;
             try {
@@ -112,11 +111,9 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 // graph.
                 state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -278,7 +275,6 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         IndexInput in = state.directory.openInput(fileName, context);
-        boolean success = false;
         try {
             int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
@@ -295,12 +291,10 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 );
             }
             CodecUtil.retrieveChecksum(in);
-            success = true;
             return in;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(in);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(in);
+            throw t;
         }
     }
 
@@ -365,48 +359,17 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     }
 
     /** Binarized vector values holding row and quantized vector values */
-    protected static final class BinarizedVectorValues extends FloatVectorValues {
-        private final FloatVectorValues rawVectorValues;
-        private final BinarizedByteVectorValues quantizedVectorValues;
+    protected static class BinarizedVectorValues extends FilterFloatVectorValues {
+        final BinarizedByteVectorValues quantizedVectorValues;
 
         BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
-            this.rawVectorValues = rawVectorValues;
+            super(rawVectorValues);
             this.quantizedVectorValues = quantizedVectorValues;
         }
 
         @Override
-        public int dimension() {
-            return rawVectorValues.dimension();
-        }
-
-        @Override
-        public int size() {
-            return rawVectorValues.size();
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return rawVectorValues.vectorValue(ord);
-        }
-
-        @Override
         public BinarizedVectorValues copy() throws IOException {
-            return new BinarizedVectorValues(rawVectorValues.copy(), quantizedVectorValues.copy());
-        }
-
-        @Override
-        public Bits getAcceptOrds(Bits acceptDocs) {
-            return rawVectorValues.getAcceptOrds(acceptDocs);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return rawVectorValues.ordToDoc(ord);
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return rawVectorValues.iterator();
+            return new BinarizedVectorValues(in.copy(), quantizedVectorValues.copy());
         }
 
         @Override

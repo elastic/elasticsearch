@@ -197,7 +197,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return rewrittenSortField;
         }
 
-        SortField rewrittenSortField = new SortField(sortField.getField(), SortField.Type.LONG, reverse);
+        SortField rewrittenSortField = new SortedNumericSortField(sortField.getField(), SortField.Type.LONG, reverse);
         rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
         // we don't optimize sorting on int field for old indices
         rewrittenSortField.setOptimizeSortWithPoints(false);

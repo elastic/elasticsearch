@@ -37,13 +37,26 @@ public final class VersionCheckingStreamOutput extends StreamOutput {
     @Override
     public void flush() throws IOException {
         // no-op
-
     }
 
     @Override
     public void close() throws IOException {
         // no-op
+    }
 
+    @Override
+    public void writeString(String str) throws IOException {
+        // no-op
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        // no-op
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        // no-op
     }
 
     @Override
@@ -63,7 +76,7 @@ public final class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     private void checkVersionCompatibility(VersionedNamedWriteable namedWriteable) {
-        if (namedWriteable.getMinimalSupportedVersion().after(getTransportVersion())) {
+        if (getTransportVersion().supports(namedWriteable.getMinimalSupportedVersion()) == false) {
             throw new IllegalArgumentException(
                 "["
                     + namedWriteable.getWriteableName()

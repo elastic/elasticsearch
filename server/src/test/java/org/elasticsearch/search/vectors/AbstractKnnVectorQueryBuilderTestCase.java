@@ -34,7 +34,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -415,19 +414,15 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     public void testBWCVersionSerialization_GivenAutoPrefiltering() throws IOException {
         for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
 
-            TransportVersion version = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.minimumCompatible(),
-                TransportVersionUtils.getPreviousVersion(KnnVectorQueryBuilder.AUTO_PREFILTERING)
-            );
-            rescoreVectorAllowZero = version.onOrAfter(RescoreVectorBuilder.RESCORE_VECTOR_ALLOW_ZERO);
+            TransportVersion version = TransportVersion.fromId(KnnVectorQueryBuilder.AUTO_PREFILTERING.id() - 1000);
+            rescoreVectorAllowZero = version.supports(RescoreVectorBuilder.RESCORE_VECTOR_ALLOW_ZERO);
             KnnVectorQueryBuilder query = doCreateTestQueryBuilder().setAutoPrefilteringEnabled(true);
             KnnVectorQueryBuilder queryNoAutoPrefiltering = new KnnVectorQueryBuilder(
                 query.getFieldName(),
                 query.queryVector(),
                 query.k(),
                 query.numCands(),
-                version.onOrAfter(KnnVectorQueryBuilder.VISIT_PERCENTAGE) ? query.visitPercentage() : null,
+                version.supports(KnnVectorQueryBuilder.VISIT_PERCENTAGE) ? query.visitPercentage() : null,
                 query.rescoreVectorBuilder(),
                 query.getVectorSimilarity()
             ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries()).setAutoPrefilteringEnabled(false);

@@ -23,7 +23,7 @@ public class GPUClientMultiNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     private static ElasticsearchCluster createCluster() {
         var builder = ElasticsearchCluster.local()
-            .nodes(3)
+            .nodes(2)
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")

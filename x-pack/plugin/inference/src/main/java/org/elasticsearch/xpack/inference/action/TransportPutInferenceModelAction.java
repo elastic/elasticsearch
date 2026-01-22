@@ -170,7 +170,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         }
 
         // Check if all the nodes in this cluster know about the service
-        if (service.get().getMinimalSupportedVersion().after(state.getMinTransportVersion())) {
+        if (state.getMinTransportVersion().supports(service.get().getMinimalSupportedVersion()) == false) {
             logger.warn(
                 format(
                     "Service [%s] requires version [%s] but minimum cluster version is [%s]",

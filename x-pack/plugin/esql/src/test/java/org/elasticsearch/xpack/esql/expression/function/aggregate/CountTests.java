@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -58,7 +59,8 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geotileCases(1, 1000),
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.tdigestCases(1, 1000)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -114,6 +116,11 @@ public class CountTests extends AbstractAggregationTestCase {
                         return aggMetric.count();
                     }
                     return 0;
+                }).sum();
+            } else if (fieldSupplier.type() == DataType.TDIGEST) {
+                count = fieldTypedData.multiRowData().stream().mapToLong(data -> {
+                    TDigestHolder tdigest = (TDigestHolder) data;
+                    return tdigest.getValueCount();
                 }).sum();
             } else {
                 count = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();

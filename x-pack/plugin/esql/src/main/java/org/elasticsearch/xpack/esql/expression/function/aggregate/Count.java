@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.DenseVectorCountAggregatorFunction;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -39,6 +42,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
@@ -94,6 +98,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -155,12 +160,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             field(),
             dt -> dt.isCounter() == false
                 && dt != DataType.EXPONENTIAL_HISTOGRAM
-                && dt != DataType.TDIGEST
                 && dt != DataType.HISTOGRAM
                 && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types, tdigest, histogram, exponential_histogram, or date_range"
+            "any type except counter types, histogram, exponential_histogram, or date_range"
         );
     }
 
@@ -176,6 +180,17 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 window(),
                 SummationMode.COMPENSATED_LITERAL
             );
+        }
+
+        // if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
+        if (field.dataType() == DataType.TDIGEST) {
+            return new ToLong(s, new Sum(
+                s,
+                ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.COUNT),
+                filter(),
+                window(),
+                SummationMode.COMPENSATED_LITERAL
+            ));
         }
 
         if (field.foldable()) {

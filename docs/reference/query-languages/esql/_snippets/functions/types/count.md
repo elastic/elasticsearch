@@ -21,6 +21,7 @@
 | ip | long |
 | keyword | long |
 | long | long |
+| tdigest | long |
 | text | long |
 | unsigned_long | long |
 | version | long |

@@ -30,7 +30,75 @@ min:double | max:double | p90:double | sum:double  | avg:double
 2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
 ;
 
+// -------------------------------------------------------------------------------
 
+Count ungrouped (standard mode)
+required_capability: count_of_histogram_types
+
+FROM tdigest_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+15471
+;
+
+// -------------------------------------------------------------------------------
+
+Count grouped (standard mode)
+required_capability: count_of_histogram_types
+
+FROM tdigest_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS cnt = Count(responseTime) BY instance
+ | KEEP instance, cnt
+;
+ignoreOrder:true
+
+instance:keyword |cnt:long 
+instance-0       | 8841
+instance-1       | 3250
+instance-2       | 3380
+;
+
+// -------------------------------------------------------------------------------
+
+Count ungrouped (timeseries mode)
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+TS tdigest_timeseries_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+15471
+;
+
+// -------------------------------------------------------------------------------
+
+Count grouped (timeseries mode)
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+TS tdigest_timeseries_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS cnt = Count(responseTime) BY instance
+ | KEEP instance, cnt
+;
+ignoreOrder:true
+
+instance:keyword |cnt:long 
+instance-0       | 8841
+instance-1       | 3250
+instance-2       | 3380
+;
+
+// -------------------------------------------------------------------------------
 
 allAggsGrouped
 required_capability: tdigest_tech_preview

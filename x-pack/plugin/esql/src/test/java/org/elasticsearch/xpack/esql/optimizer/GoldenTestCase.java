@@ -216,8 +216,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                         conf,
                         conf.newFoldContext(),
                         sink,
-                        true, // runNodeLevelReduction
-                        true, // reduceNodeLateMaterialization
+                        true,
+                        true,
                         new PlanTimeProfile()
 
                     );

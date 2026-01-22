@@ -7,7 +7,6 @@ more than 1:
           settings:
             index.number_of_shards: 2
             index.number_of_replicas: 0
-            index.number_of_routing_shards: 4
             index.routing_partition_size: 2
           mappings:
             _routing:
@@ -108,7 +107,6 @@ exactly 1:
           settings:
             index.number_of_shards: 2
             index.number_of_replicas: 0
-            index.number_of_routing_shards: 4
             index.routing_partition_size: 1
           mappings:
             _routing:
@@ -209,7 +207,6 @@ nested:
           settings:
             index.number_of_shards: 2
             index.number_of_replicas: 0
-            index.number_of_routing_shards: 4
             index.routing_partition_size: 2
           mappings:
             _routing:

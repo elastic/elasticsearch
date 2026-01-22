@@ -8,7 +8,6 @@ setup:
           settings:
             index.number_of_shards: 2
             index.number_of_replicas: 0
-            index.number_of_routing_shards: 4
   - do:
       index:
         index: source

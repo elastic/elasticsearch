@@ -319,28 +319,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             IntArray prevGroupIds;
             IntArray nextGroupIds;
 
-            void maybeComputeGroupLinks() {
-                if (nextGroupIds != null) {
-                    return;
-                }
-                long numGroups = hash.numGroups();
-                nextGroupIds = driverContext.bigArrays().newIntArray(numGroups);
-                nextGroupIds.fill(0, numGroups, -1);
-                prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
-                prevGroupIds.fill(0, numGroups, -1);
-                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
-                for (int groupId = 0; groupId < numGroups; groupId++) {
-                    long tsid = hash.getBytesRefKeyFromGroup(groupId);
-                    long bucketTs = hash.getLongKeyFromGroup(groupId);
-                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, timeBucket::nextRoundingValue);
-                    int nextGroupId = Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
-                    if (nextGroupId >= 0) {
-                        nextGroupIds.set(groupId, nextGroupId);
-                        prevGroupIds.set(nextGroupId, groupId);
-                    }
-                }
-            }
-
             @Override
             public long rangeStartInMillis(int groupId) {
                 return timeResolution.roundDownToMillis(timestamps.getLong(groupId));
@@ -369,14 +347,35 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public int previousGroupId(int currentGroupId) {
-                maybeComputeGroupLinks();
                 return prevGroupIds.get(currentGroupId);
             }
 
             @Override
             public int nextGroupId(int currentGroupId) {
-                maybeComputeGroupLinks();
                 return nextGroupIds.get(currentGroupId);
+            }
+
+            @Override
+            public void computeAdjacentGroupIds() {
+                if (nextGroupIds != null) {
+                    return;
+                }
+                long numGroups = hash.numGroups();
+                nextGroupIds = driverContext.bigArrays().newIntArray(numGroups);
+                nextGroupIds.fill(0, numGroups, -1);
+                prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
+                prevGroupIds.fill(0, numGroups, -1);
+                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                for (int groupId = 0; groupId < numGroups; groupId++) {
+                    long tsid = hash.getBytesRefKeyFromGroup(groupId);
+                    long bucketTs = hash.getLongKeyFromGroup(groupId);
+                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, timeBucket::nextRoundingValue);
+                    int nextGroupId = Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
+                    if (nextGroupId >= 0) {
+                        nextGroupIds.set(groupId, nextGroupId);
+                        prevGroupIds.set(nextGroupId, groupId);
+                    }
+                }
             }
 
             @Override

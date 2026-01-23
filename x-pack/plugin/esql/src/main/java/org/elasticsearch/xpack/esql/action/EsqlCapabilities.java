@@ -1814,6 +1814,11 @@ public class EsqlCapabilities {
         PROMQL_COMMAND_V0,
 
         /**
+         * Bundle flag for PromQL math functions.
+         */
+        PROMQL_MATH_V0(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
@@ -1886,7 +1891,7 @@ public class EsqlCapabilities {
         METADATA_TIER_FIELD(Build.current().isSnapshot()),
         /**
          * Fix folding of coalesce function
-         * https://github.com/elastic/elasticsearch/issues/139887
+         * https://github.com/elastic/elasticsearch/issues/139344
          */
         FIX_FOLD_COALESCE,
 
@@ -1918,6 +1923,16 @@ public class EsqlCapabilities {
          * Adds support for binary operations (such as addition, subtraction, etc.) to the TS|STATS command.
          */
         TS_STATS_BINARY_OPS,
+
+        /**
+         * Fix for INLINE STATS GROUP BY null being incorrectly pruned by PruneLeftJoinOnNullMatchingField.
+         * For INLINE STATS, the right side of the join can be Aggregate or LocalRelation (when optimized).
+         * The join key is always the grouping, and since STATS supports GROUP BY null, pruning the join when
+         * the join key (grouping) is null would incorrectly change the query results. This fix ensures
+         * PruneLeftJoinOnNullMatchingField only applies to LOOKUP JOIN (where right side is EsRelation).
+         * https://github.com/elastic/elasticsearch/issues/139887
+         */
+        FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
 
         /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.

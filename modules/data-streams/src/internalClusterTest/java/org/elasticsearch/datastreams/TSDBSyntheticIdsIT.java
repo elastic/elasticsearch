@@ -821,9 +821,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertThat(primary, notNullValue());
         IndexShard finalPrimary = primary;
         long finalMaxSeqNo = maxSeqNo;
-        assertBusy(() -> {
-            assertThat(finalPrimary.withEngine(engine -> engine.getLastSyncedGlobalCheckpoint()), equalTo(finalMaxSeqNo));
-        });
+        assertBusy(
+            () -> { assertThat(finalPrimary.withEngine(engine -> engine.getLastSyncedGlobalCheckpoint()), equalTo(finalMaxSeqNo)); }
+        );
 
         // Check translog operations on primary shard
         try (var translogSnapshot = getTranslog(primary).newSnapshot()) {

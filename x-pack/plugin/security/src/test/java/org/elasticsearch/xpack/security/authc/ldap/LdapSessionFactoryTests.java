@@ -90,9 +90,15 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         if (listenAddress == null) {
             listenAddress = InetAddress.getLoopbackAddress();
         }
+        String host = NetworkAddress.format(listenAddress);
+        if (host.contains(":") && !host.startsWith("[")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+
         String ldapUrl = new LDAPURL(
             protocol,
-            NetworkAddress.format(listenAddress),
+            host,
             ldapServer.getListenPort(protocol),
             null,
             null,

@@ -2,6 +2,7 @@
 
 # TODO move this
 sudo bash -c 'echo "::1   localhost" | cat - /etc/hosts > temp_file && mv temp_file /etc/hosts'
+sudo cat /etc/hosts
 
 # On some distros, this directory ends up not readable by the `elasticsearch` user that gets created during tests
 # This fixes that

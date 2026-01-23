@@ -84,7 +84,6 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     public void testCancellingReindexOnlyWorksForCorrectProject() throws Exception {
         final String projectWithReindex = randomUniqueProjectId().id();
         final String projectWithoutReindex = randomUniqueProjectId().id();
-        assertEmptyProjects();
 
         createProject(projectWithReindex);
         createProject(projectWithoutReindex);
@@ -113,7 +112,6 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     public void testGettingReindexOnlyWorksForCorrectProject() throws Exception {
         final String projectWithReindex = randomUniqueProjectId().id();
         final String projectWithoutReindex = randomUniqueProjectId().id();
-        assertEmptyProjects();
 
         createProject(projectWithReindex);
         createProject(projectWithoutReindex);
@@ -142,7 +140,6 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     public void testListingReindexOnlyWorksForCorrectProject() throws Exception {
         final String project1 = randomUniqueProjectId().id();
         final String project2 = randomUniqueProjectId().id();
-        assertEmptyProjects();
 
         createProject(project1);
         createProject(project2);

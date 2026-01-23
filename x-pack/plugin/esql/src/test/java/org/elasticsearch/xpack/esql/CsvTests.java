@@ -137,6 +137,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.MV_VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
@@ -616,27 +617,43 @@ public class CsvTests extends ESTestCase {
         return AIRPORTS_STAR_TESTS.stream().anyMatch(testName::contains);
     }
 
+    private static final Set<String> MV_VIEW_TESTS = Set.of("MultiValueWarningsWithNoViews", "MultiValueWarningsWithView");
+
+    // Some views include multi-values, and we only load these for tests that assert on those (otherwise we need to edit a lot of tests)
+    protected boolean shouldIncludeMVViews(String testName) {
+        return MV_VIEW_TESTS.stream().anyMatch(testName::contains);
+    }
+
     private LogicalPlan resolveViews(LogicalPlan parsed) {
         if (shouldRemoveViews(testName)) {
             return parsed;
         }
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            ProjectId projectId = ProjectId.fromId("dummy");
             for (var viewConfig : VIEW_CONFIGS) {
-                try {
-                    String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
-                    PutViewAction.Request request = new PutViewAction.Request(
-                        TimeValue.ONE_MINUTE,
-                        TimeValue.ONE_MINUTE,
-                        new View(viewConfig.viewName(), viewQuery)
-                    );
-                    viewService.putView(projectId, request, ActionListener.noop());
-                } catch (IOException e) {
-                    logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
-                    throw new RuntimeException(e);
+                loadView(viewService, viewConfig);
+            }
+            if (shouldIncludeMVViews(testName)) {
+                for (var viewConfig : MV_VIEW_CONFIGS) {
+                    loadView(viewService, viewConfig);
                 }
             }
             return viewService.getViewResolver().replaceViews(parsed, this::parseView);
+        }
+    }
+
+    private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
+        try {
+            ProjectId projectId = ProjectId.fromId("dummy");
+            String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
+            PutViewAction.Request request = new PutViewAction.Request(
+                TimeValue.ONE_MINUTE,
+                TimeValue.ONE_MINUTE,
+                new View(viewConfig.viewName(), viewQuery)
+            );
+            viewService.putView(projectId, request, ActionListener.noop());
+        } catch (IOException e) {
+            logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 

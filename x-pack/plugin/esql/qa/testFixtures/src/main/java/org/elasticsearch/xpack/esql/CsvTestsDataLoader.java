@@ -328,7 +328,7 @@ public class CsvTestsDataLoader {
         COUNTRY_LANGUAGES,
         AIRPORTS_MP_FILTERED
     );
-    // We load views containing multi-vaues separately, because these generate MV warnings, and we want to keep these isolated
+    // We load views containing multi-values separately, because these generate MV warnings, and we want to keep these isolated
     private static final ViewConfig EMPLOYEES_REHIRED = new ViewConfig("employees_rehired");
     private static final ViewConfig EMPLOYEES_NOT_REHIRED = new ViewConfig("employees_not_rehired");
     public static final List<ViewConfig> MV_VIEW_CONFIGS = List.of(EMPLOYEES_REHIRED, EMPLOYEES_NOT_REHIRED);
@@ -661,7 +661,6 @@ public class CsvTestsDataLoader {
                 loadView(client, view.viewName, view.viewFileName, logger);
             }
             if (shouldIncludeMVViews) {
-                loadView(client, "mv_airports_by_country", "mv_airports_by_country_view.json", logger);
                 for (var view : MV_VIEW_CONFIGS) {
                     loadView(client, view.viewName, view.viewFileName, logger);
                 }

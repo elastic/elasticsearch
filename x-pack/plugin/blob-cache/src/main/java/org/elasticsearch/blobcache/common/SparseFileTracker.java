@@ -444,11 +444,11 @@ public class SparseFileTracker {
                 if (lastStartRange == null) {
                     Range first = ranges.first();
                     assert first.start > start;
-                    sum += first.start - start;
+                    sum += Math.min(first.start, end) - start;
                 }
                 Range last = ranges.last();
                 if (last.end < end) {
-                    sum += end - last.end;
+                    sum += end - Math.max(last.end, start);
                 }
                 return sum;
             }

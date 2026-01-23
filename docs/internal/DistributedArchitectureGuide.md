@@ -675,8 +675,8 @@ Snapshot copies index data files from node local storage to a remote repository.
 from the repository back to local storage to re-create the index. In addition to indices, it can also backup and
 restore the cluster state [Metadata][] so that settings, templates, pipelines and other configurations can be preserved.
 
-Snapshots are incremental in that it does not copy a data file if it has already been copied in a previous snapshot.
-Instead, it adds a reference to the existing file in the metadata stored in the repository, effectively a ref-counting
+Snapshots are deduplicated in that it does not copy a data file if it has already been copied in a previous snapshot.
+Instead, it adds a reference to the existing file in the metadata stored in the repository, effectively a ref-tracking
 system for the data files. This also means we can freely delete any snapshot without worrying about affecting other
 snapshots.
 

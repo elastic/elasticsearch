@@ -352,11 +352,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             var validationException = config.validate(null);
 
-            if (transformServices.crossProjectModeDecider().crossProjectEnabled()) {
-                // if we had created a transform when the feature flag was enabled, but we disabled the feature flag
-                // then verify that this transform does not use CPS features
-                validationException = config.validateNoCrossProjectWhenCrossProjectIsDisabled(validationException);
-            }
+            // if we had created a transform when the feature flag was enabled, but we disabled the feature flag
+            // then verify that this transform does not use CPS features
+            validationException = config.validateNoCrossProjectWhenCrossProjectIsDisabled(
+                transformServices.crossProjectModeDecider(),
+                validationException
+            );
 
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);

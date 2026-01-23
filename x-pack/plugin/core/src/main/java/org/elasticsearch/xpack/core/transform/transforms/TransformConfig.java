@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -361,14 +362,18 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     }
 
     public ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
         ActionRequestValidationException validationException
     ) {
-        return validateNoCrossProjectWhenCrossProjectIsDisabled(TRANSFORM_CROSS_PROJECT.isEnabled(), validationException);
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            return validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(TRANSFORM_CROSS_PROJECT.isEnabled(), validationException);
+        }
+        return null;
     }
 
     // visible for testing
-    // remove both validateNoCrossProjectWhenCrossProjectIsDisabled methods when the feature is launched
-    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+    // remove both this and validateNoCrossProjectWhenCrossProjectIsDisabled when the feature is launched
+    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(
         boolean featureEnabled,
         ActionRequestValidationException validationException
     ) {

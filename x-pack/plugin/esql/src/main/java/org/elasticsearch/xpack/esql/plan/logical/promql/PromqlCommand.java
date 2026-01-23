@@ -347,11 +347,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
                         if (root.get() == false) {
                             failures.add(
-                                fail(
-                                    lp,
-                                    "comparison operators are only supported at the top-level at this time [{}]",
-                                    lp.sourceText()
-                                )
+                                fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                             );
                         }
                         if (comp.right() instanceof LiteralSelector == false) {

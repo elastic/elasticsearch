@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
-
     // ==================== Synchronous iterate() tests ====================
 
     public void testInOrderIteration() throws IOException {

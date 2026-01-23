@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Integration tests for chunked fetch phase circuit breaker tracking. The tests verify that the coordinator node properly
  * tracks and releases circuit breaker memory when using chunked fetch across multiple shards and nodes.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,  numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "chunked_multi_shard_idx";
@@ -103,7 +103,6 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         internalCluster().startNode();
         internalCluster().startNode();
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-
 
         int numberOfShards = randomIntBetween(6, 24);
         createIndexForTest(

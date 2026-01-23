@@ -44,14 +44,7 @@ public class DynamicInstrumentationTests extends ESTestCase {
                         )
                     ),
                     // removed in JDK 26
-                    is(
-                        new Descriptor(
-                            "java/net/MulticastSocket",
-                            "send",
-                            List.of("java/net/DatagramPacket", "B"),
-                            null
-                        )
-                    )
+                    is(new Descriptor("java/net/MulticastSocket", "send", List.of("java/net/DatagramPacket", "B"), null))
                 )
             )
         );

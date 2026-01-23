@@ -332,8 +332,8 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     protected void doClose() {
         Releasables.close(topDocsCollectors, leafCollectors);
-//        internalTopHitsList.forEach(InternalTopHits::decRef);
-//        internalTopHitsList.clear();
+        // internalTopHitsList.forEach(InternalTopHits::decRef);
+        // internalTopHitsList.clear();
     }
 
     private static class ResettableScorable extends Scorable {

@@ -108,7 +108,9 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     @Override
-    protected void dispose(InternalTopHits t) { t.close(); }
+    protected void dispose(InternalTopHits t) {
+        t.close();
+    }
 
     private InternalTopHits createTestInstanceSortedByFields(
         String name,

@@ -568,7 +568,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
                 var state = flushAndCombineState(flushQueues, group);
-                if (state != null) {
+                if (state != null && state.samples > 1 && state.intervals.length > 1) {
                     // combine intervals for the final evaluation
                     Interval[] intervals = state.intervals;
                     ArrayUtil.timSort(intervals);

@@ -288,7 +288,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // TODO improve memory tracking in BlockSourceReader.scratch
         int docs = 40; // 40 docs *5MB does not OOM without subquery, 2 or 8 subqueries OOM
         int limit = 30; // we should not need a limit here, this is temporary to include some coverage on this pattern
-        heapAttackIT.initGiantTextField(docs, false);
+        heapAttackIT.initGiantTextField(docs, false, 5);
         for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
             // TODO remove the limit when BlockSourceReader.scratch memory tracking is improved
             Map<?, ?> response = buildSubqueries(subquery, "bigtext", " | limit " + limit);
@@ -306,7 +306,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // Similar observation as no sort case, 2 or 8 subqueries both OOM.
         // TODO improve memory tracking in BlockSourceReader.scratch
         int docs = 40; // 40 docs *5MB does not OOM without subquery
-        heapAttackIT.initGiantTextField(docs, false);
+        heapAttackIT.initGiantTextField(docs, false, 5);
         for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
             assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "bigtext", " f ", docs));
         }
@@ -314,7 +314,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         int docs = 100;
-        heapAttackIT.initGiantTextField(docs, false);
+        heapAttackIT.initGiantTextField(docs, false, 5);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
             Map<?, ?> response = buildSubqueriesWithAgg(subquery, "bigtext", "sum = SUM(LENGTH(f))", null);

@@ -552,7 +552,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testAggGiantTextField() throws IOException {
         int docs = 100;
-        initGiantTextField(docs, false);
+        initGiantTextField(docs, false, 5);
         Map<?, ?> response = aggGiantTextField();
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -702,11 +702,11 @@ public class HeapAttackIT extends HeapAttackTestCase {
         initIndex("manybigfields", bulk.toString());
     }
 
-    void initGiantTextField(int docs, boolean includeId) throws IOException {
+    void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {
         int docsPerBulk = isServerless() ? 3 : 10;
         logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
 
-        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
+        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(fieldSizeInMb).getBytes());
 
         Request request = new Request("PUT", "/bigtext");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
@@ -751,7 +751,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testFirstAggWithManyLongs() throws IOException {
         initMvLongsIndex(5000, 2, 3000, true);
-        assertCircuitBreaks(attempt -> aggregateFirstLastOnManyLongs(true));
+        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("ALL_FIRST"));
     }
 
     /**
@@ -761,7 +761,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testLastAggWithManyLongs() throws IOException {
         initMvLongsIndex(5000, 2, 3000, true);
-        assertCircuitBreaks(attempt -> aggregateFirstLastOnManyLongs(false));
+        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("ALL_LAST"));
     }
 
     /**
@@ -770,8 +770,8 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testFirstAggWithGiantText() throws IOException {
-        initGiantTextField(50, true);
-        assertCircuitBreaks(attempt -> aggregateFirstLastOnLargeText(true));
+        initGiantTextField(50, true, 3);
+        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("ALL_FIRST"));
     }
 
     /**
@@ -780,25 +780,25 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithGiantText() throws IOException {
-        initGiantTextField(50, true);
-        assertCircuitBreaks(attempt -> aggregateFirstLastOnLargeText(false));
+        initGiantTextField(50, true, 3);
+        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("ALL_LAST"));
     }
 
-    private Map<String, Object> aggregateFirstLastOnLargeText(boolean isFirst) throws IOException {
+    private Map<String, Object> aggregateByIdOnLargeText(String aggregation) throws IOException {
         StringBuilder query = new StringBuilder("{\"query\": \"FROM bigtext\n");
         // Grouping on the unique id field generates a large number of buckets where each bucket's value contains the
         // entire set of multivalues.
         String aggClause = "| STATS x = %s(f, id) BY id\n";
-        query.append(String.format(Locale.ROOT, aggClause, isFirst ? "ALL_FIRST" : "ALL_LAST"));
+        query.append(String.format(Locale.ROOT, aggClause, aggregation));
         query.append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 
-    private Map<String, Object> aggregateFirstLastOnManyLongs(boolean isFirst) throws IOException {
+    private Map<String, Object> aggregateByIdOnManyLongs(String aggregation) throws IOException {
         StringBuilder query = new StringBuilder("{\"query\": \"FROM mv_longs\n");
         // Grouping on the unique id field generates a large number of buckets where each bucket's value contains the
         // entire set of multivalues.
-        query.append(String.format(Locale.ROOT, "| STATS x = %s(f00, f01) BY id\n", isFirst ? "ALL_FIRST" : "ALL_LAST"));
+        query.append(String.format(Locale.ROOT, "| STATS x = %s(f00, f01) BY id\n", aggregation));
         query.append("\"}");
 
         return responseAsMap(query(query.toString(), "columns"));

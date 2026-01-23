@@ -1,283 +1,189 @@
 # Changelog Configuration
-# This file configures the valid values for changelog fields.
+# This file configures the valid values for changelog fields using the pivot structure.
 # Place this file as `changelog.yml` in the `docs/` directory
 
-# Available products (optional - if not specified, all valid products are allowed)
-available_products:
+# Available products (optional - if not specified, all products from products.yml are allowed)
+products:
   - elasticsearch
   - cloud-serverless
   # Add more products as needed
 
-# Available types for changelog entries (optional - if not specified, all valid types are allowed)
-# available_types:
-  # - breaking-change
-  # - bug-fix
-  # - deprecation
-  # - docs
-  # - enhancement
-  # - feature
-  # - known-issue
-  # - regression
-  # - security
-  # - other
-
-# GitHub label mappings (optional - used when --pr option is specified)
-# Maps GitHub PR labels to changelog type values
-# When a PR has a label that matches a key, the corresponding type value is used
-label_to_type:
-  ">breaking": breaking-change
-  ">breaking-java": breaking-change
-  ">bug": bug-fix
-  ">deprecation": deprecation
-  ">docs": docs
-  "documentation": docs
-  "release_note:enhancement": enhancement
-  ">enhancement": enhancement
-  ">feature": feature
-  # "type:known": known-issue
-  ">regression": regression
-  # "type:security": security
-  ">upgrade": other
-
-# Available subtypes for breaking changes (optional - if not specified, all valid subtypes are allowed)
-# available_subtypes:
-#   - api
-#   - behavioral
-#   - configuration
-#   - dependency
-#   - subscription
-#   - plugin
-#   - security
-#   - other
-
-# Available lifecycle values (optional - if not specified, all valid lifecycle values are allowed)
-# available_lifecycles:
+# Available lifecycle values (strongly typed: preview, beta, ga)
+# lifecycles:
 #   - preview
 #   - beta
 #   - ga
 
-# Available areas (optional - if not specified, all areas are allowed)
-available_areas:
-  - Aggregations
-  - Allocation
-  - Analysis
-  - Application
-  - Audit
-  - Authentication
-  - Authorization
-  - Autoscaling
-  - CAT APIs
-  - CCR
-  - CCS
-  - CRUD
-  - Client
-  - Cluster Coordination
-  - Codec
-  - Data streams
-  - DLM
-  - Discovery-Plugins
-  - Distributed
-  - Downsampling
-  - Engine
-  - EQL
-  - ES|QL
-  - Experiences
-  - Extract&Transform
-  - Features
-  - FIPS
-  - Geo
-  - Graph
-  - Health
-  - Highlighting
-  - ILM+SLM
-  - IdentityProvider
-  - Indices APIs
-  - Inference
-  - Infra/CLI
-  - Infra/Circuit Breakers
-  - Infra/Core
-  - Infra/Entitlements
-  - Infra/Logging
-  - Infra/Metrics
-  - Infra/Node Lifecycle
-  - Infra/Plugins
-  - Infra/REST API
-  - Infra/Resiliency
-  - Infra/Scripting
-  - Infra/Settings
-  - Infra/Transport API
-  - Ingest
-  - Ingest Node
-  - Java High Level REST Client
-  - Java Low Level REST Client
-  - License
-  - Logging
-  - Logs
-  - Machine Learning
-  - Mapping
-  - Monitoring
-  - Network
-  - Packaging
-  - Percolator
-  - Performance
-  - Query Languages
-  - Ranking
-  - Recovery
-  - Reindex
-  - Relevance
-  - Rollup
-  - SQL
-  - Search
-  - Searchable Snapshots
-  - Security
-  - Snapshot/Restore
-  - Stats
-  - Store
-  - Suggesters
-  - Task Management
-  - TLS
-  - Transform
-  - TSDB
-  - Vector Search
-  - Watcher
-  # Add more areas as needed
+# Pivot configuration for types, subtypes, and areas with label mappings.
+# By default we render entries grouped by type > subtype > area.
+# NOTE: subtype and area are optional and either may be omitted.
+# Labels are specified in a "label -> value" format
+pivot:
+  # Type definitions with optional labels
+  # Keys are type names, values can be:
+  #   - simple string: comma-separated label list (e.g., ">bug, >fix")
+  #   - empty/null: no labels for this type
+  #   - object: { labels: "...", subtypes: {...} } for breaking-change type only
+  types:
+    # Complex object form with subtypes (ONLY allowed for breaking-change)
+    # Subtypes help categorize breaking changes by their nature
+    breaking-change:
+      labels: ">breaking"
+      subtypes:
+      #   api: ">api-breaking"
+      #   behavioral: ">behavioral-breaking"
+      #   configuration: ">config-breaking"
+      #   dependency: ">dependency-breaking"
+      #   subscription: ">subscription-breaking"
+      #   plugin: ">plugin-breaking"
+      #   security: ">security-breaking"
+        other: ">breaking-java"
+    # Simple string form: labels as comma-separated string
+    bug-fix: ">bug"
+    deprecation: ">deprecation"
+    docs: ">docs, documentation"
+    enhancement: "release_note:enhancement, >enhancement"
+    feature: ">feature"
+    # known-issue: "type:known" 
+    regression: ">regression"
+    # security: "type:security"
+    other: ">upgrade"
 
-# Maps GitHub PR labels to changelog area values
-# Multiple labels can map to the same area, and a single label can map to multiple areas (comma-separated)
-label_to_areas:
-  ":Analytics/Aggregations": Aggregations
-  ":Distributed Coordination/Allocation": Allocation
-  ":Search Relevance/Analysis": Analysis
-  ":EnterpriseSearch/Application": Application
-  ":Security/Audit": Audit
-  ":Security/Authentication": Authentication
-  ":Security/Authorization": Authorization
-  ":Distributed Coordination/Autoscaling": Autoscaling
-  ":Data Management/CAT APIs": CAT APIs"
-  ":Distributed Indexing/CCR": CCR
-  ":Search Foundations/CCS": CCS
-  ":Distributed Indexing/CRUD": CRUD
-  ":Security/Client": Client
-  ":Distributed Coordination/Cluster Coordination": Cluster Coordination
-  ":StorageEngine/Codec": Codec
-  ":Data Management/Data streams": "Data streams"
-  ":Data Management/DLM": DLM
-  ":Distributed Coordination/Discovery-Plugins": Discovery-Plugins
-  ":Distributed Indexing/Distributed": Distributed
-  ":StorageEngine/Downsampling": Downsampling
-  ":Distributed Indexing/Engine": Engine
-  ":Search Relevance/ES|QL": "ES|QL"
-  ":StorageEngine/ES|QL": "ES|QL"
-  ":ml/ES|QL": "ES|QL"
-  ":Analytics/ES|QL": "ES|QL"
-  ":SearchOrg/Experiences": Experiences
-  ":SearchOrg/Extract&Transform": "Extract&Transform"
-  ":Security/FIPS": FIPS
-  ":Analytics/Geo": Geo
-  ":Data Management/Health": Health
-  ":Search Relevance/Highlighting": Highlighting
-  ":Data Management/ILM+SLM": ILM+SLM
-  ":Security/IdentityProvider": IdentityProvider
-  ":Data Management/Indices APIs": "Indices APIs"
-  ":SearchOrg/Inference": Inference
-  ":Core/Infra/CLI": "Infra/CLI"
-  ":Core/Infra/Circuit Breakers": "Infra/Circuit Breakers"
-  ":Core/Infra/Core": "Infra/Core"
-  ":Core/Infra/Entitlements": "Infra/Entitlements"
-  ":Core/Infra/Logging": "Infra/Logging"
-  ":Core/Infra/Metrics": "Infra/Metrics"
-  ":Core/Infra/Node Lifecycle": "Infra/Node Lifecycle"
-  ":Core/Infra/Plugins": "Infra/Plugins"
-  ":Core/Infra/REST API": "Infra/REST API"
-  ":Core/Infra/Resiliency": "Infra/Resiliency"
-  ":Core/Infra/Scripting": "Infra/Scripting"
-  ":Core/Infra/Settings": "Infra/Settings"
-  ":Core/Infra/Transport API": "Infra/Transport API"
-  ":Data Management/Ingest Node": "Ingest Node"
-  ":Clients/Java High Level REST Client": "Java High Level REST Client"
-  ":Clients/Java Low Level REST Client": "Java Low Level REST Client"
-  ":Security/License": License
-  ":StorageEngine/Logs": Logs
-  "StorageEngine/Logs": Logs
-  ":ml": "Machine Learning"
-  ":StorageEngine/Mapping": Mapping
-  ":Search Foundations/Mapping": Mapping
-  ":Data Management/Monitoring": Monitoring
-  ":Distributed Coordination/Network": Network
-  ":Delivery/Packaging": Packaging
-  ":Search Relevance/Percolator": Percolator
-  ":Performance": Performance
-  ":Query Languages/EQL": "Query Languages,EQL"
-  ":Query Languages/SQL": "Query Languages,SQL"
-  ":Search Relevance/Ranking": Ranking
-  ":Distributed Indexing/Recovery": Recovery
-  ":Distributed Indexing/Reindex": Reindex
-  ":Search Relevance/Search": Relevance
-  ":StorageEngine/Rollup": Rollup
-  ":Search/Search": Search
-  ":Distributed Indexing/Searchable Snapshots": Searchable Snapshots
-  ":Security/Security": Security
-  ":Distributed Coordination/Snapshot/Restore": Snapshot/Restore
-  ":Data Management/Stats": Stats
-  ":Distributed Indexing/Store": Store
-  ":Search Relevance/Suggesters": Suggesters
-  ":Distributed Coordination/Task Management": Task Management
-  ":Security/TLS": TLS
-  ":ml/Transform": Transform
-  ":StorageEngine/TSDB": TSDB
-  ":Search Relevance/Vectors": "Vector Search"
-  ":Data Management/Watcher": Watcher
-  # TBD: Features
-  # "TBD": Graph
-  # TBD: Ingest
-  # "TBD": Logging
+  # Area definitions with labels
+  # Keys are area display names, values are label strings
+  # Multiple labels can be comma-separated
+  areas:
+    # Example mappings - customize based on your label naming conventions
+    Aggregations: "Analytics/Aggregations"
+    Allocation: ":Distributed Coordination/Allocation"
+    Analysis: ":Search Relevance/Analysis"
+    Application: ":EnterpriseSearch/Application"
+    Audit: ":Security/Audit"
+    Authentication: ":Security/Authentication"
+    Authorization: ":Security/Authorization"
+    Autoscaling: ":Distributed Coordination/Autoscaling"
+    "CAT APIs": ":Data Management/CAT APIs"
+    CCR: ":Distributed Indexing/CCR"
+    CCS: ":Search Foundations/CCS"
+    CRUD: ":Distributed Indexing/CRUD"
+    Client: ":Security/Client"
+    "Cluster coordination": ":Distributed Coordination/Cluster Coordination"
+    Codec: ":StorageEngine/Codec"
+    "Data streams": ":Data Management/Data streams"
+    DLM: ":Data Management/DLM"
+    "Discovery-Plugins": ":Distributed Coordination/Discovery-Plugins"
+    Distributed: ":Distributed Indexing/Distributed"
+    Downsampling: ":StorageEngine/Downsampling"
+    Engine: ":Distributed Indexing/Engine"
+    "ES|QL": ":Search Relevance/ES|QL, :StorageEngine/ES|QL, :ml/ES|QL, :Analytics/ES|QL"
+    EQL: ":Query Languages/EQL"
+    Experiences: ":SearchOrg/Experiences"
+    "Extract&Transform": ":SearchOrg/Extract&Transform"
+    # Features: TBD
+    FIPS: ":Security/FIPS"
+    Geo: ":Analytics/Geo"
+    # Graph: TBD
+    Health: ":Data Management/Health"
+    Highlighting: ":Search Relevance/Highlighting"
+    "ILM": ":StorageEngine/ILM"
+    IdentityProvider: ":Security/IdentityProvider"
+    "Indices APIs": ":Data Management/Indices APIs"
+    Inference: ":SearchOrg/Inference"
+    "Infra/CLI": ":Core/Infra/CLI"
+    "Infra/Circuit breakers": ":Core/Infra/Circuit Breakers"
+    "Infra/Core": ":Core/Infra/Core"
+    # "Infra/Entitlements": ":Core/Infra/Entitlements"
+    "Infra/Logging": ":Core/Infra/Logging"
+    "Infra/Metrics": ":Core/Infra/Metrics"
+    "Infra/Node Lifecycle": ":Core/Infra/Node Lifecycle"
+    "Infra/Plugins": ":Core/Infra/Plugins"
+    "Infra/REST API": ":Core/Infra/REST API"
+    "Infra/Resiliency": ":Core/Infra/Resiliency"
+    "Infra/Scripting": ":Core/Infra/Scripting"
+    "Infra/Settings": ":Core/Infra/Settings"
+    "Infra/Transport API": ":Core/Infra/Transport API"
+    # Ingest: TBD
+    "Ingest Node": ":Data Management/Ingest Node"
+    "Java High Level REST Client": ":Clients/Java High Level REST Client"
+    "Java Low Level REST Client": ":Clients/Java Low Level REST Client"
+    License: ":Security/License"
+    # Logging: TBD
+    Logs: ":StorageEngine/Logs, StorageEngine/Logs"
+    "Machine Learning": ":ml"
+    Mapping: ":StorageEngine/Mapping, :Search Foundations/Mapping"
+    Monitoring: ":Data Management/Monitoring"
+    Network: ":Distributed Coordination/Network"
+    Packaging: ":Delivery/Packaging"
+    Percolator: ":Search Relevance/Percolator"
+    Performance: ":Performance"
+    "Query Languages": ":Query Languages/EQL, :Query Languages/SQL"
+    Ranking: ":Search Relevance/Ranking"
+    Recovery: ":Distributed Indexing/Recovery"
+    Reindex: ":Distributed Indexing/Reindex"
+    Relevance: ":Search Relevance/Search"
+    Rollup: ":StorageEngine/Rollup"
+    Search: ":Search/Search"
+    "Searchable snapshots": ":Distributed Indexing/Searchable Snapshots"
+    Security: ":Security/Security"
+    SLM: ":Distributed/SLM"
+    "Snapshot/Restore": ":Distributed Coordination/Snapshot/Restore"
+    SQL: ":Query Languages/SQL"
+    Stats: ":Data Management/Stats"
+    Store: ":Distributed Indexing/Store"
+    Suggesters: ":Search Relevance/Suggesters"
+    "Task Management": ":Distributed Coordination/Task Management"
+    TLS: ":Security/TLS"
+    Transform: ":ml/Transform"
+    TSDB: ":StorageEngine/TSDB"
+    "Vector search": ":Search Relevance/Vectors"
+    Watcher: ":Data Management/Watcher"
 
 # Product-specific label blockers (optional)
 # Maps product IDs to lists of labels that prevent changelog creation for that product
 # If you run the changelog add command with the --prs option and a PR has any of these labels, the changelog is not created
-add_blockers:
-  elasticsearch,cloud-serverless:
-    - ">non-issue"
-    - ">test"
-    - ">refactoring"
-    - ":Delivery/Build"
-    - ":Delivery/Tooling"
+# add_blockers:
+#   elasticsearch,cloud-serverless:
+#     - ">non-issue"
+#     - ">test"
+#     - ">refactoring"
+#     - ":Delivery/Build"
+#     - ":Delivery/Tooling"
 
-render_blockers:
-  cloud-serverless:
-    areas:
-      - Allocation
-      - Audit
-      - Authentication
-      - Autoscaling
-      - CCR
-      - CCS
-      - "Cluster Coordination"
-      - Codec
-      - "Discovery-Plugins"
-      - Engine
-      - FIPS
-      - Health
-      - "ILM+SLM"
-      - "IdentityProvider"
-      - "Infra/CLI"
-      - "Circuit Breakers"
-      - "Infra/Core"
-      - "Infra/Entitlements"
-      - "Infra/Logging"
-      - "Infra/Metrics"
-      - "Infra/Node Lifecycle"
-      - "Infra/Plugins"
-      - "Infra/Transport API"
-      - License
-      - Monitoring
-      - Packaging
-      - Searchable Snapshots
-      - "Snapshot/Restore"
-      - Stats
-      - Watcher
-    types:
-      - docs
-  elasticsearch:
-    types:
-      - docs
+# render_blockers:
+#   cloud-serverless:
+#     areas:
+#       - Allocation
+#       - Audit
+#       - Authentication
+#       - Autoscaling
+#       - CCR
+#       - CCS
+#       - "Cluster Coordination"
+#       - Codec
+#       - "Discovery-Plugins"
+#       - Engine
+#       - FIPS
+#       - Health
+#       - "ILM+SLM"
+#       - "IdentityProvider"
+#       - "Infra/CLI"
+#       - "Circuit Breakers"
+#       - "Infra/Core"
+#       - "Infra/Entitlements"
+#       - "Infra/Logging"
+#       - "Infra/Metrics"
+#       - "Infra/Node Lifecycle"
+#       - "Infra/Plugins"
+#       - "Infra/Transport API"
+#       - License
+#       - Monitoring
+#       - Packaging
+#       - Searchable Snapshots
+#       - "Snapshot/Restore"
+#       - Stats
+#       - Watcher
+#     types:
+#       - docs
+#   elasticsearch:
+#     types:
+#       - docs

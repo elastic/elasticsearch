@@ -14,6 +14,7 @@ module org.elasticsearch.transform {
     requires org.elasticsearch.base;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.xcontent;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpclient;

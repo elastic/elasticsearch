@@ -22,6 +22,7 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.constantkeyword;
     requires org.elasticsearch.redact;
     requires org.elasticsearch.spatial;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.wildcard;
     requires org.elasticsearch.ingest.geoip;
     requires com.maxmind.db;

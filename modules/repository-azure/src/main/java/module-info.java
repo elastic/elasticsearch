@@ -9,8 +9,9 @@
 
 module org.elasticsearch.repository.azure {
     requires org.elasticsearch.base;
-    requires org.elasticsearch.transport.netty4;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.telemetry;
+    requires org.elasticsearch.transport.netty4;
     requires org.elasticsearch.xcontent;
 
     requires org.apache.lucene.core;

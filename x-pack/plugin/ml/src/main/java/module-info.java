@@ -16,6 +16,7 @@ module org.elasticsearch.ml {
     requires org.elasticsearch.base;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.mustache;
     requires org.apache.httpcomponents.httpcore;

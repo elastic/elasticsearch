@@ -12,6 +12,7 @@ module org.elasticsearch.xcore {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.xcontent;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpclient;

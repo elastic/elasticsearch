@@ -18,6 +18,7 @@ module org.elasticsearch.security {
     requires org.elasticsearch.cli;
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.transport.netty4;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;

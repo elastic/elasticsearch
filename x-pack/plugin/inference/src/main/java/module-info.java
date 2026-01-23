@@ -8,6 +8,7 @@
 module org.elasticsearch.inference {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
 

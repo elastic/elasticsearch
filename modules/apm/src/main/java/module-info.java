@@ -15,6 +15,7 @@ module org.elasticsearch.telemetry.apm {
     requires org.apache.lucene.core;
     requires io.opentelemetry.context;
     requires io.opentelemetry.api;
+    requires org.elasticsearch.telemetry;
 
     exports org.elasticsearch.telemetry.apm;
     exports org.elasticsearch.telemetry.apm.metrics;

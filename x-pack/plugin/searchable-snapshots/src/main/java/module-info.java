@@ -8,8 +8,9 @@
 module org.elasticsearch.searchablesnapshots {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
-    requires org.elasticsearch.xcore;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.xcore;
 
     requires org.elasticsearch.blobcache;
 

@@ -194,7 +194,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                         SummationMode.COMPENSATED_LITERAL
                     )
                 ),
-            List.of(new Literal(s, 0L, DataType.LONG))
+                List.of(new Literal(s, 0L, DataType.LONG))
             );
         }
 

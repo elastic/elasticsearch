@@ -3003,7 +3003,19 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (projectId.equals(ProjectId.DEFAULT.id())) {
                 continue;
             }
-            deleteProject(projectId);
+            try {
+                deleteProject(projectId);
+            } catch (ResponseException e) {
+                // Ignore errors for projects that don't exist (might have been deleted already)
+                if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                    final String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
+                    if (reason != null && reason.contains("does not exist")) {
+                        logger.warn("Project {} does not exist, ignoring deletion error", projectId);
+                        continue;
+                    }
+                }
+                throw e;
+            }
         }
     }
 

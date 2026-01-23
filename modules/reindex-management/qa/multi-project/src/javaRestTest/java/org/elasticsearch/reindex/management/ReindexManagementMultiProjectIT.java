@@ -14,6 +14,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -23,6 +24,7 @@ import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -66,6 +68,9 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     @After
     public void removeNonDefaultProjects() throws IOException {
         if (preserveClusterUponCompletion() == false) {
+            // Cancel all running reindex tasks before deleting projects to avoid
+            // errors when tasks try to access project metadata after project deletion
+            cancelAllRunningReindexTasks();
             cleanUpProjects();
         }
     }
@@ -79,6 +84,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     public void testCancellingReindexOnlyWorksForCorrectProject() throws Exception {
         final String projectWithReindex = randomUniqueProjectId().id();
         final String projectWithoutReindex = randomUniqueProjectId().id();
+        assertEmptyProjects();
 
         createProject(projectWithReindex);
         createProject(projectWithoutReindex);
@@ -107,6 +113,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     public void testGettingReindexOnlyWorksForCorrectProject() throws Exception {
         final String projectWithReindex = randomUniqueProjectId().id();
         final String projectWithoutReindex = randomUniqueProjectId().id();
+        assertEmptyProjects();
 
         createProject(projectWithReindex);
         createProject(projectWithoutReindex);
@@ -135,6 +142,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     public void testListingReindexOnlyWorksForCorrectProject() throws Exception {
         final String project1 = randomUniqueProjectId().id();
         final String project2 = randomUniqueProjectId().id();
+        assertEmptyProjects();
 
         createProject(project1);
         createProject(project2);
@@ -258,4 +266,12 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         options.addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
         request.setOptions(options);
     }
+
+    private void cancelAllRunningReindexTasks() throws IOException {
+        final Request cancelRequest = new Request("POST", "/_tasks/_cancel");
+        cancelRequest.addParameter("actions", ReindexAction.NAME);
+        cancelRequest.addParameter("wait_for_completion", "true");
+        adminClient().performRequest(cancelRequest);
+    }
+
 }

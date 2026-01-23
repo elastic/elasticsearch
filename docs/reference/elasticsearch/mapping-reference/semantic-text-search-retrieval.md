@@ -340,9 +340,9 @@ stack: ga 9.2
 serverless: unavailable
 ```
 
-::::{tab-set}
+::::{applies-switch}
 
-:::{tab-item} {{es}} 9.3+
+:::{applies-item} stack: ga 9.3+
 `semantic_text` supports [{{ccs}} (CCS)](docs-content://explore-analyze/cross-cluster-search.md) through:
 
 - The [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is `true` or `false`.
@@ -378,7 +378,7 @@ POST _query
 1. `remote-cluster:remote-index` refers to an index on the remote cluster with alias `remote-cluster`.
 :::
 
-:::{tab-item} {{es}} 9.2
+:::{applies-item} stack: ga =9.2
 `semantic_text` supports [{{ccs}} (CCS)](docs-content://explore-analyze/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is set to `true`.
 This is the default value, so most CCS queries work automatically.
 

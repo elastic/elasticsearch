@@ -321,6 +321,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapperTests
   method: testSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/141187
+- class: org.elasticsearch.reindex.management.ReindexManagementMultiProjectIT
+  method: testListingReindexOnlyWorksForCorrectProject
+  issue: https://github.com/elastic/elasticsearch/issues/141122
 
 # Examples:
 #

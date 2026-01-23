@@ -12,18 +12,19 @@ package org.elasticsearch.index;
 import java.util.Map;
 
 /**
- * Fields for the slow log. These may be different each call depending on the state of the system.
+ * Supplies additional data for the logging.
+ * The data comes as a map of fields, which may be different each call depending on the state of the system.
  */
-public abstract class SlowLogFields {
+public abstract class ActionLoggingFields {
 
-    protected final SlowLogContext context;
+    protected final ActionLoggingFieldsContext context;
 
-    public SlowLogFields(SlowLogContext context) {
+    public ActionLoggingFields(ActionLoggingFieldsContext context) {
         this.context = context;
     }
 
     /**
-     * Slow log fields for query
+     * Produce the logging fields, depending on the state of the system.
      * @return map of field name to value
      */
     public Map<String, String> logFields() {

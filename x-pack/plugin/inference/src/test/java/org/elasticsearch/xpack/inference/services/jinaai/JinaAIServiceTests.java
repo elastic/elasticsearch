@@ -126,8 +126,8 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings("resource")
 public class JinaAIServiceTests extends InferenceServiceTestCase {
-    public static final String DEFAULT_EMBEDDING_URL = "https://api.jina.ai/v1/embeddings";
-    public static final String DEFAULT_RERANK_URL = "https://api.jina.ai/v1/rerank";
+    private static final String DEFAULT_EMBEDDING_URL = "https://api.jina.ai/v1/embeddings";
+    private static final String DEFAULT_RERANK_URL = "https://api.jina.ai/v1/rerank";
     private static final String MODEL_NAME_VALUE = "modelName";
     private static final String API_KEY_VALUE = "apiKey";
     private static final String INFERENCE_ENTITY_ID_VALUE = "id";

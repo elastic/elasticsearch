@@ -79,7 +79,7 @@ import static org.mockito.Mockito.mock;
 
 public class CustomServiceTests extends AbstractInferenceServiceTests {
 
-    public static final String INFERENCE_ID_VALUE = "inference_id";
+    private static final String INFERENCE_ID_VALUE = "inference_id";
 
     public CustomServiceTests() {
         super(createTestConfiguration());

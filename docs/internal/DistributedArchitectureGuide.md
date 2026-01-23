@@ -892,6 +892,7 @@ successfully update the root blob to avoid data corruption.
 
 Multiple snapshots can run concurrently in the same repository. But the process is sequential at shard level,
 i.e. only one shard snapshot for the same shard can be in the `INIT` state at any time.
+Snapshot deletions and creations are mutually exclusive. See also [Deletion of a Snapshot](#Deletion-of-a-Snapshot).
 
 [SnapshotsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java#L133
 [SnapshotsServiceUtils]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsServiceUtils.java#L83
@@ -968,9 +969,13 @@ recovery process kicks in and eventually calls into `IndexShard#restoreFromSnaps
 ### Detecting Multiple Writers to a Single Repository
 
 This is a best effort attempt to prevent repository corruption due to concurrent writes from multiple clusters.
-When updating the root blob (`index-N`), we cross compare the cached and expected repository generation
+When writing the root blob (`index-N`), we cross compare the cached and expected repository generation
 (see `BlobStoreRepository#latestKnownRepoGen` and `BlobStoreRepository#latestKnownRepositoryData`)
-to the generation physically found in the repository. A `RepositoryException` is thrown on any mismatch.
+to the generation physically found in the repository. The writing also fails if the blob already exists
+since this indicates that some other cluster attempted to write to the repository. We do that in all repositories
+that support such a check, which includes FS/GCS/Azure since forever and S3 since 9.2 (but not HDFS).
+A `RepositoryException` is thrown on any mismatch or conflicts. The repository is marked as corrupted
+by setting its generation number to `RepositoryData.CORRUPTED_REPO_GEN` to block further write operations.
 
 # Task Management / Tracking
 

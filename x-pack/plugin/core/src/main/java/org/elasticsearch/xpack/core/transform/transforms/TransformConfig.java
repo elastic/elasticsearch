@@ -13,8 +13,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -44,6 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -60,6 +63,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final TransformConfigVersion CONFIG_VERSION_LAST_DEFAULTS_CHANGED = TransformConfigVersion.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
+
+    public static final FeatureFlag TRANSFORM_CROSS_PROJECT = new FeatureFlag("transform_cross_project");
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -351,6 +356,32 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
         if (retentionPolicyConfig != null) {
             validationException = retentionPolicyConfig.validate(validationException);
+        }
+        return validationException;
+    }
+
+    public ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        ActionRequestValidationException validationException
+    ) {
+        return validateNoCrossProjectWhenCrossProjectIsDisabled(TRANSFORM_CROSS_PROJECT.isEnabled(), validationException);
+    }
+
+    // visible for testing
+    // remove both validateNoCrossProjectWhenCrossProjectIsDisabled methods when the feature is launched
+    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        boolean featureEnabled,
+        ActionRequestValidationException validationException
+    ) {
+        if (featureEnabled == false) {
+            // verify there are no remote indices
+            var indices = getSource().getIndex();
+            var remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(indices);
+            if (remoteIndices.isEmpty() == false) {
+                validationException = addValidationError(
+                    "Cross-project calls are not supported, but remote indices were requested: " + remoteIndices,
+                    validationException
+                );
+            }
         }
         return validationException;
     }

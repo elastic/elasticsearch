@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -1046,6 +1047,69 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             }
         }
         assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+    }
+
+    public void testCrossProjectWithFeatureEnabled() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "project-1:src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project-feature-enabled");
+        assertNull(transformConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(true, null));
+    }
+
+    public void testCrossProjectWithFeatureDisabled() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "project-1:src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project-feature-not-enabled");
+        var validationException = transformConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(false, null);
+        assertNotNull(validationException);
+        assertThat(
+            validationException.getMessage(),
+            containsString("Cross-project calls are not supported, but remote indices were requested: project-1:src")
+        );
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

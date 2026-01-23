@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.util.BytesRef;
+
 public interface ESVectorUtilSupport {
 
     /**
@@ -72,5 +74,7 @@ public interface ESVectorUtilSupport {
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
-    void matrixVectorMultiply(float[][] m, float[] x, float[] out);
+    void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out);
+
+    int codePointCount(BytesRef bytesRef);
 }

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.index.FieldInfo;
+
 import java.io.IOException;
 
 public interface VectorPreconditioner {
-    Preconditioner getPreconditioner() throws IOException;
+    Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException;
 }

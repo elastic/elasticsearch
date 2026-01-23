@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -438,7 +440,41 @@ public class ESVectorUtil {
         return IMPL.indexOf(bytes, offset, length, marker);
     }
 
-    public static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
-        IMPL.matrixVectorMultiply(m, x, out);
+    /**
+     * Multiplies a matrix with a vector and stores the result in the output vector.
+     *
+     * @param matrix, the matrix that will transform the vector; must have dimensions [out.length][vector.length]
+     * @param vector, input vector
+     * @param out, output vector
+     */
+    public static void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out) {
+        if(matrix.length != out.length) {
+            throw new IllegalArgumentException("matrix rows and output vector dimensions differ: " + matrix.length + "!=" + out.length);
+        }
+        if(matrix.length > 0 && matrix[0].length != vector.length) {
+            throw new IllegalArgumentException("matrix columns and input vector dimensions differ: "
+                + matrix[0].length + "!=" + vector.length);
+        }
+        if(matrix.length == 0 || vector.length == 0) {
+            return;
+        }
+        IMPL.matrixVectorMultiply(matrix, vector, out);
+    }
+
+    /**
+     * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
+     * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
+     * thrown, but invalid results will be returned.
+     *
+     * @param bytesRef bytes reference containing a valid utf-8 encoded string
+     * @return the number of code points in the bytes ref
+     */
+    public static int codePointCount(BytesRef bytesRef) {
+        // Scalar logic is faster for lengths below approximately 12
+        if (bytesRef.length < 12) {
+            return UnicodeUtil.codePointCount(bytesRef);
+        }
+        Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
+        return IMPL.codePointCount(bytesRef);
     }
 }

@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -39,9 +38,10 @@ public class Preconditioner {
 
     public void applyTransform(float[] vector, float[] out) {
         assert vector != null;
+        assert vector.length == blockDim * (blocks.length - 1) + (blocks[blocks.length - 1].length);
 
         if (blocks.length == 1) {
-            matrixVectorMultiply(blocks[0], vector, out);
+            ESVectorUtil.matrixVectorMultiply(blocks[0], vector, out);
         } else {
             int blockIdx = 0;
             float[] x = new float[blockDim];
@@ -59,7 +59,7 @@ public class Preconditioner {
                     x[k] = vector[idx];
                 }
                 // TODO: can be optimized to do all blocks in one pass?
-                matrixVectorMultiply(block, x, blockOut);
+                ESVectorUtil.matrixVectorMultiply(block, x, blockOut);
                 System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
                 blockIdx += blockDim;
             }
@@ -124,10 +124,6 @@ public class Preconditioner {
         }
 
         return blocks;
-    }
-
-    private static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
-        ESVectorUtil.matrixVectorMultiply(m, x, out);
     }
 
     private static int[][] createPermutationMatrixRandomly(int dim, int[] dimBlocks, Random random) {

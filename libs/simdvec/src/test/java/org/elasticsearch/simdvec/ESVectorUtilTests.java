@@ -9,6 +9,9 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -608,6 +611,30 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    public void testCodePointCountSimple() {
+        assertCodePoint(new BytesRef(""), 0);
+        assertCodePoint(new BytesRef("a"), 1); // 1 byte
+        assertCodePoint(new BytesRef("£"), 1); // 2 byte
+        assertCodePoint(new BytesRef("€"), 1); // 3 byte
+        assertCodePoint(new BytesRef("\uD83D\uDE80"), 1); // 4 byte
+    }
+
+    public void testCodePointCountRandom() {
+        int iterations = atLeast(1000);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(1000);
+            var bytes = new BytesRef(randomUnicodeOfLength(size));
+            final int expectedCount = UnicodeUtil.codePointCount(bytes);
+            assertCodePoint(bytes, expectedCount);
+        }
+    }
+
+    private void assertCodePoint(BytesRef bytes, int expected) {
+        assertEquals(expected, ESVectorUtil.codePointCount(bytes));
+        assertEquals(expected, defaultedProvider.getVectorUtilSupport().codePointCount(bytes));
+        assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().codePointCount(bytes));
+    }
+
     static int scalarIndexOf(byte[] bytes, final int offset, final int length, final byte marker) {
         final int end = offset + length;
         for (int i = offset; i < end; i++) {
@@ -654,4 +681,35 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    public void testMatrixVectorMultiply() {
+        float[] out = new float[2];
+        float[][] matrix = new float[][] {{1, 2, 3}, {3, 2, 1}};
+        float[] vector = new float[] {-10, 0, 5};
+        ESVectorUtil.matrixVectorMultiply(matrix, vector, out);
+        assertArrayEquals(new float[] {5, -25}, out, 0.01f);
+
+        out = new float[2];
+        matrix = new float[][] {{}, {}};
+        vector = new float[] {};
+        ESVectorUtil.matrixVectorMultiply(matrix, vector, out);
+        assertArrayEquals(new float[] {0, 0}, out, 0.01f);
+
+        out = new float[0];
+        matrix = new float[][] {};
+        vector = new float[] {-10, 0, 5};
+        ESVectorUtil.matrixVectorMultiply(matrix, vector, out);
+        assertArrayEquals(new float[] {}, out, 0.01f);
+    }
+
+    public void testMatrixVectorMultiplyBadDims() {
+        final float[] out = new float[0];
+        final float[][] matrix = new float[][] {{1, 2, 3}, {3, 2, 1}};
+        final float[] vector = new float[] {-10, 0, 5};
+        expectThrows(IllegalArgumentException.class, () -> ESVectorUtil.matrixVectorMultiply(matrix, vector, out));
+
+        final float[] out2 = new float[2];
+        final float[][] matrix2 = new float[][] {{1, 2, 3}, {1, 2, 3}, {1, 2, 3}};
+        final float[] vector2 = new float[] {-10, 0, 5};
+        expectThrows(IllegalArgumentException.class, () -> ESVectorUtil.matrixVectorMultiply(matrix2, vector2, out2));
+    }
 }

@@ -66,7 +66,15 @@ public class PreconditionerBenchmark {
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void applyTransform(Blackhole bh) {
+    public void applyTransformPanama(Blackhole bh) {
+        float[] out = new float[dims];
+        for(int i = 0; i < numVectors; i++) {
+            preconditioner.applyTransform(vectors[i], out);
+        }
+    }
+
+    @Benchmark
+    public void applyTransformDefault(Blackhole bh) {
         float[] out = new float[dims];
         for(int i = 0; i < numVectors; i++) {
             preconditioner.applyTransform(vectors[i], out);

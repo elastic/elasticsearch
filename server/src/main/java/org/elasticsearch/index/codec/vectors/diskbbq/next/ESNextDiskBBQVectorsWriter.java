@@ -99,7 +99,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         if (doPrecondition && this.preconditioner == null) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {
                 if (reader instanceof VectorPreconditioner) {
-                    this.preconditioner = ((VectorPreconditioner) reader).getPreconditioner();
+                    this.preconditioner = ((VectorPreconditioner) reader).getPreconditioner(fieldInfo);
                     break;
                 }
             }

@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 
@@ -457,12 +458,15 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
-        assert m.length == x.length;
-        assert m.length == out.length;
+    public void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out) {
         int dim = out.length;
         for (int i = 0; i < dim; i++) {
-            out[i] = VectorUtil.dotProduct(m[i], x);
+            out[i] = VectorUtil.dotProduct(matrix[i], vector);
         }
+    }
+
+    @Override
+    public int codePointCount(BytesRef bytesRef) {
+        return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 }

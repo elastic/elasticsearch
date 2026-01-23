@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.approximation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
@@ -214,6 +215,16 @@ public class Approximation {
      * These aggregate functions behave well with random sampling, in the sense
      * that they converge to the true value as the sample size increases.
      * <p>
+     * Aggregation functions that depend on the value of many or all of the
+     * individual rows (like AVG, COUNT, MEDIAN) will generally satisfy the CLT
+     * and are suitable for approximation.
+     * On the other hand, aggregation functions that depend on a small subset of
+     * rows (like COUNT DISTINCT, MAX, PRESENT) are not.
+     * Aggregation function that depend on all values, but are very sensitive to
+     * some (outlier) values (like STDDEV, PERCENTILE for low/high percentiles)
+     * are challenging to approximate. They are supported, but may require a
+     * larger sample size to obtain good accuracy.
+     * <p>
      * When an aggregation is not supported, it should be added to
      * ApproximationSupportTests.UNSUPPORTED_AGGS
      * to make sure all aggregations are captured.
@@ -296,6 +307,14 @@ public class Approximation {
      */
     private static final int BUCKET_COUNT = 16;
 
+    /**
+     * For grouped statistics (STATS ... BY), a grouping needs at least this
+     * number of sampled rows to be included in the results. For a simple
+     * aggregation as count, this still leads to acceptable confidence
+     * intervals. This will never be marked as "certified reliable".
+     */
+    private static final int MIN_ROW_COUNT_FOR_INCLUSION = 10;
+
     private static final Logger logger = LogManager.getLogger(Approximation.class);
 
     private static final AggregateFunction COUNT_ALL_ROWS = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD));
@@ -311,7 +330,7 @@ public class Approximation {
     private final FoldContext foldContext;
     private final PlanTimeProfile planTimeProfile;
 
-    private long sourceRowCount;
+    private final SetOnce<Long> sourceRowCount;
     private int countRecursionDepth;
 
     public Approximation(
@@ -335,6 +354,8 @@ public class Approximation {
         this.configuration = configuration;
         this.foldContext = foldContext;
         this.planTimeProfile = planTimeProfile;
+
+        sourceRowCount = new SetOnce<>();
         countRecursionDepth = 0;
     }
 
@@ -494,15 +515,15 @@ public class Approximation {
      */
     private ActionListener<Result> sourceCountListener(ActionListener<Result> approximationListener) {
         return approximationListener.delegateFailureAndWrap((listener, countResult) -> {
-            sourceRowCount = rowCount(countResult);
+            sourceRowCount.set(rowCount(countResult));
             logger.debug("total number of source rows: [{}] rows", sourceRowCount);
-            if (sourceRowCount == 0) {
+            if (sourceRowCount.get() == 0) {
                 // If there are no rows, run the original query.
                 executionInfo.finishSubPlans();
                 runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
                 return;
             }
-            double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
+            double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount.get());
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
                 executionInfo.finishSubPlans();
@@ -521,7 +542,7 @@ public class Approximation {
                 runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
-                sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
+                sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount.get());
                 runner.run(
                     toPhysicalPlan.apply(countPlan(sampleProbability)),
                     configuration,
@@ -752,14 +773,12 @@ public class Approximation {
                 // to compute confidence intervals.
                 encounteredStats.set(true);
 
-                Expression bucketIds = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
+                Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
+                Expression bucketIds = randomBucketId;
                 for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
-                    bucketIds = new MvAppend(
-                        Source.EMPTY,
-                        bucketIds,
-                        new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT))
-                    );
+                    bucketIds = new MvAppend(Source.EMPTY, bucketIds, randomBucketId);
                 }
+                // TODO: use theoretically non-conflicting names.
                 Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
 
                 List<NamedExpression> aggregates = new ArrayList<>();
@@ -778,11 +797,14 @@ public class Approximation {
 
                     // If the query is preserving all rows, and the aggregation function is
                     // counting all rows, we know the exact result without sampling.
+                    // TODO: COUNT("foobar"), which counts all rows, should also be detected.
+                    // Note that this inserts a constant as an aggreaation function. This
+                    // works fine (empirically) even though it isn't an aggregation function.
                     if (aggFn.equals(COUNT_ALL_ROWS)
                         && aggregate.groupings().isEmpty()
                         && queryProperties.canDecreaseRowCount == false
                         && queryProperties.canIncreaseRowCount == false) {
-                        aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount)));
+                        aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount.get())));
                         continue;
                     }
 
@@ -818,6 +840,7 @@ public class Approximation {
                                 );
                                 if (aggFn instanceof Count) {
                                     // For COUNT, no data should result in NULL, like in other aggregations.
+                                    // Otherwise, the confidence interval computation breaks.
                                     bucket = new Case(
                                         Source.EMPTY,
                                         new Equals(Source.EMPTY, bucket, Literal.fromLong(Source.EMPTY, 0L)),
@@ -848,13 +871,17 @@ public class Approximation {
                 }
 
                 // Add the bucket ID, do the aggregations (sampled corrected, including the buckets),
-                // and filter out rows with less than 10 sampled values.
+                // and filter out rows with too few sampled values.
                 plan = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
                 plan = aggregate.with(plan, aggregate.groupings(), aggregates);
                 plan = new Filter(
                     Source.EMPTY,
                     plan,
-                    new GreaterThanOrEqual(Source.EMPTY, sampleSize.toAttribute(), Literal.fromLong(Source.EMPTY, 10L))
+                    new GreaterThanOrEqual(
+                        Source.EMPTY,
+                        sampleSize.toAttribute(),
+                        Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_INCLUSION)
+                    )
                 );
 
                 List<Attribute> keepAttributes = new ArrayList<>(plan.output());

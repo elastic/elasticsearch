@@ -187,10 +187,15 @@ public class ApproximationSupportTests extends ESTestCase {
         HistogramMerge.class,
 
         // Counting distinct values is hard to approximate.
+        // For more details, see:
+        // - https://arxiv.org/pdf/2202.02800
         CountDistinct.class,
 
         // Aggs that produce minimums or maximums, firsts or lasts, presence or absence
         // don't behave well under approximation (bad convergence under CLT).
+        // For more details, see:
+        // - https://en.wikipedia.org/wiki/Extreme_value_theory
+        // - https://en.wikipedia.org/wiki/Generalized_extreme_value_distribution
         AllFirst.class,
         AllLast.class,
         FirstDocId.class,

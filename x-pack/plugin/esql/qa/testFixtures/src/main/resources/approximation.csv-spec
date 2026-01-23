@@ -43,6 +43,19 @@ count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(
 ;
 
 
+exact total count and approximate stats on large data
+required_capability: approximation
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS count=COUNT(), sum=SUM(value)
+;
+
+count:long | sum:long               | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
+200100     | 1700000000..3600000000 | [1700000000..3600000000,1700000000..3600000000] | {any}
+;
+
+
 with where
 required_capability: approximation
 

@@ -210,6 +210,45 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         IntBlock bucketCountBlock,
         DoubleBlock confidenceLevelBlock
     ) {
+        // This is based on BCa methodlogy described in the following paper:
+        // Efron, B. (1987). Better bootstrap confidence intervals.
+        //
+        // Journal of the American Statistical Association, 82(397), 171-185 https://www.jstor.org/stable/2289144.
+        //
+        // This is a good exposition of the underlying ideas: https://pages.stat.wisc.edu/~shao/stat710/stat710-24.pdf.
+        //
+        // In brief, one assumes that after an appropriate monotonic transformation \phi, the distribution of the
+        // statistic \theta is normal. Specifically,
+        //
+        // P( (\hat{\phi} - \phi) / (1 - a \phi) + z_0 <= z ) = \Psi(z)
+        //
+        // where \hat{\phi} is the transform of the estimate, \phi is the transform true value of the statistic,
+        // a is an acceleration parameter, z_0 is a bias correction parameter and \Psi is the CDF of the standard
+        // normal distribution.
+        //
+        // Because \phi is assumed to be monotonic we can compute confidence intervals of the original statistic
+        // using the normal distribution without ever needing to know the unknown function \phi. The result is
+        // that one just has to transform the percentile points from which one reads off the confidence interval
+        // as follows:
+        //
+        // \Psi(z_0 + (z_0 + z_{\alpha}) / (1 - a (z_0 + z_{\alpha}))) (1)
+        //
+        // where z_{\alpha} is the \alpha percentile of the standard normal distribution. Normally to compute the
+        // various quantities one would:
+        // 1. Use the standard normal percentile at the statistic's CDF value for the bootstrap to estimate z_0,
+        // 2. Use the empirical distribution of the bootstrap to convert (1) to confidence intervals, and
+        // 3. Use a jackknife of the bootstrap samples to estimate the skewness.
+        //
+        // Here, we make some modifications based on our specific scenario and
+        // 1. Estimate the confidence level directly from a normal approximation of the distribution samples,
+        // 2. Use a normal approximation of the distribution samples to convert (1) to confidence intervals,
+        // 3. Compute skewness using the standard central moments definition from the distribution samples, and
+        // 4. Correct the variance and skew to account for mismatch in sample size between the statistic and
+        // distribution samples when approximating the statistic distribution.
+        //
+        // We performed extensive simulations to validate this approach, which show that it produces better
+        // calibrated confidence intervals than alternatives.
+
         // Validate input.
         if (bestEstimateBlock.getValueCount(position) != 1
             || trialCountBlock.getValueCount(position) != 1

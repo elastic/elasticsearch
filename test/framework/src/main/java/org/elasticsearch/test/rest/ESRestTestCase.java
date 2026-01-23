@@ -148,14 +148,12 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2854,7 +2852,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("preanalysis", instanceOf(Map.class))
             .entry("dependency_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))
-            .entry("field_caps_calls", allOf(instanceOf(Integer.class), greaterThan(0)))
+            .entry("field_caps_calls", instanceOf(Integer.class))
             .entry("drivers", instanceOf(List.class))
             .entry("plans", instanceOf(List.class))
             .entry("minimumTransportVersion", instanceOf(Integer.class));

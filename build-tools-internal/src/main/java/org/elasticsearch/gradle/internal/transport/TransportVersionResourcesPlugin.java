@@ -116,7 +116,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.setGroup(taskGroup);
             t.getIncrement().convention(1000);
             t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
-        };
+        });
 
         var generateInitialTask = project.getTasks()
             .register("generateInitialTransportVersion", GenerateInitialTransportVersionTask.class, t -> {

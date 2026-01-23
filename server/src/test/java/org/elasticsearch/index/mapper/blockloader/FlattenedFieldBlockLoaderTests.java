@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,7 +45,7 @@ public class FlattenedFieldBlockLoaderTests extends BlockLoaderTestCase {
                 List<Object> expectedList = parseExpected(expected);
                 List<Object> actualList = parseActual(actual);
 
-                var result = matcher.match(expectedList, actualList, mapping.raw(), mapping.raw());
+                var result = matcher.match(actualList, expectedList, mapping.raw(), mapping.raw());
                 assertTrue(result.getMessage(), result.isMatch());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -64,29 +63,33 @@ public class FlattenedFieldBlockLoaderTests extends BlockLoaderTestCase {
         };
     }
 
+    @SuppressWarnings("unchecked")
     private List<Object> parseActual(Object actual) throws IOException {
-        if (actual != null) {
-            assertThat(actual, Matchers.instanceOf(BytesRef.class));
+        List<BytesRef> listActual = switch (actual) {
+            case List<?> list -> (List<BytesRef>) actual;
+            case BytesRef bytesRef -> List.of(bytesRef);
+            case null -> Collections.emptyList();
+            default -> throw new IllegalArgumentException("Expected array or BytesRef, found " + actual.getClass().getSimpleName());
+        };
 
+        return listActual.stream().map(bytesRef -> {
             try (
                 XContentParser parser = XContentHelper.createParser(
                     XContentParserConfiguration.EMPTY,
-                    new BytesArray((BytesRef) actual),
+                    new BytesArray(bytesRef),
                     XContentType.JSON
                 )
             ) {
                 var token = parser.nextToken();
-                if (token == XContentParser.Token.START_ARRAY) {
-                    return parser.list();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    return List.of(parser.map());
+                if (token == XContentParser.Token.START_OBJECT) {
+                    return (Object) parser.map();
                 } else {
-                    throw new IllegalArgumentException("Expected array or object, found " + token);
+                    throw new IllegalArgumentException("Expected object, found " + token);
                 }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-        } else {
-            return Collections.emptyList();
-        }
+        }).toList();
     }
 
     @Override

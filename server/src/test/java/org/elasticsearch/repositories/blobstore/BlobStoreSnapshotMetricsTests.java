@@ -41,7 +41,15 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             metrics.incrementSnapshotRateLimitingTimeInNanos(secondSnapshotRateLimitingTimeInNanos);
 
             RepositoriesStats.SnapshotStats stats = metrics.getSnapshotStats();
+            assertThat(stats.shardSnapshotsStarted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsCompleted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsInProgress(), equalTo(0L));
+            assertThat(stats.totalReadThrottledNanos(), equalTo(0L));
             assertThat(stats.totalWriteThrottledNanos(), equalTo(firstSnapshotRateLimitingTimeInNanos + secondSnapshotRateLimitingTimeInNanos));
+            assertThat(stats.numberOfBlobsUploaded(), equalTo(0L));
+            assertThat(stats.numberOfBytesUploaded(), equalTo(0L));
+            assertThat(stats.totalUploadTimeInMillis(), equalTo(0L));
+            assertThat(stats.totalUploadReadTimeInMillis(), equalTo(0L));
         }
     }
 
@@ -53,7 +61,15 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             metrics.incrementRestoreRateLimitingTimeInNanos(secondRestoreRateLimitingTimeInNanos);
 
             RepositoriesStats.SnapshotStats stats = metrics.getSnapshotStats();
+            assertThat(stats.shardSnapshotsStarted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsCompleted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsInProgress(), equalTo(0L));
             assertThat(stats.totalReadThrottledNanos(), equalTo(firstRestoreRateLimitingTimeInNanos + secondRestoreRateLimitingTimeInNanos));
+            assertThat(stats.totalWriteThrottledNanos(), equalTo(0L));
+            assertThat(stats.numberOfBlobsUploaded(), equalTo(0L));
+            assertThat(stats.numberOfBytesUploaded(), equalTo(0L));
+            assertThat(stats.totalUploadTimeInMillis(), equalTo(0L));
+            assertThat(stats.totalUploadReadTimeInMillis(), equalTo(0L));
         }
     }
 
@@ -68,8 +84,15 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             metrics.incrementCountersForPartUpload(secondPartSizeInBytes, secondPartWriteTimeInMillis);
 
             RepositoriesStats.SnapshotStats stats = metrics.getSnapshotStats();
+            assertThat(stats.shardSnapshotsStarted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsCompleted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsInProgress(), equalTo(0L));
+            assertThat(stats.totalReadThrottledNanos(), equalTo(0L));
+            assertThat(stats.totalWriteThrottledNanos(), equalTo(0L));
+            assertThat(stats.numberOfBlobsUploaded(), equalTo(0L));
             assertThat(stats.numberOfBytesUploaded(), equalTo(firstPartSizeInBytes + secondPartSizeInBytes));
             assertThat(stats.totalUploadTimeInMillis(), equalTo(firstPartWriteTimeInMillis + secondPartWriteTimeInMillis));
+            assertThat(stats.totalUploadReadTimeInMillis(), equalTo(0L));
         }
     }
 
@@ -81,7 +104,15 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             }
 
             RepositoriesStats.SnapshotStats stats = metrics.getSnapshotStats();
+            assertThat(stats.shardSnapshotsStarted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsCompleted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsInProgress(), equalTo(0L));
+            assertThat(stats.totalReadThrottledNanos(), equalTo(0L));
+            assertThat(stats.totalWriteThrottledNanos(), equalTo(0L));
             assertThat(stats.numberOfBlobsUploaded(), equalTo(Integer.toUnsignedLong(numberOfBlobsUploaded)));
+            assertThat(stats.numberOfBytesUploaded(), equalTo(0L));
+            assertThat(stats.totalUploadTimeInMillis(), equalTo(0L));
+            assertThat(stats.totalUploadReadTimeInMillis(), equalTo(0L));
         }
     }
 
@@ -105,6 +136,12 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             assertThat(stats.shardSnapshotsStarted(), equalTo(Integer.toUnsignedLong(numberOfShardsStarted)));
             assertThat(stats.shardSnapshotsCompleted(), equalTo(Integer.toUnsignedLong(numberOfShardsCompleted)));
             assertThat(stats.shardSnapshotsInProgress(), equalTo(Integer.toUnsignedLong(numberOfShardsStarted - numberOfShardsCompleted)));
+            assertThat(stats.totalReadThrottledNanos(), equalTo(0L));
+            assertThat(stats.totalWriteThrottledNanos(), equalTo(0L));
+            assertThat(stats.numberOfBlobsUploaded(), equalTo(0L));
+            assertThat(stats.numberOfBytesUploaded(), equalTo(0L));
+            assertThat(stats.totalUploadTimeInMillis(), equalTo(0L));
+            assertThat(stats.totalUploadReadTimeInMillis(), equalTo(0L));
         }
     }
 
@@ -116,6 +153,14 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             metrics.incrementUploadReadTime(secondUploadReadTime);
 
             RepositoriesStats.SnapshotStats stats = metrics.getSnapshotStats();
+            assertThat(stats.shardSnapshotsStarted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsCompleted(), equalTo(0L));
+            assertThat(stats.shardSnapshotsInProgress(), equalTo(0L));
+            assertThat(stats.totalReadThrottledNanos(), equalTo(0L));
+            assertThat(stats.totalWriteThrottledNanos(), equalTo(0L));
+            assertThat(stats.numberOfBlobsUploaded(), equalTo(0L));
+            assertThat(stats.numberOfBytesUploaded(), equalTo(0L));
+            assertThat(stats.totalUploadTimeInMillis(), equalTo(0L));
             assertThat(stats.totalUploadReadTimeInMillis(), equalTo(firstUploadReadTime + secondUploadReadTime));
         }
     }
@@ -123,11 +168,7 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
     // TODO - Tests that test the value used for the metrics: millis versus nanos
 
     private List<BlobStoreSnapshotMetrics> getMetrics() {
-        return List.of(getBlobStoreSnapshotMetrics(), getBlobStoreSnapshotMetrics(null));
-    }
-
-    private BlobStoreSnapshotMetrics getBlobStoreSnapshotMetrics() {
-        return getBlobStoreSnapshotMetrics(ProjectId.DEFAULT);
+        return List.of(getBlobStoreSnapshotMetrics(ProjectId.DEFAULT), getBlobStoreSnapshotMetrics(null));
     }
 
     private BlobStoreSnapshotMetrics getBlobStoreSnapshotMetrics(ProjectId projectId) {

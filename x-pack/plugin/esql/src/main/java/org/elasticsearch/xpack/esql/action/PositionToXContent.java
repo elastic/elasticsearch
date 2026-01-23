@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -27,10 +25,9 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.ZoneId;
 
@@ -237,10 +234,7 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-                    try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(val))) {
-                        parser.nextToken();
-                        return builder.copyCurrentStructure(parser);
-                    }
+                    return builder.rawValue(new ByteArrayInputStream(val.bytes,val.offset, val.length), builder.contentType());
                 }
             };
             case DENSE_VECTOR -> new PositionToXContent(block) {

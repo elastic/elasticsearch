@@ -64,11 +64,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
-        super(source, child);
-        this.limit = limit;
-        this.duplicated = duplicated;
-        this.local = local;
-        this.groupings = List.of();
+        this(source, limit, List.of(), child, duplicated, local);
     }
 
     /**

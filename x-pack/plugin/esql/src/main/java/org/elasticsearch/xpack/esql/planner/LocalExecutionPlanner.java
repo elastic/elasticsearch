@@ -510,6 +510,14 @@ public class LocalExecutionPlanner {
                 order.nullsPosition().equals(Order.NullsPosition.FIRST)
             );
         }).toList();
+        List<Integer> groupKeys = topNExec.groupings().stream().map(grouping -> {
+            if (grouping instanceof Attribute a) {
+                // FIXME(gal, NOCOMMIT) Remove duplication with above
+                return source.layout.get(a.id()).channel();
+            } else {
+                throw new EsqlIllegalArgumentException("group by expression must be an attribute");
+            }
+        }).toList();
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {
@@ -519,7 +527,7 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(topNExec, rowSize)),
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, groupKeys, context.pageSize(topNExec, rowSize)),
             source.layout
         );
     }

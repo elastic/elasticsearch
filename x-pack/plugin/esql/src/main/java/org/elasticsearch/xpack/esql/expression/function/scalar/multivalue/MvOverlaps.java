@@ -286,7 +286,7 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
             }
             return right.hasValue(position, value == false);
         }
-        boolean value = left.getBoolean(right.getFirstValueIndex(position));
+        boolean value = left.getBoolean(left.getFirstValueIndex(position));
         if (right.hasValue(position, value)) {
             return true;
         }

@@ -25,6 +25,7 @@ ROW setA = ["a","c"], setB = ["a", "b", "c"]
 FROM airports
 | WHERE mv_overlaps(type, ["major"]) AND scalerank == 9
 | KEEP scalerank, name, country
+| SORT country
 ```
 
 | scalerank:integer | name:text | country:keyword |

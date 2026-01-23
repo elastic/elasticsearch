@@ -368,7 +368,7 @@
   "examples" : [
     "ROW set = [\"a\", \"b\", \"c\"], element = \"a\"\n| EVAL set_overlaps_element = mv_overlaps(set, element)",
     "ROW setA = [\"a\",\"c\"], setB = [\"a\", \"b\", \"c\"]\n| EVAL a_overlaps_b = mv_overlaps(setB, setA)\n| EVAL b_overlaps_a = mv_overlaps(setA, setB)",
-    "FROM airports\n| WHERE mv_overlaps(type, [\"major\"]) AND scalerank == 9\n| KEEP scalerank, name, country"
+    "FROM airports\n| WHERE mv_overlaps(type, [\"major\"]) AND scalerank == 9\n| KEEP scalerank, name, country\n| SORT country"
   ],
   "preview" : false,
   "snapshot_only" : false

@@ -338,9 +338,9 @@ InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)",
 
 OrderByYear
 SELECT YEAR(date) FROM test ORDER BY 1;
-"sort":[{"_script":{"script":{"source":"InternalQlScriptUtils.nullSafeSortNumeric(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"sort":[{"_script":{"script":{"source":"InternalQlScriptUtils.nullSafeSortLong(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
 "params":{"v0":"date","v1":"Z","v2":"YEAR"}},
-"type":"number","order":"asc"}}],"track_total_hits":-1}
+"type":"long","order":"asc"}}],"track_total_hits":-1}
 ;
 
 // LIKE/RLIKE

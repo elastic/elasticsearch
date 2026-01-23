@@ -114,6 +114,8 @@ public class ClearScrollRequest extends LegacyActionRequest implements ToXConten
                         }
                         addScrollId(parser.text());
                     }
+                } else if ("project_routing".equals(currentFieldName)) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
                 } else {
                     throw new IllegalArgumentException(
                         "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "

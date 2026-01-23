@@ -151,6 +151,8 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
                     scrollId(parser.text());
                 } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                     scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll"));
+                } else if ("project_routing".equals(currentFieldName)) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
                 } else {
                     throw new IllegalArgumentException(
                         "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "

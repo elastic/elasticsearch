@@ -25,7 +25,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.nio.channels.FileChannel;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +33,7 @@ import java.util.Objects;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrNull;
 
@@ -88,6 +88,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             logger.info("vec_caps=" + caps);
             if (caps > 0) {
                 FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
+                FunctionDescriptor longSingle = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor bulk = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
                 FunctionDescriptor bulkOffsets = FunctionDescriptor.ofVoid(
@@ -110,7 +111,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         String typeName = switch (type) {
                             case INT7 -> "7u";
                             case FLOAT32 -> "f32";
+                            case I1I4 -> "_int1_int4";
                         };
+
+                        if (type == DataType.I1I4 && f == Function.SQUARE_DISTANCE) continue;   // not implemented yet
 
                         for (Operation op : Operation.values()) {
                             String opName = switch (op) {
@@ -123,6 +127,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                 case SINGLE -> switch (type) {
                                     case INT7 -> intSingle;
                                     case FLOAT32 -> floatSingle;
+                                    case I1I4 -> longSingle;
                                 };
                                 case BULK -> bulk;
                                 case BULK_OFFSETS -> bulkOffsets;
@@ -166,7 +171,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * <p>
          * Vector data is consumed by native functions directly via a pointer to contiguous memory, represented in FFI by
          * {@link MemorySegment}s, which safely encapsulate a memory location, off-heap or on-heap.
-         * We mainly use <b>shared</b> MemorySegments for off-heap vectors (via {@link Arena#ofShared} or via {@link FileChannel#map}).
+         * We mainly use <b>shared</b> MemorySegments for off-heap vectors (via {@link Arena#ofShared} or via
+         * {@link java.nio.channels.FileChannel#map}).
          * <p>
          * Shared MemorySegments have a built-in check for liveness when accessed by native functions, implemented by JIT adding some
          * additional instructions before/after the native function is actually called.
@@ -243,6 +249,19 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
+        static boolean checkI1I4Bulk(
+            MemorySegment dataset,
+            MemorySegment query,
+            int datasetVectorLengthInBytes,
+            int count,
+            MemorySegment result
+        ) {
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * count, (int) dataset.byteSize());
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * 4L, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
+            return true;
+        }
+
         static boolean checkBulkOffsets(
             int elementSize,
             MemorySegment a,
@@ -253,7 +272,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
+            // TODO: more checks copied from checkBulk
             if ((pitch % elementSize) != 0) throw new IllegalArgumentException("Pitch needs to be a multiple of " + elementSize);
+            return true;
+        }
+
+        static boolean checkI1I4BulkOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
             return true;
         }
 
@@ -297,6 +329,23 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceFloat(squareF32Handle, a, b, elementCount);
         }
 
+        private static final MethodHandle dotI1I4Handle = HANDLES.get(
+            new OperationSignature(Function.DOT_PRODUCT, DataType.I1I4, Operation.SINGLE)
+        );
+
+        /**
+         * Computes the dot product of a given int4 vector with a give bit vector (1 bit per element).
+         *
+         * @param a      address of the bit vector
+         * @param query  address of the int4 vector
+         * @param length the vector dimensions
+         */
+        static long dotProductI1I4(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceLong(dotI1I4Handle, a, query, length);
+        }
+
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("Dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
@@ -318,7 +367,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             // this means we need to reduce the overheads as much as possible.
                             // So have specific hard-coded check methods rather than use guardWithTest
                             // to create the check-and-call methods dynamically
-                            MethodHandle handle = switch (op.getKey().dataType()) {
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
                                 case INT7 -> {
                                     MethodType type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                                     yield switch (op.getKey().function()) {
@@ -346,52 +395,114 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         );
                                     };
                                 }
+                                case I1I4 -> {
+                                    MethodType type = MethodType.methodType(
+                                        long.class,
+                                        MemorySegment.class,
+                                        MemorySegment.class,
+                                        int.class
+                                    );
+                                    yield switch (op.getKey().function()) {
+                                        case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductI1I4", type);
+                                        case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");
+                                    };
+                                }
                             };
 
-                            handlesWithChecks.put(op.getKey(), handle);
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
                         }
                         case BULK -> {
-                            MethodHandle checkMethod = lookup.findStatic(
-                                JdkVectorSimilarityFunctions.class,
-                                "checkBulk",
-                                MethodType.methodType(
-                                    boolean.class,
-                                    int.class,
-                                    MemorySegment.class,
-                                    MemorySegment.class,
-                                    int.class,
-                                    int.class,
-                                    MemorySegment.class
-                                )
-                            );
-                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
-                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
-                                op.getValue(),
-                                MethodHandles.empty(op.getValue().type())
-                            );
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
+                                case I1I4 -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkI1I4Bulk",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        checkMethod,
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                default -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBulk",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                            };
+
                             handlesWithChecks.put(op.getKey(), handleWithChecks);
                         }
                         case BULK_OFFSETS -> {
-                            MethodHandle checkMethod = lookup.findStatic(
-                                JdkVectorSimilarityFunctions.class,
-                                "checkBulkOffsets",
-                                MethodType.methodType(
-                                    boolean.class,
-                                    int.class,
-                                    MemorySegment.class,
-                                    MemorySegment.class,
-                                    int.class,
-                                    int.class,
-                                    MemorySegment.class,
-                                    int.class,
-                                    MemorySegment.class
-                                )
-                            );
-                            MethodHandle handleWithChecks = MethodHandles.guardWithTest(
-                                MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
-                                op.getValue(),
-                                MethodHandles.empty(op.getValue().type())
-                            );
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
+                                case I1I4 -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkI1I4BulkOffsets",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        checkMethod,
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                default -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBulkOffsets",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, op.getKey().dataType().bytes()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                            };
+
                             handlesWithChecks.put(op.getKey(), handleWithChecks);
                         }
                     }
@@ -405,7 +516,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         @Override
         public MethodHandle getHandle(Function function, DataType dataType, Operation operation) {
-            return HANDLES_WITH_CHECKS.get(new OperationSignature(function, dataType, operation));
+            OperationSignature key = new OperationSignature(function, dataType, operation);
+            MethodHandle mh = HANDLES_WITH_CHECKS.get(key);
+            if (mh == null) throw new IllegalArgumentException("Signature not implemented: " + key);
+            return mh;
         }
     }
 }

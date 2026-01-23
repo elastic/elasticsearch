@@ -39,7 +39,13 @@ public interface VectorSimilarityFunctions {
         /**
          * 4-byte float. Single vector score returns results as a float.
          */
-        FLOAT32(Float.BYTES);
+        FLOAT32(Float.BYTES),
+        /**
+         * 1-bit data, 4-bit queries. Single vector score returns results as a long.
+         * <p>
+         * Checks are special-cased, so {@link #bytes()} is not called
+         */
+        I1I4(Byte.BYTES);
 
         private final int bytes;
 

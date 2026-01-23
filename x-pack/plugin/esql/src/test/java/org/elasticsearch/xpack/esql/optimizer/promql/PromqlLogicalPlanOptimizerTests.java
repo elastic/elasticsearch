@@ -103,7 +103,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         );
     }
 
-
     public void testAvgAvgOverTimeOutput() {
         var plan = planPromql("""
             PROMQL index=k8s step=1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )

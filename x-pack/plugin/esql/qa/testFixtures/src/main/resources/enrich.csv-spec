@@ -786,7 +786,7 @@ English                         | French
 circularRefEnrichStats
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | RENAME language_name AS message  
 | ENRICH languages_policy ON language_code 
 | STATS a = count(to_lower(language_name)), b = count(language_name)
@@ -800,7 +800,7 @@ a:long  | b:long
 circularRefEnrichStats2
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | RENAME language_name AS message  
 | ENRICH languages_policy ON language_code 
 | STATS a = count(to_lower(language_name)), b = count(message)
@@ -814,7 +814,7 @@ a:long  | b:long
 circularRefEnrichStats3
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | ENRICH languages_policy ON language_code
 | RENAME language_name AS message
 | STATS a = count(to_lower(message)), b = count(message)
@@ -828,7 +828,7 @@ a:long  | b:long
 circularRefEnrichStats4
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | ENRICH languages_policy ON language_code WITH message=language_name
 | RENAME language_name AS message
 | STATS a = count(to_lower(message)), b = count(message)
@@ -842,7 +842,7 @@ a:long  | b:long
 circularRefEnrichStats5
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | ENRICH languages_policy ON language_code WITH message=language_name
 | STATS a = count(to_lower(language_name)), b = count(message)
 ;
@@ -855,7 +855,7 @@ a:long  | b:long
 circularRefEnrichStats6
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | RENAME language_name AS message  
 | SORT message
 | ENRICH languages_policy ON language_code 
@@ -870,7 +870,7 @@ a:long  | b:long
 circularRefEnrichStats7
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | ENRICH languages_policy ON language_code 
 | SORT language_name
 | STATS a = count(to_lower(language_name)), b = count(language_name)
@@ -884,7 +884,7 @@ a:long  | b:long
 circularRefEnrichStats
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | RENAME language_name AS message  
 | ENRICH languages_policy ON language_code 
 | STATS a = count(to_lower(language_name)), b = count(language_name)
@@ -898,7 +898,7 @@ a:long  | b:long
 circularRefEnrichStats2
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | RENAME language_name AS message  
 | ENRICH languages_policy ON language_code 
 | STATS a = count(to_lower(language_name)), b = count(message)
@@ -912,7 +912,7 @@ a:long  | b:long
 circularRefEnrichStats3
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | ENRICH languages_policy ON language_code
 | RENAME language_name AS message
 | STATS a = count(to_lower(message)), b = count(message)
@@ -926,7 +926,7 @@ a:long  | b:long
 circularRefEnrichStats4
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | ENRICH languages_policy ON language_code WITH message=language_name
 | RENAME language_name AS message
 | STATS a = count(to_lower(message)), b = count(message)
@@ -940,7 +940,7 @@ a:long  | b:long
 circularRefEnrichStats5
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages
+FROM languages_lookup 
 | ENRICH languages_policy ON language_code WITH message=language_name
 | STATS a = count(to_lower(language_name)), b = count(message)
 ;

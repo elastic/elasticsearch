@@ -19,6 +19,18 @@ import java.util.function.Function;
  */
 public class OutputOperator extends SinkOperator {
 
+    /**
+     * Interface for DriverContext implementations that provide a collectedPages list.
+     * This allows OutputOperatorFactory to retrieve collectedPages without creating a circular dependency.
+     */
+    public interface CollectedPagesProvider {
+        /**
+         * Returns the collectedPages list that should be used by OutputOperator.
+         * @return the collectedPages list
+         */
+        List<Page> collectedPages();
+    }
+
     private final List<String> columns;
     private final Consumer<Page> pageConsumer;
     private final Function<Page, Page> mapper;
@@ -29,7 +41,14 @@ public class OutputOperator extends SinkOperator {
 
         @Override
         public SinkOperator get(DriverContext driverContext) {
-            return new OutputOperator(columns, mapper, pageConsumer);
+            // If this DriverContext provides collectedPages, use them
+            if (driverContext instanceof CollectedPagesProvider collectedPagesProvider) {
+                List<Page> collectedPages = collectedPagesProvider.collectedPages();
+                return new OutputOperator(columns, mapper, collectedPages::add);
+            } else {
+                // Normal execution path: use the provided pageConsumer
+                return new OutputOperator(columns, mapper, pageConsumer);
+            }
         }
 
         @Override
@@ -42,6 +61,10 @@ public class OutputOperator extends SinkOperator {
         this.columns = columns;
         this.mapper = mapper;
         this.pageConsumer = pageConsumer;
+    }
+
+    public List<String> getColumns() {
+        return columns;
     }
 
     boolean finished = false;

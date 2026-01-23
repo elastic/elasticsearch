@@ -41,6 +41,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
@@ -161,7 +162,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -269,7 +271,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -351,7 +354,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -419,7 +423,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -737,7 +742,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                mock(TransformNode.class)
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

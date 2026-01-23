@@ -20,13 +20,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -36,7 +37,6 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
@@ -91,8 +91,13 @@ public class EsqlQueryLogTests extends ESTestCase {
         Loggers.setLevel(queryLog, origQueryLogLevel);
     }
 
+    public static SlowLogFieldProvider mockLogFieldProvider() {
+        return context -> new SlowLogFields(context) {
+        };
+    }
+
     public void testPrioritiesOnSuccess() {
-        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockFieldProvider());
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -105,7 +110,10 @@ public class EsqlQueryLogTests extends ESTestCase {
         for (int i = 0; i < actualTook.length; i++) {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
-                new Versioned<>(new Result(List.of(), List.of(), DriverCompletionInfo.EMPTY, warnQuery), TransportVersion.current()),
+                new Versioned<>(
+                    new Result(List.of(), List.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
+                    TransportVersion.current()
+                ),
                 query
             );
             if (expectedLevel[i] != null) {
@@ -118,7 +126,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(tookMillis, is(tookMillisExpected));
 
                 // Checks values for all planning timespans
-                for (PlanningProfile.TimeSpanMarker timeSpan : warnQuery.planningProfile().timeSpanMarkers()) {
+                for (TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
                     String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
                     assertNotNull(tookValue);
                     Long timeSpanTook = Long.valueOf(tookValue);
@@ -139,32 +147,8 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     }
 
-    private SlowLogFieldProvider mockFieldProvider() {
-        return new SlowLogFieldProvider() {
-            @Override
-            public SlowLogFields create(IndexSettings indexSettings) {
-                return create();
-            }
-
-            @Override
-            public SlowLogFields create() {
-                return new SlowLogFields() {
-                    @Override
-                    public Map<String, String> indexFields() {
-                        return Map.of();
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return Map.of();
-                    }
-                };
-            }
-        };
-    }
-
     public void testPrioritiesOnFailure() {
-        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockFieldProvider());
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -207,8 +191,16 @@ public class EsqlQueryLogTests extends ESTestCase {
             }
 
             @Override
-            public PlanningProfile planningProfile() {
-                return new PlanningProfile(randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan());
+            public EsqlQueryProfile queryProfile() {
+                return new EsqlQueryProfile(
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomIntBetween(0, 100)
+                );
             }
         };
 

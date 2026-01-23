@@ -32,6 +32,9 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -257,6 +260,7 @@ public class SecurityTests extends ESTestCase {
         return security.createComponents(
             client,
             threadPool,
+            new MockBigArrays(new MockPageCacheRecycler(settings), ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             clusterService,
             new FeatureService(List.of(new SecurityFeatures())),
             mock(ResourceWatcherService.class),
@@ -529,7 +533,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
@@ -554,7 +558,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(
@@ -941,8 +945,10 @@ public class SecurityTests extends ESTestCase {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
 
-        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
-        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        Path homeDir = createTempDir();
+        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", homeDir).build();
+        // these settings cannot have xpack.security.enabled since we haven't loaded plugins, so that setting is unknown
+        SettingsModule settingsModule = new SettingsModule(Settings.builder().put("path.home", homeDir).build());
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
         try (var mockLog = MockLog.capture(ActionModule.class)) {
@@ -961,7 +967,7 @@ public class SecurityTests extends ESTestCase {
             );
 
             ActionModule actionModule = new ActionModule(
-                settingsModule.getSettings(),
+                TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settingsModule.getIndexScopedSettings(),

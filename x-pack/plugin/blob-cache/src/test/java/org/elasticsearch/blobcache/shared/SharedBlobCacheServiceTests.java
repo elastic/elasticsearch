@@ -209,7 +209,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
-            ByteBuffer writeBuffer = ByteBuffer.allocate(1);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
 
             final int bytesRead = cacheFile.populateAndRead(
                 rangeRead,
@@ -234,7 +234,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             resourceDescription = tempFile2.toAbsolutePath().toString();
             cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L, SharedBlobCacheService.CacheMissHandler.NOOP);
 
-            ByteBuffer writeBuffer2 = ByteBuffer.allocate(1);
+            ByteBuffer writeBuffer2 = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
 
             final int bytesRead2 = cacheFile.populateAndRead(
                 rangeRead,

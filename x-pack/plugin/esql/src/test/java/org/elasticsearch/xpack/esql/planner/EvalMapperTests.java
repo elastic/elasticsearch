@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +71,7 @@ public class EvalMapperTests extends ESTestCase {
 
     private static final Configuration TEST_CONFIG = new Configuration(
         ZoneOffset.UTC,
+        Instant.now(),
         Locale.US,
         "test",
         null,
@@ -175,7 +177,8 @@ public class EvalMapperTests extends ESTestCase {
     static DriverContext driverContext() {
         return new DriverContext(
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            TestBlockFactory.getNonBreakingInstance()
+            TestBlockFactory.getNonBreakingInstance(),
+            null
         );
     }
 }

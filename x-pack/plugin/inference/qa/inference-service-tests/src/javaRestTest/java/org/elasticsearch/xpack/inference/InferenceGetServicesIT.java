@@ -208,7 +208,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "mistral",
                     "nvidia",
-                    "watsonxai"
+                    "watsonxai",
+                    "amazonbedrock"
                 ).toArray()
             )
         );
@@ -233,7 +234,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithEmbeddingTaskType() throws IOException {
-        assertThat(providersFor(TaskType.EMBEDDING), containsInAnyOrder(List.of("text_embedding_test_service").toArray()));
+        assertThat(providersFor(TaskType.EMBEDDING), containsInAnyOrder(List.of("text_embedding_test_service", "jinaai").toArray()));
     }
 
     private List<Object> getAllServices() throws IOException {

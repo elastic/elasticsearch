@@ -234,6 +234,18 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
+     * Creates a copy of this authentication with an additional metadata field.
+     * This is used to embed credentials (like cloud API key tokens) in the authentication
+     * metadata for cross-project search support.
+     */
+    public Authentication copyWithMetadataField(String key, Object value) {
+        Objects.requireNonNull(key);
+        Map<String, Object> newMetadata = new HashMap<>(authenticatingSubject.getMetadata());
+        newMetadata.put(key, value);
+        return copyWithMetadata(Collections.unmodifiableMap(newMetadata));
+    }
+
+    /**
      * Get the {@link Subject} that the authentication effectively represents. It may not be the authenticating subject
      * because the authentication subject can run-as another subject.
      */

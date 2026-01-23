@@ -155,6 +155,48 @@ task to resolve the conflict(s):
 This command will regenerate your transport version and stage the updated
 state files in git. You can then proceed with your merge as usual.
 
+### Merge conflicts on backport
+
+**IMPORTANT**: Please ensure you read the information above regarding the
+`--backport-branches` option to the gradle task. You should never attempt
+to backport a transport version change to a branch that you did not specify in
+the generate task.
+
+When you backport a change from `main` to another release branch, the backport
+must include all the state files that were created or modified on `main`.
+If you use the CI tooling to automate backports then it will handle this for you
+(or report an error if something goes wrong).
+
+Sometimes the automation cannot backport your change due to conflicts that exist
+in other files unrelated to the transport version. In this case you will need to
+backport manually, and resolve any merge conflicts in the internal state files.
+
+The end state that you need to achieve is:
+- The CSV file(s) for your new transport version(s) are copied as-is from `main`
+- The shared CSV files (`upper_bounds`) are copied as-is from `main`
+- No changes are made to any other transport version files
+
+The first and last points should happen automatically. Your backport will include
+the new CSV files for your transport version, and since they are new there will be
+no conflicts and the backport will be clean. Likewise the commits being backport
+will not include changes to unrelated CSV files.
+
+However, it is possible to have conflicts in the shared `upper_bounds` files on the
+backport target. In these cases you want to make these files look identical on the
+backport branch (e.g. `9.3`) as they do on `main`. If you are in the middle of
+a git `cherry-pick` (including via the
+[backport](https://github.com/sorenlouv/backport) tool) then you can solve this
+easily with:
+
+```
+git checkout --theirs /path/to/upper_bounds/file.csv
+git add /path/to/upper_bounds/file.csv
+```
+
+In this case, `theirs` refers to the incoming cherry-pick change which is exactly what
+we want. The `git checkout` will cause your local file to be updated to match the file
+from the original commit, and the `git add` will resolve the conflict.
+
 ### Reverting changes
 
 Transport versions cannot be removed, they can only be added. If the logic

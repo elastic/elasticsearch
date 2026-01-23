@@ -892,9 +892,6 @@ successfully update the root blob to avoid data corruption.
 
 Multiple snapshots can run concurrently in the same repository. But the process is sequential at shard level,
 i.e. only one shard snapshot for the same shard can be in the `INIT` state at any time.
-Snapshot deletions and creations are mutually exclusive. There can only be a single running deletion at any
-time in a repository. Repository clean up is cluster wide exclusive and must run by itself.
-
 
 [SnapshotsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java#L133
 [SnapshotsServiceUtils]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsServiceUtils.java#L83
@@ -953,6 +950,11 @@ File deletions (`BlobStoreRepository#SnapshotsDeletion`) happen entirely on the 
 ### Clone of a Snapshot
 
 TODO: Clone is not used in Elastic Cloud Serverless.
+
+### Cleaning a Repository
+Repository clean up is cluster wide exclusive and must run by itself. It does not actually clean up anything
+more than a regular snapshot deletion. It was useful in the early days when we had some long-since-fixed
+leaks that needed cleaning up in ECH. It is not used in Elastic Cloud Serverless.
 
 ### Restoring a Snapshot
 

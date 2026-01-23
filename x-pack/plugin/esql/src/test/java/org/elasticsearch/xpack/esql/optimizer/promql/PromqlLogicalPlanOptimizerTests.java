@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -620,17 +621,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(literal.value(), equalTo(2.0));
     }
 
-    public void testUnsupportedBinaryOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m foo or bar", tsAnalyzer),
-            containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo > bar", tsAnalyzer),
-            containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
-        );
-    }
-
     public void testTopLevelBinaryArithmeticQuery() {
         var plan = planPromql("""
             PROMQL index=k8s step=1m in_n_out=(
@@ -743,6 +733,18 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
         assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
         assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
+    }
+
+    public void testComparisonAcrossSeriesWithScalar() {
+        var plan = planPromql("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000");
+        Filter filter = plan.collect(Filter.class).getFirst();
+        GreaterThan gt = as(filter.condition(), GreaterThan.class);
+        assertThat(gt.left().sourceText(), equalTo("max(network.eth0.rx)"));
+        assertThat(as(gt.right(), Literal.class).fold(null), equalTo(1000.0));
+
+        Aggregate acrossSeries = plan.collect(Aggregate.class).getFirst();
+        Max max = as(Alias.unwrap(acrossSeries.aggregates().getFirst()), Max.class);
+        assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.eth0.rx"));
     }
 
     private void assertConstantResult(String query, Matcher<Double> matcher) {

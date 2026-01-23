@@ -19,7 +19,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -48,14 +47,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
     public void testQuantizeScore() throws Exception {
 
         final int dimensions = random().nextInt(1, 2000);
-        final int length2 = BQVectorUtils.discretize(dimensions, 64) / 8;
 
-        final int length = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
+        final int length = getPackedLengthInBytes(dimensions);
 
         final int numVectors = random().nextInt(1, 100);
         final byte[] vector = new byte[length];
@@ -105,12 +98,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final int maxDims = random().nextInt(1, 1000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
 
-        final int length = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
+        final int length = getPackedLengthInBytes(dimensions);
 
         final int queryBytes = length * (queryBits / indexBits);
 
@@ -227,12 +215,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final int maxDims = random().nextInt(1, 1000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
 
-        final int length = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
+        final int length = getPackedLengthInBytes(dimensions);
         final int queryBytes = length * (queryBits / indexBits);
 
         final int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * random().nextInt(1, 10);
@@ -330,6 +313,15 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 }
             }
         }
+    }
+
+    private int getPackedLengthInBytes(int dimensions) {
+        return switch (indexBits) {
+            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
+            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
+            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
+            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
+        };
     }
 
     private static void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections, IndexOutput out) throws IOException {

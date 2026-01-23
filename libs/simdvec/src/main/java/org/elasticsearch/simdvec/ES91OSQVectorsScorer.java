@@ -121,7 +121,7 @@ public class ES91OSQVectorsScorer {
         // For euclidean, we need to invert the score and apply the additional correction, which is
         // assumed to be the squared l2norm of the centroid centered vectors.
         if (similarityFunction == EUCLIDEAN) {
-            score = queryAdditionalCorrection + additionalCorrection - 2 * score;
+            score = Math.fma(score, -2.0f, queryAdditionalCorrection + additionalCorrection);
             return Math.max(1 / (1f + score), 0);
         } else {
             // For cosine and max inner product, we need to apply the additional correction, which is

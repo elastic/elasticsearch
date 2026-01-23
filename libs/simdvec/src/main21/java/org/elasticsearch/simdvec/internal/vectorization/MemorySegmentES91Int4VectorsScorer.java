@@ -378,7 +378,7 @@ public final class MemorySegmentES91Int4VectorsScorer extends ES91Int4VectorsSco
             // For euclidean, we need to invert the score and apply the additional correction, which is
             // assumed to be the squared l2norm of the centroid centered vectors.
             if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                res = res.fma(FloatVector.broadcast(FLOAT_SPECIES, -2), additionalCorrections).add(queryAdditionalCorrection + 1.0f);
                 res = FloatVector.broadcast(FLOAT_SPECIES, 1).div(res).max(0);
                 res.intoArray(scores, i);
             } else {

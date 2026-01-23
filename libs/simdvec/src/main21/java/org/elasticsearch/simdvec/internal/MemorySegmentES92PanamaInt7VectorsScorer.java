@@ -304,7 +304,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
             // For euclidean, we need to invert the score and apply the additional correction, which is
             // assumed to be the squared l2norm of the centroid centered vectors.
             if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                res = res.fma(FloatVector.broadcast(FLOAT_SPECIES, -2), additionalCorrections).add(queryAdditionalCorrection + 1.0f);
                 res = FloatVector.broadcast(FLOAT_SPECIES, 1).div(res).max(0);
                 res.intoArray(scores, i);
             } else {
@@ -369,7 +369,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
             var res = res1.add(res2).add(res3).add(res4);
 
             if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                res = res.fma(FloatVector.broadcast(FLOAT_SPECIES, -2), additionalCorrections).add(queryAdditionalCorrection + 1.0f);
                 res = FloatVector.broadcast(FLOAT_SPECIES, 1).div(res).max(0);
                 res.intoArray(scores, i, floatVectorMask);
             } else {

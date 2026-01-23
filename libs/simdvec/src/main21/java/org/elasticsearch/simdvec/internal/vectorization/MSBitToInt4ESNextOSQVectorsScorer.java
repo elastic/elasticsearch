@@ -485,7 +485,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             // For euclidean, we need to invert the score and apply the additional correction, which is
             // assumed to be the squared l2norm of the centroid centered vectors.
             if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                res = res.fma(FloatVector.broadcast(FLOAT_SPECIES_128, -2), additionalCorrections).add(queryAdditionalCorrection + 1.0f);
                 res = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res).max(0);
                 maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                 res.intoArray(scores, i);
@@ -558,7 +558,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             // For euclidean, we need to invert the score and apply the additional correction, which is
             // assumed to be the squared l2norm of the centroid centered vectors.
             if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                res = res.fma(FloatVector.broadcast(FLOAT_SPECIES_256, -2), additionalCorrections).add(queryAdditionalCorrection + 1.0f);
                 res = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res).max(0);
                 maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                 res.intoArray(scores, i);

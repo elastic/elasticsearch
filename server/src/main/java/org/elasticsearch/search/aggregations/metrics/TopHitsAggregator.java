@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -77,6 +78,7 @@ class TopHitsAggregator extends MetricsAggregator {
     private final List<ProfileResult> fetchProfiles;
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
+    private final List<InternalTopHits> internalTopHitsList;
     private final boolean isNested;
 
     TopHitsAggregator(
@@ -92,6 +94,7 @@ class TopHitsAggregator extends MetricsAggregator {
         this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
         this.isNested = isNestedAggregationContext(parent);
+        this.internalTopHitsList = new LinkedList<>();
     }
 
     @Override
@@ -222,14 +225,13 @@ class TopHitsAggregator extends MetricsAggregator {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
-        return new InternalTopHits(
-            name,
-            subSearchContext.from(),
-            subSearchContext.size(),
-            topDocsAndMaxScore,
-            fetchResult.hits(),
-            metadata()
+
+        internalTopHitsList.add(
+            new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocsAndMaxScore, fetchResult.hits(), metadata())
         );
+        fetchResult.hits().incRef();
+        subSearchContext.addReleasable(internalTopHitsList.getLast()::decRef);
+        return internalTopHitsList.getLast();
     }
 
     private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
@@ -299,14 +301,19 @@ class TopHitsAggregator extends MetricsAggregator {
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(
-            name,
-            subSearchContext.from(),
-            subSearchContext.size(),
-            new TopDocsAndMaxScore(topDocs, Float.NaN),
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            metadata()
+
+        internalTopHitsList.add(
+            new InternalTopHits(
+                name,
+                subSearchContext.from(),
+                subSearchContext.size(),
+                new TopDocsAndMaxScore(topDocs, Float.NaN),
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
+                metadata()
+            )
         );
+        subSearchContext.addReleasable(internalTopHitsList.getLast()::decRef);
+        return internalTopHitsList.getLast();
     }
 
     @Override
@@ -325,6 +332,8 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     protected void doClose() {
         Releasables.close(topDocsCollectors, leafCollectors);
+//        internalTopHitsList.forEach(InternalTopHits::decRef);
+//        internalTopHitsList.clear();
     }
 
     private static class ResettableScorable extends Scorable {

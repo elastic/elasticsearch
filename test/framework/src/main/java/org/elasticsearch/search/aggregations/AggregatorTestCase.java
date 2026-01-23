@@ -71,6 +71,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
@@ -594,7 +595,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
-                searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig, this::createAggregationContext);
+                var agg = searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig, this::createAggregationContext);
+                agg.close();
             } catch (CircuitBreakingException e) {
                 // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
                 assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
@@ -610,7 +612,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     ) throws IOException {
         for (int i = 0; i < 5; i++) {
             try {
-                searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig, this::createCancellingAggregationContext);
+                var agg = searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig, this::createCancellingAggregationContext);
+                agg.close();
             } catch (TaskCancelledException e) {
                 // we don't want to expectThrows this because the randomizer might just never report cancellation,
                 // but it's also normal that it should throw here.
@@ -774,6 +777,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check
                     assertEquals("Got non-empty result for a cancelled reduction", 0, mb.getBuckets().size());
                 } // other cases?
+                internalAgg.close();
             } catch (TaskCancelledException e) {
                 /* We may not always honor cancellation in reduce, for example if we are returning no results, so we can't
                  * just expectThrows here.
@@ -1496,6 +1500,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         assertThat(roundTripped, not(sameInstance(result)));
         assertThat(roundTripped, equalTo(result));
         assertThat(roundTripped.hashCode(), equalTo(result.hashCode()));
+        roundTripped.close();
     }
 
     @Override

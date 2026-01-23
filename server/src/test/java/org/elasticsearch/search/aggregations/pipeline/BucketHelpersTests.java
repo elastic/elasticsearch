@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -52,6 +53,9 @@ public class BucketHelpersTests extends ESTestCase {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return null;
             }
+
+            @Override
+            public void close() {}
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {
@@ -123,6 +127,9 @@ public class BucketHelpersTests extends ESTestCase {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return null;
             }
+
+            @Override
+            public void close() {}
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {

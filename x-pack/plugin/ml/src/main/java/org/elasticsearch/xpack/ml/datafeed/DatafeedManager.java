@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 /**
@@ -122,7 +123,7 @@ public final class DatafeedManager {
                     .indices(indices);
 
                 ActionListener<HasPrivilegesResponse> privResponseListener = listener.delegateFailureAndWrap(
-                    (l, r) -> handlePrivsResponse(username, request, r, state, threadPool, l)
+                    (l, r) -> handlePrivsResponse(username, request, r, state, securityContext, threadPool, l)
                 );
 
                 ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
@@ -159,7 +160,7 @@ public final class DatafeedManager {
                 }
             });
         } else {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            putDatafeed(request, getSecurityHeadersPreferringSecondary(threadPool, securityContext, state), state, listener);
         }
     }
 
@@ -214,7 +215,7 @@ public final class DatafeedManager {
         }
 
         Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
-            final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+            final Map<String, String> headers = getSecurityHeadersPreferringSecondary(threadPool, securityContext, state);
             datafeedConfigProvider.updateDatefeedConfig(
                 request.getUpdate().getId(),
                 request.getUpdate(),
@@ -274,11 +275,12 @@ public final class DatafeedManager {
         PutDatafeedAction.Request request,
         HasPrivilegesResponse response,
         ClusterState clusterState,
+        SecurityContext securityContext,
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
+            putDatafeed(request, getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState), clusterState, listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();

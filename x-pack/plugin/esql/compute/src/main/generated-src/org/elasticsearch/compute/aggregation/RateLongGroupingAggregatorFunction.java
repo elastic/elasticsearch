@@ -567,7 +567,16 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
-                var state = flushAndCombineState(flushQueues, group);
+                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+                var flushQueue = flushQueues.getFlushQueue(group);
+                if (flushQueue != null) {
+                    if (state == null) {
+                        state = new ReducedState();
+                        reducedStates = bigArrays.grow(reducedStates, group + 1);
+                        reducedStates.set(group, state);
+                    }
+                    flushGroup(state, rawBuffer, flushQueue);
+                }
                 if (state != null && state.samples > 1 && state.intervals.length > 1) {
                     // combine intervals for the final evaluation
                     Interval[] intervals = state.intervals;

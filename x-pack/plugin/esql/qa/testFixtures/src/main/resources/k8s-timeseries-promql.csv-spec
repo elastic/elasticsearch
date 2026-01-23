@@ -468,11 +468,21 @@ result:double      | step:datetime
 1.71529974E9       | 2024-05-10T00:09:00.000Z
 ;
 
-time_minus_field
+time_minus_aggregated_field
 required_capability: promql_command_v0
 required_capability: promql_time
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - sum(avg_over_time(network.cost[1h])));
 
 result:double          | step:datetime
 1.7152991436774597E9   | 2024-05-10T00:00:00.000Z
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/141172
+time_minus_raw_field-Ignore
+required_capability: promql_command_v0
+required_capability: promql_time
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost);
+
+result:double          | step:datetime            | cluster:keyword | pod:keyword
+0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
 ;

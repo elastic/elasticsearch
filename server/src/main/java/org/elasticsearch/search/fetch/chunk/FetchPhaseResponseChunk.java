@@ -142,6 +142,10 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         }
     }
 
+    public long getBytesLength() {
+        return serializedHits == null ? 0 : serializedHits.length();
+    }
+
     public SearchHit[] getHits() throws IOException {
         if (deserializedHits == null && serializedHits != null && hitCount > 0) {
             deserializedHits = new SearchHit[hitCount];

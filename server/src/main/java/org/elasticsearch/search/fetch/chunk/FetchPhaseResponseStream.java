@@ -80,6 +80,11 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
         try {
+            // Track memory usage
+            long bytesSize = chunk.getBytesLength();
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
+            totalBreakerBytes.addAndGet(bytesSize);
+
             SearchHit[] chunkHits = chunk.getHits();
             long sequenceStart = chunk.sequenceStart();
 
@@ -90,14 +95,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
                 // Calculate sequence: chunk start + index within chunk
                 long hitSequence = sequenceStart + i;
                 queue.add(new SequencedHit(hit, hitSequence));
-
-                // Track memory usage
-                BytesReference sourceRef = hit.getSourceRef();
-                if (sourceRef != null) {
-                    int hitBytes = sourceRef.length() * 2;
-                    circuitBreaker.addEstimateBytesAndMaybeBreak(hitBytes, "fetch_chunk_accumulation");
-                    totalBreakerBytes.addAndGet(hitBytes);
-                }
             }
 
             if (logger.isDebugEnabled()) {
@@ -186,13 +183,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      */
     void trackBreakerBytes(int bytes) {
         totalBreakerBytes.addAndGet(bytes);
-    }
-
-    /**
-     * Gets the current size of the queue. Used for debugging and monitoring.
-     */
-    int getCurrentQueueSize() {
-        return queue.size();
     }
 
     /**

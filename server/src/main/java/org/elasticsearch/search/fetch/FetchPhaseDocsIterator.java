@@ -229,7 +229,6 @@ abstract class FetchPhaseDocsIterator {
             return;
         }
 
-        final ShardId shardId = shardTarget.getShardId();
         final AtomicReference<PendingChunk> lastChunkHolder = new AtomicReference<>();
         final AtomicReference<Throwable> producerError = new AtomicReference<>();
 
@@ -285,7 +284,7 @@ abstract class FetchPhaseDocsIterator {
 
         try {
             produceChunks(
-                shardId,
+                shardTarget.getShardId(),
                 indexReader,
                 docIds,
                 chunkWriter,

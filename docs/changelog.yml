@@ -139,52 +139,51 @@ pivot:
     Watcher: ":Data Management/Watcher"
 
 # Block configuration - combined create and publish blockers
-block:
+# block:
   # Global labels that block changelog creation for all products (comma-separated string)
-  create: ">non-issue, >test, >refactoring, :Delivery/Build, :Delivery/Tooling"
+  # create: ">non-issue, >test, >refactoring, :Delivery/Build, :Delivery/Tooling"
   # Block changelog entries from publishing based on entry type or area
   # publish:
-  #   types:
-  #     - deprecation
-  #     - known-issue
+    # types:
+      # - docs
   #   areas:
   #     - "Internal"
   # Product-specific overrides (override global blockers, don't merge)
   # Dictionary key can be a single product ID or comma-separated product IDs
-  product:
-    'elasticsearch':
-      publish:
-        types:
-          - docs
-    'cloud-serverless':
-      publish:
-        areas:
-          - Allocation
-          - Audit
-          - Authentication
-          - Autoscaling
-          - CCR
-          - CCS
-          - "Cluster Coordination"
-          - Codec
-          - "Discovery-Plugins"
-          - Engine
-          - FIPS
-          - Health
-          - "ILM"
-          - IdentityProvider
-          - "Infra/CLI"
-          - "Infra/Logging"
-          - "Infra/Metrics"
-          - "Infra/Node Lifecycle"
-          - "Infra/Plugins"
-          - "Infra/Transport API"
-          - License
-          - Monitoring
-          - Packaging
-          - "Searchable Snapshots"
-          - "Snapshot/Restore"
-          - Stats
-          - Watcher
-        types:
-          - docs
+  # product:
+  #   'elasticsearch':
+  #     publish:
+  #       types:
+  #         - docs
+  #   'cloud-serverless':
+      # publish:
+      #   areas:
+      #     - Allocation
+      #     - Audit
+      #     - Authentication
+      #     - Autoscaling
+      #     - CCR
+      #     - CCS
+      #     - "Cluster Coordination"
+      #     - Codec
+      #     - "Discovery-Plugins"
+      #     - Engine
+      #     - FIPS
+      #     - Health
+      #     - "ILM"
+      #     - IdentityProvider
+      #     - "Infra/CLI"
+      #     - "Infra/Logging"
+      #     - "Infra/Metrics"
+      #     - "Infra/Node Lifecycle"
+      #     - "Infra/Plugins"
+      #     - "Infra/Transport API"
+      #     - License
+      #     - Monitoring
+      #     - Packaging
+      #     - "Searchable Snapshots"
+      #     - "Snapshot/Restore"
+      #     - Stats
+      #     - Watcher
+      #   types:
+      #     - docs

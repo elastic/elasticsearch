@@ -27,7 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -117,7 +117,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
-        SlowLogFieldProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);

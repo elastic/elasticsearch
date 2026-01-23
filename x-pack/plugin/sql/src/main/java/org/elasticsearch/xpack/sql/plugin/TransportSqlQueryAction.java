@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
@@ -90,7 +90,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         PlanExecutor planExecutor,
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays,
-        SlowLogFieldProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider
     ) {
         super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 

@@ -24,8 +24,8 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -90,7 +90,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         NamedWriteableRegistry registry,
         Client client,
         BigArrays bigArrays,
-        SlowLogFieldProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider
     ) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 

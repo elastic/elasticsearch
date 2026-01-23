@@ -932,7 +932,7 @@ public class SnapshotResiliencyTestHelper {
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService,
-                        new IndicesServiceTests.TestSlowLogFieldProvider()
+                        new IndicesServiceTests.TestActionActionLoggingFieldsProvider()
                     )
                 );
                 actions.put(

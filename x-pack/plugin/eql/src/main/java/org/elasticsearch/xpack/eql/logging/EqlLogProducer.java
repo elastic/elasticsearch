@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.eql.logging;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
 
 public class EqlLogProducer implements ActionLoggerProducer<EqlLogContext> {
 
     public static final String LOGGER_NAME = "eql.actionlog";
 
     @Override
-    public ESLogMessage produce(EqlLogContext context, SlowLogFields additionalFields) {
+    public ESLogMessage produce(EqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
         return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
     }

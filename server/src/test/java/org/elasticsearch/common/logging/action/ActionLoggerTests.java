@@ -14,8 +14,8 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -36,7 +36,7 @@ public class ActionLoggerTests extends ESTestCase {
     private ClusterSettings clusterSettings;
     private ActionLoggerProducer<TestContext> producer;
     private ActionLogWriter writer;
-    private SlowLogFields slowLogFields;
+    private ActionLoggingFields loggingFields;
     private ActionLogger<TestContext> actionLogger;
 
     @Before
@@ -45,10 +45,10 @@ public class ActionLoggerTests extends ESTestCase {
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         producer = mock(ActionLoggerProducer.class);
         writer = mock(ActionLogWriter.class);
-        SlowLogFieldProvider fieldProvider = mock(SlowLogFieldProvider.class);
-        slowLogFields = mock(SlowLogFields.class);
+        ActionLoggingFieldsProvider fieldProvider = mock(ActionLoggingFieldsProvider.class);
+        loggingFields = mock(ActionLoggingFields.class);
 
-        when(fieldProvider.create(any())).thenReturn(slowLogFields);
+        when(fieldProvider.create(any())).thenReturn(loggingFields);
 
         actionLogger = new ActionLogger<>(loggerName, clusterSettings, producer, writer, fieldProvider);
     }
@@ -75,7 +75,7 @@ public class ActionLoggerTests extends ESTestCase {
         ESLogMessage randomMessage = randomMessage();
 
         when(producer.logLevel(context, Level.INFO)).thenReturn(level);
-        when(producer.produce(context, slowLogFields)).thenReturn(randomMessage);
+        when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 
@@ -100,7 +100,7 @@ public class ActionLoggerTests extends ESTestCase {
         ESLogMessage randomMessage = randomMessage();
 
         when(producer.logLevel(context, Level.INFO)).thenReturn(level);
-        when(producer.produce(context, slowLogFields)).thenReturn(randomMessage);
+        when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
 
         actionLogger.logAction(context);
 

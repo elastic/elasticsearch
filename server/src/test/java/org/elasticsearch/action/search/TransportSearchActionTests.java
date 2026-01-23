@@ -63,7 +63,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesServiceTests.TestSlowLogFieldProvider;
+import org.elasticsearch.indices.IndicesServiceTests.TestActionActionLoggingFieldsProvider;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -1827,7 +1827,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService(),
-                new TestSlowLogFieldProvider()
+                new TestActionActionLoggingFieldsProvider()
             );
 
             CountDownLatch latch = new CountDownLatch(1);

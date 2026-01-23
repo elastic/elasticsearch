@@ -13,7 +13,7 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.logging.Level;
 
 import java.util.Arrays;
@@ -40,7 +40,7 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     }
 
     @Override
-    public ESLogMessage produce(SearchLogContext context, SlowLogFields additionalFields) {
+    public ESLogMessage produce(SearchLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
         return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
     }

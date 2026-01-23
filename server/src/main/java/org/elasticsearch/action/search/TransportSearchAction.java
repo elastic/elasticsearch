@@ -71,9 +71,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -205,7 +205,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
         UsageService usageService,
-        SlowLogFieldProvider fieldProvider
+        ActionLoggingFieldsProvider fieldProvider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;

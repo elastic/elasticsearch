@@ -14,9 +14,9 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SlowLogContext;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 
 import java.util.function.BiConsumer;
@@ -33,7 +33,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 public class ActionLogger<Context extends ActionLoggerContext> {
     private final ActionLoggerProducer<Context> producer;
     private final ActionLogWriter writer;
-    private final SlowLogFields additionalFields;
+    private final ActionLoggingFields additionalFields;
     private boolean enabled = false;
     private long threshold = -1;
     private Level logLevel = Level.INFO;
@@ -71,12 +71,12 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         ClusterSettings settings,
         ActionLoggerProducer<Context> producer,
         ActionLogWriter writer,
-        SlowLogFieldProvider slowLogFieldProvider
+        ActionLoggingFieldsProvider fieldsProvider
     ) {
         this.producer = producer;
         this.writer = writer;
-        var context = new SlowLogContext(true);
-        this.additionalFields = slowLogFieldProvider.create(context);
+        var context = new ActionLoggingFieldsContext(true);
+        this.additionalFields = fieldsProvider.create(context);
         settings.addAffixUpdateConsumer(ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
         settings.addAffixUpdateConsumer(ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
         settings.addAffixUpdateConsumer(ACTION_LOGGER_LEVEL, updater(name, v -> logLevel = v), (k, v) -> {

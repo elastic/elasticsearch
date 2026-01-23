@@ -10,7 +10,7 @@
 package org.elasticsearch.common.logging.action;
 
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -28,7 +28,7 @@ public class ActionLoggerProducerTests extends ESTestCase {
     public void setup() {
         producer = new ActionLoggerProducer<>() {
             @Override
-            public ESLogMessage produce(ActionLoggerContext ctx, SlowLogFields additionalFields) {
+            public ESLogMessage produce(ActionLoggerContext ctx, ActionLoggingFields additionalFields) {
                 return produceCommon(ctx, additionalFields);
             }
         };
@@ -54,8 +54,8 @@ public class ActionLoggerProducerTests extends ESTestCase {
         return context;
     }
 
-    private static SlowLogFields makeFields() {
-        SlowLogFields fields = mock(SlowLogFields.class);
+    private static ActionLoggingFields makeFields() {
+        ActionLoggingFields fields = mock(ActionLoggingFields.class);
         when(fields.logFields()).thenReturn(Map.of("foo", "bar"));
         return fields;
     }

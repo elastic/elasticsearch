@@ -10,7 +10,7 @@
 package org.elasticsearch.common.logging.action;
 
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.logging.Level;
 
 import java.util.HashMap;
@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
  * @param <Context> Specific logger context
  */
 public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
-    ESLogMessage produce(Context context, SlowLogFields additionalFields);
+    ESLogMessage produce(Context context, ActionLoggingFields additionalFields);
 
     default Level logLevel(Context context, Level defaultLevel) {
         return defaultLevel;
@@ -32,7 +32,7 @@ public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
     /**
      * Produces a {@link ESLogMessage} with common fields.
      */
-    default ESLogMessage produceCommon(Context context, SlowLogFields additionalFields) {
+    default ESLogMessage produceCommon(Context context, ActionLoggingFields additionalFields) {
         var fields = new HashMap<String, Object>(additionalFields.logFields());
         fields.put("x_opaque_id", context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();

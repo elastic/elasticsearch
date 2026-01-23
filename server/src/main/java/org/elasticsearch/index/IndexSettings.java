@@ -681,7 +681,8 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
+    public static final String TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME = "tsdb_synthetic_id";
+    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag(TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME).isEnabled();
     public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
         "index.mapping.use_synthetic_id",
         false,
@@ -1071,7 +1072,6 @@ public final class IndexSettings {
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
-    private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
     private final boolean useEs812PostingsFormat;
@@ -1274,28 +1274,7 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
-        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
-        if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
-            assert false;
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "The setting [%s] is set to [%s] but index metadata has a different value [%s].",
-                    USE_SYNTHETIC_ID.getKey(),
-                    useSyntheticId,
-                    indexMetadata.useTimeSeriesSyntheticId()
-                )
-            );
-        }
-        if (useSyntheticId) {
-            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
-            assert indexMetadata.useTimeSeriesSyntheticId();
-            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
-            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID);
-            useTimeSeriesSyntheticId = true;
-        } else {
-            useTimeSeriesSyntheticId = false;
-        }
+
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -2048,7 +2027,7 @@ public final class IndexSettings {
      * @return Whether the index is a time-series index that use synthetic ids.
      */
     public boolean useTimeSeriesSyntheticId() {
-        return useTimeSeriesSyntheticId;
+        return indexMetadata.useTimeSeriesSyntheticId();
     }
 
     /**

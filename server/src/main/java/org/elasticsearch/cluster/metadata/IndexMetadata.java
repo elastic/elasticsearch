@@ -80,6 +80,7 @@ import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -89,6 +90,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
+import static org.elasticsearch.index.IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
@@ -2534,16 +2536,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             String indexModeString = settings.get(IndexSettings.MODE.getKey());
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
-            boolean useTimeSeriesSyntheticId = false;
-            if (isTsdb
-                && IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
-                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID)) {
-                var setting = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
-                if (setting != null && setting.equalsIgnoreCase(Boolean.TRUE.toString())) {
-                    assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG;
-                    useTimeSeriesSyntheticId = true;
-                }
-            }
+            boolean useTimeSeriesSyntheticId = useTimeSeriesSyntheticId(isTsdb, indexCreatedVersion, indexMode);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2597,6 +2590,57 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 reshardingMetadata,
                 useTimeSeriesSyntheticId
             );
+        }
+
+        /**
+         * If setting is set to true and all requirements are met, return true.
+         * If setting is set to true but requirements are not met, throw {@link IllegalArgumentException}.
+         * If setting is not set to true, return false.
+         * <p>
+         * Requirements are: IndexMode is {@link IndexMode#TIME_SERIES time_series},
+         * {@link IndexSettings#TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME feature flag} is enabled,
+         * cluster has support for {@link IndexVersions#TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID index version}.
+         */
+        private boolean useTimeSeriesSyntheticId(boolean isTsdb, IndexVersion indexCreatedVersion, IndexMode indexMode) {
+            var useTimeSeriesSyntheticIdSetting = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
+            if (useTimeSeriesSyntheticIdSetting != null && useTimeSeriesSyntheticIdSetting.equalsIgnoreCase(Boolean.TRUE.toString())) {
+                if (isTsdb
+                    && IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
+                    && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID)) {
+                    return true;
+                } else {
+                    StringJoiner message = new StringJoiner(
+                        " and ",
+                        "cannot use index setting [" + IndexSettings.USE_SYNTHETIC_ID.getKey() + "] because ",
+                        ""
+                    );
+                    if (isTsdb == false) message.add(
+                        String.format(
+                            "index setting %s=%s but needs to be %s",
+                            IndexSettings.MODE.getKey(),
+                            indexMode,
+                            IndexMode.TIME_SERIES.getName()
+                        )
+                    );
+                    if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) message.add(
+                        String.format(
+                            "feature flag [%s] is not enabled, enables by setting system property %s=true",
+                            TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME,
+                            TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME
+                        )
+                    );
+                    if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID) == false) {
+                        message.add(
+                            String.format(
+                                "all cluster members need to support index version %s",
+                                IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID
+                            )
+                        );
+                    }
+                    throw new IllegalArgumentException(message.toString());
+                }
+            }
+            return false;
         }
 
         @SuppressWarnings("unchecked")

@@ -44,7 +44,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final TimeSpanMarker dependencyResolutionMarker;
     /** Time elapsed for plan analysis */
     private final TimeSpanMarker analysisMarker;
-    private final transient AtomicInteger fieldCapsCalls;
+    private final AtomicInteger fieldCapsCalls;
 
     private static final TransportVersion ESQL_QUERY_PLANNING_PROFILE = TransportVersion.fromName("esql_query_planning_profile");
 

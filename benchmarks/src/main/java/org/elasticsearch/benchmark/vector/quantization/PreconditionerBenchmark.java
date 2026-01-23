@@ -46,7 +46,7 @@ public class PreconditionerBenchmark {
     @Param({ "384", "782", "1024" })
     int dims;
 
-    @Param({ "32", "64"})
+    @Param({ "32", "64" })
     int blockDims;
 
     float[][] vectors;
@@ -68,7 +68,7 @@ public class PreconditionerBenchmark {
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void applyTransformPanama(Blackhole bh) {
         float[] out = new float[dims];
-        for(int i = 0; i < numVectors; i++) {
+        for (int i = 0; i < numVectors; i++) {
             preconditioner.applyTransform(vectors[i], out);
         }
     }
@@ -76,7 +76,7 @@ public class PreconditionerBenchmark {
     @Benchmark
     public void applyTransformDefault(Blackhole bh) {
         float[] out = new float[dims];
-        for(int i = 0; i < numVectors; i++) {
+        for (int i = 0; i < numVectors; i++) {
             preconditioner.applyTransform(vectors[i], out);
         }
     }

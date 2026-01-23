@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -683,33 +682,33 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     public void testMatrixVectorMultiply() {
         float[] out = new float[2];
-        float[][] matrix = new float[][] {{1, 2, 3}, {3, 2, 1}};
-        float[] vector = new float[] {-10, 0, 5};
+        float[][] matrix = new float[][] { { 1, 2, 3 }, { 3, 2, 1 } };
+        float[] vector = new float[] { -10, 0, 5 };
         ESVectorUtil.matrixVectorMultiply(matrix, vector, out);
-        assertArrayEquals(new float[] {5, -25}, out, 0.01f);
+        assertArrayEquals(new float[] { 5, -25 }, out, 0.01f);
 
         out = new float[2];
-        matrix = new float[][] {{}, {}};
+        matrix = new float[][] { {}, {} };
         vector = new float[] {};
         ESVectorUtil.matrixVectorMultiply(matrix, vector, out);
-        assertArrayEquals(new float[] {0, 0}, out, 0.01f);
+        assertArrayEquals(new float[] { 0, 0 }, out, 0.01f);
 
         out = new float[0];
         matrix = new float[][] {};
-        vector = new float[] {-10, 0, 5};
+        vector = new float[] { -10, 0, 5 };
         ESVectorUtil.matrixVectorMultiply(matrix, vector, out);
         assertArrayEquals(new float[] {}, out, 0.01f);
     }
 
     public void testMatrixVectorMultiplyBadDims() {
         final float[] out = new float[0];
-        final float[][] matrix = new float[][] {{1, 2, 3}, {3, 2, 1}};
-        final float[] vector = new float[] {-10, 0, 5};
+        final float[][] matrix = new float[][] { { 1, 2, 3 }, { 3, 2, 1 } };
+        final float[] vector = new float[] { -10, 0, 5 };
         expectThrows(IllegalArgumentException.class, () -> ESVectorUtil.matrixVectorMultiply(matrix, vector, out));
 
         final float[] out2 = new float[2];
-        final float[][] matrix2 = new float[][] {{1, 2, 3}, {1, 2, 3}, {1, 2, 3}};
-        final float[] vector2 = new float[] {-10, 0, 5};
+        final float[][] matrix2 = new float[][] { { 1, 2, 3 }, { 1, 2, 3 }, { 1, 2, 3 } };
+        final float[] vector2 = new float[] { -10, 0, 5 };
         expectThrows(IllegalArgumentException.class, () -> ESVectorUtil.matrixVectorMultiply(matrix2, vector2, out2));
     }
 }

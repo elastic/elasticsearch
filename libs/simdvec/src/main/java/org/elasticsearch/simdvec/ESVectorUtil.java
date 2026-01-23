@@ -448,14 +448,15 @@ public class ESVectorUtil {
      * @param out, output vector
      */
     public static void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out) {
-        if(matrix.length != out.length) {
+        if (matrix.length != out.length) {
             throw new IllegalArgumentException("matrix rows and output vector dimensions differ: " + matrix.length + "!=" + out.length);
         }
-        if(matrix.length > 0 && matrix[0].length != vector.length) {
-            throw new IllegalArgumentException("matrix columns and input vector dimensions differ: "
-                + matrix[0].length + "!=" + vector.length);
+        if (matrix.length > 0 && matrix[0].length != vector.length) {
+            throw new IllegalArgumentException(
+                "matrix columns and input vector dimensions differ: " + matrix[0].length + "!=" + vector.length
+            );
         }
-        if(matrix.length == 0 || vector.length == 0) {
+        if (matrix.length == 0 || vector.length == 0) {
             return;
         }
         IMPL.matrixVectorMultiply(matrix, vector, out);

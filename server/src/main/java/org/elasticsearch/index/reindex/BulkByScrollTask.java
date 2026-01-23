@@ -188,11 +188,10 @@ public class BulkByScrollTask extends CancellableTask {
      * <p>This method is fire-and-forget and does not guarantee that relocation actually happens. (That can depend on various factors, such
      * as whether: the task considers itself eligible for relocation; whether a suitable new node is available; and whether the task is able
      * to get to an appropriate point to stop work and trigger the relocation in time.)
-     *
-     * <p>N.B. This method can be called regardless of whether the feature flag that gates this work is enabled or not (see
-     * {@link org.elasticsearch.reindex.ReindexPlugin#REINDEX_RESILIENCE_ENABLED}). If it is not, calling this method should have no effect.
      */
     public void requestRelocation() {
+        // N.B. This method can be called regardless of whether the feature flag that gates this work is enabled or not (see
+        // org.elasticsearch.reindex.ReindexPlugin#REINDEX_RESILIENCE_ENABLED}). If it is not, calling this method should have no effect.
         relocationRequested = true;
     }
 

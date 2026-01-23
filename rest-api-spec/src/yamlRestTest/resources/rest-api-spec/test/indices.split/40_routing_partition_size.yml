@@ -121,8 +121,8 @@ exactly 1:
           mappings:
             _routing:
               required: true
-        allowed_warnings:
-          - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:

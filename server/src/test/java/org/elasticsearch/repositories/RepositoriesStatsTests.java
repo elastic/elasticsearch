@@ -86,6 +86,8 @@ public class RepositoriesStatsTests extends ESTestCase {
         );
     }
 
+    // TODO - Add equals and hashcode tests
+
     // TODO - Add this to snapshot stats bwc tests
     // TODO - If not already, extend the BWC tests added in prev PR to assert all other values are constant
     // since we currently just use a random long

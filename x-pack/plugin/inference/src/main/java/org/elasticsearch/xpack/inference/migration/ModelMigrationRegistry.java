@@ -17,12 +17,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 /**
- * Unified registry for managing all endpoint migrations across all inference services.
+ * Registry for managing all endpoint migrations across all inference services.
  * Supports both single-endpoint (lazy) and batch execution modes. Migrations are executed
  * in order from lowest to highest target version.
  *
@@ -33,11 +32,9 @@ public class ModelMigrationRegistry {
     private static final Logger logger = LogManager.getLogger(ModelMigrationRegistry.class);
 
     private final CopyOnWriteArrayList<EndpointMigration> migrations;
-    private final ConcurrentHashMap<String, List<EndpointMigration>> migrationsByService;
 
     public ModelMigrationRegistry() {
         this.migrations = new CopyOnWriteArrayList<>();
-        this.migrationsByService = new ConcurrentHashMap<>();
     }
 
     /**
@@ -48,14 +45,13 @@ public class ModelMigrationRegistry {
      * @throws IllegalArgumentException if migration is null
      */
     public void register(EndpointMigration migration) {
-        Objects.requireNonNull(migration, "Migration cannot be null");
-
         migrations.add(migration);
         // Sort by target version to ensure execution order
-        migrations.sort(Comparator.comparingLong(EndpointMigration::getTargetVersion));
+        migrations.sort(Comparator.comparing(EndpointMigration::getTargetVersion));
 
         // Index by service for faster lookup
         for (String service : migration.getApplicableServices()) {
+            migrationsByService.computeIfAbsent(service, k -> new CopyOnWriteArrayList<>()).add(migration);
             migrationsByService.computeIfAbsent(service, k -> new CopyOnWriteArrayList<>()).add(migration);
             // Keep service-specific list sorted too
             List<EndpointMigration> serviceMigrations = migrationsByService.get(service);
@@ -67,78 +63,6 @@ public class ModelMigrationRegistry {
             migration.getTargetVersion(),
             migration.getApplicableServices()
         );
-    }
-
-    /**
-     * Executes applicable migrations for a single endpoint. Migrations are executed
-     * in order from lowest to highest target version. Only migrations that are
-     * applicable to the model's service and that target a version higher than the
-     * model's current version are executed.
-     *
-     * @param model the model to migrate
-     * @param currentVersion the current version of the model (from internal.version field)
-     * @param context optional migration context (typically EmptyMigrationContext for single-endpoint)
-     * @return the migrated model, or the original model if no migrations were needed
-     */
-    public Model executeMigrations(Model model, int currentVersion, @Nullable MigrationContext context) {
-        Objects.requireNonNull(model, "Model cannot be null");
-
-        String service = model.getConfigurations().getService();
-        List<EndpointMigration> applicableMigrations = getApplicableMigrations(model, service, currentVersion);
-
-        if (applicableMigrations.isEmpty()) {
-            return model;
-        }
-
-        logger.debug(
-            "Executing [{}] migrations for model [{}] from version [{}]",
-            applicableMigrations.size(),
-            model.getInferenceEntityId(),
-            currentVersion
-        );
-
-        Model currentModel = model;
-        for (EndpointMigration migration : applicableMigrations) {
-            try {
-                EndpointMigration.MigrationResult result = migration.migrate(currentModel, context);
-                if (result.success()) {
-                    if (result.migratedModel() != null) {
-                        currentModel = result.migratedModel().model();
-                        logger.debug(
-                            "Successfully migrated model [{}] to version [{}]",
-                            model.getInferenceEntityId(),
-                            migration.getTargetVersion()
-                        );
-                    } else {
-                        logger.warn(
-                            "Migration [{}] returned success but no migrated model for [{}]",
-                            migration.getTargetVersion(),
-                            model.getInferenceEntityId()
-                        );
-                    }
-                } else {
-                    logger.warn(
-                        "Migration [{}] failed for model [{}]: {}",
-                        migration.getTargetVersion(),
-                        model.getInferenceEntityId(),
-                        result.errorMessage()
-                    );
-                    // Continue with next migration even if one fails
-                }
-            } catch (Exception e) {
-                logger.error(
-                    () -> org.elasticsearch.core.Strings.format(
-                        "Exception during migration [%d] for model [%s]",
-                        migration.getTargetVersion(),
-                        model.getInferenceEntityId()
-                    ),
-                    e
-                );
-                // Continue with next migration even if one throws
-            }
-        }
-
-        return currentModel;
     }
 
     /**

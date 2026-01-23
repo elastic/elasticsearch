@@ -12,11 +12,11 @@ package org.elasticsearch.xpack.inference.migration;
  * migration-specific data. Used for single-endpoint migrations that
  * only need the endpoint data itself.
  */
-public enum EmptyMigrationContext implements MigrationContext {
-    INSTANCE;
-
+public class EmptyMigrationContext implements MigrationContext {
     @Override
     public ContextType getContextType() {
         return ContextType.EMPTY;
     }
+
+    private EmptyMigrationContext() {}
 }

@@ -45,6 +45,7 @@ dependencies {
   implementation 'com.google.code.gson:gson:2.10'
   implementation "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
   implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  implementation 'org.apache.maven:maven-artifact:3.6.1'
   implementation 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
   implementation 'com.google.auth:google-auth-library-credentials:1.11.0'
   implementation 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
@@ -147,6 +148,7 @@ tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /bedrockruntime.*/, to: 'aws-sdk-2'
   mapping from: /sagemakerruntime.*/, to: 'aws-sdk-2'
   mapping from: /netty-nio-client/, to: 'aws-sdk-2'
+  mapping from: /maven-artifact.*/, to: 'maven-artifact'
   /* Cannot use REGEX to match netty-* because netty-nio-client is an AWS package */
   mapping from: /netty-buffer/, to: 'netty'
   mapping from: /netty-codec-dns/, to: 'netty'

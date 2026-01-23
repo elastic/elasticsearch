@@ -16,9 +16,9 @@ import java.util.Objects;
  * Contains the authorization model which provides access to endpoint metadata
  * needed for batch migrations.
  */
-public record EISMigrationContext(ElasticInferenceServiceAuthorizationModel authModel) implements MigrationContext {
+public record ElasticInferenceServiceMigrationContext(ElasticInferenceServiceAuthorizationModel authModel) implements MigrationContext {
 
-    public EISMigrationContext {
+    public ElasticInferenceServiceMigrationContext {
         Objects.requireNonNull(authModel);
     }
 

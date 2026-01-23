@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.migration;
 
+import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.Model;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Unified interface for endpoint migrations supporting both single-endpoint
@@ -27,26 +27,7 @@ public interface EndpointMigration {
      *
      * @return the target version number
      */
-    long getTargetVersion();
-
-    /**
-     * Returns the set of service names this migration applies to.
-     * Only endpoints from these services will be considered for migration.
-     *
-     * @return set of applicable service names
-     */
-    Set<String> getApplicableServices();
-
-    /**
-     * Checks if this migration is applicable to the given model.
-     * This is used to filter which migrations should be run for a specific endpoint.
-     *
-     * @param model the model to check
-     * @return true if this migration applies to the model
-     */
-    default boolean isApplicable(Model model) {
-        return getApplicableServices().contains(model.getConfigurations().getService());
-    }
+    ComparableVersion getTargetVersion();
 
     /**
      * Returns whether this migration supports batch execution mode.

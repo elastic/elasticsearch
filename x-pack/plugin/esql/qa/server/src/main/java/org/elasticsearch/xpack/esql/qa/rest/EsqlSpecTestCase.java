@@ -212,7 +212,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         } else {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
-                    loadViewsIntoEs(adminClient());
+                    loadViewsIntoEs(adminClient(), shouldIncludeMVViews(testName));
                 }
                 return null;
             });
@@ -275,6 +275,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     // Some tests will fail if views are defined (notably tests with `FROM *` which are non-deterministic)
     protected boolean shouldRemoveViews(String testName) {
         return FROM_STAR_TESTS.stream().anyMatch(testName::contains) || AIRPORTS_STAR_TESTS.stream().anyMatch(testName::contains);
+    }
+
+    private static final Set<String> MV_VIEW_TESTS = Set.of(
+        "MultiValueWarningsWithNoViews",
+        "MultiValueWarningsWithView",
+        "MultiValueWarningsWithBranchedView"
+    );
+
+    // Some views include multi-values, and we only load these for tests that assert on those (otherwise we need to edit a lot of tests)
+    protected boolean shouldIncludeMVViews(String testName) {
+        return MV_VIEW_TESTS.stream().anyMatch(testName::contains);
     }
 
     protected void shouldSkipTest(String testName) throws IOException {

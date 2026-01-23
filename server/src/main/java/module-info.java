@@ -455,7 +455,8 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.DocValuesFormat
         with
             org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
-            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
@@ -512,4 +513,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader;
     exports org.elasticsearch.index.mapper.blockloader.docvalues;
     exports org.elasticsearch.index.mapper.blockloader.docvalues.fn;
+    exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
 }

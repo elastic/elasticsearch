@@ -35,11 +35,11 @@ higher accuracy from the raw data. If not specified, Elasticsearch
 computes them based on the given `centroids` and `counts`, with some loss of
 accuracy.
 
-::::{important}
+## Limitations
+
 * A `tdigest` field can only store a single sketch per document. Multi-values or nested arrays are not supported.
 * `tdigest` fields do not support sorting and are not searchable.
 
-::::
 
 ## Configuring T-Digest Fields
 
@@ -54,8 +54,8 @@ T-Digest fields accept two field-specific configuration parameters:
 * `digest_type`, which selects the merge strategy to use with the sketch.  Valid
   values are `default` and `high_accuracy`.  The default is `default`.  The
   `default` is optimized for storage and performance, while still producing a
-  good approximation.  The `high_accuracy` variant uses more memory and disk for
-  a better approximation.
+  good approximation.  The `high_accuracy` variant uses more memory, disk, and
+  CPU for a better approximation.
 
 ## Use cases [tdigest-use-cases]
 

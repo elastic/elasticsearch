@@ -13,8 +13,15 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
-class TemporaryNameUtils {
+import java.util.HashMap;
+import java.util.Map;
+
+public class TemporaryNameUtils {
     static int TO_STRING_LIMIT = 16;
+
+    public static InternalNameGenerator internalNameGenerator() {
+        return new InternalNameGenerator();
+    }
 
     public static String temporaryName(Expression inner, Expression outer, int suffix) {
         String in = toString(inner);
@@ -36,5 +43,14 @@ class TemporaryNameUtils {
 
     static String limitToString(String string) {
         return string.length() > TO_STRING_LIMIT ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
+    }
+
+    public static class InternalNameGenerator {
+        private final Map<String, Integer> next = new HashMap<>();
+
+        public String next(String prefix) {
+            int id = next.merge(prefix, 1, Integer::sum);
+            return prefix + "_$" + id;
+        }
     }
 }

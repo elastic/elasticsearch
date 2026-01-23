@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,14 +23,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Tracks profiling for the planning phase
  */
-public class PlanningProfile implements Writeable, ToXContentFragment {
+public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
+    public static final String QUERY = "query";
     public static final String PLANNING = "planning";
     public static final String PARSING = "parsing";
     public static final String PRE_ANALYSIS = "preanalysis";
     public static final String DEPENDENCY_RESOLUTION = "dependency_resolution";
     public static final String ANALYSIS = "analysis";
 
+    /** Time elapsed since start of query till the final result rendering */
+    private final TimeSpanMarker totalMarker;
     /** Time elapsed since start of query to calling ComputeService.execute */
     private final TimeSpanMarker planningMarker;
     /** Time elapsed for query parsing */
@@ -42,16 +44,17 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     private final TimeSpanMarker dependencyResolutionMarker;
     /** Time elapsed for plan analysis */
     private final TimeSpanMarker analysisMarker;
-    private final transient AtomicInteger fieldCapsCalls;
+    private final AtomicInteger fieldCapsCalls;
 
     private static final TransportVersion ESQL_QUERY_PLANNING_PROFILE = TransportVersion.fromName("esql_query_planning_profile");
 
-    public PlanningProfile() {
-        this(null, null, null, null, null, 0);
+    public EsqlQueryProfile() {
+        this(null, null, null, null, null, null, 0);
     }
 
     // For testing
-    public PlanningProfile(
+    public EsqlQueryProfile(
+        TimeSpan query,
         TimeSpan planning,
         TimeSpan parsing,
         TimeSpan preAnalysis,
@@ -59,6 +62,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         TimeSpan analysis,
         int fieldCapsCalls
     ) {
+        this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         this.parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
         this.preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
@@ -67,34 +71,44 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         this.fieldCapsCalls = new AtomicInteger(fieldCapsCalls);
     }
 
-    public static PlanningProfile readFrom(StreamInput in) throws IOException {
+    public static EsqlQueryProfile readFrom(StreamInput in) throws IOException {
+        TimeSpan query = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan planning = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan parsing = null, preAnalysis = null, dependencyResolution = null, analysis = null;
+        int fieldCapsCalls = 0;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
             parsing = in.readOptionalWriteable(TimeSpan::readFrom);
             preAnalysis = in.readOptionalWriteable(TimeSpan::readFrom);
             dependencyResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             analysis = in.readOptionalWriteable(TimeSpan::readFrom);
         }
-        return new PlanningProfile(planning, parsing, preAnalysis, dependencyResolution, analysis, 0);
+        if (in.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
+            fieldCapsCalls = in.readVInt();
+        }
+        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis, fieldCapsCalls);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(planningMarker.timeSpan);
+        out.writeOptionalWriteable(totalMarker.timeSpan());
+        out.writeOptionalWriteable(planningMarker.timeSpan());
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
-            out.writeOptionalWriteable(parsingMarker == null ? null : parsingMarker.timeSpan);
-            out.writeOptionalWriteable(preAnalysisMarker == null ? null : preAnalysisMarker.timeSpan);
-            out.writeOptionalWriteable(dependencyResolutionMarker == null ? null : dependencyResolutionMarker.timeSpan);
-            out.writeOptionalWriteable(analysisMarker == null ? null : analysisMarker.timeSpan);
+            out.writeOptionalWriteable(parsingMarker == null ? null : parsingMarker.timeSpan());
+            out.writeOptionalWriteable(preAnalysisMarker == null ? null : preAnalysisMarker.timeSpan());
+            out.writeOptionalWriteable(dependencyResolutionMarker == null ? null : dependencyResolutionMarker.timeSpan());
+            out.writeOptionalWriteable(analysisMarker == null ? null : analysisMarker.timeSpan());
+        }
+        if (out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
+            out.writeVInt(fieldCapsCalls.get());
         }
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
-        PlanningProfile that = (PlanningProfile) o;
-        return Objects.equals(planningMarker, that.planningMarker)
+        EsqlQueryProfile that = (EsqlQueryProfile) o;
+        return Objects.equals(totalMarker, that.totalMarker)
+            && Objects.equals(planningMarker, that.planningMarker)
             && Objects.equals(parsingMarker, that.parsingMarker)
             && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
             && Objects.equals(dependencyResolutionMarker, that.dependencyResolutionMarker)
@@ -105,6 +119,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     @Override
     public int hashCode() {
         return Objects.hash(
+            totalMarker,
             planningMarker,
             parsingMarker,
             preAnalysisMarker,
@@ -117,6 +132,8 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         return "PlanningProfile{"
+            + "totalMarker="
+            + totalMarker
             + "planningMarker="
             + planningMarker
             + ", parsingMarker="
@@ -130,6 +147,20 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             + ", fieldCapsCalls="
             + fieldCapsCalls.get()
             + '}';
+    }
+
+    public EsqlQueryProfile start() {
+        totalMarker.start();
+        return this;
+    }
+
+    public EsqlQueryProfile stop() {
+        totalMarker.stop();
+        return this;
+    }
+
+    public TimeSpanMarker total() {
+        return totalMarker;
     }
 
     /**
@@ -179,83 +210,16 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     }
 
     public Collection<TimeSpanMarker> timeSpanMarkers() {
-        return List.of(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
+        return List.of(totalMarker, planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (TimeSpanMarker timeSpanMarker : timeSpanMarkers()) {
-            builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan);
+            builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan());
         }
         builder.field("field_caps_calls", fieldCapsCalls.get());
         return builder;
     }
 
-    public static class TimeSpanMarker {
-        private TimeSpan timeSpan;
-        private transient TimeSpan.Builder timeSpanBuilder;
-
-        private final String name;
-        private final boolean allowMultipleCalls;
-
-        // Package private for testing
-        TimeSpanMarker(String name, boolean allowMultipleCalls, TimeSpan timeSpan) {
-            this.name = name;
-            this.allowMultipleCalls = allowMultipleCalls;
-            this.timeSpan = timeSpan;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        TimeSpan timeSpan() {
-            return timeSpan;
-        }
-
-        public void start() {
-            assert allowMultipleCalls || timeSpanBuilder == null : "start() should only be called once for " + name;
-            if (timeSpanBuilder == null) {
-                timeSpanBuilder = TimeSpan.start();
-            }
-        }
-
-        public void stop() {
-            assert timeSpanBuilder != null : "start() should have been called for " + name;
-            assert allowMultipleCalls || timeSpan == null : "start() should only be called once for " + name;
-            timeSpan = timeSpanBuilder.stop();
-        }
-
-        public TimeValue timeTook() {
-            return timeSpan == null ? null : timeSpan.toTimeValue();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            TimeSpanMarker that = (TimeSpanMarker) o;
-            return allowMultipleCalls == that.allowMultipleCalls
-                && Objects.equals(timeSpan, that.timeSpan)
-                && Objects.equals(name, that.name);
-            // Don't consider timeStampBuilders for equality
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(timeSpan, name, allowMultipleCalls);
-        }
-
-        @Override
-        public String toString() {
-            return "TimeSpanMarker{"
-                + "name='"
-                + name
-                + '\''
-                + ", timeSpan="
-                + timeSpan
-                + ", allowMultipleCalls="
-                + allowMultipleCalls
-                + '}';
-        }
-    }
 }

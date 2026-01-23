@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -160,6 +161,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void getUserPrivileges(AuthorizationInfo authorizationInfo,
+                                  @Nullable RoleReference.ApiKeyRoleType unwrapLimitedRole,
                                   ActionListener<GetUserPrivilegesResponse> listener) {
         if (isSuperuser(authorizationInfo)) {
             listener.onResponse(getUserPrivilegesResponse(true));

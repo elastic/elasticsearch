@@ -23,7 +23,6 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
     private final Expression limit;
     private final Expression queryVector;
     private final Expression options;
-    private final Double lambdaValue;
 
     public MMRExec(
         Source source,
@@ -31,15 +30,13 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
         Attribute diversifyField,
         Expression limit,
         @Nullable Expression queryVector,
-        @Nullable Expression options,
-        @Nullable Double lambdaValue
+        @Nullable Expression options
     ) {
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
         this.queryVector = queryVector;
         this.options = options;
-        this.lambdaValue = lambdaValue;
     }
 
     public Attribute diversifyField() {
@@ -58,18 +55,14 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
         return options;
     }
 
-    public Double lambdaValue() {
-        return lambdaValue;
-    }
-
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new MMRExec(source(), newChild, diversifyField, limit, queryVector, options, lambdaValue);
+        return new MMRExec(source(), newChild, diversifyField, limit, queryVector, options);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, MMRExec::new, child(), diversifyField, limit, queryVector, options, lambdaValue);
+        return NodeInfo.create(this, MMRExec::new, child(), diversifyField, limit, queryVector, options);
     }
 
     @Override
@@ -91,12 +84,11 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
         return Objects.equals(this.diversifyField, mmr.diversifyField)
             && Objects.equals(this.limit, mmr.limit)
             && Objects.equals(this.queryVector, mmr.queryVector)
-            && Objects.equals(this.options, mmr.options)
-            && Objects.equals(this.lambdaValue, mmr.lambdaValue);
+            && Objects.equals(this.options, mmr.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, options, lambdaValue);
+        return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, options);
     }
 }

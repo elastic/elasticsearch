@@ -14,8 +14,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
-import org.elasticsearch.action.admin.indices.create.AutoCreateSystemIndexIT;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
@@ -24,15 +25,24 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -48,10 +58,12 @@ import org.junit.BeforeClass;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -99,9 +111,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), TestSystemIndexPlugin.class),
-            AutoCreateSystemIndexIT.UnmanagedSystemIndexTestPlugin.class
+        return CollectionUtils.concatLists(
+            List.of(TestSystemIndexPlugin.class, DataStreamsPlugin.class, TestSystemDataStreamPlugin.class),
+            super.nodePlugins()
         );
     }
 
@@ -263,6 +275,10 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     public void testLogFiltering() throws Exception {
         CreateIndexRequest request = new CreateIndexRequest(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(PRIMARY_INDEX_NAME, INDEX_NAME + "-system-alias")
+        );
         // Log empty search
         assertResponse(
             prepareSearch(SearchLogProducer.NEVER_MATCH).setQuery(new MatchAllQueryBuilder()),
@@ -272,6 +288,12 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         // Log system index
         assertResponse(
             prepareSearch(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME).setQuery(new MatchAllQueryBuilder()),
+            ElasticsearchAssertions::assertNoFailures
+        );
+        assertNull(appender.getLastEventAndReset());
+        // System index via alias
+        assertResponse(
+            prepareSearch(INDEX_NAME + "-system-alias").setQuery(new MatchAllQueryBuilder()),
             ElasticsearchAssertions::assertNoFailures
         );
         assertNull(appender.getLastEventAndReset());
@@ -292,6 +314,39 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         }
     }
 
+    public void testLogFilteringDatastream() {
+        try {
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME
+            );
+            client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
+            assertResponse(
+                prepareSearch(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME).setQuery(new MatchAllQueryBuilder()),
+                ElasticsearchAssertions::assertNoFailures
+            );
+            assertNull(appender.getLastEventAndReset());
+            // Enable
+            ActionLoggingUtils.enableLoggingSystem();
+            assertResponse(
+                prepareSearch(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME).setQuery(new MatchAllQueryBuilder()),
+                ElasticsearchAssertions::assertNoFailures
+            );
+            var event = appender.getLastEventAndReset();
+            assertNotNull(event);
+            assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+            ESLogMessage message = (ESLogMessage) event.getMessage();
+            assertThat(message.get("indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
+        } finally {
+            ActionLoggingUtils.disableLoggingSystem();
+            client().execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME)
+            ).actionGet();
+        }
+    }
+
     private void setupIndex() {
         createIndex(INDEX_NAME);
         indexRandom(
@@ -302,4 +357,49 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         );
     }
 
+    /*
+     * This test plugin adds `.system-test` as a known system data stream. The data stream is not created by this plugin. But if it is
+     * created, it will be a system data stream.
+     */
+    public static class TestSystemDataStreamPlugin extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_DATA_STREAM_NAME = ".system-test";
+        public static final int SYSTEM_DATA_STREAM_RETENTION_DAYS = 100;
+
+        @Override
+        public String getFeatureName() {
+            return "test";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test";
+        }
+
+        @Override
+        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+            return List.of(
+                new SystemDataStreamDescriptor(
+                    SYSTEM_DATA_STREAM_NAME,
+                    "test",
+                    SystemDataStreamDescriptor.Type.INTERNAL,
+                    ComposableIndexTemplate.builder()
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .indexPatterns(List.of(DataStream.BACKING_INDEX_PREFIX + SYSTEM_DATA_STREAM_NAME + "*"))
+                        .template(
+                            Template.builder()
+                                .settings(Settings.EMPTY)
+                                .lifecycle(
+                                    DataStreamLifecycle.dataLifecycleBuilder()
+                                        .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+                                )
+                        )
+                        .build(),
+                    Map.of(),
+                    List.of(),
+                    "test",
+                    ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
+                )
+            );
+        }
+    }
 }

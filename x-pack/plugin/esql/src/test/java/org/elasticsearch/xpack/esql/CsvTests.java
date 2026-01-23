@@ -137,7 +137,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.MV_VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
@@ -610,32 +609,18 @@ public class CsvTests extends ESTestCase {
         return plan;
     }
 
-    private static final Set<String> AIRPORTS_STAR_TESTS = Set.of("LucenePushdownMixOrAnd", "LucenePushdownMultipleIndices");
-
-    // Some tests will fail if views are defined (notably tests with wildcards, which can be non-deterministic)
-    protected boolean shouldRemoveViews(String testName) {
-        return AIRPORTS_STAR_TESTS.stream().anyMatch(testName::contains);
-    }
-
-    private static final Set<String> MV_VIEW_TESTS = Set.of("MultiValueWarningsWithNoViews", "MultiValueWarningsWithView");
-
-    // Some views include multi-values, and we only load these for tests that assert on those (otherwise we need to edit a lot of tests)
-    protected boolean shouldIncludeMVViews(String testName) {
-        return MV_VIEW_TESTS.stream().anyMatch(testName::contains);
+    // Only load views for tests in the "views" group (from views.csv-spec)
+    protected boolean shouldLoadViews() {
+        return "views".equals(groupName);
     }
 
     private LogicalPlan resolveViews(LogicalPlan parsed) {
-        if (shouldRemoveViews(testName)) {
+        if (shouldLoadViews() == false) {
             return parsed;
         }
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             for (var viewConfig : VIEW_CONFIGS) {
                 loadView(viewService, viewConfig);
-            }
-            if (shouldIncludeMVViews(testName)) {
-                for (var viewConfig : MV_VIEW_CONFIGS) {
-                    loadView(viewService, viewConfig);
-                }
             }
             return viewService.getViewResolver().replaceViews(parsed, this::parseView);
         }

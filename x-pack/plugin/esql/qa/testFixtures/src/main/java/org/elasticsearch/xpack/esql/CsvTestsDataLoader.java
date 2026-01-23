@@ -322,16 +322,16 @@ public class CsvTestsDataLoader {
     private static final ViewConfig COUNTRY_AIRPORTS = new ViewConfig("country_airports");
     private static final ViewConfig COUNTRY_LANGUAGES = new ViewConfig("country_languages");
     private static final ViewConfig AIRPORTS_MP_FILTERED = new ViewConfig("airports_mp_filtered");
+    private static final ViewConfig EMPLOYEES_REHIRED = new ViewConfig("employees_rehired");
+    private static final ViewConfig EMPLOYEES_NOT_REHIRED = new ViewConfig("employees_not_rehired");
     public static final List<ViewConfig> VIEW_CONFIGS = List.of(
         COUNTRY_ADDRESSES,
         COUNTRY_AIRPORTS,
         COUNTRY_LANGUAGES,
-        AIRPORTS_MP_FILTERED
+        AIRPORTS_MP_FILTERED,
+        EMPLOYEES_REHIRED,
+        EMPLOYEES_NOT_REHIRED
     );
-    // We load views containing multi-values separately, because these generate MV warnings, and we want to keep these isolated
-    private static final ViewConfig EMPLOYEES_REHIRED = new ViewConfig("employees_rehired");
-    private static final ViewConfig EMPLOYEES_NOT_REHIRED = new ViewConfig("employees_not_rehired");
-    public static final List<ViewConfig> MV_VIEW_CONFIGS = List.of(EMPLOYEES_REHIRED, EMPLOYEES_NOT_REHIRED);
 
     /**
      * <p>
@@ -466,7 +466,7 @@ public class CsvTestsDataLoader {
                     loadEnrichPolicies(client);
                 }
                 if (views) {
-                    loadViewsIntoEs(client, true);
+                    loadViewsIntoEs(client);
                 }
             }
         }
@@ -653,17 +653,12 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static void loadViewsIntoEs(RestClient client, boolean shouldIncludeMVViews) throws IOException {
+    public static void loadViewsIntoEs(RestClient client) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
         if (clusterHasViewSupport(client, logger)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS) {
                 loadView(client, view.viewName, view.viewFileName, logger);
-            }
-            if (shouldIncludeMVViews) {
-                for (var view : MV_VIEW_CONFIGS) {
-                    loadView(client, view.viewName, view.viewFileName, logger);
-                }
             }
             // Just for debugging output TODO: remove
             clusterHasViewSupport(client, logger);

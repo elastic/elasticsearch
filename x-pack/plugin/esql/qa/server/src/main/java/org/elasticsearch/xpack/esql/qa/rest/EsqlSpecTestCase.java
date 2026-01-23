@@ -55,7 +55,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -206,16 +205,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query
-        if (shouldRemoveViews(testName)) {
-            deleteViews(adminClient());
-            VIEWS.reset();
-        } else {
+        // Only load views for tests in the "views" group (from views.csv-spec) to avoid issues with wildcards like "FROM *"
+        if (shouldLoadViews()) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
-                    loadViewsIntoEs(adminClient(), shouldIncludeMVViews(testName));
+                    loadViewsIntoEs(adminClient());
                 }
                 return null;
             });
+        } else {
+            deleteViews(adminClient());
+            VIEWS.reset();
         }
     }
 
@@ -264,28 +264,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    private static final Set<String> FROM_STAR_TESTS = Set.of(
-        "FieldsInOtherIndicesBug",
-        "EnrichLookupStatsBug",
-        "InlineStatsAfterPruningAggregate6"
-    );
-
-    private static final Set<String> AIRPORTS_STAR_TESTS = Set.of("LucenePushdownMixOrAnd", "LucenePushdownMultipleIndices");
-
-    // Some tests will fail if views are defined (notably tests with `FROM *` which are non-deterministic)
-    protected boolean shouldRemoveViews(String testName) {
-        return FROM_STAR_TESTS.stream().anyMatch(testName::contains) || AIRPORTS_STAR_TESTS.stream().anyMatch(testName::contains);
-    }
-
-    private static final Set<String> MV_VIEW_TESTS = Set.of(
-        "MultiValueWarningsWithNoViews",
-        "MultiValueWarningsWithView",
-        "MultiValueWarningsWithBranchedView"
-    );
-
-    // Some views include multi-values, and we only load these for tests that assert on those (otherwise we need to edit a lot of tests)
-    protected boolean shouldIncludeMVViews(String testName) {
-        return MV_VIEW_TESTS.stream().anyMatch(testName::contains);
+    // Only load views for tests in the "views" group (from views.csv-spec)
+    protected boolean shouldLoadViews() {
+        return "views".equals(groupName);
     }
 
     protected void shouldSkipTest(String testName) throws IOException {

@@ -940,7 +940,7 @@ a:long  | b:long
 circularRefEnrichStats5
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM languages_lookup 
+FROM languages_copy
 | ENRICH languages_policy ON language_code WITH message=language_name
 | STATS a = count(to_lower(language_name)), b = count(message)
 ;

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.LossySumDoubleAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumLongOverflowingAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -125,7 +126,15 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
-        return new SumLongAggregatorFunctionSupplier();
+        // TODO: Plug the old supplier mbased on the minTransportVersion
+        if (true) {
+            return new SumLongOverflowingAggregatorFunctionSupplier();
+        }
+        return new SumLongAggregatorFunctionSupplier(
+            source().source().getLineNumber(),
+            source().source().getColumnNumber(),
+            source().text()
+        );
     }
 
     @Override

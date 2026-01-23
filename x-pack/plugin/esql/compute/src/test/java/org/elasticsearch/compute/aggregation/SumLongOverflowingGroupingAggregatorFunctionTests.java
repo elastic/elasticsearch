@@ -11,6 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -20,15 +22,15 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class SumLongOverflowingGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new SumLongAggregatorFunctionSupplier(-1, -2, "");
+        return new SumLongOverflowingAggregatorFunctionSupplier();
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "sum of longs";
+        return "overflowing_sum of longs";
     }
 
     @Override
@@ -44,5 +46,22 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
     public void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         long sum = input.stream().flatMapToLong(p -> allLongs(p, group)).sum();
         assertThat(((LongBlock) result).getLong(position), equalTo(sum));
+    }
+
+    public void testOverflowFails() {
+        DriverContext driverContext = driverContext();
+
+        assertThrows(ArithmeticException.class, () -> {
+            Operator.OperatorFactory factory = simpleWithMode(AggregatorMode.SINGLE);
+            List<Page> input = org.elasticsearch.compute.test.CannedSourceOperator.collectPages(
+                new TupleLongLongBlockSourceOperator(
+                    driverContext.blockFactory(),
+                    LongStream.range(0, 10).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), Long.MAX_VALUE - 1))
+                )
+            );
+            drive(factory.get(driverContext), input.iterator(), driverContext);
+        });
+
+        assertDriverContext(driverContext);
     }
 }

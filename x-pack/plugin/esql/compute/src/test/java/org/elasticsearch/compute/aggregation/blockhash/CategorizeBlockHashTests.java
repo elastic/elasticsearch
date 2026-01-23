@@ -509,7 +509,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(groupSpec),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
@@ -528,7 +528,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(groupSpec),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
@@ -549,7 +549,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(groupSpec),
                     AggregatorMode.FINAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
+                        new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
                     ),
                     16 * 1024,

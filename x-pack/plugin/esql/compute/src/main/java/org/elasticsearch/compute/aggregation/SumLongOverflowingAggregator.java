@@ -11,15 +11,19 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
-@Aggregator(
-    value = {
-        @IntermediateState(name = "sum", type = "LONG"),
-        @IntermediateState(name = "seen", type = "BOOLEAN"),
-        @IntermediateState(name = "failed", type = "BOOLEAN") },
-    warnExceptions = ArithmeticException.class
-)
+/**
+ * Sum long aggregator for compatibility with old versions.
+ * <p>
+ *     Replaced by {@link org.elasticsearch.compute.aggregation.SumLongAggregator}
+ *     since {@code EsqlCapabilities.Cap.FIX_SUM_AGG_LONG_OVERFLOW}.
+ * </p>
+ * <p>
+ *     Should be kept for as long as we need compatibility with the version this was added on, as the new aggregator's layout is different.
+ * </p>
+ */
+@Aggregator(value = { @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator
-class SumLongAggregator {
+class SumLongOverflowingAggregator {
 
     public static long init() {
         return 0;

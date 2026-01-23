@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.ArithmeticException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -21,37 +20,32 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SumLongAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SumLongOverflowingAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class SumLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class SumLongOverflowingGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("sum", ElementType.LONG),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN),
-      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
-  private final LongFallibleArrayState state;
-
-  private final Warnings warnings;
+  private final LongArrayState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public SumLongGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
-      LongFallibleArrayState state, DriverContext driverContext) {
-    this.warnings = warnings;
+  public SumLongOverflowingGroupingAggregatorFunction(List<Integer> channels, LongArrayState state,
+      DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SumLongGroupingAggregatorFunction create(Warnings warnings, List<Integer> channels,
+  public static SumLongOverflowingGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new SumLongGroupingAggregatorFunction(warnings, channels, new LongFallibleArrayState(driverContext.bigArrays(), SumLongAggregator.init()), driverContext);
+    return new SumLongOverflowingGroupingAggregatorFunction(channels, new LongArrayState(driverContext.bigArrays(), SumLongOverflowingAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -126,19 +120,11 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
         int vStart = vBlock.getFirstValueIndex(valuesPosition);
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          try {
-            state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
-          } catch (ArithmeticException e) {
-            warnings.registerException(e);
-            state.setFailed(groupId);
-          }
+          state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -154,16 +140,8 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
         long vValue = vVector.getLong(valuesPosition);
-        try {
-          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
-        } catch (ArithmeticException e) {
-          warnings.registerException(e);
-          state.setFailed(groupId);
-        }
+        state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -182,12 +160,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    Block failedUncast = page.getBlock(channels.get(2));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert sum.getPositionCount() == seen.getPositionCount() && sum.getPositionCount() == failed.getPositionCount();
+    assert sum.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -197,15 +170,8 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        if (failed.getBoolean(valuesPosition)) {
-          state.setFailed(groupId);
-        } else if (seen.getBoolean(valuesPosition)) {
-          try {
-            state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
-          } catch (ArithmeticException e) {
-            warnings.registerException(e);
-            state.setFailed(groupId);
-          }
+        if (seen.getBoolean(valuesPosition)) {
+          state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
         }
       }
     }
@@ -224,19 +190,11 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
         int vStart = vBlock.getFirstValueIndex(valuesPosition);
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          try {
-            state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
-          } catch (ArithmeticException e) {
-            warnings.registerException(e);
-            state.setFailed(groupId);
-          }
+          state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -252,16 +210,8 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
         long vValue = vVector.getLong(valuesPosition);
-        try {
-          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
-        } catch (ArithmeticException e) {
-          warnings.registerException(e);
-          state.setFailed(groupId);
-        }
+        state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -280,12 +230,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    Block failedUncast = page.getBlock(channels.get(2));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert sum.getPositionCount() == seen.getPositionCount() && sum.getPositionCount() == failed.getPositionCount();
+    assert sum.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -295,15 +240,8 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        if (failed.getBoolean(valuesPosition)) {
-          state.setFailed(groupId);
-        } else if (seen.getBoolean(valuesPosition)) {
-          try {
-            state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
-          } catch (ArithmeticException e) {
-            warnings.registerException(e);
-            state.setFailed(groupId);
-          }
+        if (seen.getBoolean(valuesPosition)) {
+          state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
         }
       }
     }
@@ -316,19 +254,11 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
         continue;
       }
       int groupId = groups.getInt(groupPosition);
-      if (state.hasFailed(groupId)) {
-        continue;
-      }
       int vStart = vBlock.getFirstValueIndex(valuesPosition);
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        try {
-          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
-        } catch (ArithmeticException e) {
-          warnings.registerException(e);
-          state.setFailed(groupId);
-        }
+        state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -337,16 +267,8 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      if (state.hasFailed(groupId)) {
-        continue;
-      }
       long vValue = vVector.getLong(valuesPosition);
-      try {
-        state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        state.setFailed(groupId);
-      }
+      state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), vValue));
     }
   }
 
@@ -364,24 +286,12 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    Block failedUncast = page.getBlock(channels.get(2));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert sum.getPositionCount() == seen.getPositionCount() && sum.getPositionCount() == failed.getPositionCount();
+    assert sum.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      if (failed.getBoolean(valuesPosition)) {
-        state.setFailed(groupId);
-      } else if (seen.getBoolean(valuesPosition)) {
-        try {
-          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
-        } catch (ArithmeticException e) {
-          warnings.registerException(e);
-          state.setFailed(groupId);
-        }
+      if (seen.getBoolean(valuesPosition)) {
+        state.set(groupId, SumLongOverflowingAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
       }
     }
   }

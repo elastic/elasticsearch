@@ -98,26 +98,25 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
 
-        Action<AbstractGenerateTransportVersionDefinitionTask> generationConfiguration = t -> {
-            t.setGroup(taskGroup);
-            t.getIncrement().convention(1000);
-            t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
-        };
-
         var generateDefinitionsTask = project.getTasks()
             .register("generateTransportVersion", GenerateTransportVersionDefinitionTask.class, t -> {
                 t.setDescription("(Re)generates a transport version definition file");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
-        generateDefinitionsTask.configure(generationConfiguration);
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
 
         var resolveConflictTask = project.getTasks()
             .register("resolveTransportVersionConflict", ResolveTransportVersionConflictTask.class, t -> {
                 t.setDescription("Resolve merge conflicts in transport version internal state files");
             });
-        resolveConflictTask.configure(generationConfiguration);
         validateTask.configure(t -> t.mustRunAfter(resolveConflictTask));
+
+        // common generation configuration
+        project.getTasks().withType(AbstractGenerateTransportVersionDefinitionTask.class).configureEach(t -> {
+            t.setGroup(taskGroup);
+            t.getIncrement().convention(1000);
+            t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
+        };
 
         var generateInitialTask = project.getTasks()
             .register("generateInitialTransportVersion", GenerateInitialTransportVersionTask.class, t -> {

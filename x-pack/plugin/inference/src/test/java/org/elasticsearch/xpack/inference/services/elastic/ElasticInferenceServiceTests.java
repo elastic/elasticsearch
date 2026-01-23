@@ -939,7 +939,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testChunkedInfer_GivenDenseAndBatchSizeOfOne() throws IOException {
+    public void testBatching_GivenDenseAndBatchSizeOfOne() throws IOException {
         var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
             getUrl(webServer),
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 1),
@@ -960,7 +960,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testChunkedInfer_GivenDenseAndBatchSizeOfTwo() throws IOException {
+    public void testBatching_GivenDenseAndBatchSizeOfTwo() throws IOException {
         var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
             getUrl(webServer),
             new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 2),
@@ -981,7 +981,27 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testChunkedInfer_GivenSparseAndBatchSizeOfOne() throws IOException {
+    public void testBatching_GivenDenseAndMultipleChunksFittingInSingleBatch() throws IOException {
+        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 10),
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(1));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world"), List.of(" plus")));
+        }
+    }
+
+    public void testBatching_GivenSparseAndBatchSizeOfOne() throws IOException {
         var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
             getUrl(webServer),
             "my-sparse-model-id",
@@ -1004,7 +1024,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testChunkedInfer_GivenSparseAndBatchSizeOfTwo() throws IOException {
+    public void testBatching_GivenSparseAndBatchSizeOfTwo() throws IOException {
         var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
             getUrl(webServer),
             "my-sparse-model-id",

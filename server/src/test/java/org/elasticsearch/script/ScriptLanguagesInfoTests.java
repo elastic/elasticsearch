@@ -120,7 +120,7 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
             .collect(Collectors.toMap(c -> c.name, Function.identity()));
 
         List<String> allContexts = new ArrayList<>(mockContexts.keySet());
-        List<String> allowed = new ArrayList<>(allContexts.subList(0, allContexts.size() / 2));
+        List<String> allowed = new ArrayList<>(allContexts.subList(0, allContexts.size() / 2 + 1));
         String miscContext = "misc_context";
         allowed.add(miscContext);
         // check that allowing more than available doesn't pollute the returned contexts

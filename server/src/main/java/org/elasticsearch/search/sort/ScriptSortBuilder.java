@@ -507,10 +507,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         STRING,
         /** script sort for a numeric value **/
         NUMBER,
-        /** script sort for a long value **/
-        LONG,
         /** script sort for a Version field value **/
-        VERSION;
+        VERSION,
+        /** script sort for a long value **/
+        LONG;
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {

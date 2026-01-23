@@ -16,7 +16,8 @@ import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
@@ -138,8 +139,8 @@ public final class EsqlQueryLog {
         private static void addResultFields(Map<String, Object> fieldMap, Result esqlResult) {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK, esqlResult.executionInfo().overallTook().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
-            PlanningProfile planningProfile = esqlResult.executionInfo().planningProfile();
-            for (PlanningProfile.TimeSpanMarker timeSpanMarker : planningProfile.timeSpanMarkers()) {
+            EsqlQueryProfile esqlQueryProfile = esqlResult.executionInfo().queryProfile();
+            for (TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
                 String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();
                 fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX, timeTook.nanos());

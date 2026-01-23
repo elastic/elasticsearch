@@ -47,7 +47,6 @@ import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -56,7 +55,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;

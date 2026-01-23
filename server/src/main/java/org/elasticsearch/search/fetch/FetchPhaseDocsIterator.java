@@ -233,11 +233,7 @@ abstract class FetchPhaseDocsIterator {
         final AtomicReference<Throwable> producerError = new AtomicReference<>();
 
         // ThrottledTaskRunner manages send concurrency
-        final ThrottledTaskRunner sendRunner = new ThrottledTaskRunner(
-            "fetch",
-            maxInFlightChunks,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        final ThrottledTaskRunner sendRunner = new ThrottledTaskRunner("fetch", maxInFlightChunks, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // RefCountingListener fires completion callback when all refs are released.
         final RefCountingListener completionRefs = new RefCountingListener(ActionListener.wrap(ignored -> {
@@ -381,14 +377,7 @@ abstract class FetchPhaseDocsIterator {
                         circuitBreaker.addEstimateBytesAndMaybeBreak(byteSize, CIRCUIT_BREAKER_LABEL);
                         reserved = true;
 
-                        PendingChunk chunk = new PendingChunk(
-                            chunkBytes,
-                            hitsInChunk,
-                            chunkStartIndex,
-                            chunkStartIndex,
-                            byteSize,
-                            isLast
-                        );
+                        PendingChunk chunk = new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, chunkStartIndex, byteSize, isLast);
 
                         if (isLast) {
                             lastChunkHolder.set(chunk);
@@ -397,17 +386,19 @@ abstract class FetchPhaseDocsIterator {
                             ActionListener<Void> completionRef = null;
                             try {
                                 completionRef = completionRefs.acquire();
-                                sendRunner.enqueueTask(new SendChunkTask(
-                                    chunk,
-                                    completionRef,
-                                    chunkWriter,
-                                    shardId,
-                                    totalDocs,
-                                    circuitBreaker,
-                                    sendFailure,
-                                    chunkCompletionRefs,
-                                    isCancelled
-                                ));
+                                sendRunner.enqueueTask(
+                                    new SendChunkTask(
+                                        chunk,
+                                        completionRef,
+                                        chunkWriter,
+                                        shardId,
+                                        totalDocs,
+                                        circuitBreaker,
+                                        sendFailure,
+                                        chunkCompletionRefs,
+                                        isCancelled
+                                    )
+                                );
                                 completionRef = null;
                             } finally {
                                 if (completionRef != null) {

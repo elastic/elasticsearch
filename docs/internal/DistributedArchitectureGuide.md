@@ -872,7 +872,7 @@ When all shards in a snapshot are completed, the master node performs a finaliza
 (`SnapshotsService#SnapshotFinalization` and `BlobStoreRepository#finalizeSnapshot`) which does the following:
 1. Create a `SnapshotInfo` object representing the completed snapshot for serialization.
 2. Collect and write the latest `Metadata` and `IndexMetadata` relevant to this snapshot.
-3. Write the snapshot metadata file `snap-<UUID>.dat`.
+3. Write the snapshot metadata file `snap-<UUID>.dat` (Java class [SnapshotInfo][]).
 4. Create a new root blob (repository generation file, `index-N`) with incremented generation number
    and updated content including the new snapshot and publish a cluster state to accept this new
    generation as the current/safe (`BlobStoreRepository#writeIndexGen`).
@@ -882,7 +882,8 @@ any prior failure only leaves some redundant files in the repository which will 
 A snapshot is not completed until the root blob is successfully updated. To ensure consistency,
 updating the root blob is a 3-steps process leveraging cluster consensus:
 1. Picks a new pending repository generation number which is greater than the current pending generation
-   and publishes a cluster state update for it.
+   and publishes a cluster state update for it. Both repository generation number and pending generation
+   numbers are part of [RepositoryMetadata][].
 2. If previous step is successful, writes the new root blob with the pending generation number.
 3. Publishes another cluster state to set the current/safe repository generation to the new pending generation.
 
@@ -902,6 +903,8 @@ time in a repository. Repository clean up is cluster wide exclusive and must run
 [SnapshotsInProgress]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java#L78
 [BlobStoreIndexShardSnapshots]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshots.java#L40
 [BlobStoreIndexShardSnapshot]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshot.java#L38
+[SnapshotInfo]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/snapshots/SnapshotInfo.java#L50
+[RepositoryMetadata]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/cluster/metadata/RepositoryMetadata.java#L24
 
 #### Shard snapshot pausing
 

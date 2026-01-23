@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -31,11 +31,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
@@ -55,8 +54,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         "inference_api_disable_eis_rate_limiting"
     );
 
-    private static final int MAX_BATCH_SIZE_UPPER_BOUND = 512;
-
     private final String modelId;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
@@ -75,7 +72,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        Integer maxBatchSize = parseMaxBatchSize(map, validationException);
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(map, validationException);
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
@@ -118,7 +115,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             new RateLimitSettings(in);
         }
-        if (in.getTransportVersion().supports(ElasticInferenceServiceSparseEmbeddingsServiceSettings.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+        if (in.getTransportVersion().supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
             this.maxBatchSize = in.readOptionalVInt();
         } else {
             this.maxBatchSize = null;
@@ -221,7 +218,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             rateLimitSettings.writeTo(out);
         }
-        if (out.getTransportVersion().supports(ElasticInferenceServiceSparseEmbeddingsServiceSettings.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+        if (out.getTransportVersion().supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
             out.writeOptionalVInt(maxBatchSize);
         }
     }
@@ -253,23 +250,13 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         var validationException = new ValidationException();
         serviceSettings = new HashMap<>(serviceSettings);
 
-        Integer maxBatchSize = parseMaxBatchSize(serviceSettings, validationException);
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(serviceSettings, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
         return createBuilderWithCopy().maxBatchSize(maxBatchSize).build();
-    }
-
-    private static Integer parseMaxBatchSize(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return extractOptionalPositiveIntegerLessThanOrEqualToMax(
-            serviceSettings,
-            MAX_BATCH_SIZE,
-            MAX_BATCH_SIZE_UPPER_BOUND,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
     }
 
     private static class Builder {

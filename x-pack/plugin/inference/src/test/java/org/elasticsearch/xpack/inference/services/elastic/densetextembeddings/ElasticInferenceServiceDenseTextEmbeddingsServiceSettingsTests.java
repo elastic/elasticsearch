@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -307,7 +307,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings instance,
         TransportVersion version
     ) {
-        if (version.supports(ElasticInferenceServiceSparseEmbeddingsServiceSettings.INFERENCE_API_EIS_MAX_BATCH_SIZE) == false) {
+        if (version.supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE) == false) {
             return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
                 instance.modelId(),
                 instance.similarity(),

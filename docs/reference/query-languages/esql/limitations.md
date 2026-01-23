@@ -235,10 +235,6 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
 
-## Cross-cluster search limitations [esql-ccs-limitations]
-
-{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
-
 ## Known issues [esql-known-issues]
 
 Refer to [Known issues](/release-notes/known-issues.md) for a list of known issues for {{esql}}.

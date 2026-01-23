@@ -86,8 +86,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             assertThat(hits.length, equalTo(15));
 
             for (int i = 0; i < 15; i++) {
-                assertThat("Hit at position " + i + " should have correct id in source",
-                    getIdFromSource(hits[i]), equalTo(i));
+                assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
             }
         } finally {
             stream.decRef();
@@ -123,8 +122,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             assertThat(hits.length, equalTo(totalHits));
 
             for (int i = 0; i < totalHits; i++) {
-                assertThat("Hit at position " + i + " should have correct id in source",
-                    getIdFromSource(hits[i]), equalTo(i));
+                assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
             }
         } finally {
             stream.decRef();
@@ -231,8 +229,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             writeChunk(stream, chunk2);
 
             long bytesAfterChunk2 = breaker.getUsed();
-            assertThat("Circuit breaker should track both chunks' bytes",
-                bytesAfterChunk2, equalTo(chunk1Bytes + chunk2Bytes));
+            assertThat("Circuit breaker should track both chunks' bytes", bytesAfterChunk2, equalTo(chunk1Bytes + chunk2Bytes));
         } finally {
             stream.decRef();
         }
@@ -290,9 +287,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             writeChunk(stream, createChunkWithSourceSize(0, 5, 0, 1024));
             assertThat("First chunk should be tracked", breaker.getUsed(), greaterThan(0L));
 
-            expectThrows(CircuitBreakingException.class, () -> {
-                writeChunk(stream, createChunkWithSourceSize(5, 5, 5, 1024));
-            });
+            expectThrows(CircuitBreakingException.class, () -> { writeChunk(stream, createChunkWithSourceSize(5, 5, 5, 1024)); });
         } finally {
             stream.decRef();
         }
@@ -335,7 +330,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         }
     }
 
-
     // ==================== Score Handling Tests ====================
 
     public void testMaxScoreCalculation() throws IOException {
@@ -343,7 +337,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
 
         try {
-            float[] scores = {1.5f, 3.2f, 2.1f, 4.8f, 0.9f};
+            float[] scores = { 1.5f, 3.2f, 2.1f, 4.8f, 0.9f };
             FetchPhaseResponseChunk chunk = createChunkWithScores(0, scores, 0);
             writeChunk(stream, chunk);
 
@@ -360,7 +354,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 3, breaker);
 
         try {
-            float[] scores = {Float.NaN, Float.NaN, Float.NaN};
+            float[] scores = { Float.NaN, Float.NaN, Float.NaN };
             FetchPhaseResponseChunk chunk = createChunkWithScores(0, scores, 0);
             writeChunk(stream, chunk);
 
@@ -381,7 +375,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 4, breaker);
 
         try {
-            float[] scores = {Float.NaN, 2.5f, Float.NaN, 1.8f};
+            float[] scores = { Float.NaN, 2.5f, Float.NaN, 1.8f };
             FetchPhaseResponseChunk chunk = createChunkWithScores(0, scores, 0);
             writeChunk(stream, chunk);
 
@@ -439,8 +433,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             assertThat(hits.length, equalTo(totalHits));
 
             for (int i = 0; i < totalHits; i++) {
-                assertThat("Hit at position " + i + " should have correct id in source",
-                    getIdFromSource(hits[i]), equalTo(i));
+                assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
             }
         } finally {
             stream.decRef();
@@ -474,9 +467,10 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             AtomicBoolean releasableClosed = new AtomicBoolean(false);
             Releasable releasable = () -> releasableClosed.set(true);
 
-            expectThrows(CircuitBreakingException.class, () -> {
-                stream.writeChunk(createChunkWithSourceSize(0, 5, 0, 10000), releasable);
-            });
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> { stream.writeChunk(createChunkWithSourceSize(0, 5, 0, 10000), releasable); }
+            );
 
             // Releasable should NOT be closed on failure (per implementation's finally block logic)
             assertFalse("Releasable should not be closed on failure", releasableClosed.get());
@@ -512,24 +506,23 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     public void testChunkInvalidShardId() {
         ShardId invalidShardId = new ShardId(new Index("test", "uuid"), -2);
 
-        expectThrows(IllegalArgumentException.class, () -> new FetchPhaseResponseChunk(
-            System.currentTimeMillis(),
-            FetchPhaseResponseChunk.Type.HITS,
-            invalidShardId,
-            BytesArray.EMPTY,
-            0,
-            0,
-            0,
-            0
-        ));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new FetchPhaseResponseChunk(
+                System.currentTimeMillis(),
+                FetchPhaseResponseChunk.Type.HITS,
+                invalidShardId,
+                BytesArray.EMPTY,
+                0,
+                0,
+                0,
+                0
+            )
+        );
     }
 
     private FetchSearchResult buildFinalResult(FetchPhaseResponseStream stream) {
-        return stream.buildFinalResult(
-            new ShardSearchContextId("test", 1),
-            new SearchShardTarget("node1", TEST_SHARD_ID, null),
-            null
-        );
+        return stream.buildFinalResult(new ShardSearchContextId("test", 1), new SearchShardTarget("node1", TEST_SHARD_ID, null), null);
     }
 
     /**
@@ -562,8 +555,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         );
     }
 
-    private FetchPhaseResponseChunk createChunkWithSequence(int startId, int hitCount, long sequenceStart)
-        throws IOException {
+    private FetchPhaseResponseChunk createChunkWithSequence(int startId, int hitCount, long sequenceStart) throws IOException {
         SearchHit[] hits = new SearchHit[hitCount];
         for (int i = 0; i < hitCount; i++) {
             hits[i] = createHit(startId + i);
@@ -598,8 +590,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         );
     }
 
-    private FetchPhaseResponseChunk createChunkWithScores(int startId, float[] scores, long sequenceStart)
-        throws IOException {
+    private FetchPhaseResponseChunk createChunkWithScores(int startId, float[] scores, long sequenceStart) throws IOException {
         SearchHit[] hits = new SearchHit[scores.length];
         for (int i = 0; i < scores.length; i++) {
             hits[i] = createHitWithScore(startId + i, scores[i]);
@@ -684,7 +675,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
                 used.addAndGet(-bytes);
                 circuitBreak(label, newUsed);
             }
-            //return newUsed;
+            // return newUsed;
         }
 
         @Override

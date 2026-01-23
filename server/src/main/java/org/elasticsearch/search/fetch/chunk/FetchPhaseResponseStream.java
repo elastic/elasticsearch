@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;

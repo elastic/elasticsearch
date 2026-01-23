@@ -292,6 +292,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
                 }
             } else {
+                if (group instanceof Alias alias && Alias.unwrap(alias) instanceof Bucket && timeBucket == null) {
+                    throw new IllegalArgumentException(
+                        "Time-series aggregations require direct use of @timestamp which was not found. "
+                            + "Check if @timestamp was shadowed in EVAL and use bucket(@timestamp, ...) instead."
+                    );
+                }
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
         }

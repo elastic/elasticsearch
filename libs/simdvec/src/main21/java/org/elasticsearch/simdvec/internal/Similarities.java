@@ -24,6 +24,11 @@ public class Similarities {
     static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.dotProductHandle7u();
     static final MethodHandle DOT_PRODUCT_7U_BULK = DISTANCE_FUNCS.dotProductHandle7uBulk();
     static final MethodHandle DOT_PRODUCT_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.dotProductHandle7uBulkWithOffsets();
+
+    static final MethodHandle DOT_PRODUCT_I1I4 = DISTANCE_FUNCS.dotProductHandleI1I4();
+    static final MethodHandle DOT_PRODUCT_I1I4_BULK = DISTANCE_FUNCS.dotProductHandleI1I4Bulk();
+    static final MethodHandle DOT_PRODUCT_I1I4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.dotProductHandleI1I4BulkWithOffsets();
+
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
     static final MethodHandle SQUARE_DISTANCE_7U_BULK = DISTANCE_FUNCS.squareDistanceHandle7uBulk();
     static final MethodHandle SQUARE_DISTANCE_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.squareDistanceHandle7uBulkWithOffsets();
@@ -68,6 +73,38 @@ public class Similarities {
     ) {
         try {
             DOT_PRODUCT_7U_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static long dotProductI1I4(MemorySegment a, MemorySegment query, int length) {
+        try {
+            return (long) DOT_PRODUCT_I1I4.invokeExact(a, query, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductI1I4Bulk(MemorySegment a, MemorySegment query, int length, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_I1I4_BULK.invokeExact(a, query, length, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void dotProductI1I4BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment query,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_I1I4_BULK_WITH_OFFSETS.invokeExact(a, query, length, pitch, offsets, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

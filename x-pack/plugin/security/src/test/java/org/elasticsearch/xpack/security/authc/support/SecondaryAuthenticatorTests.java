@@ -14,10 +14,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -89,6 +91,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setupMocks() throws Exception {
@@ -132,7 +135,19 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         securityContext = new SecurityContext(settings, threadContext);
 
-        tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
+        bytesRefRecycler = new MockBytesRefRecycler();
+
+        tokenService = new TokenService(
+            settings,
+            clock,
+            client,
+            licenseState,
+            securityContext,
+            securityIndex,
+            tokensIndex,
+            clusterService,
+            bytesRefRecycler
+        );
         final ApiKeyService apiKeyService = new ApiKeyService(
             settings,
             clock,
@@ -169,8 +184,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     }
 
     @After
-    public void cleanupMocks() throws Exception {
+    public void cleanupMocks() {
         threadPool.shutdownNow();
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testAuthenticateTransportRequestIsANoOpIfHeaderIsMissing() throws Exception {

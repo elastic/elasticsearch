@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.junit.BeforeClass;
 
 import java.util.List;
 
@@ -23,11 +21,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class PromqlVerifierTests extends ESTestCase {
 
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
-
-    @BeforeClass
-    public static void checkPromqlEnabled() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-    }
 
     public void testPromqlRangeVector() {
         assertThat(
@@ -106,6 +99,27 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(
             error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
             equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+        );
+    }
+
+    public void testNoMetricNameMatcherNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m {foo=\"bar\"}", tsdb),
+            containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
+        );
+    }
+
+    public void testWithoutNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
+            containsString("'without' grouping is not supported at this time")
+        );
+    }
+
+    public void groupModifiersNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
+            containsString("queries with group modifiers are not supported at this time")
         );
     }
 

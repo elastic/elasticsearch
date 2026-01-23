@@ -21,7 +21,7 @@ true                    | two         | 2024-05-10T00:22:00.000Z
 ;
 
 present_over_time_events_received_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;
@@ -56,7 +56,7 @@ true               | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_long_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
 | SORT cluster, step | LIMIT 10;
@@ -90,7 +90,7 @@ true          | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_boolean_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -124,7 +124,7 @@ true           | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_date_nanos_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -158,7 +158,7 @@ true           | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_date_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -192,7 +192,7 @@ true           | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_version_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.firmware_version[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -226,7 +226,7 @@ true | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_integer_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.currently_connected_clients[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -260,7 +260,7 @@ true               | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_text_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_log[10m])))
 | SORT cluster, step | LIMIT 10;
@@ -294,7 +294,7 @@ true     | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_keyword_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -329,7 +329,7 @@ true      | staging         | 2024-05-09T23:50:00.000Z
 ;
 
 present_over_time_of_aggregate_metric_double_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m is_present=(max by (cluster) (present_over_time(network.eth0.tx[10m])))
@@ -364,7 +364,7 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_geopoint_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_city[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -398,7 +398,7 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_geoshape_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_city_boundary[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -432,7 +432,7 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_shape_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_shape[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -466,7 +466,7 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_of_point_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_location[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -500,7 +500,7 @@ true      | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 present_over_time_with_filtering_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.bytes_in{pod!="three"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -547,7 +547,7 @@ true             | two         | 2024-05-10T00:20:00.000Z | 1
 ;
 
 eval_on_present_over_time_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m is_present=(max by (pod) (present_over_time(network.bytes_in[10m])))
 | EVAL int = to_integer(is_present)
@@ -588,7 +588,7 @@ events_received:integer | pod:keyword | time_bucket:datetime
 ;
 
 present_over_time_events_received_as_integer_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;

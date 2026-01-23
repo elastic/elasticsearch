@@ -132,8 +132,8 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
         result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
         result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
         testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
-        testExecuted(result.output, "SubProject2RandomizedTestClazz2 > test {yaml=analysis-common/30_tokenizers/letter}")
-        testNotExecuted(result.output, "SubProject2RandomizedTestClazz2 > test {yaml=analysis-common/40_tokenizers/letter}")
+        testExecuted(result.output, "SubProject2RandomizedTestClazz2 > test > test {yaml=analysis-common/30_tokenizers/letter}")
+        testNotExecuted(result.output, "SubProject2RandomizedTestClazz2 > test > test {yaml=analysis-common/40_tokenizers/letter}")
     }
 
 

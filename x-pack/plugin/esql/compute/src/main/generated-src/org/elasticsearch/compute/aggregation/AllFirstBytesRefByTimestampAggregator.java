@@ -34,7 +34,7 @@ import java.util.BitSet;
 
 /**
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
     {

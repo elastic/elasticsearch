@@ -12,7 +12,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.net.URL;
@@ -45,11 +44,6 @@ import static org.hamcrest.Matchers.not;
 public class PromqlAstTests extends ESTestCase {
 
     private static final Logger log = LogManager.getLogger(PromqlAstTests.class);
-
-    @BeforeClass
-    public static void checkPromqlEnabled() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-    }
 
     public void testValidQueries() throws Exception {
         testValidQueries("/promql/grammar/queries-valid.promql");
@@ -79,13 +73,15 @@ public class PromqlAstTests extends ESTestCase {
                     LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);
                     assertThat(esqlPlan.collect(PromqlCommand.class), hasSize(1));
 
-                    LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
-                    Explain explain = explainPlan.collect(Explain.class).getFirst();
-                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                    if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
+                        LogicalPlan explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + ")");
+                        Explain explain = explainPlan.collect(Explain.class).getFirst();
+                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
 
-                    explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
-                    explain = explainPlan.collect(Explain.class).getFirst();
-                    assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                        explainPlan = EsqlParser.INSTANCE.parseQuery("EXPLAIN (" + query + " | LIMIT 1 )");
+                        explain = explainPlan.collect(Explain.class).getFirst();
+                        assertThat(explain.query().collect(PromqlCommand.class), hasSize(1));
+                    }
                 });
             } catch (ParsingException pe) {
                 fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));

@@ -1331,18 +1331,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
     }
 
-    public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test metadata _feature", "line 1:20: unsupported metadata field [_feature]");
-    }
-
-    public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test metadata _doesnot_compute", "line 1:20: unsupported metadata field [_doesnot_compute]");
-    }
-
-    public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test metadata emp_no", "line 1:20: unsupported metadata field [emp_no]");
-    }
-
     public void testDissectPattern() {
         LogicalPlan cmd = processingCommand("dissect a \"%{foo}\"");
         assertEquals(Dissect.class, cmd.getClass());

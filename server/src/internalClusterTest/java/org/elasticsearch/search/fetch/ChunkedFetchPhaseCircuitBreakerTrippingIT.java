@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,7 +52,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * breaker failures. Uses a low 5MB limit to reliably trigger breaker trips with
  * large documents.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "idx";
@@ -66,12 +68,9 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
             .build();
     }
 
-    /**
-     * Test that circuit breaker trips when coordinator accumulates too much data.
-     */
     public void testCircuitBreakerTripsOnCoordinator() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndex(INDEX_NAME);
 
@@ -92,7 +91,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         ElasticsearchException exception = null;
         SearchResponse resp = null;
@@ -121,8 +120,14 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         CircuitBreakingException breakerException = (CircuitBreakingException) cause;
         assertThat(breakerException.getMessage(), containsString("[request] Data too large"));
 
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released even after tripping, current: "
                     + currentBreaker
@@ -134,13 +139,9 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test circuit breaker with multiple concurrent searches. Multiple searches should cause breaker to trip as memory accumulates.
-     */
     public void testCircuitBreakerTripsWithConcurrentSearches() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
-
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         createIndex(INDEX_NAME);
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -160,7 +161,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         int numSearches = 5;
         ExecutorService executor = Executors.newFixedThreadPool(numSearches);
@@ -194,6 +195,12 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
                     foundBreakerException = true;
                     break;
                 }
+
+                assertThat(
+                    "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+                    ExceptionsHelper.status(e),
+                    equalTo(RestStatus.TOO_MANY_REQUESTS)
+                );
             }
             assertThat("Should have found a CircuitBreakingException", foundBreakerException, equalTo(true));
         } finally {
@@ -202,7 +209,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         }
 
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should recover after concurrent breaker trips, current: "
                     + currentBreaker
@@ -214,13 +221,9 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test breaker with very large single document.
-     * Even one document can trip the breaker if it's large enough.
-     */
     public void testCircuitBreakerTripsOnSingleLargeDocument() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         createIndex(INDEX_NAME);
 
         prepareIndex(INDEX_NAME).setId("huge")
@@ -235,7 +238,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         populateLargeDocuments(INDEX_NAME, 10, 1_000);
         refresh(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
         ElasticsearchException exception = null;
         SearchResponse resp = null;
         try {
@@ -257,8 +260,14 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         boolean foundBreakerException = containsCircuitBreakerException(exception);
         assertThat("Circuit breaker should have tripped on single large document", foundBreakerException, equalTo(true));
 
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released after single large doc trip",
                 currentBreaker,
@@ -272,8 +281,8 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
      * Repeatedly tripping the breaker should not accumulate memory.
      */
     public void testRepeatedCircuitBreakerTripsNoLeak() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         createIndex(INDEX_NAME);
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -293,7 +302,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        long initialBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+        long initialBreaker = getRequestBreakerUsed(coordinatorNode);
 
         ElasticsearchException exception = null;
         for (int i = 0; i < 10; i++) {
@@ -319,8 +328,14 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         boolean foundBreakerException = containsCircuitBreakerException(exception);
         assertThat("Circuit breaker should have tripped on single large document", foundBreakerException, equalTo(true));
 
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Circuit breaker should not leak after repeated trips, current: " + currentBreaker + ", initial: " + initialBreaker,
                 currentBreaker,
@@ -370,7 +385,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         );
     }
 
-    private long getNodeRequestBreakerUsed(String nodeName) {
+    private long getRequestBreakerUsed(String nodeName) {
         CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, nodeName);
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         return breaker.getUsed();

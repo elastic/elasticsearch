@@ -461,12 +461,6 @@ public final class FetchPhase {
             // completing until we explicitly signal success/failure after iteration finishes.
             final ActionListener<Void> mainBuildListener = chunkCompletionRefs.acquire();
 
-            // Ensure fetch work runs on the appropriate executor: system indices must execute on a system
-            // thread pool to preserve system-thread semantics now that this work is scheduled asynchronously.
-            final var indexMetadata = context.indexShard().indexSettings().getIndexMetadata();
-            final String executorName = indexMetadata.isSystem() ? ThreadPool.Names.SYSTEM_READ : ThreadPool.Names.SEARCH;
-            final Executor executor = context.indexShard().getThreadPool().executor(executorName);
-
             docsIterator.iterateAsync(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
@@ -478,7 +472,6 @@ public final class FetchPhase {
                 context.circuitBreaker(),
                 sendFailure,
                 context::isCancelled,
-                executor,
                 new ActionListener<>() {
                     @Override
                     public void onResponse(FetchPhaseDocsIterator.IterateResult result) {

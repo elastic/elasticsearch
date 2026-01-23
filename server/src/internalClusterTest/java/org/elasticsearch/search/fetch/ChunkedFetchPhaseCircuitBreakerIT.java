@@ -45,18 +45,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Integration tests for chunked fetch phase circuit breaker tracking.
- *
- * <p>Tests verify that the coordinator node properly tracks and releases circuit breaker
- * memory when using chunked fetch across multiple shards and nodes. Circuit breaker
- * checks are performed only on the coordinator (where results accumulate), not on data
- * nodes (which process and release small chunks incrementally).
- *
- * <p>Chunked fetch moves the memory burden from data nodes to the coordinator by
- * streaming results in small chunks rather than loading all documents at once, preventing
- * OOM errors on large result sets.
+ * Integration tests for chunked fetch phase circuit breaker tracking. The tests verify that the coordinator node properly
+ * tracks and releases circuit breaker memory when using chunked fetch across multiple shards and nodes.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,  numDataNodes = 0, numClientNodes = 0)
 public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "chunked_multi_shard_idx";
@@ -72,11 +64,9 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             .build();
     }
 
-    /**
-     * Test chunked fetch with multiple shards on a single node.
-     */
     public void testChunkedFetchMultipleShardsSingleNode() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
+        internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -86,7 +76,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 150, 5_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         assertNoFailuresAndResponse(
             internalCluster().client(coordinatorNode)
@@ -103,19 +93,17 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertThat(
                 "Coordinator circuit breaker should be released after chunked fetch completes",
-                getNodeRequestBreakerUsed(coordinatorNode),
+                getRequestBreakerUsed(coordinatorNode),
                 lessThanOrEqualTo(breakerBefore)
             );
         });
     }
 
-    /**
-     * Test chunked fetch with multiple shards across multiple nodes.
-     */
     public void testChunkedFetchMultipleShardsMultipleNodes() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+
 
         int numberOfShards = randomIntBetween(6, 24);
         createIndexForTest(
@@ -130,7 +118,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, numberOfDocuments, 5_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
         assertNoFailuresAndResponse(
             internalCluster().client(coordinatorNode)
                 .prepareSearch(INDEX_NAME)
@@ -144,7 +132,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         );
 
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released after many-shard chunked fetch, current: "
                     + currentBreaker
@@ -156,13 +144,9 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test that chunked fetch handles multiple concurrent searches correctly.
-     * All concurrent searches use the same coordinator node.
-     */
     public void testChunkedFetchConcurrentSearches() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -172,7 +156,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 110, 1_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         int numSearches = 5;
         ExecutorService executor = Executors.newFixedThreadPool(numSearches);
@@ -196,7 +180,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         }
 
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released after concurrent searches, current: "
                     + currentBreaker
@@ -208,13 +192,10 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test chunked fetch with replica shards. Verifies that chunked fetch works correctly when routing to replicas.
-     */
     public void testChunkedFetchWithReplicas() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -224,7 +205,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 150, 3_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         // Search will naturally hit both primaries and replicas due to load balancing
         assertNoFailuresAndResponse(
@@ -240,7 +221,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         );
 
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released after chunked fetch with replicas",
                 currentBreaker,
@@ -249,12 +230,9 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test chunked fetch with filtering to verify correct results and memory tracking.
-     */
     public void testChunkedFetchWithFiltering() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -264,7 +242,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 300, 2_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         assertNoFailuresAndResponse(
             internalCluster().client(coordinatorNode)
@@ -285,18 +263,15 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertThat(
                 "Coordinator circuit breaker should be released after chunked fetch completes",
-                getNodeRequestBreakerUsed(coordinatorNode),
+                getRequestBreakerUsed(coordinatorNode),
                 lessThanOrEqualTo(breakerBefore)
             );
         });
     }
 
-    /**
-     * Test that chunked fetch doesn't leak memory across multiple sequential searches.
-     */
     public void testChunkedFetchNoMemoryLeakSequential() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -306,7 +281,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 200, 2_000);
         ensureGreen(INDEX_NAME);
 
-        long initialBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+        long initialBreaker = getRequestBreakerUsed(coordinatorNode);
 
         for (int i = 0; i < 50; i++) {
             assertNoFailuresAndResponse(
@@ -322,7 +297,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         }
 
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should not leak memory across sequential chunked fetches, current: "
                     + currentBreaker
@@ -334,12 +309,9 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test chunked fetch combined with aggregations.
-     */
     public void testChunkedFetchWithAggregations() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -348,7 +320,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 250, 2_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         assertNoFailuresAndResponse(
             internalCluster().client(coordinatorNode)
@@ -369,7 +341,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         );
 
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released after chunked fetch with aggregations",
                 currentBreaker,
@@ -378,12 +350,9 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test chunked fetch with search_after pagination.
-     */
     public void testChunkedFetchWithSearchAfter() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -393,7 +362,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 150, 2_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         // First page
         SearchResponse response1 = internalCluster().client(coordinatorNode)
@@ -429,7 +398,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         }
 
         assertBusy(() -> {
-            long currentBreaker = getNodeRequestBreakerUsed(coordinatorNode);
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released after paginated chunked fetches, current: "
                     + currentBreaker
@@ -441,12 +410,9 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test chunked fetch with DFS query then fetch search type.
-     */
     public void testChunkedFetchWithDfsQueryThenFetch() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -456,7 +422,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 100, 5_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         assertNoFailuresAndResponse(
             internalCluster().client(coordinatorNode)
@@ -474,18 +440,15 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertThat(
                 "Coordinator circuit breaker should be released after DFS chunked fetch",
-                getNodeRequestBreakerUsed(coordinatorNode),
+                getRequestBreakerUsed(coordinatorNode),
                 lessThanOrEqualTo(breakerBefore)
             );
         });
     }
 
-    /**
-     * Test that circuit breaker is properly released even when search fails.
-     */
     public void testChunkedFetchCircuitBreakerReleasedOnFailure() throws Exception {
-        String coordinatorNode = internalCluster().startNode();
         internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         createIndexForTest(
             INDEX_NAME,
@@ -495,7 +458,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         populateIndex(INDEX_NAME, 100, 5_000);
         ensureGreen(INDEX_NAME);
 
-        long breakerBefore = getNodeRequestBreakerUsed(coordinatorNode);
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
 
         // Execute search that will fail
         expectThrows(
@@ -511,7 +474,7 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertThat(
                 "Coordinator circuit breaker should be released even after chunked fetch failure",
-                getNodeRequestBreakerUsed(coordinatorNode),
+                getRequestBreakerUsed(coordinatorNode),
                 lessThanOrEqualTo(breakerBefore)
             );
         });
@@ -563,11 +526,8 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         );
     }
 
-    /**
-     * Get the REQUEST circuit breaker usage on a specific node.
-     */
-    private long getNodeRequestBreakerUsed(String nodeName) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, nodeName);
+    private long getRequestBreakerUsed(String node) {
+        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         return breaker.getUsed();
     }

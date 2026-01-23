@@ -41,8 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,20 +58,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
-    private ExecutorService executor;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        executor = Executors.newFixedThreadPool(2);
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        executor.shutdown();
-        assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
-    }
 
     // ==================== Synchronous iterate() tests ====================
 
@@ -200,7 +185,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -237,7 +221,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -286,7 +269,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -328,7 +310,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -366,8 +347,8 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     public void testIterateAsyncCircuitBreakerTrips() throws Exception {
         LuceneDocs docs = createDocs(100);
-        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker(100); // Circuit breaker with very low limit to trip
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker(100);
+        TestChunkWriter chunkWriter = new TestChunkWriter(true);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -386,12 +367,13 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
+        chunkWriter.ackAll();
 
         Exception e = expectThrows(Exception.class, () -> future.get(10, TimeUnit.SECONDS));
-        assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+        Throwable actual = e instanceof ExecutionException ? e.getCause() : e;
+        assertThat(actual, instanceOf(CircuitBreakingException.class));
 
         refs.close();
         assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
@@ -424,7 +406,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -480,7 +461,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -537,7 +517,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -575,7 +554,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -626,7 +604,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             circuitBreaker,
             sendFailure,
             cancelled::get,
-            executor,
             future
         );
 
@@ -780,13 +757,34 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         // This is for testing, to track chunks sent over the network
         protected final List<SentChunkInfo> sentChunks = new CopyOnWriteArrayList<>();
+        private final List<ActionListener<Void>> pendingAcks = new CopyOnWriteArrayList<>();
+        private final boolean delayAcks;
 
         private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
+
+        TestChunkWriter() {
+            this(false);
+        }
+
+        TestChunkWriter(boolean delayAcks) {
+            this.delayAcks = delayAcks;
+        }
 
         @Override
         public void writeResponseChunk(FetchPhaseResponseChunk chunk, ActionListener<Void> listener) {
             sentChunks.add(new SentChunkInfo(chunk.hitCount(), chunk.from(), chunk.expectedDocs()));
-            listener.onResponse(null); // immediate ACK
+            if (delayAcks) {
+                pendingAcks.add(listener);
+            } else {
+                listener.onResponse(null);
+            }
+        }
+
+        public void ackAll() {
+            for (ActionListener<Void> ack : pendingAcks) {
+                ack.onResponse(null);
+            }
+            pendingAcks.clear();
         }
 
         @Override

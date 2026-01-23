@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
@@ -1241,23 +1242,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         return switch (taskType) {
             case TEXT_EMBEDDING -> ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
             case SPARSE_EMBEDDING -> ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
-            case COMPLETION -> new ElasticInferenceServiceCompletionModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.COMPLETION,
-                ElasticInferenceService.NAME,
-                new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
-                EmptyTaskSettings.INSTANCE,
-                EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.of(URL_VALUE)
-            );
-            case CHAT_COMPLETION -> new ElasticInferenceServiceCompletionModel(
-                INFERENCE_ENTITY_ID,
-                TaskType.CHAT_COMPLETION,
-                ElasticInferenceService.NAME,
-                new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
-                EmptyTaskSettings.INSTANCE,
-                EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.of(URL_VALUE)
+            case COMPLETION -> ElasticInferenceServiceCompletionModelTests.createModel(URL_VALUE, MODEL_ID_VALUE, TaskType.COMPLETION);
+            case CHAT_COMPLETION -> ElasticInferenceServiceCompletionModelTests.createModel(
+                URL_VALUE,
+                MODEL_ID_VALUE,
+                TaskType.CHAT_COMPLETION
             );
             case RERANK -> ElasticInferenceServiceRerankModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);

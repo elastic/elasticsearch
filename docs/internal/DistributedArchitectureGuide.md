@@ -845,12 +845,14 @@ The lifecycle of each shard snapshot is also tracked in-memory on the data node 
 The status is indicated by `IndexShardSnapshotStatus#Stage` which is updated at various points during the process.
 When a shard snapshot task runs, it first acquires an index commit of the shard so that the files to be copied remain
 available throughout the shard snapshot process without being deleted by ongoing indexing activities. It then
-writes a new shard level generation file (`index-<UUID>.data`). This is basically a shard level catalog file
-pointing to all the valid shard snapshots. Each snapshot creates a new one. The UUID is used to avoid name collision.
+writes a new shard level generation file (`index-<UUID>.data`, Java class [BlobStoreIndexShardSnapshots][]).
+This is basically a shard level catalog file pointing to all the valid shard snapshots. Each snapshot creates a new one.
+The UUID is used to avoid name collision.
 Previous shard generation files are not deleted because they may still be needed if the current shard snapshot fails.
 Following that, shard level data files are copied to the repository with `BlobStoreRepository#doSnapshotShard`,
 `BlobStoreRepository#snapshotFile` etc.
-After all data files are uploaded, it writes a shard level snapshot file (`snap-<UUID>.dat`) indicating what data files
+After all data files are uploaded, it writes a shard level snapshot file (`snap-<UUID>.dat`, Java class
+[BlobStoreIndexShardSnapshot][]) indicating what data files
 should be included in this shard snapshot. Note the data file's physical name is replaced with double underscore (`__`)
 followed by an UUID to avoid name collision. The actual name is mapped and stored in the shard level snapshot file.
 
@@ -892,6 +894,8 @@ time in a repository. Repository clean up is cluster wide exclusive and must run
 [SnapshotShardsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotShardsService.java#L81
 [BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
 [SnapshotsInProgress]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java#L78
+[BlobStoreIndexShardSnapshots]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshots.java#L40
+[BlobStoreIndexShardSnapshot]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshot.java#L38
 
 #### Shard snapshot pausing
 

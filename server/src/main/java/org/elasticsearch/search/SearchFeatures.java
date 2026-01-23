@@ -26,9 +26,10 @@ public final class SearchFeatures implements FeatureSpecification {
 
     public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");
     public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+    public static final NodeFeature DATE_FORMAT_MISSING_AS_NULL = new NodeFeature("search.sort.date_format_missing_as_null");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RETRIEVER_RESCORER_ENABLED, SEARCH_WITH_NO_DIMENSIONS_BUGFIX);
+        return Set.of(RETRIEVER_RESCORER_ENABLED, SEARCH_WITH_NO_DIMENSIONS_BUGFIX, DATE_FORMAT_MISSING_AS_NULL);
     }
 }

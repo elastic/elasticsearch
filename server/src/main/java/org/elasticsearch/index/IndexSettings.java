@@ -733,12 +733,26 @@ public final class IndexSettings {
                             )
                         );
                     }
+
+                    var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID) == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is [%s] or later. Current index version: [%s].",
+                                USE_SYNTHETIC_ID.getKey(),
+                                SETTING_INDEX_VERSION_CREATED.getKey(),
+                                IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID,
+                                indexVersion
+                            )
+                        );
+                    }
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING);
+                List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING, SETTING_INDEX_VERSION_CREATED);
                 return list.iterator();
             }
         },

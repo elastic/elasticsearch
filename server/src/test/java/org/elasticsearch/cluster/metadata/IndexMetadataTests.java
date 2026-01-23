@@ -31,8 +31,12 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -48,6 +52,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -792,6 +797,62 @@ public class IndexMetadataTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testVerificationOfSyntheticIdSetting_happyPath() {
+        IndexMode mode = IndexMode.TIME_SERIES;
+        IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
+        String codec = CodecService.DEFAULT_CODEC;
+        try {
+            Settings settings = indexSettings(version, 1, 0).put(IndexSettings.MODE.getKey(), mode)
+                .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+                .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                .build();
+            IndexMetadata.builder("test").settings(settings).build();
+        } catch (IllegalArgumentException e) {
+            fail(e, "Building IndexMetadata should not have thrown when all requirements are fulfilled");
+        }
+    }
+
+    public void testVerificationOfSyntheticIdSetting_badVersion() {
+        IndexMode mode = IndexMode.TIME_SERIES;
+        IndexVersion badVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
+            IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID
+        );
+        String codec = CodecService.DEFAULT_CODEC;
+        assertThrowsOnUseSyntheticIdWithBadConfig(badVersion, mode, codec);
+    }
+
+    public void testVerificationOfSyntheticIdSetting_badCodec() {
+        IndexMode mode = IndexMode.TIME_SERIES;
+        IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
+        String badCodec = randomFrom(
+            CodecService.LEGACY_DEFAULT_CODEC,
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LUCENE_DEFAULT_CODEC
+        );
+        assertThrowsOnUseSyntheticIdWithBadConfig(version, mode, badCodec);
+    }
+
+    public void testVerificationOfSyntheticIdSetting_badMode() {
+        IndexMode[] badIndexModes = Arrays.stream(IndexMode.values())
+            .filter(mode -> mode.equals(IndexMode.TIME_SERIES) == false)
+            .toArray(IndexMode[]::new);
+        IndexMode badMode = randomFrom(badIndexModes);
+        IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
+        String codec = CodecService.DEFAULT_CODEC;
+        assertThrowsOnUseSyntheticIdWithBadConfig(version, badMode, codec);
+    }
+
+    // todo missing verification of feature flag. Figure out how to do that!
+
+    private static void assertThrowsOnUseSyntheticIdWithBadConfig(IndexVersion version, IndexMode mode, String codec) {
+        Settings settings = indexSettings(version, 1, 0).put(IndexSettings.MODE.getKey(), mode)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+            .build();
+        assertThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
     }
 
     public void testReshardingBWCSerialization() throws IOException {

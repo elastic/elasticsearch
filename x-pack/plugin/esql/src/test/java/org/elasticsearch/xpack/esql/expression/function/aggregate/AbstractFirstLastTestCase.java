@@ -18,6 +18,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
 import static org.hamcrest.Matchers.anyOf;
 
@@ -27,7 +37,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType valueType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT)) {
+        for (DataType valueType : List.of(INTEGER, LONG, DOUBLE, KEYWORD, TEXT, BOOLEAN, IP, DATETIME, DATE_NANOS)) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
                 for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
@@ -70,11 +80,19 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
 
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    (isNullable ? "All" : "") + standardAggregatorName(first ? "First" : "Last", values.type()) + "ByTimestamp",
+                    (isNullable ? "All" : "") + standardAggregatorName(first ? "First" : "Last", toBackingType(values.type())) + "ByTimestamp",
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );
             }
         );
+    }
+
+    // We don't need a specialized class to grab last / first
+    private static DataType toBackingType(DataType type) {
+        switch (type) {
+            case IP: return KEYWORD;
+            default: return type;
+        }
     }
 }

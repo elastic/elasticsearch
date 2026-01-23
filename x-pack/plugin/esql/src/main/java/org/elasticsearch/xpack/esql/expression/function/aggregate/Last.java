@@ -46,7 +46,7 @@ public class Last extends AggregateFunction implements ToAggregator {
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date" },
+        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = "Calculates the latest value of a field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") },
         examples = @Example(file = "stats_last", tag = "last")
@@ -55,7 +55,7 @@ public class Last extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "value",
-            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date" },
+            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
             description = "Values to return"
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
@@ -113,6 +113,7 @@ public class Last extends AggregateFunction implements ToAggregator {
             field(),
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
                 || dt == DataType.IP
                 || DataType.isString(dt)
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),

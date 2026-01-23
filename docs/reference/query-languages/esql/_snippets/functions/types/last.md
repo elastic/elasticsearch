@@ -4,10 +4,18 @@
 
 | value | sort | result |
 | --- | --- | --- |
+| boolean | date | boolean |
+| boolean | date_nanos | boolean |
+| date | date | date |
+| date | date_nanos | date |
+| date_nanos | date | date_nanos |
+| date_nanos | date_nanos | date_nanos |
 | double | date | double |
 | double | date_nanos | double |
 | integer | date | integer |
 | integer | date_nanos | integer |
+| ip | date | ip |
+| ip | date_nanos | ip |
 | keyword | date | keyword |
 | keyword | date_nanos | keyword |
 | long | date | long |

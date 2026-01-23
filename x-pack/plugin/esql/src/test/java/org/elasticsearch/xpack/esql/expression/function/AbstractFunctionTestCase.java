@@ -802,7 +802,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             assertEquals(
                 "Mismatch between actual and declared param type for ["
                     + arg.name()
-                    + "]. "
+                    + "] of function '"
+                    + functionName()
+                    + "'. "
                     + "You probably need to update your @params annotations or add test cases to your test.",
                 signatureTypes,
                 annotationTypes

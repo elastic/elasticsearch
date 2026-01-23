@@ -20,6 +20,7 @@
 #include "vec.h"
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"
+#include "score_common.h"
 
 static inline __m256 score_inner(const f32_t* lowerInterval, const f32_t* upperInterval, const int16_t* targetComponentSum,
     const f32_t* score, const f32_t ay, const f32_t ly, const f32_t y1, const f32_t dimensions) {

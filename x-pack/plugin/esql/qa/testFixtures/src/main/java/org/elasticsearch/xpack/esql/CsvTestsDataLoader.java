@@ -322,11 +322,15 @@ public class CsvTestsDataLoader {
     private static final ViewConfig COUNTRY_AIRPORTS = new ViewConfig("country_airports");
     private static final ViewConfig COUNTRY_LANGUAGES = new ViewConfig("country_languages");
     private static final ViewConfig AIRPORTS_MP_FILTERED = new ViewConfig("airports_mp_filtered");
+    private static final ViewConfig EMPLOYEES_REHIRED = new ViewConfig("employees_rehired");
+    private static final ViewConfig EMPLOYEES_NOT_REHIRED = new ViewConfig("employees_not_rehired");
     public static final List<ViewConfig> VIEW_CONFIGS = List.of(
         COUNTRY_ADDRESSES,
         COUNTRY_AIRPORTS,
         COUNTRY_LANGUAGES,
-        AIRPORTS_MP_FILTERED
+        AIRPORTS_MP_FILTERED,
+        EMPLOYEES_REHIRED,
+        EMPLOYEES_NOT_REHIRED
     );
 
     /**
@@ -862,7 +866,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, String viewName, String viewFilename, Logger logger) throws IOException {
         String viewQuery = loadViewQuery(viewName, viewFilename, logger);
         Request request = new Request("PUT", "/_query/view/" + viewName);
-        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", " ") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
         Response response = client.performRequest(request);
         logger.info("View creation response: {}", response.getStatusLine());
         getView(client, viewName, logger);

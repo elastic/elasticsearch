@@ -132,7 +132,6 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
     abstract float scoreFromSegments(MemorySegment a, MemorySegment b);
 
-    // TODO: make this abstract when we have bulk implementations for all subclasses
     abstract void bulkScoreFromSegment(
         MemorySegment vectors,
         int vectorLength,

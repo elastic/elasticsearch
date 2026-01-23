@@ -787,7 +787,8 @@ spread snapshots to different locations if so desired.
 
 We allow different implementations of the same cloud storage type to be used as long as they are compatible
 in both APIs and performance characteristics. For example, many storage service claims S3 compatibility.
-But they may fall short under heavy load. The [RepositoryAnalyze API][] can be used to proactively test the
+But they may fall short under load or even just return outright incorrect responses in some corner cases
+that involving more than a single request. The [RepositoryAnalyze API][] can be used to proactively test the
 compatibility which we suggest on SDHs from time to time.
 
 [RepositoriesService]: https://github.com/elastic/elasticsearch/blob/f55a90c941f5ca80fff4978be7b15e97614ce55f/server/src/main/java/org/elasticsearch/repositories/RepositoriesService.java#L98

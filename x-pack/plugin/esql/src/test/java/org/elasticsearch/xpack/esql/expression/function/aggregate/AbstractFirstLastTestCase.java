@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -80,7 +79,9 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
 
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    (isNullable ? "All" : "") + standardAggregatorName(first ? "First" : "Last", toBackingType(values.type())) + "ByTimestamp",
+                    (isNullable ? "All" : "")
+                        + standardAggregatorName(first ? "First" : "Last", toBackingType(values.type()))
+                        + "ByTimestamp",
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );
@@ -91,8 +92,10 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
     // We don't need a specialized class to grab last / first
     private static DataType toBackingType(DataType type) {
         switch (type) {
-            case IP: return KEYWORD;
-            default: return type;
+            case IP:
+                return KEYWORD;
+            default:
+                return type;
         }
     }
 }

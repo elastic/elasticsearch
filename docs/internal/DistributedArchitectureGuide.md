@@ -856,6 +856,12 @@ After all data files are uploaded, it writes a shard level snapshot file (`snap-
 should be included in this shard snapshot. Note the data file's physical name is replaced with double underscore (`__`)
 followed by an UUID to avoid name collision. The actual name is mapped and stored in the shard level snapshot file.
 
+It is worth note that the shard level generation file (`index-<UUID>.data`) can be reconstructed from all shard
+level snapshot files (`snap-<UUID>.dat`) so that it is technically redundant. However, listing and reading
+all shard snapshot files can be rather inefficient since there could be hundreds or thousands of these files.
+Hence, having the shard level generation file helps with performance for operations such as deletion which
+needs to read only a single file to decide what can be deleted at the shard level.
+
 Once the shard snapshot is completed successfully, the data node releases the previously acquired index commit and
 sends a transport request(`UpdateIndexShardSnapshotStatusRequest`) with the new shard generation (`ShardGeneration`)
 to the master node to update its shard status (`SnapshotsInProgress#ShardState`) in the cluster state. If there is any

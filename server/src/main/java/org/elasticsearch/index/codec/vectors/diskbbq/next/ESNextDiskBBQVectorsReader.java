@@ -604,6 +604,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final FieldInfo fieldInfo;
         final Bits acceptDocs;
         private final ESNextOSQVectorsScorer osqVectorsScorer;
+        private final ES92Int7VectorsScorer int7VectorsScorer;
+        private final boolean usesOsqScorer;
+        private final int componentSumBytes;
         final float[] scores = new float[BULK_SIZE];
         final float[] correctionsLower = new float[BULK_SIZE];
         final float[] correctionsUpper = new float[BULK_SIZE];
@@ -638,15 +641,25 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             this.acceptDocs = acceptDocs;
             centroid = new float[fieldInfo.getVectorDimension()];
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
-            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Short.BYTES;
-            osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
-                indexInput,
-                quantEncoding.queryBits(),
-                quantEncoding.bits(),
-                fieldInfo.getVectorDimension(),
-                (int) quantizedVectorByteSize,
-                BULK_SIZE
-            );
+            componentSumBytes = quantEncoding.usesIntComponentSum() ? Integer.BYTES : Short.BYTES;
+            quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + componentSumBytes;
+            usesOsqScorer = quantEncoding.bits() <= 4;
+            if (usesOsqScorer) {
+                osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
+                    indexInput,
+                    quantEncoding.queryBits(),
+                    quantEncoding.bits(),
+                    fieldInfo.getVectorDimension(),
+                    (int) quantizedVectorByteSize,
+                    BULK_SIZE
+                );
+                int7VectorsScorer = null;
+            } else if (quantEncoding.bits() == 7) {
+                osqVectorsScorer = null;
+                int7VectorsScorer = ESVectorUtil.getES92Int7VectorsScorer(indexInput, fieldInfo.getVectorDimension(), BULK_SIZE);
+            } else {
+                throw new IllegalArgumentException("Unsupported bit size: " + quantEncoding.bits());
+            }
         }
 
         @Override
@@ -738,6 +751,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
         @Override
         public int visit(KnnCollector knnCollector) throws IOException {
+            if (usesOsqScorer == false) {
+                return visitLargeBits(knnCollector);
+            }
             indexInput.seek(slicePos);
             // block processing
             int scoredDocs = 0;
@@ -809,6 +825,87 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 knnCollector.incVisitedCount(scoredDocs);
             }
             return scoredDocs;
+        }
+
+        private int visitLargeBits(KnnCollector knnCollector) throws IOException {
+            indexInput.seek(slicePos);
+            int scoredDocs = 0;
+            int limit = vectors - BULK_SIZE + 1;
+            int i = 0;
+            for (; i < limit; i += BULK_SIZE) {
+                readDocIds(BULK_SIZE);
+                final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, acceptDocs);
+                if (docsToBulkScore == 0) {
+                    indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
+                    continue;
+                }
+                queryQuantizer.quantizeQueryIfNecessary();
+                scoreBulkLargeBits(BULK_SIZE);
+                float maxScore = maxScoreForAccepted(docsToBulkScore);
+                if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+                    collectBulk(knnCollector, scores);
+                }
+                scoredDocs += docsToBulkScore;
+            }
+
+            if (i < vectors) {
+                readDocIds(vectors - i);
+            }
+            int count = 0;
+            for (; i < vectors; i++) {
+                int doc = docIdsScratch[count++];
+                if (acceptDocs == null || acceptDocs.get(doc)) {
+                    queryQuantizer.quantizeQueryIfNecessary();
+                    float score = scoreSingleLargeBit();
+                    scoredDocs++;
+                    knnCollector.collect(doc, score);
+                } else {
+                    indexInput.skipBytes(quantizedByteLength);
+                }
+            }
+            if (scoredDocs > 0) {
+                knnCollector.incVisitedCount(scoredDocs);
+            }
+            return scoredDocs;
+        }
+
+        private float scoreSingleLargeBit() throws IOException {
+            return int7VectorsScorer.score(
+                queryQuantizer.getQuantizedTarget(),
+                queryQuantizer.getQueryCorrections().lowerInterval(),
+                queryQuantizer.getQueryCorrections().upperInterval(),
+                queryQuantizer.getQueryCorrections().quantizedComponentSum(),
+                queryQuantizer.getQueryCorrections().additionalCorrection(),
+                fieldInfo.getVectorSimilarityFunction(),
+                centroidDp
+            );
+        }
+
+        private void scoreBulkLargeBits(int count) throws IOException {
+            int7VectorsScorer.scoreBulk(
+                queryQuantizer.getQuantizedTarget(),
+                queryQuantizer.getQueryCorrections().lowerInterval(),
+                queryQuantizer.getQueryCorrections().upperInterval(),
+                queryQuantizer.getQueryCorrections().quantizedComponentSum(),
+                queryQuantizer.getQueryCorrections().additionalCorrection(),
+                fieldInfo.getVectorSimilarityFunction(),
+                centroidDp,
+                scores,
+                count
+            );
+        }
+
+        private float maxScoreForAccepted(int docsToBulkScore) {
+            float maxScore = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < BULK_SIZE; i++) {
+                if (docIdsScratch[i] != -1) {
+                    maxScore = Math.max(maxScore, scores[i]);
+                }
+            }
+            if (docsToBulkScore == 0) {
+                return Float.NEGATIVE_INFINITY;
+            }
+            return maxScore;
         }
 
     }

@@ -19,6 +19,7 @@ import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -67,7 +68,7 @@ public class VectorScorerOSQBenchmark {
     @Param({ "384", "768", "1024" })
     public int dims;
 
-    @Param({ "1", "2", "4" })
+    @Param({ "1", "2", "4", "7" })
     public int bits;
 
     int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
@@ -90,6 +91,8 @@ public class VectorScorerOSQBenchmark {
 
     byte[] scratch;
     ESNextOSQVectorsScorer scorer;
+    ES92Int7VectorsScorer int7Scorer;
+    ScorerAdapter scorerAdapter;
 
     Directory directory;
     IndexInput input;
@@ -107,6 +110,7 @@ public class VectorScorerOSQBenchmark {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dims);
             case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
             case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dims);
+            case 7 -> ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC.getDocPackedLength(dims);
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
 
@@ -121,7 +125,8 @@ public class VectorScorerOSQBenchmark {
         };
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-            byte[] correctionBytes = new byte[14 * bulkSize];
+            int correctionBytesLength = bits == 7 ? 16 * bulkSize : 14 * bulkSize;
+            byte[] correctionBytes = new byte[correctionBytesLength];
             for (int i = 0; i < numVectors; i += bulkSize) {
                 for (int j = 0; j < bulkSize; j++) {
                     output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
@@ -135,6 +140,7 @@ public class VectorScorerOSQBenchmark {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
             case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);
             case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getQueryPackedLength(dims);
+            case 7 -> ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC.getQueryPackedLength(dims);
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
 
@@ -165,13 +171,22 @@ public class VectorScorerOSQBenchmark {
                 docBits = 4;
                 yield 4;
             }
+            case 7 -> {
+                docBits = 7;
+                yield 7;
+            }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
-        scorer = switch (implementation) {
-            case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
-            case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
-        };
+        if (bits == 7) {
+            int7Scorer = ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dims, bulkSize);
+        } else {
+            scorer = switch (implementation) {
+                case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
+                case VECTORIZED -> ESVectorizationProvider.getInstance()
+                    .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
+            };
+        }
+        scorerAdapter = bits == 7 ? new Int7ScorerAdapter() : new OsqScorerAdapter();
         scratchScores = new float[bulkSize];
         corrections = new float[3];
     }
@@ -187,23 +202,7 @@ public class VectorScorerOSQBenchmark {
         for (int j = 0; j < numQueries; j++) {
             input.seek(0);
             for (int i = 0; i < numVectors; i++) {
-                float qDist = scorer.quantizeScore(binaryQueries[j]);
-                input.readFloats(corrections, 0, corrections.length);
-                int addition = Short.toUnsignedInt(input.readShort());
-                float score = scorer.score(
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
-                    centroidDp,
-                    corrections[0],
-                    corrections[1],
-                    addition,
-                    corrections[2],
-                    qDist
-                );
-                results[j * numVectors + i] = score;
+                results[j * numVectors + i] = scorerAdapter.score(binaryQueries[j]);
             }
         }
         return results;
@@ -215,19 +214,82 @@ public class VectorScorerOSQBenchmark {
         for (int j = 0; j < numQueries; j++) {
             input.seek(0);
             for (int i = 0; i < numVectors; i += scratchScores.length) {
-                scorer.scoreBulk(
-                    binaryQueries[j],
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
-                    centroidDp,
-                    scratchScores
-                );
+                scorerAdapter.scoreBulk(binaryQueries[j], scratchScores);
                 System.arraycopy(scratchScores, 0, results, j * numVectors + i, scratchScores.length);
             }
         }
         return results;
+    }
+
+    private interface ScorerAdapter {
+        float score(byte[] query) throws IOException;
+
+        void scoreBulk(byte[] query, float[] scores) throws IOException;
+    }
+
+    private class OsqScorerAdapter implements ScorerAdapter {
+        @Override
+        public float score(byte[] query) throws IOException {
+            float qDist = scorer.quantizeScore(query);
+            input.readFloats(corrections, 0, corrections.length);
+            int addition = Short.toUnsignedInt(input.readShort());
+            return scorer.score(
+                result.lowerInterval(),
+                result.upperInterval(),
+                result.quantizedComponentSum(),
+                result.additionalCorrection(),
+                VectorSimilarityFunction.EUCLIDEAN,
+                centroidDp,
+                corrections[0],
+                corrections[1],
+                addition,
+                corrections[2],
+                qDist
+            );
+        }
+
+        @Override
+        public void scoreBulk(byte[] query, float[] scores) throws IOException {
+            scorer.scoreBulk(
+                query,
+                result.lowerInterval(),
+                result.upperInterval(),
+                result.quantizedComponentSum(),
+                result.additionalCorrection(),
+                VectorSimilarityFunction.EUCLIDEAN,
+                centroidDp,
+                scores
+            );
+        }
+    }
+
+    private class Int7ScorerAdapter implements ScorerAdapter {
+        @Override
+        public float score(byte[] query) throws IOException {
+            return int7Scorer.score(
+                query,
+                result.lowerInterval(),
+                result.upperInterval(),
+                result.quantizedComponentSum(),
+                result.additionalCorrection(),
+                VectorSimilarityFunction.EUCLIDEAN,
+                centroidDp
+            );
+        }
+
+        @Override
+        public void scoreBulk(byte[] query, float[] scores) throws IOException {
+            int7Scorer.scoreBulk(
+                query,
+                result.lowerInterval(),
+                result.upperInterval(),
+                result.quantizedComponentSum(),
+                result.additionalCorrection(),
+                VectorSimilarityFunction.EUCLIDEAN,
+                centroidDp,
+                scores,
+                scores.length
+            );
+        }
     }
 }

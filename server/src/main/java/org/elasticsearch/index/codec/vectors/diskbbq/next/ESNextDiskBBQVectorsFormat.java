@@ -145,6 +145,32 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 int totalBits = dimensions * 4;
                 return (totalBits + 7) / 8 * 8 / 4;
             }
+        },
+        SEVEN_BIT_SYMMETRIC(3, (byte) 7, (byte) 7) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                packAsBytes(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                packAsBytes(quantized, destination);
+            }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                return dimensions;
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
+            }
         };
 
         private final int id;
@@ -170,6 +196,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
         public byte queryBits() {
             return queryBits;
+        }
+
+        public boolean usesIntComponentSum() {
+            return bits > 4;
         }
 
         public int discretizedDimensions(int dimensions) {
@@ -207,6 +237,15 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 }
             }
             throw new IllegalArgumentException("Unknown QuantEncoding id: " + id);
+        }
+
+        private static void packAsBytes(int[] quantized, byte[] destination) {
+            if (destination.length < quantized.length) {
+                throw new IllegalArgumentException("packed array is too small: " + destination.length + " < " + quantized.length);
+            }
+            for (int i = 0; i < quantized.length; i++) {
+                destination[i] = (byte) quantized[i];
+            }
         }
     }
 

@@ -75,26 +75,31 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         TimeSpan query = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan planning = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan parsing = null, preAnalysis = null, dependencyResolution = null, analysis = null;
-        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
-            && in.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
+        int fieldCapsCalls = 0;
+        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
             parsing = in.readOptionalWriteable(TimeSpan::readFrom);
             preAnalysis = in.readOptionalWriteable(TimeSpan::readFrom);
             dependencyResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             analysis = in.readOptionalWriteable(TimeSpan::readFrom);
         }
-        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis, 0);
+        if (in.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
+            fieldCapsCalls = in.readVInt();
+        }
+        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis, fieldCapsCalls);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(totalMarker.timeSpan());
         out.writeOptionalWriteable(planningMarker.timeSpan());
-        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)
-            && out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
+        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
             out.writeOptionalWriteable(parsingMarker == null ? null : parsingMarker.timeSpan());
             out.writeOptionalWriteable(preAnalysisMarker == null ? null : preAnalysisMarker.timeSpan());
             out.writeOptionalWriteable(dependencyResolutionMarker == null ? null : dependencyResolutionMarker.timeSpan());
             out.writeOptionalWriteable(analysisMarker == null ? null : analysisMarker.timeSpan());
+        }
+        if (out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
+            out.writeVInt(fieldCapsCalls.get());
         }
     }
 

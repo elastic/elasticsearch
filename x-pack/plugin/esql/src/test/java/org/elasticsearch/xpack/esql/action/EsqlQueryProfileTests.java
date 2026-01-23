@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -52,19 +51,6 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 6 -> fieldCapsCalls = randomValueOtherThan(fieldCapsCalls, () -> randomIntBetween(0, 100));
         }
         return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis, fieldCapsCalls);
-    }
-
-    @Override
-    protected EsqlQueryProfile copyInstance(EsqlQueryProfile instance, TransportVersion version) throws IOException {
-        return new EsqlQueryProfile(
-            instance.total().timeSpan(),
-            instance.planning().timeSpan(),
-            instance.parsing().timeSpan(),
-            instance.preAnalysis().timeSpan(),
-            instance.dependencyResolution().timeSpan(),
-            instance.analysis().timeSpan(),
-            instance.fieldCapsCalls()
-        );
     }
 
     private static TimeSpan randomTimeSpan() {

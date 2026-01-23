@@ -70,7 +70,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
-    public static final TransportVersion EXECUTION_TRANSIENT_PROFILING_VERSION = TransportVersion.fromName("esql_transient_profiling");
+    public static final TransportVersion EXECUTION_PROFILE_FORMAT_VERSION = TransportVersion.fromName("esql_profile_format");
 
     public enum IncludeExecutionMetadata {
         ALWAYS,
@@ -119,7 +119,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
+        if (in.getTransportVersion().supports(EXECUTION_PROFILE_FORMAT_VERSION) == false) {
             in.readOptionalTimeValue();
         }
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
@@ -137,7 +137,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(EXECUTION_TRANSIENT_PROFILING_VERSION) == false) {
+        if (out.getTransportVersion().supports(EXECUTION_PROFILE_FORMAT_VERSION) == false) {
             out.writeOptionalTimeValue(null);
         }
         if (clusterInfo != null && clusterInfoInitializing == false) {

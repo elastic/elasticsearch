@@ -109,7 +109,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(filter);

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -19,24 +20,28 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMax}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMin}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromDocValuesGeoEvaluator.class);
+public final class StXMinFromCartesianDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMinFromCartesianDocValuesEvaluator.class);
 
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator encodedBlock;
 
+  private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StXMaxFromDocValuesGeoEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
+  public StXMinFromCartesianDocValuesEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator encodedBlock,
+      SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +71,7 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
           continue position;
         }
         try {
-          StXMax.fromDocValuesGeo(result, p, encodedBlockBlock);
+          StXMin.fromCartesianDocValues(result, p, encodedBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +83,7 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "StXMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StXMinFromCartesianDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -103,19 +108,23 @@ public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
     private final EvalOperator.ExpressionEvaluator.Factory encodedBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock,
+        Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.encodedBlock = encodedBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
-    public StXMaxFromDocValuesGeoEvaluator get(DriverContext context) {
-      return new StXMaxFromDocValuesGeoEvaluator(source, encodedBlock.get(context), context);
+    public StXMinFromCartesianDocValuesEvaluator get(DriverContext context) {
+      return new StXMinFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StXMinFromCartesianDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

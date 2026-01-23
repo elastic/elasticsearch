@@ -812,7 +812,9 @@ Such is the case for snapshot creation. When `SnapshotsService` receives the req
 and their shards required for the snapshot and creates an object representing this snapshot and stores it in the
 cluster state. The overarching object representing snapshot creation in the cluster state is[SnapshotsInProgress][]
 which is essentially a map keyed by repository name with values being a list of ongoing snapshots(`SnapshotsInProgress.Entry`)
-for that repository. Each ongoing snapshot further tracks its overall state (`SnapshotsInProgress#State`)
+for that repository. It's a list because the order is important: Snapshots within each repository operate as a queue,
+such that each shard's snapshots run in order. Different snapshots may complete in different orders if they target different shards.
+Each ongoing snapshot further tracks its overall state (`SnapshotsInProgress#State`)
 as well states (`SnapshotsInProgress#ShardState`) of each shard required for the snapshot.
 
 When the snapshot creation entry (`SnapshotsInProgress.Entry`) is first added to the cluster state, its shard states

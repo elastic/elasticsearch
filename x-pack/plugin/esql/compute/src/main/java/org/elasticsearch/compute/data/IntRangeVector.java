@@ -20,12 +20,12 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     private final int endExclusive;
 
     IntRangeVector(BlockFactory blockFactory, int startInclusive, int endExclusive) {
-        super(positionCount(startInclusive, endExclusive), blockFactory);
+        super(computePositionCount(startInclusive, endExclusive), blockFactory);
         this.startInclusive = startInclusive;
         this.endExclusive = endExclusive;
     }
 
-    private static int positionCount(int startInclusive, int endExclusive) {
+    private static int computePositionCount(int startInclusive, int endExclusive) {
         if (endExclusive < startInclusive) {
             throw new IllegalArgumentException(
                 "startInclusive must not be greater than endExclusive; got [" + startInclusive + ", " + endExclusive + ")"
@@ -89,12 +89,12 @@ final class IntRangeVector extends AbstractVector implements IntVector {
 
     @Override
     public int min() {
-        return startInclusive;
+        return getPositionCount() == 0 ? Integer.MAX_VALUE : startInclusive;
     }
 
     @Override
     public int max() {
-        return endExclusive - 1;
+        return getPositionCount() == 0 ? Integer.MIN_VALUE : endExclusive - 1;
     }
 
     @Override
@@ -104,7 +104,7 @@ final class IntRangeVector extends AbstractVector implements IntVector {
 
     @Override
     public boolean isConstant() {
-        return endExclusive == startInclusive + 1;
+        return getPositionCount() == 1;
     }
 
     @Override

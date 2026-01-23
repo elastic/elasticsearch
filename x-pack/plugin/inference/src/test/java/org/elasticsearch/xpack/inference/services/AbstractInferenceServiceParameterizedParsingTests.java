@@ -111,63 +111,63 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                 {
                     new TestCaseBuilder(
                         "Test parsing text embedding persisted config without chunking settings returns model",
-                        persistedConfigBasic(TaskType.TEXT_EMBEDDING),
+                        persistedConfig(TaskType.TEXT_EMBEDDING, false, false),
                         getServiceParser(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing text embedding persisted config with chunking settings returns model",
-                        persistedConfigWithChunking(TaskType.TEXT_EMBEDDING),
+                        persistedConfig(TaskType.TEXT_EMBEDDING, true, false),
                         getServiceParser(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing sparse embedding persisted config without chunking settings returns model",
-                        persistedConfigBasic(TaskType.SPARSE_EMBEDDING),
+                        persistedConfig(TaskType.SPARSE_EMBEDDING, false, false),
                         getServiceParser(TaskType.SPARSE_EMBEDDING),
                         TaskType.SPARSE_EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing sparse embedding persisted config with chunking settings returns model",
-                        persistedConfigWithChunking(TaskType.SPARSE_EMBEDDING),
+                        persistedConfig(TaskType.SPARSE_EMBEDDING, true, false),
                         getServiceParser(TaskType.SPARSE_EMBEDDING),
                         TaskType.SPARSE_EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing embedding persisted config without chunking settings returns model",
-                        persistedConfigBasic(TaskType.EMBEDDING),
+                        persistedConfig(TaskType.EMBEDDING, false, false),
                         getServiceParser(TaskType.EMBEDDING),
                         TaskType.EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing embedding persisted config with chunking settings returns model",
-                        persistedConfigWithChunking(TaskType.EMBEDDING),
+                        persistedConfig(TaskType.EMBEDDING, true, false),
                         getServiceParser(TaskType.EMBEDDING),
                         TaskType.EMBEDDING
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing completion persisted config returns model",
-                        persistedConfigBasic(TaskType.COMPLETION),
+                        persistedConfig(TaskType.COMPLETION, false, false),
                         getServiceParser(TaskType.COMPLETION),
                         TaskType.COMPLETION
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing chat completion persisted config returns model",
-                        persistedConfigBasic(TaskType.CHAT_COMPLETION),
+                        persistedConfig(TaskType.CHAT_COMPLETION, false, false),
                         getServiceParser(TaskType.CHAT_COMPLETION),
                         TaskType.CHAT_COMPLETION
                     ).build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing rerank persisted config returns model",
-                        persistedConfigBasic(TaskType.RERANK),
+                        persistedConfig(TaskType.RERANK, false, false),
                         getServiceParser(TaskType.RERANK),
                         TaskType.RERANK
                     ).build() },
@@ -270,63 +270,63 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                 {
                     new TestCaseBuilder(
                         "Test parsing text embeddings persisted config with secrets, without chunking settings returns model",
-                        persistedConfigWithSecrets(TaskType.TEXT_EMBEDDING),
+                        persistedConfig(TaskType.TEXT_EMBEDDING, false, true),
                         getServiceParserWithSecrets(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing text embeddings persisted config with secrets, with chunking settings returns model",
-                        persistedConfigWithSecretsAndChunking(TaskType.TEXT_EMBEDDING),
+                        persistedConfig(TaskType.TEXT_EMBEDDING, true, true),
                         getServiceParserWithSecrets(TaskType.TEXT_EMBEDDING),
                         TaskType.TEXT_EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing sparse embeddings persisted config with secrets, without chunking settings returns model",
-                        persistedConfigWithSecrets(TaskType.SPARSE_EMBEDDING),
+                        persistedConfig(TaskType.SPARSE_EMBEDDING, false, true),
                         getServiceParserWithSecrets(TaskType.SPARSE_EMBEDDING),
                         TaskType.SPARSE_EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing sparse embeddings persisted config with secrets, with chunking settings returns model",
-                        persistedConfigWithSecretsAndChunking(TaskType.SPARSE_EMBEDDING),
+                        persistedConfig(TaskType.SPARSE_EMBEDDING, true, true),
                         getServiceParserWithSecrets(TaskType.SPARSE_EMBEDDING),
                         TaskType.SPARSE_EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing embeddings persisted config with secrets, without chunking settings returns model",
-                        persistedConfigWithSecrets(TaskType.EMBEDDING),
+                        persistedConfig(TaskType.EMBEDDING, false, true),
                         getServiceParserWithSecrets(TaskType.EMBEDDING),
                         TaskType.EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing embeddings persisted config with secrets, with chunking settings returns model",
-                        persistedConfigWithSecretsAndChunking(TaskType.EMBEDDING),
+                        persistedConfig(TaskType.EMBEDDING, true, true),
                         getServiceParserWithSecrets(TaskType.EMBEDDING),
                         TaskType.EMBEDDING
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing completion persisted config with secrets returns model",
-                        persistedConfigWithSecrets(TaskType.COMPLETION),
+                        persistedConfig(TaskType.COMPLETION, false, true),
                         getServiceParserWithSecrets(TaskType.COMPLETION),
                         TaskType.COMPLETION
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing chat completion persisted config with secrets returns model",
-                        persistedConfigWithSecrets(TaskType.CHAT_COMPLETION),
+                        persistedConfig(TaskType.CHAT_COMPLETION, false, true),
                         getServiceParserWithSecrets(TaskType.CHAT_COMPLETION),
                         TaskType.CHAT_COMPLETION
                     ).withSecrets().build() },
                 {
                     new TestCaseBuilder(
                         "Test parsing rerank persisted config with secrets returns model",
-                        persistedConfigWithSecrets(TaskType.RERANK),
+                        persistedConfig(TaskType.RERANK, false, true),
                         getServiceParserWithSecrets(TaskType.RERANK),
                         TaskType.RERANK
                     ).withSecrets().build() },
@@ -458,37 +458,16 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
         );
     }
 
-    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigBasic(TaskType taskType) {
+    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfig(
+        TaskType taskType,
+        boolean withChunking,
+        boolean withSecrets
+    ) {
         return testConfiguration -> getPersistedConfigMap(
             testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
             testConfiguration.commonConfig().createTaskSettingsMap(taskType),
-            null
-        );
-    }
-
-    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigWithChunking(TaskType taskType) {
-        return testConfiguration -> getPersistedConfigMap(
-            testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
-            testConfiguration.commonConfig().createTaskSettingsMap(taskType),
-            createRandomChunkingSettingsMap(),
-            null
-        );
-    }
-
-    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigWithSecrets(TaskType taskType) {
-        return testConfiguration -> getPersistedConfigMap(
-            testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
-            testConfiguration.commonConfig().createTaskSettingsMap(taskType),
-            testConfiguration.commonConfig().createSecretSettingsMap()
-        );
-    }
-
-    private static Function<TestConfiguration, Utils.PersistedConfig> persistedConfigWithSecretsAndChunking(TaskType taskType) {
-        return testConfiguration -> getPersistedConfigMap(
-            testConfiguration.commonConfig().createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
-            testConfiguration.commonConfig().createTaskSettingsMap(taskType),
-            createRandomChunkingSettingsMap(),
-            testConfiguration.commonConfig().createSecretSettingsMap()
+            withChunking ? createRandomChunkingSettingsMap() : null,
+            withSecrets ? testConfiguration.commonConfig().createSecretSettingsMap() : null
         );
     }
 

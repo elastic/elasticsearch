@@ -10,14 +10,10 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -33,12 +29,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.CHUNK_RESCORER_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FAILURES_ALLOWED_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.SNIPPETS_FIELD;
 
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
@@ -47,23 +43,21 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     public static final String NAME = "text_similarity_reranker";
 
-    /**
-     * The default token size limit of the Elastic reranker is 512.
-     */
-    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 512;
-
     public static final LicensedFeature.Momentary TEXT_SIMILARITY_RERANKER_FEATURE = LicensedFeature.momentary(
         null,
         "text-similarity-reranker",
         License.OperationMode.ENTERPRISE
     );
 
+    private static final TransportVersion RERANKER_FAILURES_ALLOWED = TransportVersion.fromName("reranker_failures_allowed");
+    private static final TransportVersion RERANK_SNIPPETS = TransportVersion.fromName("rerank_snippets");
+
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
-    private final SnippetConfig snippetConfig;
+    private final ChunkScorerConfig chunkScorerConfig;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -72,7 +66,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         int rankWindowSize,
         Float minScore,
         boolean failuresAllowed,
-        SnippetConfig snippetConfig
+        ChunkScorerConfig chunkScorerConfig
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -80,7 +74,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.field = field;
         this.minScore = minScore;
         this.failuresAllowed = failuresAllowed;
-        this.snippetConfig = snippetConfig;
+        this.chunkScorerConfig = chunkScorerConfig;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -90,16 +84,15 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.inferenceText = in.readString();
         this.field = in.readString();
         this.minScore = in.readOptionalFloat();
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
-            || in.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (in.getTransportVersion().supports(RERANKER_FAILURES_ALLOWED)) {
             this.failuresAllowed = in.readBoolean();
         } else {
             this.failuresAllowed = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            this.snippetConfig = in.readOptionalWriteable(SnippetConfig::new);
+        if (in.getTransportVersion().supports(RERANK_SNIPPETS)) {
+            this.chunkScorerConfig = in.readOptionalWriteable(ChunkScorerConfig::new);
         } else {
-            this.snippetConfig = null;
+            this.chunkScorerConfig = null;
         }
     }
 
@@ -110,7 +103,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -120,12 +113,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         out.writeString(inferenceText);
         out.writeString(field);
         out.writeOptionalFloat(minScore);
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
-            || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (out.getTransportVersion().supports(RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            out.writeOptionalWriteable(snippetConfig);
+        if (out.getTransportVersion().supports(RERANK_SNIPPETS)) {
+            out.writeOptionalWriteable(chunkScorerConfig);
         }
     }
 
@@ -142,53 +134,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
         }
-        if (snippetConfig != null) {
-            builder.field(SNIPPETS_FIELD.getPreferredName(), snippetConfig);
+        if (chunkScorerConfig != null) {
+            builder.field(CHUNK_RESCORER_FIELD.getPreferredName(), chunkScorerConfig);
         }
-    }
-
-    @Override
-    public RankBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        TextSimilarityRankBuilder rewritten = this;
-        if (snippetConfig != null) {
-            QueryBuilder snippetQueryBuilder = snippetConfig.snippetQueryBuilder();
-            if (snippetQueryBuilder == null) {
-                rewritten = new TextSimilarityRankBuilder(
-                    field,
-                    inferenceId,
-                    inferenceText,
-                    rankWindowSize(),
-                    minScore,
-                    failuresAllowed,
-                    new SnippetConfig(
-                        snippetConfig.numSnippets(),
-                        snippetConfig.inferenceText(),
-                        snippetConfig.tokenSizeLimit(),
-                        new MatchQueryBuilder(field, inferenceText)
-                    )
-                );
-            } else {
-                QueryBuilder rewrittenSnippetQueryBuilder = snippetQueryBuilder.rewrite(queryRewriteContext);
-                if (snippetQueryBuilder != rewrittenSnippetQueryBuilder) {
-                    rewritten = new TextSimilarityRankBuilder(
-                        field,
-                        inferenceId,
-                        inferenceText,
-                        rankWindowSize(),
-                        minScore,
-                        failuresAllowed,
-                        new SnippetConfig(
-                            snippetConfig.numSnippets(),
-                            snippetConfig.inferenceText(),
-                            snippetConfig.tokenSizeLimit(),
-                            rewrittenSnippetQueryBuilder
-                        )
-                    );
-                }
-            }
-        }
-
-        return rewritten;
     }
 
     @Override
@@ -235,7 +183,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, snippetConfig);
+        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, chunkScorerConfig);
     }
 
     @Override
@@ -249,16 +197,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceText,
             minScore,
             failuresAllowed,
-            snippetConfig != null ? new SnippetConfig(snippetConfig.numSnippets, inferenceText, tokenSizeLimit(inferenceId)) : null
+            chunkScorerConfig != null
+                ? new ChunkScorerConfig(chunkScorerConfig.size, inferenceText, chunkScorerConfig.chunkingSettings())
+                : null
         );
-    }
-
-    /**
-     * @return The token size limit to apply to this rerank context.
-     * TODO: This should be pulled from the inference endpoint when available, not hardcoded.
-     */
-    public static Integer tokenSizeLimit(String inferenceId) {
-        return DEFAULT_TOKEN_SIZE_LIMIT;
     }
 
     public String field() {
@@ -289,12 +231,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             && Objects.equals(field, that.field)
             && Objects.equals(minScore, that.minScore)
             && failuresAllowed == that.failuresAllowed
-            && Objects.equals(snippetConfig, that.snippetConfig);
+            && Objects.equals(chunkScorerConfig, that.chunkScorerConfig);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, snippetConfig);
+        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, chunkScorerConfig);
     }
 
     @Override

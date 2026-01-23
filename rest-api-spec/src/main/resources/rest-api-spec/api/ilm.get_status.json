@@ -1,24 +1,25 @@
 {
-  "ilm.get_status":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-get-status.html",
-      "description":"Retrieves the current index lifecycle management (ILM) status."
+  "ilm.get_status": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-status",
+      "description": "Get the ILM status"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ilm/status",
-          "methods":[
+          "path": "/_ilm/status",
+          "methods": [
             "GET"
           ]
         }
       ]
-    },
-    "params":{}
+    }
   }
 }

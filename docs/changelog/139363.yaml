@@ -1,0 +1,5 @@
+pr: 139363
+summary: Add `upgrade.rollbacks` mapping to .fleet-agents system index
+area: Infra/Plugins
+type: enhancement
+issues: []

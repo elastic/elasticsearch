@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal.toolchain;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
@@ -28,6 +29,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,6 +45,8 @@ import java.util.Optional;
  */
 public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
+    public static final String RECENT_JDK_RELEASES_CATALOG_URL = "https://builds.es-jdk-archive.com/jdks/openjdk/recent.json";
+
     interface JdkBuild {
         JavaLanguageVersion languageVersion();
 
@@ -51,29 +55,33 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
 
     @FunctionalInterface
     interface EarlyAccessJdkBuildResolver {
-        Optional<EarlyAccessJdkBuild> findLatestEABuild(JavaLanguageVersion languageVersion);
+        PreReleaseJdkBuild findLatestEABuild(JavaLanguageVersion languageVersion);
     }
 
     // allow overriding for testing
-    EarlyAccessJdkBuildResolver earlyAccessJdkBuildResolver = (languageVersion) -> findLatestEABuild(languageVersion);
+    EarlyAccessJdkBuildResolver earlyAccessJdkBuildResolver = (languageVersion) -> findLatestPreReleaseBuild(languageVersion);
 
-    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, int buildNumber) implements JdkBuild {
+    public record PreReleaseJdkBuild(JavaLanguageVersion languageVersion, int buildNumber, String type) implements JdkBuild {
         @Override
         public String url(String os, String arch, String extension) {
             // example:
             // https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_linux-aarch64_bin.tar.gz
+
+            // RCs don't attach a special suffix to the artifact name
+            String releaseTypeSuffix = type.equals("ea") ? "-" + type + "+" + buildNumber : "";
             return "https://builds.es-jdk-archive.com/jdks/openjdk/"
                 + languageVersion.asInt()
                 + "/"
                 + "openjdk-"
                 + languageVersion.asInt()
-                + "-ea+"
+                + "-"
+                + type
+                + "+"
                 + buildNumber
                 + "/"
                 + "openjdk-"
                 + languageVersion.asInt()
-                + "-ea+"
-                + buildNumber
+                + releaseTypeSuffix
                 + "_"
                 + os
                 + "-"
@@ -98,7 +106,6 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
             .getLanguageVersion()
             .get()
             .asInt()) {
-            // This resolver only handles early access builds, that are beyond the last bundled jdk version
         }
         return findSupportedBuild(request).map(build -> {
             OperatingSystem operatingSystem = request.getBuildPlatform().getOperatingSystem();
@@ -113,7 +120,7 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
      * Check if request can be full-filled by this resolver:
      * 1. Aarch64 windows images are not supported
      */
-    private Optional<EarlyAccessJdkBuild> findSupportedBuild(JavaToolchainRequest request) {
+    private Optional<PreReleaseJdkBuild> findSupportedBuild(JavaToolchainRequest request) {
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
         BuildPlatform buildPlatform = request.getBuildPlatform();
         Architecture architecture = buildPlatform.getArchitecture();
@@ -125,36 +132,47 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         }
 
         JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
-        return earlyAccessJdkBuildResolver.findLatestEABuild(languageVersion);
+        return Optional.of(earlyAccessJdkBuildResolver.findLatestEABuild(languageVersion));
     }
 
-    private static Optional<EarlyAccessJdkBuild> findLatestEABuild(JavaLanguageVersion languageVersion) {
+    static List<PreReleaseJdkBuild> findRecentPreReleaseBuild(JavaLanguageVersion languageVersion) {
         try {
-            URL url = new URL("https://storage.googleapis.com/elasticsearch-jdk-archive/jdks/openjdk/latest.json");
+            URL url = new URL(RECENT_JDK_RELEASES_CATALOG_URL);
             try (InputStream is = url.openStream()) {
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode node = mapper.readTree(is);
-                ArrayNode buildsNode = (ArrayNode) node.get("builds");
+                ObjectNode majors = (ObjectNode) node.get("majors");
+                ObjectNode perVersion = (ObjectNode) majors.get("" + languageVersion.asInt());
+                ArrayNode buildsNode = (ArrayNode) perVersion.get("builds");
                 List<JsonNode> buildsList = new ArrayList<>();
                 buildsNode.forEach(buildsList::add);
-                List<EarlyAccessJdkBuild> eaBuilds = buildsList.stream()
+                List<PreReleaseJdkBuild> eaBuilds = buildsList.stream()
                     .map(
-                        n -> new EarlyAccessJdkBuild(
+                        n -> new PreReleaseJdkBuild(
                             JavaLanguageVersion.of(n.get("major").asText()),
-                            Integer.parseInt(n.get("build").asText())
+                            Integer.parseInt(n.get("build").asText()),
+                            n.get("type").asText()
                         )
                     )
                     .toList();
-                return eaBuilds.stream().filter(ea -> ea.languageVersion().equals(languageVersion)).findFirst();
+                return eaBuilds.stream().filter(ea -> ea.languageVersion().equals(languageVersion)).toList();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         } catch (MalformedURLException e) {
-            return Optional.empty();
+            throw new RuntimeException(e);
         }
     }
 
-    public static int findLatestEABuildNumber(int languageVersion) {
-        return findLatestEABuild(JavaLanguageVersion.of(languageVersion)).map(ea -> ea.buildNumber()).get();
+    public static PreReleaseJdkBuild findPreReleaseBuild(JavaLanguageVersion languageVersion, int buildNumber) {
+        return findRecentPreReleaseBuild(languageVersion).stream()
+            .filter(preReleaseJdkBuild -> preReleaseJdkBuild.buildNumber == buildNumber)
+            .max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber))
+            .get();
     }
+
+    public static PreReleaseJdkBuild findLatestPreReleaseBuild(JavaLanguageVersion languageVersion) {
+        return findRecentPreReleaseBuild(languageVersion).stream().max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber)).get();
+    }
+
 }

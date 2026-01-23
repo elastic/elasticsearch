@@ -24,7 +24,6 @@ import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -61,12 +60,6 @@ public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCas
         return Settings.builder().put(super.nodeSettings()).put("serverless.cross_project.enabled", "true").build();
     }
 
-    @Override
-    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        // Setting skip_unavailable=false results in a fatal error when the linked cluster is not available.
-        return Map.of(LINKED_CLUSTER_1, false);
-    }
-
     public void testCpsShouldNotUseSkipUnavailable() throws Exception {
         // Add some dummy data to prove we are communicating fine with the remote.
         assertAcked(client(LINKED_CLUSTER_1).admin().indices().prepareCreate("test-index"));
@@ -80,11 +73,7 @@ public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCas
             throw new AssertionError(e);
         }
 
-        /*
-         * Under normal circumstances, we should get a fatal error for when skip_unavailable=false for a linked cluster
-         * and that cluster is targeted in a search op. However, in CPS environment, setting allow_partial_search_results=true
-         * should not result in a fatal error.
-         */
+        // 1. We first execute a search request with partial results allowed and shouldn't observe any top-level errors.
         {
             var searchRequest = getSearchRequest(true);
             searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
@@ -108,11 +97,7 @@ public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCas
             });
         }
 
-        /*
-         * Previously, we did not get a fatal error even when skip_unavailable=false for the linked cluster.
-         * Now, we disable partial results and expect a fatal error. This proves that in CPS environment,
-         * search uses allow_partial_search_results and not skip_unavailable.
-         */
+        // 2. We now execute a search request with partial results disallowed and should observe a top-level error.
         {
             var searchRequest = getSearchRequest(false);
             searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
@@ -123,6 +108,12 @@ public class CpsDoesNotUseSkipUnavailableIT extends AbstractMultiClustersTestCas
                 Matchers.anyOf(Matchers.instanceOf(RemoteTransportException.class), Matchers.instanceOf(ConnectTransportException.class))
             );
         }
+
+        /*
+         * We usually get a top-level error when skip_unavailable is false. However, irrespective of that setting in this test, we now
+         * observe a top-level error when partial results are disallowed. This proves that skip_unavailable's scope has now shifted to
+         * allow_partial_search_results in CPS environment.
+         */
     }
 
     private SearchRequest getSearchRequest(boolean allowPartialResults) {

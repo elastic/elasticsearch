@@ -11,9 +11,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
@@ -33,17 +31,5 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
             version -> (version.equals(VersionProperties.getElasticsearchVersion()) && buildParams.getSnapshotBuild() == false)
                 || buildParams.getBwcVersions().unreleasedInfo(version) == null
         );
-
-        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-            .getExtensions()
-            .getByName(TestClustersPlugin.EXTENSION_NAME);
-        // Limit the number of allocated processors for all nodes to 2 in the cluster by default.
-        // This is to ensure that the tests run consistently across different environments.
-        String processorCount = shouldConfigureTestClustersWithOneProcessor() ? "1" : "2";
-        testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.setting("node.processors", processorCount));
-    }
-
-    private boolean shouldConfigureTestClustersWithOneProcessor() {
-        return Boolean.parseBoolean(System.getProperty("tests.configure_test_clusters_with_one_processor", "false"));
     }
 }

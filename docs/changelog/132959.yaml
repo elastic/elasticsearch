@@ -1,5 +1,0 @@
-pr: 132959
-summary: Adds the `v_hamming` function for calculating the Hamming distance between two dense vectors
-area: ES|QL
-type: feature
-issues: [132056]

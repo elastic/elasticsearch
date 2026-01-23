@@ -98,6 +98,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     @Override
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Object getSampleObjectForDocument() {
         return getSampleValueForDocument();
     }
@@ -105,6 +110,16 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
+    }
+
+    @Override
+    protected boolean supportsEmptyInputArray() {
+        return false;
+    }
+
+    @Override
+    protected boolean addsValueWhenNotSupplied() {
+        return true;
     }
 
     protected void minimalFieldMappingPreviousIndexDefaultsIncluded(XContentBuilder b) throws IOException {
@@ -285,7 +300,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     public void testDefaultsWithAndWithoutIncludeDefaultsOlderIndexVersion() throws Exception {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             UPGRADE_TO_LUCENE_10_0_0,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
         );
@@ -514,11 +528,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public void testSparseVectorUnsupportedIndex() {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.V_8_0_0,
-            IndexVersions.FIRST_DETACHED_INDEX_VERSION
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersions.FIRST_DETACHED_INDEX_VERSION);
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
             b.field("type", "sparse_vector");
         })));
@@ -911,6 +921,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public static IndexVersion getIndexOptionsCompatibleIndexVersion() {
-        return IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+        return IndexVersionUtils.randomVersionBetween(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
     }
 }

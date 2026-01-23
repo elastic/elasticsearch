@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.junit.After;
@@ -77,7 +78,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
             "test",
             1,
             1,
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

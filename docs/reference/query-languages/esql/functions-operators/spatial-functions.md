@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Spatial functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-spatial-functions
@@ -11,6 +14,7 @@ mapped_pages:
 :::{include} ../_snippets/lists/spatial-functions.md
 :::
 
+## Geospatial predicates
 
 :::{include} ../_snippets/functions/layout/st_distance.md
 :::
@@ -27,10 +31,18 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_within.md
 :::
 
+## Geometry functions
+
 :::{include} ../_snippets/functions/layout/st_x.md
 :::
 
 :::{include} ../_snippets/functions/layout/st_y.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_npoints.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_simplify.md
 :::
 
 :::{include} ../_snippets/functions/layout/st_envelope.md
@@ -46,4 +58,15 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/st_ymin.md
+:::
+
+## Grid encoding functions
+
+:::{include} ../_snippets/functions/layout/st_geotile.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohex.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohash.md
 :::

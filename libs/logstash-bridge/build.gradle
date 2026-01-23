@@ -24,6 +24,8 @@ dependencies {
   compileOnly project(':x-pack:plugin:redact')
   compileOnly project(':x-pack:plugin:spatial')
   compileOnly project(':x-pack:plugin:wildcard')
+
+  compileOnly('com.maxmind.db:maxmind-db:3.1.1')
 }
 
 tasks.named('forbiddenApisMain').configure {

@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.validation.DenseEmbeddingModelValidator;
 
 /**
  * Contains any model-specific settings that are stored in SageMakerServiceSettings.
@@ -21,6 +21,7 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
     SageMakerStoredServiceSchema NO_OP = new SageMakerStoredServiceSchema() {
 
         private static final String NAME = "noop_sagemaker_service_schema";
+        private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
         @Override
         public String getWriteableName() {
@@ -30,13 +31,12 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             assert false : "should never be called when supportsVersion is used";
-            return TransportVersions.ML_INFERENCE_SAGEMAKER;
+            return ML_INFERENCE_SAGEMAKER;
         }
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER)
-                || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_8_19);
+            return version.supports(ML_INFERENCE_SAGEMAKER);
         }
 
         @Override
@@ -73,7 +73,7 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
 
     /**
      * If this Schema supports Text Embeddings, then we need to implement this.
-     * {@link org.elasticsearch.xpack.inference.services.validation.TextEmbeddingModelValidator} will set the dimensions if the user
+     * {@link DenseEmbeddingModelValidator} will set the dimensions if the user
      * does not do it, so we need to store the dimensions and flip the {@link #dimensionsSetByUser()} boolean.
      */
     default SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {

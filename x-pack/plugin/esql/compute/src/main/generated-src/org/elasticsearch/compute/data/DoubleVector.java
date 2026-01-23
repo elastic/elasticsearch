@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -120,10 +119,10 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeDouble(getDouble(0));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof DoubleArrayVector v) {
+        } else if (this instanceof DoubleArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof DoubleBigArrayVector v) {
+        } else if (this instanceof DoubleBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {

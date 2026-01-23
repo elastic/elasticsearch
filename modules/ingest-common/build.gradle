@@ -28,7 +28,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget', 'search', 'simulate'
+    include '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget', 'search', 'simulate', 'capabilities'
   }
 }
 
@@ -53,6 +53,7 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ingest/30_date_processor/Test week based date parsing", "week-date behaviour has changed")
+  task.skipTest("ingest/120_grok/Test Grok Patterns Retrieval", "only counting the number of patterns, which may change")
 })
 
 configurations {

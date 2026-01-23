@@ -2,13 +2,16 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html
   - https://www.elastic.co/guide/en/serverless/current/elasticsearch-differences.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # REST APIs
 
 Elasticsearch exposes REST APIs that are used by the UI components and can be called directly to configure and access Elasticsearch features.
 
-For API reference information, go to [Elasticsearch API](https://www.elastic.co/docs/api/doc/elasticsearch) and [Elasticsearch Serverless API](https://www.elastic.co/docs/api/doc/elasticsearch-serverless).
+For API reference information, go to [{{es}} API]({{es-apis}}) and [{{es-serverless}} API]({{es-serverless-apis}}).
 
 This section includes:
 
@@ -18,17 +21,6 @@ This section includes:
 - [Examples](/reference/elasticsearch/rest-apis/api-examples.md)
 
 ## API endpoints
-
-### [Autoscaling](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-autoscaling)
-
-The autoscaling APIs enable you to create and manage autoscaling policies and retrieve information about autoscaling capacity. Autoscaling adjusts resources based on demand. A deployment can use autoscaling to scale resources as needed, ensuring sufficient capacity to meet workload requirements.
-
-| API | Description |
-| --- | ----------- |
-| [Get Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-policy) | Retrieves a specific autoscaling policy. |
-| [Create or update an autoscaling policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-put-autoscaling-policy) | Creates or updates an autoscaling policy. |
-| [Delete Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-delete-autoscaling-policy) | Deletes an existing autoscaling policy. |
-| [Get Autoscaling Capacity](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-capacity) | Estimates autoscaling capacity for current cluster state. |
 
 ### [Behavioral analytics](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-analytics)
 
@@ -96,6 +88,8 @@ The cluster APIs enable you to retrieve information about your infrastructure on
 | [Get cluster remote info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-remote-info) | Returns information about configured remote clusters for cross-cluster search and replication. |
 | [Update cluster voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Update the cluster voting config exclusions by node IDs or node names. |
 | [Delete voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting configuration exclusions, allowing previously excluded nodes to participate in master elections. |
+| [Exclude nodes from voting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Excludes nodes from voting in master elections. |
+| [Clear voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting config exclusions. |
 
 ### [Cluster - Health](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-health_report)
 
@@ -307,7 +301,7 @@ The index lifecycle management APIs enable you to set up policies to automatical
 
 ### [Inference](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-inference)
 
-The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Mistral, OpenAI, or HuggingFace.
+The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Groq, Mistral, OpenAI, or HuggingFace.
 
 | API | Description |
 | --- | ----------- |
@@ -445,15 +439,6 @@ The migration APIs power {{kib}}'s Upgrade Assistant feature.
 | [Deprecation Info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-deprecations) | Retrieves deprecation warnings for cluster and indices. |
 | [Get Feature Upgrade Status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-get-feature-upgrade-status) | Checks upgrade status of system features. |
 | [Post Feature Upgrade](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-post-feature-upgrade) | Upgrades internal system features after a version upgrade. |
-
-### [Node lifecycle](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-shutdown)
-
-The node lifecycle APIs enable you to prepare nodes for temporary or permanent shutdown, monitor the shutdown status, and enable a previously shut-down node to resume normal operations.
-
-| API | Description |
-| --- | ----------- |
-| [Exclude nodes from voting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Excludes nodes from voting in master elections. |
-| [Clear voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting config exclusions. |
 
 ### [Query rules](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-query_rules)
 

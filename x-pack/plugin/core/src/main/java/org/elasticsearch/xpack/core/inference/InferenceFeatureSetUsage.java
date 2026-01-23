@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.core.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.inference.usage.ModelStats;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -24,83 +21,6 @@ import java.util.List;
 import java.util.Objects;
 
 public class InferenceFeatureSetUsage extends XPackFeatureUsage {
-
-    public static class ModelStats implements ToXContentObject, Writeable {
-
-        private final String service;
-        private final TaskType taskType;
-        private long count;
-
-        public ModelStats(String service, TaskType taskType) {
-            this(service, taskType, 0L);
-        }
-
-        public ModelStats(String service, TaskType taskType, long count) {
-            this.service = service;
-            this.taskType = taskType;
-            this.count = count;
-        }
-
-        public ModelStats(ModelStats stats) {
-            this(stats.service, stats.taskType, stats.count);
-        }
-
-        public ModelStats(StreamInput in) throws IOException {
-            this.service = in.readString();
-            this.taskType = in.readEnum(TaskType.class);
-            this.count = in.readLong();
-        }
-
-        public void add() {
-            count++;
-        }
-
-        public String service() {
-            return service;
-        }
-
-        public TaskType taskType() {
-            return taskType;
-        }
-
-        public long count() {
-            return count;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            addXContentFragment(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        public void addXContentFragment(XContentBuilder builder, Params params) throws IOException {
-            builder.field("service", service);
-            builder.field("task_type", taskType.name());
-            builder.field("count", count);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(service);
-            out.writeEnum(taskType);
-            out.writeLong(count);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ModelStats that = (ModelStats) o;
-            return count == that.count && Objects.equals(service, that.service) && taskType == that.taskType;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(service, taskType, count);
-        }
-    }
 
     public static final InferenceFeatureSetUsage EMPTY = new InferenceFeatureSetUsage(List.of());
 
@@ -130,7 +50,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -143,5 +63,9 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
     @Override
     public int hashCode() {
         return Objects.hashCode(modelStats);
+    }
+
+    Collection<ModelStats> modelStats() {
+        return modelStats;
     }
 }

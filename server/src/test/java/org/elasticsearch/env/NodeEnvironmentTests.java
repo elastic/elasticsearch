@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
@@ -134,25 +135,28 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             try (var mockLog = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
                 mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "hot threads logging",
-                        NODE_ENVIRONMENT_LOGGER_NAME,
-                        Level.DEBUG,
-                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
-                    )
+                    new MockLog.SeenEventExpectation("hot threads logging", NODE_ENVIRONMENT_LOGGER_NAME, Level.DEBUG, """
+                        hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after [*ms]; \
+                        this shard lock is still held by a different instance of the shard and has been in state [1] for [*/*ms]*""")
                 );
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
                         "second attempt should be suppressed due to throttling",
                         NODE_ENVIRONMENT_LOGGER_NAME,
                         Level.DEBUG,
-                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                        "*obtaining shard lock for [3] timed out*"
                     )
                 );
 
                 assertEquals(new ShardId(index, 0), lock.getShardId());
 
-                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
+                assertThat(
+                    expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2")).getMessage(),
+                    matchesPattern("""
+                        \\[foo]\\[0]: obtaining shard lock for \\[2] timed out after \\[0ms]; \
+                        this shard lock is still held by a different instance of the shard \
+                        and has been in state \\[1] for \\[.*/[0-9]+ms]""")
+                );
 
                 for (Path path : env.indexPaths(index)) {
                     Files.createDirectories(path.resolve("0"));

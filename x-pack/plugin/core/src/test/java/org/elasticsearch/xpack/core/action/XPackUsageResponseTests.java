@@ -8,111 +8,59 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
+public class XPackUsageResponseTests extends AbstractWireSerializingTestCase<XPackUsageResponse> {
 
-public class XPackUsageResponseTests extends ESTestCase {
+    private static final String TEST_FEATURE_USAGE = "test-feature-usage";
 
-    private static TransportVersion oldVersion;
-    private static TransportVersion newVersion;
-
-    @BeforeClass
-    public static void setVersion() {
-        oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getFirstVersion(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-        );
-        newVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getNextVersion(oldVersion),
-            TransportVersion.current()
-        );
+    @Override
+    protected Writeable.Reader<XPackUsageResponse> instanceReader() {
+        return XPackUsageResponse::new;
     }
 
-    public static class OldUsage extends XPackFeatureUsage {
+    @Override
+    protected XPackUsageResponse createTestInstance() {
+        return new XPackUsageResponse(List.of(new TestXpackFeatureUsage(TEST_FEATURE_USAGE, randomBoolean(), randomBoolean())));
+    }
 
-        public OldUsage() {
-            super("old", randomBoolean(), randomBoolean());
+    @Override
+    protected XPackUsageResponse mutateInstance(XPackUsageResponse instance) throws IOException {
+        List<XPackFeatureUsage> usages = new ArrayList<>(instance.getUsages());
+        usages.add(new TestXpackFeatureUsage(TEST_FEATURE_USAGE, randomBoolean(), randomBoolean()));
+
+        return new XPackUsageResponse(usages);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = List.of(
+            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, TEST_FEATURE_USAGE, TestXpackFeatureUsage::new)
+        );
+
+        return new NamedWriteableRegistry(entries);
+    }
+
+    private static class TestXpackFeatureUsage extends XPackFeatureUsage {
+        TestXpackFeatureUsage(StreamInput input) throws IOException {
+            super(input);
         }
 
-        public OldUsage(final StreamInput in) throws IOException {
-            super(in);
+        TestXpackFeatureUsage(String name, boolean available, boolean enabled) {
+            super(name, available, enabled);
         }
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return oldVersion;
+            return TransportVersion.minimumCompatible();
         }
-
     }
-
-    public static class NewUsage extends XPackFeatureUsage {
-
-        public NewUsage() {
-            super("new", randomBoolean(), randomBoolean());
-        }
-
-        public NewUsage(final StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return newVersion;
-        }
-
-    }
-
-    public void testVersionDependentSerializationWriteToOldStream() throws IOException {
-        final XPackUsageResponse before = new XPackUsageResponse(List.of(new OldUsage(), new NewUsage()));
-        final BytesStreamOutput oldStream = new BytesStreamOutput();
-        oldStream.setTransportVersion(oldVersion);
-        before.writeTo(oldStream);
-
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-            List.of(
-                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "old", OldUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "new", NewUsage::new)
-            )
-        );
-
-        final StreamInput in = new NamedWriteableAwareStreamInput(oldStream.bytes().streamInput(), registry);
-        final XPackUsageResponse after = new XPackUsageResponse(in);
-        assertThat(after.getUsages(), hasSize(1));
-        assertThat(after.getUsages().get(0), instanceOf(OldUsage.class));
-    }
-
-    public void testVersionDependentSerializationWriteToNewStream() throws IOException {
-        final XPackUsageResponse before = new XPackUsageResponse(List.of(new OldUsage(), new NewUsage()));
-        final BytesStreamOutput newStream = new BytesStreamOutput();
-        newStream.setTransportVersion(newVersion);
-        before.writeTo(newStream);
-
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-            List.of(
-                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "old", OldUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "new", NewUsage::new)
-            )
-        );
-
-        final StreamInput in = new NamedWriteableAwareStreamInput(newStream.bytes().streamInput(), registry);
-        final XPackUsageResponse after = new XPackUsageResponse(in);
-        assertThat(after.getUsages(), hasSize(2));
-        assertThat(after.getUsages().get(0), instanceOf(OldUsage.class));
-        assertThat(after.getUsages().get(1), instanceOf(NewUsage.class));
-    }
-
 }

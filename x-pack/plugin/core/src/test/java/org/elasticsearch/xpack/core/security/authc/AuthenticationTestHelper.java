@@ -287,9 +287,12 @@ public class AuthenticationTestHelper {
 
         assert user.principal().equals(apiKeyId) : "user principal must match cloud API key ID";
 
-        return Authentication.newCloudApiKeyAuthentication(
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.API_KEY,
+            Subject.Type.CLOUD_API_KEY,
             AuthenticationResult.success(user, user.metadata()),
-            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8)
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            null
         );
 
     }
@@ -717,7 +720,7 @@ public class AuthenticationTestHelper {
                 if (transportVersion == null) {
                     transportVersion = TransportVersion.current();
                 }
-                if (transportVersion.before(authentication.getEffectiveSubject().getTransportVersion())) {
+                if (transportVersion.supports(authentication.getEffectiveSubject().getTransportVersion()) == false) {
                     return authentication.maybeRewriteForOlderVersion(transportVersion);
                 } else {
                     return authentication;

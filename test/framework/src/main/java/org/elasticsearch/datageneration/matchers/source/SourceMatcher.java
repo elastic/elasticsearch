@@ -55,7 +55,13 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         this.expectedNormalizedMapping = MappingTransforms.normalizeMapping(expectedMappingAsMap);
 
         this.fieldSpecificMatchers = FieldSpecificMatcher.matchers(actualMappings, actualSettings, expectedMappings, expectedSettings);
-        this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
+        this.dynamicFieldMatcher = new DynamicFieldMatcher(
+            actualMappings,
+            actualSettings,
+            expectedMappings,
+            expectedSettings,
+            ignoringSort
+        );
     }
 
     @Override
@@ -105,7 +111,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         return MatchResult.match();
     }
 
-    private MatchResult matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
+    protected MatchResult matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
         var actualFieldMapping = actualNormalizedMapping.get(fieldName);
         if (actualFieldMapping == null) {
             if (expectedNormalizedMapping.get(fieldName) != null

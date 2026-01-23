@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,14 +44,19 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.YES),
             MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, IncludingAltitude.YES),
             MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 1000, IncludingAltitude.YES),
+            MultiRowTestCaseSupplier.geohashCases(1, 1000),
+            MultiRowTestCaseSupplier.geotileCases(1, 1000),
+            MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
@@ -63,6 +69,7 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.DOUBLE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.BOOLEAN,
             DataType.IP,
             DataType.VERSION,
@@ -70,7 +77,8 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.TEXT,
             DataType.GEO_POINT,
             DataType.CARTESIAN_POINT,
-            DataType.UNSIGNED_LONG
+            DataType.UNSIGNED_LONG,
+            DataType.AGGREGATE_METRIC_DOUBLE
         )) {
             suppliers.add(
                 new TestCaseSupplier(
@@ -78,7 +86,7 @@ public class CountTests extends AbstractAggregationTestCase {
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
-                        "Count[field=Attribute[channel=0]]",
+                        dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
                         DataType.LONG,
                         equalTo(0L)
                     )
@@ -95,17 +103,24 @@ public class CountTests extends AbstractAggregationTestCase {
         return new Count(source, args.get(0));
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var rowCount = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
+            long count;
+            if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
+                count = fieldTypedData.multiRowData().stream().mapToLong(data -> {
+                    var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) data;
+                    if (aggMetric.count() != null) {
+                        return aggMetric.count();
+                    }
+                    return 0;
+                }).sum();
+            } else {
+                count = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
+            }
 
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData),
-                "Count[field=Attribute[channel=0]]",
-                DataType.LONG,
-                equalTo(rowCount)
-            );
+            String evaluatorToString = fieldSupplier.type() == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count";
+            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), evaluatorToString, DataType.LONG, equalTo(count));
         });
     }
 }

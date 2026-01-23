@@ -57,14 +57,20 @@ public class OptimizedScalarQuantizer {
 
     public record QuantizationResult(float lowerInterval, float upperInterval, float additionalCorrection, int quantizedComponentSum) {}
 
-    public QuantizationResult[] multiScalarQuantize(float[] vector, int[][] destinations, byte[] bits, float[] centroid) {
+    public QuantizationResult[] multiScalarQuantize(
+        float[] vector,
+        float[] residualDestination,
+        int[][] destinations,
+        byte[] bits,
+        float[] centroid
+    ) {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert bits.length == destinations.length;
         if (similarityFunction == EUCLIDEAN) {
-            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, vector, statsScratch);
+            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
         } else {
-            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, vector, statsScratch);
+            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
         }
         float vecMean = statsScratch[0];
         float vecVar = statsScratch[1];
@@ -78,14 +84,14 @@ public class OptimizedScalarQuantizer {
             int points = (1 << bits[i]);
             // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
             initInterval(bits[i], vecStd, vecMean, min, max, intervalScratch);
-            boolean hasQuantization = optimizeIntervals(intervalScratch, destinations[i], vector, norm2, points);
+            boolean hasQuantization = optimizeIntervals(intervalScratch, destinations[i], residualDestination, norm2, points);
             // Now we have the optimized intervals, quantize the vector
             int sumQuery;
             if (hasQuantization) {
                 sumQuery = getSumQuery(destinations[i]);
             } else {
                 sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
-                    vector,
+                    residualDestination,
                     destinations[i],
                     intervalScratch[0],
                     intervalScratch[1],
@@ -102,16 +108,16 @@ public class OptimizedScalarQuantizer {
         return results;
     }
 
-    public QuantizationResult scalarQuantize(float[] vector, int[] destination, byte bits, float[] centroid) {
-        assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
+    public QuantizationResult scalarQuantize(float[] vector, float[] residualDestination, int[] destination, byte bits, float[] centroid) {
+        assert similarityFunction != COSINE || BQVectorUtils.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert vector.length <= destination.length;
         assert bits > 0 && bits <= 8;
         int points = 1 << bits;
         if (similarityFunction == EUCLIDEAN) {
-            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, vector, statsScratch);
+            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
         } else {
-            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, vector, statsScratch);
+            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
         }
         float vecMean = statsScratch[0];
         float vecVar = statsScratch[1];
@@ -121,13 +127,19 @@ public class OptimizedScalarQuantizer {
         float vecStd = (float) Math.sqrt(vecVar);
         // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
         initInterval(bits, vecStd, vecMean, min, max, intervalScratch);
-        boolean hasQuantization = optimizeIntervals(intervalScratch, destination, vector, norm2, points);
+        boolean hasQuantization = optimizeIntervals(intervalScratch, destination, residualDestination, norm2, points);
         // Now we have the optimized intervals, quantize the vector
         int sumQuery;
         if (hasQuantization) {
             sumQuery = getSumQuery(destination);
         } else {
-            sumQuery = ESVectorUtil.quantizeVectorWithIntervals(vector, destination, intervalScratch[0], intervalScratch[1], bits);
+            sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
+                residualDestination,
+                destination,
+                intervalScratch[0],
+                intervalScratch[1],
+                bits
+            );
         }
         return new QuantizationResult(
             intervalScratch[0],

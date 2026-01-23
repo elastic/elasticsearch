@@ -124,6 +124,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1166,6 +1167,53 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
     }
 
+    public void testWithTinyRetentions() {
+        final String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int numBackingIndices = 1;
+        final int numFailureIndices = 1;
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        final DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(1))
+            .build();
+        final DataStreamLifecycle failuresLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueHours(12))
+            .build();
+        final DataStream dataStream = createDataStream(
+            metadataBuilder,
+            dataStreamName,
+            numBackingIndices,
+            numFailureIndices,
+            settings(IndexVersion.current()),
+            dataLifecycle,
+            failuresLifecycle,
+            now
+        );
+        metadataBuilder.put(dataStream);
+
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(metadataBuilder).build();
+        dataStreamLifecycleService.run(state);
+
+        assertThat(clientSeenRequests, hasSize(2));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
+
+        // test main data stream max_age
+        final RolloverRequest rolloverRequest = (RolloverRequest) clientSeenRequests.get(0);
+        assertThat(rolloverRequest.getRolloverTarget(), is(dataStreamName));
+        final RolloverConditions conditions = rolloverRequest.getConditions();
+        assertThat(conditions.getMaxAge(), equalTo(TimeValue.timeValueHours(1))); // 1 day retention -> 1h max_age
+
+        // test failure data stream max_age
+        final RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
+        assertThat(
+            rolloverFailureIndexRequest.getRolloverTarget(),
+            is(IndexNameExpressionResolver.combineSelector(dataStreamName, IndexComponentSelector.FAILURES))
+        );
+
+        final RolloverConditions failureStoreConditions = rolloverFailureIndexRequest.getConditions();
+        assertThat(failureStoreConditions.getMaxAge(), equalTo(TimeValue.timeValueHours(1))); // 12h retention -> 1h max_age
+    }
+
     public void testDownsampling() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 2;
@@ -1180,9 +1228,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
             DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(
-                    List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
-                )
+                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
                 .dataRetention(TimeValue.MAX_VALUE)
                 .build(),
             now
@@ -1329,9 +1375,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
             DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(
-                    List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
-                )
+                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
                 .dataRetention(TimeValue.MAX_VALUE)
                 .build(),
             now
@@ -1614,9 +1658,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
             DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(
-                    List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
-                )
+                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
                 .dataRetention(TimeValue.timeValueMillis(1))
                 .build(),
             now

@@ -13,6 +13,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -47,7 +49,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -59,6 +61,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -78,6 +81,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -87,7 +91,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -101,6 +104,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -193,7 +197,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class, BlockingOnRewriteQueryPlugin.class);
+        return List.of(TestMapperPlugin.class, BlockingOnRewriteQueryPlugin.class);
     }
 
     @Override
@@ -445,30 +449,36 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.get().get("some_dimension").get("keyword").nonDimensionIndices(), array(equalTo("new_index")));
     }
 
-    public void testFailures() throws InterruptedException {
+    public void testFailures() throws IOException {
         // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
         assertAcked(prepareCreate("index1-error"), prepareCreate("index2-error"));
         ensureGreen("index1-error", "index2-error");
-        FieldCapabilitiesResponse response = client().prepareFieldCaps()
+
+        // Closed shards will result to index error because shards must be in readable state
+        closeShards(internalCluster(), "index1-error", "index2-error");
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "index1-error", "index2-error")
             .setFields("*")
-            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertEquals(1, response.getFailures().size());
         assertEquals(2, response.getFailedIndicesCount());
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
-        assertEquals(IllegalArgumentException.class, failure.getClass());
-        assertEquals("I throw because I choose to.", failure.getMessage());
+        assertEquals(IllegalIndexShardStateException.class, failure.getClass());
+        assertEquals(
+            "CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]",
+            failure.getMessage()
+        );
 
         // the "indices" section should not include failed ones
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
 
         // if all requested indices failed, we fail the request by throwing the exception
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            client().prepareFieldCaps("index1-error", "index2-error").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+        IllegalIndexShardStateException ex = expectThrows(
+            IllegalIndexShardStateException.class,
+            client().prepareFieldCaps("index1-error", "index2-error").setFields("*")
         );
-        assertEquals("I throw because I choose to.", ex.getMessage());
+        assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", ex.getMessage());
     }
 
     private void populateTimeRangeIndices() throws Exception {
@@ -906,6 +916,170 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(actualIndexModes, equalTo(indexModes));
     }
 
+    public void testResolvedExpressionWithIndexAlias() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("current").setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "new_index");
+
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("current", expression.original());
+        assertThat(expression.localExpressions().indices(), containsInAnyOrder("new_index"));
+    }
+
+    public void testResolvedExpressionWithWildcard() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("*index").setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "new_index", "old_index");
+
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("*index", expression.original());
+        assertThat(expression.localExpressions().indices(), containsInAnyOrder("new_index", "old_index"));
+    }
+
+    public void testResolvedExpressionWithClosedIndices() throws IOException {
+        // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
+        assertAcked(prepareCreate("index1-error"), prepareCreate("index2-error"));
+        ensureGreen("index1-error", "index2-error");
+
+        // Closed shards will result to index error because shards must be in readable state
+        closeShards(internalCluster(), "index1-error", "index2-error");
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "index1-error", "index2-error")
+            .setFields("*")
+            .setIncludeResolvedTo(true)
+            .get();
+        Set<String> openIndices = Set.of("old_index", "new_index");
+        Set<String> closedIndices = Set.of("index1-error", "index2-error");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(4, resolvedLocally.expressions().size());
+        for (ResolvedIndexExpression expression : expressions) {
+            ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
+            if (openIndices.contains(expression.original())) {
+                assertThat(expression.localExpressions().indices(), containsInAnyOrder(expression.original()));
+                assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());
+            } else if (closedIndices.contains(expression.original())) {
+                Set<String> concreteIndices = localExpressions.indices();
+                assertEquals(0, concreteIndices.size());
+                assertEquals(
+                    ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                    localExpressions.localIndexResolutionResult()
+                );
+            }
+        }
+    }
+
+    public void testResolvedExpressionWithAllIndices() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "new_index", "old_index");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("_all", expression.original()); // not setting indices means _all
+        ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
+        assertThat(expression.localExpressions().indices(), containsInAnyOrder("new_index", "old_index"));
+        assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());
+    }
+
+    public void testResolvedExpressionWithOnlyOneClosedIndexAndIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index")
+            .setFields("*")
+            .setIndicesOptions(options)
+            .setIncludeResolvedTo(true)
+            .get();
+
+        assertIndices(response);
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, expressions.size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("old_index", expression.original());
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
+        Set<String> concreteIndices = localExpressions.indices();
+        assertEquals(0, concreteIndices.size());
+        assertEquals(
+            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+            localExpressions.localIndexResolutionResult()
+        );
+    }
+
+    public void testResolvedExpressionWithIndexFilter() throws InterruptedException {
+        assertAcked(
+            prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"),
+            prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long")
+        );
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
+        indexRandom(true, reqs);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*")
+            .setFields("*")
+            .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+            .setIncludeResolvedTo(true)
+            .get();
+
+        assertIndices(response, "index-2");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("index-*", expression.original());
+        assertThat(expression.localExpressions().indices(), containsInAnyOrder("index-1", "index-2"));
+    }
+
+    public void testNoneExpressionIndices() {
+        // The auth code injects the pattern ["*", "-*"] which effectively means a request that requests no indices
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("*", "-*").setFields("*").get();
+
+        assertThat(response.getIndices().length, is(0));
+    }
+
+    public void testExclusion() {
+        assertAcked(prepareCreate("index-2024"), prepareCreate("index-2025"));
+
+        prepareIndex("index-2024").setSource("timestamp", "2024", "f1", "1").get();
+        prepareIndex("index-2025").setSource("timestamp", "2025", "f2", "2").get();
+
+        var response = client().prepareFieldCaps("index-*", "-*2025").setFields("*").get();
+        assertIndices(response, "index-2024");
+    }
+
+    public void testExclusionWithResolvedTo() {
+        assertAcked(prepareCreate("index-2024"), prepareCreate("index-2025"));
+
+        prepareIndex("index-2024").setSource("timestamp", "2024", "f1", "1").get();
+        prepareIndex("index-2025").setSource("timestamp", "2025", "f2", "2").get();
+
+        var response = client().prepareFieldCaps("index-*", "-*2025").setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "index-2024");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("index-*", expression.original());
+        assertThat(expression.localExpressions().indices(), containsInAnyOrder("index-2024", "index-2025"));
+    }
+
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
         assertNotNull(response.getIndices());
         Arrays.sort(indices);
@@ -913,45 +1087,17 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertArrayEquals(indices, response.getIndices());
     }
 
-    /**
-     * Adds an "exception" query that  throws on rewrite if the index name contains the string "error"
-     */
-    public static class ExceptionOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
-
-        public ExceptionOnRewriteQueryPlugin() {}
-
-        @Override
-        public List<QuerySpec<?>> getQueries() {
-            return singletonList(
-                new QuerySpec<>("exception", ExceptionOnRewriteQueryBuilder::new, p -> new ExceptionOnRewriteQueryBuilder())
-            );
-        }
-    }
-
-    static class ExceptionOnRewriteQueryBuilder extends DummyQueryBuilder {
-
-        public static final String NAME = "exception";
-
-        ExceptionOnRewriteQueryBuilder() {}
-
-        ExceptionOnRewriteQueryBuilder(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-            SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
-            if (searchExecutionContext != null) {
-                if (searchExecutionContext.indexMatches("*error*")) {
-                    throw new IllegalArgumentException("I throw because I choose to.");
+    static void closeShards(InternalTestCluster cluster, String... indices) throws IOException {
+        final Set<String> indicesToClose = Set.of(indices);
+        for (String node : cluster.getNodeNames()) {
+            final IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
+            for (IndexService indexService : indicesService) {
+                if (indicesToClose.contains(indexService.getMetadata().getIndex().getName())) {
+                    for (IndexShard indexShard : indexService) {
+                        closeShardNoCheck(indexShard);
+                    }
                 }
             }
-            return this;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
         }
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleBoundsTests extends ESTestCase {
@@ -66,7 +67,7 @@ public class DoubleBoundsTests extends ESTestCase {
             readBytes = out.bytes();
         }
 
-        assertEquals(origBytes, readBytes);
+        assertThat(readBytes, equalBytes(origBytes));
     }
 
     public void testXContentRoundTrip() throws Exception {

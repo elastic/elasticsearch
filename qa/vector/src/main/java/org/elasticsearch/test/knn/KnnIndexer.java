@@ -29,12 +29,20 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.StandardIOBehaviorHint;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,17 +54,18 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
 class KnnIndexer {
-    private static final double WRITER_BUFFER_MB = 128;
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
 
@@ -69,6 +78,8 @@ class KnnIndexer {
     private final int numDocs;
     private final int numIndexThreads;
     private final MergePolicy mergePolicy;
+    private final double writerBufferSizeInMb;
+    private final int writerMaxBufferedDocs;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -79,7 +90,9 @@ class KnnIndexer {
         int dim,
         VectorSimilarityFunction similarityFunction,
         int numDocs,
-        MergePolicy mergePolicy
+        MergePolicy mergePolicy,
+        double writerBufferSizeInMb,
+        int writerMaxBufferedDocs
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -90,12 +103,15 @@ class KnnIndexer {
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
+        this.writerBufferSizeInMb = writerBufferSizeInMb;
+        this.writerMaxBufferedDocs = writerMaxBufferedDocs;
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
-        iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
+        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
+        iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
         iwc.setUseCompoundFile(false);
         if (mergePolicy != null) {
             iwc.setMergePolicy(mergePolicy);
@@ -124,7 +140,7 @@ class KnnIndexer {
 
         long start = System.nanoTime();
         AtomicInteger numDocsIndexed = new AtomicInteger();
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexWriter iw = new IndexWriter(dir, iwc);) {
+        try (Directory dir = getDirectory(indexPath); IndexWriter iw = new IndexWriter(dir, iwc)) {
             for (Path docsPath : this.docsPath) {
                 int dim = this.dim;
                 try (FileChannel in = FileChannel.open(docsPath)) {
@@ -174,15 +190,20 @@ class KnnIndexer {
 
                     VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
                     try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
-                        List<Future<?>> threads = new ArrayList<>();
+                        List<Future<?>> futures = new ArrayList<>();
+                        List<IndexerThread> threads = new ArrayList<>();
                         for (int i = 0; i < numIndexThreads; i++) {
-                            Thread t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            var t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            threads.add(t);
                             t.setDaemon(true);
-                            threads.add(exec.submit(t));
+                            futures.add(exec.submit(t));
                         }
-                        for (Future<?> t : threads) {
-                            t.get();
+                        for (Future<?> future : futures) {
+                            future.get();
                         }
+                        result.docAddTimeMS = TimeUnit.NANOSECONDS.toMillis(
+                            threads.stream().mapToLong(x -> x.docAddTime).sum() / numIndexThreads
+                        );
                     }
                 }
             }
@@ -201,7 +222,7 @@ class KnnIndexer {
         result.numDocs = numDocsIndexed.get();
     }
 
-    void forceMerge(KnnIndexTester.Results results) throws Exception {
+    void forceMerge(KnnIndexTester.Results results, int maxNumSegments) throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
@@ -210,15 +231,34 @@ class KnnIndexer {
             }
         });
         iwc.setCodec(codec);
-        logger.debug("KnnIndexer: forceMerge in {}", indexPath);
+        iwc.setUseCompoundFile(false);
+        logger.info("KnnIndexer: forceMerge in {} into {} segments", indexPath, maxNumSegments);
         long startNS = System.nanoTime();
-        try (IndexWriter iw = new IndexWriter(FSDirectory.open(indexPath), iwc)) {
-            iw.forceMerge(1);
+        try (IndexWriter iw = new IndexWriter(getDirectory(indexPath), iwc)) {
+            iw.forceMerge(maxNumSegments);
         }
         long endNS = System.nanoTime();
         long elapsedNSec = (endNS - startNS);
         logger.info("forceMerge took {} ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
         results.forceMergeTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsedNSec);
+    }
+
+    static Directory getDirectory(Path indexPath) throws IOException {
+        Directory dir = FSDirectory.open(indexPath);
+        if (dir instanceof MMapDirectory mmapDir) {
+            mmapDir.setReadAdvice(getReadAdviceFunc()); // enable madvise
+            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir, 64);
+        }
+        return dir;
+    }
+
+    private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
+        return (name, context) -> {
+            if (context.hints().contains(StandardIOBehaviorHint.INSTANCE) || name.endsWith(".cfs")) {
+                return Optional.of(ReadAdvice.NORMAL);
+            }
+            return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+        };
     }
 
     static class IndexerThread extends Thread {
@@ -230,6 +270,9 @@ class KnnIndexer {
         private final byte[] byteVectorBuffer;
         private final float[] floatVectorBuffer;
         private final VectorReader in;
+
+        long readTime;
+        long docAddTime;
 
         private IndexerThread(
             IndexWriter iw,
@@ -277,23 +320,32 @@ class KnnIndexer {
                     continue;
                 }
 
-                Document doc = new Document();
+                var startRead = System.nanoTime();
+                final IndexableField field;
                 switch (vectorEncoding) {
                     case BYTE -> {
                         in.next(byteVectorBuffer);
-                        doc.add(new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType));
+                        field = new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType);
                     }
                     case FLOAT32 -> {
                         in.next(floatVectorBuffer);
-                        doc.add(new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType));
+                        field = new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType);
                     }
+                    default -> throw new UnsupportedOperationException();
                 }
+                long endRead = System.nanoTime();
+                readTime += (endRead - startRead);
+
+                Document doc = new Document();
+                doc.add(field);
 
                 if ((id + 1) % 25000 == 0) {
                     logger.debug("Done indexing " + (id + 1) + " documents.");
                 }
                 doc.add(new StoredField(ID_FIELD, id));
                 iw.addDocument(doc);
+
+                docAddTime += (System.nanoTime() - endRead);
             }
         }
     }

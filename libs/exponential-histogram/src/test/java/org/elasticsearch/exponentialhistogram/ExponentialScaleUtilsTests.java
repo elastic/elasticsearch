@@ -79,6 +79,12 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
         }
     }
 
+    public void testPointOfLeastErrorAtInfinity() {
+        assertThat(getPointOfLeastRelativeError(0, MIN_SCALE), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(getPointOfLeastRelativeError(-1, MIN_SCALE), equalTo(0.0));
+        assertThat(getPointOfLeastRelativeError(10, MIN_SCALE + 2), equalTo(Double.POSITIVE_INFINITY));
+    }
+
     public void testRandomValueIndexing() {
         for (int i = 0; i < 100_000; i++) {
             // generate values in the range 10^-100 to 10^100

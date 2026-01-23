@@ -224,6 +224,48 @@
         },
         {
           "name" : "trueValue",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "dense_vector",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
           "type" : "double",
           "optional" : false,
           "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
@@ -255,6 +297,48 @@
       ],
       "variadic" : true,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "exponential_histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "exponential_histogram",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "exponential_histogram"
     },
     {
       "params" : [
@@ -339,6 +423,132 @@
       ],
       "variadic" : true,
       "returnType" : "geo_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geohash"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "geohash",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geohash"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geohex"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "geohex",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geohex"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geotile"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "geotile",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geotile"
     },
     {
       "params" : [

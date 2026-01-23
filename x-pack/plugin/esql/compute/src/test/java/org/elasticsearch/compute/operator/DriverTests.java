@@ -371,7 +371,7 @@ public class DriverTests extends ESTestCase {
             final AtomicInteger processedRows = new AtomicInteger(0);
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
-            final var delayOperator = new EvalOperator(driverContext.blockFactory(), new EvalOperator.ExpressionEvaluator() {
+            final var delayOperator = new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
                     for (int i = 0; i < page.getPositionCount(); i++) {
@@ -381,6 +381,11 @@ public class DriverTests extends ESTestCase {
                         }
                     }
                     return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return 0;
                 }
 
                 @Override
@@ -527,7 +532,7 @@ public class DriverTests extends ESTestCase {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
-        return new DriverContext(bigArrays, blockFactory);
+        return new DriverContext(bigArrays, blockFactory, null);
     }
 
 }

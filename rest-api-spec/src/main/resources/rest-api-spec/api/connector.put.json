@@ -1,10 +1,10 @@
 {
   "connector.put": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/create-connector-api.html",
-      "description": "Creates or updates a connector."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-put",
+      "description": "Create or update a connector"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

@@ -117,7 +117,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 1L,
                 null,
                 false,
-                DataStreamLifecycle.createDataLifecycle(true, TimeValue.timeValueSeconds(50), null)
+                DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(TimeValue.timeValueSeconds(50)).build()
             ),
             DataStreamTestHelper.newInstance(
                 randomAlphaOfLength(10),
@@ -125,7 +125,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 1L,
                 null,
                 false,
-                DataStreamLifecycle.createDataLifecycle(true, TimeValue.timeValueMillis(150), null)
+                DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(TimeValue.timeValueMillis(150)).build()
             ),
             DataStreamTestHelper.newInstance(
                 randomAlphaOfLength(10),
@@ -133,7 +133,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 1L,
                 null,
                 false,
-                DataStreamLifecycle.createDataLifecycle(false, TimeValue.timeValueSeconds(5), null)
+                DataStreamLifecycle.dataLifecycleBuilder().enabled(false).dataRetention(TimeValue.timeValueSeconds(5)).build()
             ),
             DataStreamTestHelper.newInstance(
                 randomAlphaOfLength(10),

@@ -7,9 +7,9 @@ applies_to:
 
 # Optimistic concurrency control [optimistic-concurrency-control]
 
-Elasticsearch is distributed. When documents are created, updated, or deleted, the new version of the document has to be replicated to other nodes in the cluster. Elasticsearch is also asynchronous and concurrent, meaning that these replication requests are sent in parallel, and may arrive at their destination out of sequence. Elasticsearch needs a way of ensuring that an older version of a document never overwrites a newer version.
+{{es}} is distributed. When documents are created, updated, or deleted, the new version of the document has to be replicated to other nodes in the cluster. {{es}} is also asynchronous and concurrent, meaning that these replication requests are sent in parallel, and may arrive at their destination out of sequence. {{es}} needs a way of ensuring that an older version of a document never overwrites a newer version.
 
-To ensure an older version of a document doesn’t overwrite a newer version, every operation performed to a document is assigned a sequence number by the primary shard that coordinates that change. The sequence number is increased with each operation and thus newer operations are guaranteed to have a higher sequence number than older operations. Elasticsearch can then use the sequence number of operations to make sure a newer document version is never overridden by a change that has a smaller sequence number assigned to it.
+To ensure an older version of a document doesn’t overwrite a newer version, every operation performed to a document is assigned a sequence number by the primary shard that coordinates that change. The sequence number is increased with each operation and thus newer operations are guaranteed to have a higher sequence number than older operations. {{es}} can then use the sequence number of operations to make sure a newer document version is never overridden by a change that has a smaller sequence number assigned to it.
 
 For example, the following indexing command will create a document and assign it an initial sequence number and primary term:
 
@@ -38,12 +38,15 @@ You can see the assigned sequence number and primary term in the `_seq_no` and `
   "result": "created"
 }
 ```
+% TESTRESPONSE[s/"_seq_no": 362/"_seq_no": $body._seq_no/]
+% TESTRESPONSE[s/"_primary_term": 2/"_primary_term": $body._primary_term/]
 
-Elasticsearch keeps tracks of the sequence number and primary term of the last operation to have changed each of the documents it stores. The sequence number and primary term are returned in the `_seq_no` and `_primary_term` fields in the response of the [GET API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get):
+{{es}} keeps tracks of the sequence number and primary term of the last operation to have changed each of the documents it stores. The sequence number and primary term are returned in the `_seq_no` and `_primary_term` fields in the response of the [GET API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get):
 
 ```console
 GET products/_doc/1567
 ```
+% TEST[continued]
 
 returns:
 
@@ -61,6 +64,8 @@ returns:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": 362/"_seq_no": $body._seq_no/]
+% TESTRESPONSE[s/"_primary_term": 2/"_primary_term": $body._primary_term/]
 
 Note: The [Search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) can return the `_seq_no` and `_primary_term` for each search hit by setting [`seq_no_primary_term` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-search-seq-no-primary-term).
 
@@ -76,4 +81,5 @@ PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
   "tags": [ "droid" ]
 }
 ```
-
+% TEST[continued]
+% TEST[catch: conflict]

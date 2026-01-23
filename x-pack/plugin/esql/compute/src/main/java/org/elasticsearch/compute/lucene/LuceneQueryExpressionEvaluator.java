@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -27,8 +28,9 @@ import java.io.IOException;
  * @see LuceneQueryScoreEvaluator
  */
 public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanBlock.Builder> implements EvalOperator.ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LuceneQueryExpressionEvaluator.class);
 
-    LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
+    LuceneQueryExpressionEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
         super(blockFactory, shards);
     }
 
@@ -62,7 +64,12 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
         builder.appendBoolean(true);
     }
 
-    public record Factory(ShardConfig[] shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
+    @Override
+    public long baseRamBytesUsed() {
+        return BASE_RAM_BYTES_USED;
+    }
+
+    public record Factory(IndexedByShardId<ShardConfig> shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);

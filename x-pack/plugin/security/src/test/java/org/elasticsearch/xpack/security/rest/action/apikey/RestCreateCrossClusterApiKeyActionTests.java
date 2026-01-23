@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApi
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.Security;
+import org.junit.Assert;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
@@ -126,9 +127,41 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
 
         final RestResponse restResponse = responseSetOnce.get();
         assertThat(restResponse.status().getStatus(), equalTo(403));
+        Assert.assertNotNull(restResponse.content());
         assertThat(
             restResponse.content().utf8ToString(),
             containsString("current license is non-compliant for [advanced-remote-cluster-security]")
         );
+    }
+
+    public void testCreateKeyWithCertificateIdentity() throws Exception {
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("""
+            {
+              "name": "my-cert-key",
+              "access": {
+                "search": [
+                  {
+                    "names": [
+                      "logs"
+                    ]
+                  }
+                ]
+              },
+              "certificate_identity": "CN=test,OU=engineering,DC=example,DC=com"
+            }"""), XContentType.JSON).build();
+
+        final NodeClient client = mock(NodeClient.class);
+        action.handleRequest(restRequest, mock(RestChannel.class), client);
+
+        final ArgumentCaptor<CreateCrossClusterApiKeyRequest> requestCaptor = ArgumentCaptor.forClass(
+            CreateCrossClusterApiKeyRequest.class
+        );
+        verify(client).execute(eq(CreateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
+
+        final CreateCrossClusterApiKeyRequest request = requestCaptor.getValue();
+        Assert.assertNotNull(request.getCertificateIdentity());
+        assertThat(request.getCertificateIdentity().value(), equalTo("CN=test,OU=engineering,DC=example,DC=com"));
+        assertThat(request.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(request.getName(), equalTo("my-cert-key"));
     }
 }

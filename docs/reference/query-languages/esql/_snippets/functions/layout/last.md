@@ -2,7 +2,7 @@
 
 ## `LAST` [esql-last]
 ```{applies_to}
-stack: unavailable
+stack: ga 9.3.0
 ```
 
 **Syntax**

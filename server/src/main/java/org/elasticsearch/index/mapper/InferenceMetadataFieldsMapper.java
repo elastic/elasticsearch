@@ -65,7 +65,7 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
 
     public abstract static class InferenceMetadataFieldType extends MappedFieldType {
         public InferenceMetadataFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
+            super(NAME, IndexType.NONE, false, Map.of());
         }
 
         /**

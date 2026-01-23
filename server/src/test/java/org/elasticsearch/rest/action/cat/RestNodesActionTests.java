@@ -100,7 +100,7 @@ public class RestNodesActionTests extends ESTestCase {
             null,
             new OsStats(
                 nowMillis,
-                new OsStats.Cpu((short) sortValue, new double[] { sortValue, sortValue, sortValue }),
+                new OsStats.Cpu((short) sortValue, new double[] { sortValue, sortValue, sortValue }, sortValue),
                 new OsStats.Mem(0, 0, 0),
                 new OsStats.Swap(0, 0),
                 null

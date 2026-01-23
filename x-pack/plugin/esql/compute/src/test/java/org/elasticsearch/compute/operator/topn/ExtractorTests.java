@@ -19,11 +19,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -40,11 +41,14 @@ public class ExtractorTests extends ESTestCase {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         List<Object[]> cases = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
+            boolean supportsNull = true;
             switch (e) {
                 case UNKNOWN -> {
+                    supportsNull = false;
                 }
                 case COMPOSITE -> {
                     // TODO: add later
+                    supportsNull = false;
                 }
                 case AGGREGATE_METRIC_DOUBLE -> {
                     cases.add(
@@ -64,7 +68,12 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
+                case LONG_RANGE -> {
+                    cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(true)));
+                    cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(false)));
+                }
                 case FLOAT -> {
+                    supportsNull = false;
                 }
                 case BYTES_REF -> {
                     cases.add(valueTestCase("single alpha", e, TopNEncoder.UTF8, () -> randomAlphaOfLength(5)));
@@ -108,22 +117,28 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
-                case DOC -> cases.add(
-                    new Object[] {
-                        new TestCase(
-                            "doc",
-                            e,
-                            TopNEncoder.DEFAULT_UNSORTABLE,
-                            () -> new DocVector(
-                                ShardRefCounted.ALWAYS_REFERENCED,
-                                // Shard ID should be small and non-negative.
-                                blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                randomBoolean() ? null : randomBoolean()
-                            ).asBlock()
-                        ) }
-                );
+                case DOC -> {
+                    supportsNull = false;
+                    cases.add(
+                        new Object[] {
+                            new TestCase(
+                                "doc",
+                                e,
+                                new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE),
+                                () -> new DocVector(
+                                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                                    // Shard ID should be small and non-negative.
+                                    blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
+                                    blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                    blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                    randomBoolean() ? null : randomBoolean()
+                                ).asBlock()
+                            ) }
+                    );
+                }
+                case TDIGEST, EXPONENTIAL_HISTOGRAM ->
+                    // multi values are not supported
+                    cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> BlockTestUtils.randomValue(e)));
                 case NULL -> {
                 }
                 default -> {
@@ -138,7 +153,7 @@ public class ExtractorTests extends ESTestCase {
                     );
                 }
             }
-            if (e != ElementType.UNKNOWN && e != ElementType.COMPOSITE && e != ElementType.FLOAT && e != ElementType.DOC) {
+            if (supportsNull) {
                 cases.add(valueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
             }
         }
@@ -199,17 +214,15 @@ public class ExtractorTests extends ESTestCase {
             1
         );
         BytesRef values = valuesBuilder.bytesRefView();
-        if (result instanceof ResultBuilderForDoc fd) {
-            fd.setNextRefCounted(RefCounted.ALWAYS_REFERENCED);
-        }
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 
-        assertThat(result.build(), equalTo(value));
+        Block resultBlock = result.build();
+        assertThat(resultBlock, equalTo(value));
     }
 
     public void testInKey() {
-        assumeFalse("can't sort with un-sortable encoder", testCase.encoder == TopNEncoder.DEFAULT_UNSORTABLE);
+        assumeFalse("can't sort with un-sortable encoder", testCase.encoder instanceof DefaultUnsortableTopNEncoder);
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
@@ -255,5 +268,13 @@ public class ExtractorTests extends ESTestCase {
             randomBoolean() ? randomDouble() : null,
             randomBoolean() ? randomInt() : null
         );
+    }
+
+    private static LongRangeBlockBuilder.LongRange randomDateRange(boolean haveNulls) {
+        var from = randomMillisUpToYear9999();
+        var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+        return haveNulls
+            ? new LongRangeBlockBuilder.LongRange(randomBoolean() ? from : null, randomBoolean() ? to : null)
+            : new LongRangeBlockBuilder.LongRange(from, to);
     }
 }

@@ -49,29 +49,86 @@ b:integer | x:integer
 ;
 
 dropAllColumns
-from employees | keep height | drop height | eval x = 1;
+required_capability: fix_no_columns
+from employees | limit 4 | keep height | drop height | eval x = 1;
 
 x:integer
+1
+1
+1
+1
 ;
 
+dropEvalKeep
+required_capability: fix_no_columns
+from employees | drop salary | eval salary = 1 | keep salary | limit 4;
+
+salary:integer
+1
+1
+1
+1
+;
+
+
+dropEvalStats
+required_capability: fix_no_columns
+from mv_sample* | drop `client_ip`, message | eval  `event_duration` = "foo", @timestamp = 1 | stats max(@timestamp) by event_duration;
+
+max(@timestamp):integer | event_duration:keyword
+1                       | foo
+; 
+
+
+
+dropAllColumnsIndexPattern
+required_capability: fix_no_columns
+from emp* | drop languages | eval languages = 123 | keep languages | limit 4;
+
+languages:integer
+123
+123
+123
+123
+;
+
+
+dropAllColumnsWithMetadata
+required_capability: fix_no_columns
+from employees metadata _index | drop languages | eval languages = 123 | keep languages | limit 4;
+
+languages:integer
+123
+123
+123
+123
+;
+
+
 dropAllColumns_WithLimit
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | limit 3;
 
 x:integer
+1
+1
+1
 ;
 
 dropAllColumns_WithCount
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x);
 
 c:long
-0
+100
 ;
 
 dropAllColumns_WithStats
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
 
-c:l|mi:i|s:l
-0  |null|null
+c:l  | mi:i | s:l
+100  | 1    | 100
 ;
 
 

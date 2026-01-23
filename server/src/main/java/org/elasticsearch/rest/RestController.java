@@ -421,20 +421,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            final XContentType xContentType = request.getXContentType();
-            // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsBulkContent()
-                && XContentType.JSON != xContentType.canonical()
-                && XContentType.SMILE != xContentType.canonical()) {
-                channel.sendResponse(
-                    RestResponse.createSimpleErrorResponse(
-                        channel,
-                        RestStatus.NOT_ACCEPTABLE,
-                        "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"
-                    )
-                );
-                return;
-            }
         }
         RestChannel responseChannel = channel;
         if (apiProtections.isEnabled()) {
@@ -896,7 +882,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     // exposed for tests; marked as UpdateForV10 because this assertion should have flushed out all double-close bugs by the time v10 is
     // released so we should be able to drop the tests that check we behave reasonably in production on this impossible path
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     static boolean PERMIT_DOUBLE_RESPONSE = false;
 
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {

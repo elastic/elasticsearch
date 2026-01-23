@@ -27,13 +27,14 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.store.ReadAdvice;
+import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
@@ -146,18 +147,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     );
 
     /**
+     * A {@link org.apache.lucene.store.IOContext.FileOpenHint} that we will only read the Lucene file footer
+     */
+    public enum FileFooterOnly implements IOContext.FileOpenHint {
+        INSTANCE
+    }
+
+    /**
      * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
      * See {@link MetadataSnapshot#checksumFromLuceneFile}.
      */
-    public static final IOContext READONCE_CHECKSUM = createReadOnceContext();
-
-    // while equivalent, these different read once contexts are checked by identity in directory implementations
-    private static IOContext createReadOnceContext() {
-        var context = IOContext.READONCE.withReadAdvice(ReadAdvice.SEQUENTIAL);
-        assert context != IOContext.READONCE;
-        assert context.equals(IOContext.READONCE);
-        return context;
-    }
+    public static final IOContext READONCE_CHECKSUM = IOContext.READONCE.withHints(
+        DataAccessHint.SEQUENTIAL,
+        ReadOnceHint.INSTANCE,
+        FileFooterOnly.INSTANCE
+    );
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
@@ -934,8 +938,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean readFileAsHash,
             BytesRef writerUuid
         ) throws IOException {
-            // We select the read once context carefully here since these constants, while equivalent are
-            // checked by identity in the different directory implementations.
             var context = file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : READONCE_CHECKSUM;
             try (IndexInput in = directory.openInput(file, context)) {
                 final long length = in.length();
@@ -1468,12 +1470,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * created and the existing lucene index needs should be changed to use it.
      */
     public void associateIndexWithNewTranslog(final String translogUUID) throws IOException {
+        associateIndexWithNewUserKeyValueData(Translog.TRANSLOG_UUID_KEY, translogUUID);
+    }
+
+    /**
+     * Associate the lucene index with a new pair of key/value user data. The new value must be different from the
+     * existing one (if exists) or an exception is thrown.
+     */
+    public void associateIndexWithNewUserKeyValueData(String key, String newValue) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryAppendingIndexWriter(directory, null)) {
-            if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
-                throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
+            if (newValue.equals(getUserData(writer).get(key))) {
+                throw new IllegalArgumentException("a new [" + key + "] can't be equal to existing one. got [" + newValue + "]");
             }
-            updateCommitData(writer, Map.of(Translog.TRANSLOG_UUID_KEY, translogUUID));
+            updateCommitData(writer, Map.of(key, newValue));
         } finally {
             metadataLock.writeLock().unlock();
         }

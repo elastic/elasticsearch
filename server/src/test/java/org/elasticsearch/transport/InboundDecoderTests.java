@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -176,7 +175,7 @@ public class InboundDecoderTests extends ESTestCase {
         final var isHandshake = randomBoolean();
         final var version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
         logger.info("--> version = {}", version);
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
@@ -225,7 +224,7 @@ public class InboundDecoderTests extends ESTestCase {
         final var isHandshake = randomBoolean();
         final var version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
@@ -340,7 +339,7 @@ public class InboundDecoderTests extends ESTestCase {
     public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
         final ReleasableBytesReference releasable1;
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
@@ -368,14 +367,12 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testCheckVersionCompatibility() {
         try {
-            InboundDecoder.checkVersionCompatibility(
-                TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
-            );
+            InboundDecoder.checkVersionCompatibility(TransportVersionUtils.randomCompatibleVersion());
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
 
-        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
         try {
             InboundDecoder.checkVersionCompatibility(invalid);
             fail();
@@ -384,7 +381,7 @@ public class InboundDecoderTests extends ESTestCase {
                 "Received message from unsupported version: ["
                     + invalid.toReleaseVersion()
                     + "] minimal compatible version is: ["
-                    + TransportVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
+                    + TransportVersion.minimumCompatible().toReleaseVersion()
                     + "]",
                 expected.getMessage()
             );

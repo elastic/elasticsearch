@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -47,6 +48,7 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -329,7 +331,13 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right().foldable()) {
+        if (right() instanceof Literal lit) {
+            // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
+            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // it comes to multi-value handling).
+            if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }

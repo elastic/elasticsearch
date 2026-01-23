@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
@@ -34,8 +34,6 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
@@ -50,10 +48,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String NAME = "ES814ScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
 
     static final FlatVectorsScorer flatVectorScorer = new ESFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE)
+        new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
     );
 
     /** The minimum confidence interval */
@@ -132,7 +132,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         );
     }
 
-    static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
+    public static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
         final Lucene99ScalarQuantizedVectorsWriter delegate;
 
@@ -177,7 +177,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
     }
 
-    static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader, OffHeapStats {
+    static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
         final Lucene99ScalarQuantizedVectorsReader delegate;
 
@@ -233,7 +233,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-            return OffHeapByteSizeUtils.getOffHeapByteSize(delegate, fieldInfo);
+            return delegate.getOffHeapByteSize(fieldInfo);
         }
     }
 

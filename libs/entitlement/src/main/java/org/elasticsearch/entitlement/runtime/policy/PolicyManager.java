@@ -54,7 +54,7 @@ public class PolicyManager {
      */
     static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
-    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
+    public static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop", "java.xml");
 
     /**
      * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
@@ -94,7 +94,7 @@ public class PolicyManager {
          * If this kind corresponds to a single component, this is that component's name;
          * otherwise null.
          */
-        final String componentName;
+        public final String componentName;
 
         ComponentKind(String componentName) {
             this.componentName = componentName;
@@ -151,7 +151,7 @@ public class PolicyManager {
     }
 
     private FileAccessTree getDefaultFileAccess(Collection<Path> componentPaths) {
-        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPaths);
+        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, forbiddenPaths, componentPaths);
     }
 
     // pkg private for testing
@@ -176,7 +176,7 @@ public class PolicyManager {
             componentName,
             moduleName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths)
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths, forbiddenPaths)
         );
     }
 
@@ -226,6 +226,20 @@ public class PolicyManager {
      */
     private final List<ExclusivePath> exclusivePaths;
 
+    /**
+     * Paths for which we never want to allow access to, from any component
+     */
+    private final Set<String> forbiddenPaths;
+
+    private static Set<String> createForbiddenPaths(PathLookup pathLookup) {
+        return pathLookup.getBaseDirPaths(PathLookup.BaseDir.CONFIG)
+            .flatMap(
+                baseDir -> Stream.of(baseDir.resolve("elasticsearch.yml"), baseDir.resolve("jvm.options"), baseDir.resolve("jvm.options.d"))
+            )
+            .map(FileAccessTree::normalizePath)
+            .collect(Collectors.toSet());
+    }
+
     public PolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
@@ -260,6 +274,7 @@ public class PolicyManager {
         );
         FileAccessTree.validateExclusivePaths(exclusivePaths, FileAccessTree.DEFAULT_COMPARISON);
         this.exclusivePaths = exclusivePaths;
+        this.forbiddenPaths = createForbiddenPaths(pathLookup);
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
@@ -369,15 +384,15 @@ public class PolicyManager {
     boolean isTriviallyAllowed(Class<?> requestingClass) {
         // note: do not log exceptions in here, this could interfere with loading of additionally necessary classes such as ThrowableProxy
         if (requestingClass == null) {
-            generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
+            generalLogger.trace("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
         if (requestingClass == NO_CLASS) {
-            generalLogger.debug("Entitlement trivially allowed from outermost frame");
+            generalLogger.trace("Entitlement trivially allowed from outermost frame");
             return true;
         }
         if (isTrustedSystemClass(requestingClass)) {
-            generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+            // note: no logging here, this has caused ClassCircularityErrors in certain cases
             return true;
         }
         generalLogger.trace("Entitlement not trivially allowed");

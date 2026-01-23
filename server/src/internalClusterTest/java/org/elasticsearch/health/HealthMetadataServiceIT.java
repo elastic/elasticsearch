@@ -30,6 +30,8 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
@@ -55,7 +57,12 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             ByteSizeValue randomBytes = ByteSizeValue.ofBytes(randomLongBetween(6, 19));
             String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
             ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
-            var customShardLimits = new HealthMetadata.ShardLimits(randomIntBetween(1, 1000), randomIntBetween(1001, 2000));
+            var customShardLimits = new HealthMetadata.ShardLimits(
+                randomIntBetween(1, 1000),
+                randomIntBetween(1001, 2000),
+                randomIntBetween(101, 200),
+                randomIntBetween(1, 100)
+            );
             String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString(), customShardLimits);
             watermarkByNode.put(nodeName, customWatermark);
             maxHeadroomByNode.put(nodeName, customMaxHeadroom);
@@ -111,7 +118,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
         ByteSizeValue initialMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
         HealthMetadata.ShardLimits initialShardLimits = new HealthMetadata.ShardLimits(
             randomIntBetween(1, 1000),
-            randomIntBetween(1001, 2000)
+            randomIntBetween(1001, 2000),
+            randomIntBetween(101, 200),
+            randomIntBetween(1, 100)
         );
         for (int i = 0; i < numberOfNodes; i++) {
             startNode(internalCluster, initialWatermark, initialMaxHeadroom.toString(), initialShardLimits);
@@ -128,7 +137,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
         ByteSizeValue updatedFloodStageMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
         HealthMetadata.ShardLimits updatedShardLimits = new HealthMetadata.ShardLimits(
             randomIntBetween(3000, 4000),
-            randomIntBetween(4001, 5000)
+            randomIntBetween(4001, 5000),
+            randomIntBetween(101, 200),
+            randomIntBetween(1, 100)
         );
 
         ensureStableCluster(numberOfNodes);
@@ -146,7 +157,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), updatedHighWatermark)
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), updatedFloodStageWatermark)
             .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), updatedShardLimits.maxShardsPerNode())
-            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), updatedShardLimits.maxShardsPerNodeFrozen());
+            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), updatedShardLimits.maxShardsPerNodeFrozen())
+            .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), updatedShardLimits.shardCapacityUnhealthyThresholdYellow())
+            .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), updatedShardLimits.shardCapacityUnhealthyThresholdRed());
 
         if (percentageMode) {
             settingsBuilder.put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), updatedLowMaxHeadroom)
@@ -214,7 +227,12 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             ByteSizeValue randomBytes = ByteSizeValue.ofBytes(randomLongBetween(6, 19));
             String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
             ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
-            var customShardLimits = new HealthMetadata.ShardLimits(randomIntBetween(1, 1000), randomIntBetween(1001, 2000));
+            var customShardLimits = new HealthMetadata.ShardLimits(
+                randomIntBetween(1, 1000),
+                randomIntBetween(1001, 2000),
+                randomIntBetween(101, 200),
+                randomIntBetween(1, 100)
+            );
             String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString(), customShardLimits);
             watermarkByNode.put(nodeName, customWatermark);
             maxHeadroomByNode.put(nodeName, customMaxHeadroom);
@@ -270,6 +288,8 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 .put(createWatermarkSettings(customWatermark, customMaxHeadroom))
                 .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), customShardLimits.maxShardsPerNode())
                 .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), customShardLimits.maxShardsPerNodeFrozen())
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), customShardLimits.shardCapacityUnhealthyThresholdYellow())
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), customShardLimits.shardCapacityUnhealthyThresholdRed())
                 .build()
         );
     }

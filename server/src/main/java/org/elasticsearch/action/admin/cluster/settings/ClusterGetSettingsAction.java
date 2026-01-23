@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -51,7 +50,6 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
         @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
         public Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0);
         }
 
         @Override
@@ -101,7 +99,6 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
         @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0);
             persistentSettings.writeTo(out);
             transientSettings.writeTo(out);
             settings.writeTo(out);

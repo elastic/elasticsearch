@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +50,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Collection<Object[]> params() {
-        List<String> types = new ArrayList<>(
-            List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw")
-        );
-        if (DenseVectorFieldMapper.IVF_FORMAT.isEnabled()) {
-            types.add("bbq_disk");
-        }
+        List<String> types = List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw");
 
         // A type can be upgraded to types that follow in the list...
         List<Object[]> params = new java.util.ArrayList<>();
@@ -142,7 +136,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
         for (int i = 0; i < queryVector.length; i++) {
             queryVector[i] = randomFloatBetween(-1, 1, true);
         }
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null);
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null, null);
         assertNoFailuresAndResponse(
             client().prepareSearch(INDEX_NAME).setQuery(queryBuilder).setTrackTotalHits(true).setSize(expectedDocs),
             response -> {

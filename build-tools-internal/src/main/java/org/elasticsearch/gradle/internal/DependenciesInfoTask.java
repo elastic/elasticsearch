@@ -17,19 +17,21 @@ import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.internal.ConventionTask;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.internal.component.external.model.ModuleComponentArtifactIdentifier;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,7 +57,8 @@ import javax.inject.Inject;
  *     <li>license: <a href="https://spdx.org/licenses/">SPDX license</a> identifier, custom license or UNKNOWN.</li>
  * </ul>
  */
-public abstract class DependenciesInfoTask extends ConventionTask {
+@CacheableTask
+public abstract class DependenciesInfoTask extends AbstractDependenciesTask {
 
     @Inject
     public abstract ProviderFactory getProviderFactory();
@@ -86,7 +89,7 @@ public abstract class DependenciesInfoTask extends ConventionTask {
      * artifact transforms that might be applied and fail due to missing task dependency to jar
      * generating tasks.
      * */
-    @InputFiles
+    @Classpath
     abstract ConfigurableFileCollection getClasspath();
 
     private Provider<Set<ModuleComponentIdentifier>> mapToModuleComponentIdentifiers(ArtifactCollection artifacts) {
@@ -94,8 +97,9 @@ public abstract class DependenciesInfoTask extends ConventionTask {
             () -> artifacts.getArtifacts()
                 .stream()
                 .map(r -> r.getId())
-                .filter(id -> id instanceof ModuleComponentIdentifier)
-                .map(id -> (ModuleComponentIdentifier) id)
+                .filter(mcaId -> mcaId instanceof ModuleComponentArtifactIdentifier)
+                .map(mcaId -> (ModuleComponentArtifactIdentifier) mcaId)
+                .map(it -> it.getComponentIdentifier())
                 .collect(Collectors.toSet())
         );
     }
@@ -111,6 +115,7 @@ public abstract class DependenciesInfoTask extends ConventionTask {
      * Directory to read license files
      */
     @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
     @InputDirectory
     public File getLicensesDir() {
         File asFile = licensesDir.get().getAsFile();
@@ -143,7 +148,6 @@ public abstract class DependenciesInfoTask extends ConventionTask {
 
     @TaskAction
     public void generateDependenciesInfo() throws IOException {
-
         final Set<String> compileOnlyIds = getCompileOnlyModules().map(
             set -> set.stream()
                 .map(id -> id.getModuleIdentifier().getGroup() + ":" + id.getModuleIdentifier().getName() + ":" + id.getVersion())
@@ -166,17 +170,12 @@ public abstract class DependenciesInfoTask extends ConventionTask {
             final String url = createURL(dep.getGroup(), moduleName, dep.getVersion());
             final String dependencyName = DependencyLicensesTask.getDependencyName(mappings, moduleName);
             getLogger().info("mapped dependency " + dep.getGroup() + ":" + moduleName + " to " + dependencyName + " for license info");
-
             final String licenseType = getLicenseType(dep.getGroup(), dependencyName);
             output.append(dep.getGroup() + ":" + moduleName + "," + dep.getVersion() + "," + url + "," + licenseType + "\n");
         }
 
         Files.writeString(outputFile.toPath(), output.toString(), StandardOpenOption.CREATE);
     }
-
-    @Input
-    @Optional
-    public abstract MapProperty<String, String> getMappings();
 
     /**
      * Create an URL on <a href="https://repo1.maven.org/maven2/">Maven Central</a>

@@ -1,0 +1,6 @@
+pr: 137678
+summary: "ESQL: Improve field reference tracking in `FORK` command"
+area: ES|QL
+type: enhancement
+issues:
+  - 137283

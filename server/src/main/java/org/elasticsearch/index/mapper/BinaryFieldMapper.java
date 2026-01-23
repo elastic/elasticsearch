@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -83,7 +84,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     public static final class BinaryFieldType extends MappedFieldType {
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
+            super(name, hasDocValues ? IndexType.docValuesOnly() : IndexType.NONE, isStored, meta);
         }
 
         public BinaryFieldType(String name) {
@@ -127,7 +128,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, BinaryDocValuesField::new);
         }
 
         @Override

@@ -38,6 +38,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -49,9 +51,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -145,6 +147,26 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("row " + value)) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
+    }
+
+    public void testRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("ROW " + value).filter(randomQueryFilter()))) {
+            assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testInvalidRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown column [x]"),
+            () -> run(syncEsqlQueryRequest("ROW " + value + " | EVAL x==NULL").filter(randomQueryFilter()))
+        );
+    }
+
+    private static QueryBuilder randomQueryFilter() {
+        return randomFrom(new MatchAllQueryBuilder(), new BoolQueryBuilder().boost(1.0f));
     }
 
     public void testFromStatsGroupingAvgWithSort() {
@@ -863,11 +885,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
-                .query(command)
-                .filter(filter)
-                .pragmas(randomPragmas())
-                .get()
+            EsqlQueryResponse results = client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest(command).filter(filter).pragmas(randomPragmas())
+            ).get()
         ) {
             logger.info(results);
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
@@ -951,7 +972,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertThat(results.columns(), hasSize(1));
             assertThat(results.columns(), contains(new ColumnInfoImpl("a", "integer", null)));
-            assertThat(getValuesList(results), is(empty()));
+            assertThat(getValuesList(results).size(), is(40));
         }
     }
 
@@ -959,7 +980,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | stats g = count(data) | drop g")) {
             logger.info(results);
             assertThat(results.columns(), is(empty()));
-            assertThat(getValuesList(results), is(empty()));
+            assertThat(getValuesList(results).size(), is(1));
         }
     }
 
@@ -1094,7 +1115,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
         testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
         // Only one selector separator is allowed per expression
-        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
+        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, '(', UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
         testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 
@@ -1883,7 +1904,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testDefaultTruncationSizeSetting() {
         ClusterAdminClient client = admin().cluster();
 
-        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
+        Settings settings = Settings.builder().put(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .persistentSettings(settings);
@@ -1893,14 +1914,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertEquals(1, getValuesList(results).size());
         } finally {
-            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
+            clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
         }
     }
 
     public void testMaxTruncationSizeSetting() {
         ClusterAdminClient client = admin().cluster();
 
-        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
+        Settings settings = Settings.builder().put(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .persistentSettings(settings);
@@ -1910,7 +1931,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertEquals(10, getValuesList(results).size());
         } finally {
-            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+            clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
         }
     }
 
@@ -1951,7 +1972,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             pragmaSettings.put("data_partitioning", "doc");
             pragmas = new QueryPragmas(pragmaSettings.build());
         }
-        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest().query("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
             assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));

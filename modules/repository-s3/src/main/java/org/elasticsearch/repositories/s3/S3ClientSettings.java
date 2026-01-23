@@ -79,7 +79,7 @@ final class S3ClientSettings {
 
     /** The protocol to use to connect to s3, now only used if {@link #endpoint} is not a proper URI that starts with {@code http://} or
      * {@code https://}. */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
@@ -142,8 +142,18 @@ final class S3ClientSettings {
         key -> Setting.intSetting(key, Defaults.RETRY_COUNT, 0, Property.NodeScope)
     );
 
+    /**
+     * The maximum time for a single attempt of an API operation. See also
+     * <a href="https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/timeouts.html">AWS SDK docs on timeout</a>
+     */
+    static final Setting.AffixSetting<TimeValue> API_CALL_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "api_call_timeout",
+        key -> Setting.timeSetting(key, Defaults.API_CALL_TIMEOUT, Property.NodeScope)
+    );
+
     /** Formerly whether retries should be throttled (ie use backoff), now unused. V2 AWS SDK always uses throttling. */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
@@ -172,7 +182,7 @@ final class S3ClientSettings {
     );
 
     /** Formerly an override for the signer to use, now unused. V2 AWS SDK only supports AWS v4 signatures. */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting.AffixSetting<String> UNUSED_SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
@@ -184,6 +194,12 @@ final class S3ClientSettings {
         PREFIX,
         "add_purpose_custom_query_parameter",
         key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
+    static final Setting.AffixSetting<TimeValue> CONNECTION_MAX_IDLE_TIME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "connection_max_idle_time",
+        key -> Setting.timeSetting(key, Defaults.CONNECTION_MAX_IDLE_TIME, Property.NodeScope)
     );
 
     /** Credentials to authenticate with s3. */
@@ -215,11 +231,21 @@ final class S3ClientSettings {
     /** The read timeout for the s3 client. */
     final int readTimeoutMillis;
 
+    /**
+     * The maximum idle time (in millis) of a connection before it is discarded from the connection pool.
+     */
+    final long connectionMaxIdleTimeMillis;
+
     /** The maximum number of concurrent connections to use. */
     final int maxConnections;
 
     /** The number of retries to use for the s3 client. */
     final int maxRetries;
+
+    /**
+     * The maximum time for a single attempt of an API operation
+     */
+    final TimeValue apiCallTimeout;
 
     /** Whether the s3 client should use path style access. */
     final boolean pathStyleAccess;
@@ -243,8 +269,10 @@ final class S3ClientSettings {
         String proxyUsername,
         String proxyPassword,
         int readTimeoutMillis,
+        long connectionMaxIdleTimeMillis,
         int maxConnections,
         int maxRetries,
+        TimeValue apiCallTimeout,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
@@ -259,8 +287,10 @@ final class S3ClientSettings {
         this.proxyUsername = proxyUsername;
         this.proxyPassword = proxyPassword;
         this.readTimeoutMillis = readTimeoutMillis;
+        this.connectionMaxIdleTimeMillis = connectionMaxIdleTimeMillis;
         this.maxConnections = maxConnections;
         this.maxRetries = maxRetries;
+        this.apiCallTimeout = apiCallTimeout;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
@@ -290,6 +320,7 @@ final class S3ClientSettings {
         );
         final int newMaxConnections = getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections);
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
+        final TimeValue newApiCallTimeout = getRepoSettingOrDefault(API_CALL_TIMEOUT_SETTING, normalizedSettings, apiCallTimeout);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING,
@@ -308,14 +339,21 @@ final class S3ClientSettings {
             newCredentials = credentials;
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
+        final long newConnectionMaxIdleTimeMillis = getRepoSettingOrDefault(
+            CONNECTION_MAX_IDLE_TIME_SETTING,
+            normalizedSettings,
+            TimeValue.timeValueMillis(connectionMaxIdleTimeMillis)
+        ).millis();
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort
             && proxyScheme == newProxyScheme
             && newReadTimeoutMillis == readTimeoutMillis
+            && Objects.equals(connectionMaxIdleTimeMillis, newConnectionMaxIdleTimeMillis)
             && maxConnections == newMaxConnections
             && maxRetries == newMaxRetries
+            && apiCallTimeout.equals(newApiCallTimeout)
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
@@ -333,8 +371,10 @@ final class S3ClientSettings {
             proxyUsername,
             proxyPassword,
             newReadTimeoutMillis,
+            newConnectionMaxIdleTimeMillis,
             newMaxConnections,
             newMaxRetries,
+            newApiCallTimeout,
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
@@ -441,8 +481,10 @@ final class S3ClientSettings {
                 proxyUsername.toString(),
                 proxyPassword.toString(),
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
+                getConfigValue(settings, clientName, CONNECTION_MAX_IDLE_TIME_SETTING).millis(),
                 getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+                getConfigValue(settings, clientName, API_CALL_TIMEOUT_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
@@ -462,8 +504,10 @@ final class S3ClientSettings {
         final S3ClientSettings that = (S3ClientSettings) o;
         return proxyPort == that.proxyPort
             && readTimeoutMillis == that.readTimeoutMillis
+            && Objects.equals(connectionMaxIdleTimeMillis, that.connectionMaxIdleTimeMillis)
             && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
+            && apiCallTimeout == that.apiCallTimeout
             && Objects.equals(credentials, that.credentials)
             && Objects.equals(protocol, that.protocol)
             && Objects.equals(endpoint, that.endpoint)
@@ -488,7 +532,9 @@ final class S3ClientSettings {
             proxyUsername,
             proxyPassword,
             readTimeoutMillis,
+            connectionMaxIdleTimeMillis,
             maxRetries,
+            apiCallTimeout,
             maxConnections,
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
@@ -510,7 +556,9 @@ final class S3ClientSettings {
 
     static final class Defaults {
         static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);
+        static final TimeValue CONNECTION_MAX_IDLE_TIME = TimeValue.timeValueSeconds(60);
         static final int MAX_CONNECTIONS = 50;
         static final int RETRY_COUNT = 3;
+        static final TimeValue API_CALL_TIMEOUT = TimeValue.MINUS_ONE; // default to no API call timeout
     }
 }

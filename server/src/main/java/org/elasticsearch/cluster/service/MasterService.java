@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -53,15 +54,20 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.Text;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -94,6 +100,12 @@ public class MasterService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING = Setting.intSetting(
+        "cluster.service.master_service_execution_history_size",
+        200,
+        Setting.Property.NodeScope
+    );
+
     public static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
     public static final String STATE_UPDATE_ACTION_NAME = "publish_cluster_state_update";
@@ -121,7 +133,19 @@ public class MasterService extends AbstractLifecycleComponent {
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
     private final StarvationWatcher starvationWatcher = new StarvationWatcher();
 
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
+    private final int maxExecutionHistorySize;
+    private final Deque<ExecutionHistoryEntry> executionHistory;
+
+    private final MeterRegistry meterRegistry;
+    private final List<Releasable> metricsToUnregister = new ArrayList<>(Priority.values().length + 1);
+
+    public MasterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
+    ) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -139,6 +163,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
         this.unbatchedExecutor = new UnbatchedExecutor();
+
+        this.maxExecutionHistorySize = MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING.get(settings);
+        this.executionHistory = new ArrayDeque<>(maxExecutionHistorySize);
+
+        this.meterRegistry = meterRegistry;
     }
 
     private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
@@ -167,6 +196,42 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
+
+        registerLongGaugeMillisecondsMetric(
+            "es.cluster.pending_tasks.nonempty.time",
+            "Time in milliseconds since the master's pending task queue was empty",
+            starvationWatcher::getNonemptyAge
+        );
+
+        for (var priority : Priority.values()) {
+            registerLongGaugeMillisecondsMetric(
+                priorityNonemptyTimeMetricName(priority),
+                "Time in milliseconds since the master's pending task queue was empty for priorities no lower than " + priority,
+                () -> starvationWatcher.getPriorityNonemptyAge(priority)
+            );
+        }
+    }
+
+    static String priorityNonemptyTimeMetricName(Priority priority) {
+        return "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + ".nonempty.time";
+    }
+
+    private void registerLongGaugeMillisecondsMetric(String name, String description, LongSupplier valueSupplier) {
+        @SuppressWarnings("resource")
+        final var longGauge = meterRegistry.registerLongGauge(
+            name,
+            description,
+            "milliseconds",
+            () -> new LongWithAttributes(valueSupplier.getAsLong())
+        );
+        metricsToUnregister.add(() -> {
+            try {
+                longGauge.close();
+            } catch (Exception e) {
+                assert false : e;
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     protected ExecutorService createThreadPoolExecutor() {
@@ -188,7 +253,11 @@ public class MasterService extends AbstractLifecycleComponent {
 
     @Override
     protected synchronized void doStop() {
-        ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+        try {
+            Releasables.close(metricsToUnregister);
+        } finally {
+            ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+        }
     }
 
     @Override
@@ -415,13 +484,30 @@ public class MasterService extends AbstractLifecycleComponent {
 
                 @Override
                 public void onFailure(Exception exception) {
-                    if (exception instanceof FailedToCommitClusterStateException failedToCommitClusterStateException) {
+                    if (exception instanceof FailedToCommitClusterStateException || exception instanceof NotMasterException) {
                         final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
                         final long version = newClusterState.version();
-                        logger.warn(() -> format("failing [%s]: failed to commit cluster state version [%s]", summary, version), exception);
-                        for (final var executionResult : executionResults) {
-                            executionResult.onPublishFailure(failedToCommitClusterStateException);
+
+                        if (exception instanceof FailedToCommitClusterStateException) {
+                            logger.warn(
+                                () -> format("Failing [%s]: failed to commit cluster state version [%s]", summary, version),
+                                exception
+                            );
+                        } else {
+                            logger.debug(
+                                () -> format(
+                                    "Failing [%s]: node is no longer the master. Failed to publish cluster state version [%s]",
+                                    summary,
+                                    version
+                                ),
+                                exception
+                            );
                         }
+
+                        for (final var executionResult : executionResults) {
+                            executionResult.onPublishFailure(exception);
+                        }
+
                         final long notificationMillis = threadPool.rawRelativeTimeInMillis() - notificationStartTime;
                         clusterStateUpdateStatsTracker.onPublicationFailure(
                             threadPool.rawRelativeTimeInMillis(),
@@ -564,7 +650,11 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     @Deprecated
     public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
-        createTaskQueue("unbatched", updateTask.priority(), unbatchedExecutor).submitTask(source, updateTask, updateTask.timeout());
+        createTaskQueue("unbatched[" + source + "]", updateTask.priority(), unbatchedExecutor).submitTask(
+            source,
+            updateTask,
+            updateTask.timeout()
+        );
     }
 
     private static class UnbatchedExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
@@ -985,11 +1075,18 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        void onPublishFailure(FailedToCommitClusterStateException e) {
+        void onPublishFailure(Exception e) {
+            assert e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException : e;
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 var taskFailure = failure;
-                failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+
+                if (e instanceof FailedToCommitClusterStateException) {
+                    failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+                } else {
+                    failure = new NotMasterException(e.getMessage(), e);
+                }
+
                 failure.addSuppressed(taskFailure);
                 notifyFailure();
                 return;
@@ -1126,8 +1223,19 @@ public class MasterService extends AbstractLifecycleComponent {
         private long nonemptySinceMillis;
         private boolean isEmpty = true;
 
+        private final EnumMap<Priority, AtomicLong> lastClearTimeMillis;
+
+        StarvationWatcher() {
+            final Map<Priority, AtomicLong> lastClearTimeMillisBuilder = new HashMap<>();
+            for (var priority : Priority.values()) {
+                lastClearTimeMillisBuilder.put(priority, new AtomicLong());
+            }
+            lastClearTimeMillis = new EnumMap<>(lastClearTimeMillisBuilder);
+        }
+
         synchronized void onEmptyQueue() {
             isEmpty = true;
+            executionHistory.clear();
         }
 
         void onNonemptyQueue() {
@@ -1138,6 +1246,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     isEmpty = false;
                     nonemptySinceMillis = nowMillis;
                     lastLogMillis = nowMillis;
+                    lastClearTimeMillis.values().forEach(v -> v.set(nowMillis));
                     return;
                 }
 
@@ -1160,6 +1269,55 @@ public class MasterService extends AbstractLifecycleComponent {
                 maxTaskWaitTime,
                 maxTaskWaitTime.millis()
             );
+
+            if (logger.isInfoEnabled()) {
+                final var descriptionBuilder = new StringBuilder(
+                    "recent cluster state updates while pending task queue has been nonempty (max "
+                ).append(maxExecutionHistorySize).append(", starting with the most recent): ");
+                Strings.collectionToDelimitedStringWithLimit(
+                    (Iterable<String>) (() -> Iterators.map(executionHistory.iterator(), ExecutionHistoryEntry::getDescription)),
+                    ", ",
+                    MAX_TASK_DESCRIPTION_CHARS,
+                    descriptionBuilder
+                );
+                logger.info("{}", descriptionBuilder.toString());
+            }
+        }
+
+        void onCurrentBatchPriority(Priority batchPriority) {
+            final long nowMillis = threadPool.relativeTimeInMillis();
+            synchronized (this) {
+                for (var priority : Priority.values()) {
+                    if (priority == batchPriority) {
+                        break;
+                    }
+                    lastClearTimeMillis.get(priority).set(nowMillis);
+                }
+            }
+        }
+
+        long getNonemptyAge() {
+            final long localNonemptySinceMillis;
+            synchronized (this) {
+                if (isEmpty) {
+                    return 0L;
+                } else {
+                    localNonemptySinceMillis = nonemptySinceMillis;
+                }
+            }
+            return threadPool.relativeTimeInMillis() - localNonemptySinceMillis;
+        }
+
+        long getPriorityNonemptyAge(Priority priority) {
+            final long localNonemptySinceMillis;
+            synchronized (this) {
+                if (isEmpty) {
+                    return 0L;
+                } else {
+                    localNonemptySinceMillis = lastClearTimeMillis.get(priority).get();
+                }
+            }
+            return threadPool.relativeTimeInMillis() - localNonemptySinceMillis;
         }
     }
 
@@ -1281,9 +1439,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 final var nextBatch = takeNextBatch();
                 assert currentlyExecutingBatch == nextBatch;
                 if (lifecycle.started()) {
+                    starvationWatcher.onCurrentBatchPriority(nextBatch.getPriority());
                     nextBatch.run(batchCompletionListener);
                 } else {
-                    nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+                    nextBatch.onRejection(new NotMasterException("node closed", getRejectionException()));
                     batchCompletionListener.onResponse(null);
                 }
             });
@@ -1309,7 +1468,7 @@ public class MasterService extends AbstractLifecycleComponent {
         @Override
         public void onRejection(Exception e) {
             assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
+            drainQueueOnRejection(new NotMasterException("node closed", e));
         }
 
         @Override
@@ -1325,6 +1484,13 @@ public class MasterService extends AbstractLifecycleComponent {
             var batch = queue.queue.poll();
             if (batch != null) {
                 currentlyExecutingBatch = batch;
+                if (executionHistory.isEmpty()
+                    || executionHistory.peekFirst().incrementCountIfMatching(batch.queueName(), queue.priority) == false) {
+                    while (executionHistory.size() >= maxExecutionHistorySize) {
+                        executionHistory.removeLast();
+                    }
+                    executionHistory.addFirst(new ExecutionHistoryEntry(batch.queueName(), queue.priority()));
+                }
                 return batch;
             }
         }
@@ -1336,7 +1502,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private void forkQueueProcessor() {
         // single-threaded: started when totalQueueSize transitions from 0 to 1 and keeps calling itself until the queue is drained.
         if (lifecycle.started() == false) {
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+            drainQueueOnRejection(new NotMasterException("node closed", getRejectionException()));
             return;
         }
 
@@ -1353,7 +1519,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return new EsRejectedExecutionException("master service is in state [" + lifecycleState() + "]", true);
     }
 
-    private void drainQueueOnRejection(FailedToCommitClusterStateException e) {
+    private void drainQueueOnRejection(NotMasterException e) {
         assert totalQueueSize.get() > 0;
         do {
             assert currentlyExecutingBatch == null;
@@ -1407,12 +1573,12 @@ public class MasterService extends AbstractLifecycleComponent {
         /**
          * Called when the batch is rejected due to the master service shutting down.
          *
-         * @param e is a {@link FailedToCommitClusterStateException} to cause things like {@link TransportMasterNodeAction} to retry after
-         *          submitting a task to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
-         *          {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
+         * @param e is a {@link NotMasterException} to cause things like {@link TransportMasterNodeAction} to retry after submitting a task
+         *         to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
+         *         {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
          */
         // Should really be a NodeClosedException instead, but this exception type doesn't trigger retries today.
-        void onRejection(FailedToCommitClusterStateException e);
+        void onRejection(NotMasterException e);
 
         /**
          * @return number of tasks in this batch if the batch is pending, or {@code 0} if the batch is not pending.
@@ -1428,6 +1594,16 @@ public class MasterService extends AbstractLifecycleComponent {
          * @return the earliest insertion time of the tasks in this batch if the batch is pending, or {@link Long#MAX_VALUE} otherwise.
          */
         long getCreationTimeMillis();
+
+        /**
+         * @return the name of the queue that owns this batch.
+         */
+        String queueName();
+
+        /**
+         * @return the priority of the queue that owns this batch.
+         */
+        Priority getPriority();
     }
 
     /**
@@ -1460,6 +1636,25 @@ public class MasterService extends AbstractLifecycleComponent {
             executor,
             threadPool
         );
+    }
+
+    /**
+     * Allows to impose an optional limit on a master node timeout specified in a request.
+     *
+     * @param requestTimeout The requested master-node timeout.
+     * @param maxTimeout     The maximum configured master-node timeout.
+     * @return An appropriate master-node timeout for the task.
+     */
+    public static TimeValue maybeLimitMasterNodeTimeout(TimeValue requestTimeout, TimeValue maxTimeout) {
+        if (maxTimeout.millis() <= 0) {
+            // no max timeout specified
+            return requestTimeout;
+        }
+        if (requestTimeout.millis() <= 0) {
+            // requesting infinite timeout, so limit applies
+            return maxTimeout;
+        }
+        return TimeValue.min(requestTimeout, maxTimeout);
     }
 
     @FunctionalInterface
@@ -1583,13 +1778,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
                     task.onFailure(
-                        new FailedToCommitClusterStateException(
-                            "could not schedule timeout handler for [%s][%s] on queue [%s]",
-                            e,
-                            source,
-                            task,
-                            name
-                        )
+                        new NotMasterException("could not schedule timeout handler for [%s][%s] on queue [%s]", e, source, task, name)
                     );
                     return;
                 }
@@ -1634,7 +1823,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 return task;
             }
 
-            void onRejection(FailedToCommitClusterStateException e) {
+            void onRejection(NotMasterException e) {
                 final var task = acquireForExecution();
                 if (task != null) {
                     try (var ignored = storedContextSupplier.get()) {
@@ -1654,7 +1843,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private class Processor implements Batch {
             @Override
-            public void onRejection(FailedToCommitClusterStateException e) {
+            public void onRejection(NotMasterException e) {
                 final var items = queueSize.getAndSet(0);
                 for (int i = 0; i < items; i++) {
                     final var entry = queue.poll();
@@ -1751,8 +1940,42 @@ public class MasterService extends AbstractLifecycleComponent {
             public String toString() {
                 return "process queue for [" + name + "]";
             }
+
+            @Override
+            public String queueName() {
+                return name;
+            }
+
+            @Override
+            public Priority getPriority() {
+                return perPriorityQueue.priority();
+            }
         }
     }
 
     static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
+
+    private static final class ExecutionHistoryEntry {
+        private final String queueName;
+        private final Priority priority;
+        private int count = 1;
+
+        private ExecutionHistoryEntry(String queueName, Priority priority) {
+            this.queueName = queueName;
+            this.priority = priority;
+        }
+
+        String getDescription() {
+            return "[" + priority + "]: " + queueName + (count == 1 ? "" : " (" + count + " times)");
+        }
+
+        boolean incrementCountIfMatching(String queueName, Priority priority) {
+            if (this.queueName.equals(queueName) && this.priority.equals(priority)) {
+                count += 1;
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
 }

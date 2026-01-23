@@ -180,17 +180,17 @@ public class IndicesServiceCloseTests extends ESTestCase {
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
-        assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
+        assertEquals(0L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
         searcher.search(new ConstantScoreQuery(query), 1);
-        assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
+        assertEquals(1L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
 
         searcher.close();
         assertEquals(2, indicesService.indicesRefCount.refCount());
-        assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
+        assertEquals(1L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
 
         node.close();
         assertEquals(0, indicesService.indicesRefCount.refCount());
-        assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
+        assertEquals(0L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
     }
 
     public void testCloseWhileOngoingRequestUsesQueryCache() throws Exception {
@@ -221,13 +221,13 @@ public class IndicesServiceCloseTests extends ESTestCase {
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
-        assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
+        assertEquals(0L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
         searcher.search(new ConstantScoreQuery(query), 1);
-        assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
+        assertEquals(1L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
 
         searcher.close();
         assertEquals(0, indicesService.indicesRefCount.refCount());
-        assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
+        assertEquals(0L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
     }
 
     public void testCloseWhileOngoingRequestUsesRequestCache() throws Exception {

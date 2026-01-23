@@ -9,13 +9,19 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.LookupIdx;
+import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
+import org.elasticsearch.xpack.esql.generator.QueryExecuted;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
@@ -32,11 +38,11 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
-import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_NAME;
-import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
-import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_TYPE;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_NAME;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
 
-public abstract class GenerativeRestTest extends ESRestTestCase {
+public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -50,19 +56,41 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "cannot sort on .*",
         "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
-        "Unbounded sort not supported yet",
+        "Unbounded SORT not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
+        "sub-plan execution results too large",  // INLINE STATS limitations
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
-        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
+        // https://github.com/elastic/elasticsearch/issues/125866
+        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
+        "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
+        "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
+        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
 
         // Awaiting fixes for correctness
-        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
+
+        // TS-command tests (acceptable errors)
+        "time-series.*the first aggregation.*is not allowed",
+        "count_star .* can't be used with TS command",
+        "time_series aggregate.* can only be used with the TS command",
+        "implicit time-series aggregation function",
+        "INLINE STATS .* can only be used after STATS when used with TS command",
+        "cannot group by a metric field .* in a time-series aggregation",
+        "@timestamp field of type date or date_nanos",
+        "which was either not present in the source index, or has been dropped or renamed",
+        "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+
+        // Ts-command errors awaiting fixes
+        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
+        "Invalid call to dataType on an unresolved object \\?@timestamp", // https://github.com/elastic/elasticsearch/issues/140607
+        "expected named expression for grouping; got Bucket" // https://github.com/elastic/elasticsearch/issues/140606
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -78,6 +106,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     protected abstract boolean supportsSourceFieldMapping();
+
+    protected boolean requiresTimeSeries() {
+        return false;
+    }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
@@ -104,9 +136,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                     previousCommands.add(current);
                     final String command = current.commandString();
 
-                    final EsqlQueryGenerator.QueryExecuted result = previousResult == null
-                        ? execute(command, 0, profileLogger)
-                        : execute(previousResult.query() + command, previousResult.depth(), profileLogger);
+                    final QueryExecuted result = previousResult == null
+                        ? execute(command, 0)
+                        : execute(previousResult.query() + command, previousResult.depth());
                     previousResult = result;
 
                     final boolean hasException = result.exception() != null;
@@ -133,25 +165,47 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                 }
 
                 @Override
-                public List<EsqlQueryGenerator.Column> currentSchema() {
+                public List<Column> currentSchema() {
                     return currentSchema;
                 }
 
                 boolean continueExecuting;
-                List<EsqlQueryGenerator.Column> currentSchema;
+                List<Column> currentSchema;
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
-                EsqlQueryGenerator.QueryExecuted previousResult;
+                QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, EsqlQueryGenerator.sourceCommand(), mappingInfo, exec);
+            try {
+                EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            } catch (Exception e) {
+                // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
+                boolean knownError = false;
+                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                    if (isAllowedError(e.getMessage(), allowedError)) {
+                        knownError = true;
+                        break;
+                    }
+                }
+                if (knownError == false) {
+                    StringBuilder message = new StringBuilder();
+                    message.append("Generative tests, error generating new command \n");
+                    message.append("Previous query: \n");
+                    message.append(exec.previousResult.query());
+                    fail(e, message.toString());
+                }
+            }
         }
+    }
+
+    protected CommandGenerator sourceCommand() {
+        return EsqlQueryGenerator.sourceCommand();
     }
 
     private static CommandGenerator.ValidationResult checkResults(
         List<CommandGenerator.CommandDescription> previousCommands,
         CommandGenerator commandGenerator,
         CommandGenerator.CommandDescription commandDescription,
-        EsqlQueryGenerator.QueryExecuted previousResult,
-        EsqlQueryGenerator.QueryExecuted result
+        QueryExecuted previousResult,
+        QueryExecuted result
     ) {
         CommandGenerator.ValidationResult outputValidation = commandGenerator.validateOutput(
             previousCommands,
@@ -172,7 +226,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         return outputValidation;
     }
 
-    private void checkException(EsqlQueryGenerator.QueryExecuted query) {
+    private void checkException(QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
             if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
@@ -192,36 +246,41 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }
 
+    @Override
     @SuppressWarnings("unchecked")
-    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth, @Nullable ProfileLogger profileLogger) {
+    public QueryExecuted execute(String query, int depth) {
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
-                new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
+                new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
                 profileLogger,
                 RestEsqlTestCase.Mode.SYNC
             );
-            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(json);
+            List<Column> outputSchema = outputSchema(json);
             List<List<Object>> values = (List<List<Object>>) json.get("values");
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, values, null);
+            return new QueryExecuted(query, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, e);
+            return new QueryExecuted(query, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, new RuntimeException(ae.getMessage()));
+            return new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
         }
 
     }
 
     @SuppressWarnings("unchecked")
-    private static List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
+    private static List<Column> outputSchema(Map<String, Object> a) {
         List<Map<String, ?>> cols = (List<Map<String, ?>>) a.get("columns");
         if (cols == null) {
             return null;
         }
         return cols.stream()
-            .map(x -> new EsqlQueryGenerator.Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
+            .map(x -> new Column(normalizeColumnName((String) x.get(COLUMN_NAME)), (String) x.get(COLUMN_TYPE), originalTypes(x)))
             .collect(Collectors.toList());
+    }
+
+    private static String normalizeColumnName(String name) {
+        return name.contains("-") && name.startsWith("`") == false ? Strings.format("`%s`", name) : name;
     }
 
     @SuppressWarnings("unchecked")
@@ -234,15 +293,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();
     }
-
-    public record LookupIdxColumn(String name, String type) {}
-
-    public record LookupIdx(String idxName, List<LookupIdxColumn> keys) {}
 
     private List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();

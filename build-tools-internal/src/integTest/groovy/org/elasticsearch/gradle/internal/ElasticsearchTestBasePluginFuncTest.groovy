@@ -108,4 +108,65 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(':test').outcome == TaskOutcome.UP_TO_DATE
     }
+
+    def "uses new test seed for every invocation"() {
+        given:
+        file("src/test/java/acme/SomeTests.java").text = """
+
+        public class SomeTests {
+            @org.junit.Test
+            public void printTestSeed() {
+                System.out.println("TESTSEED=[" + System.getProperty("tests.seed") + "]");
+            }
+        }
+
+        """
+        buildFile.text = """
+            plugins {
+             id 'java'
+             id 'elasticsearch.test-base'
+            }
+
+            tasks.named('test').configure {
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
+            tasks.register('test2', Test) {
+                classpath = sourceSets.test.runtimeClasspath
+                testClassesDirs = sourceSets.test.output.classesDirs
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                testImplementation 'junit:junit:4.12'
+            }
+
+        """
+
+        when:
+        def result1 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
+        def result2 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
+
+        then:
+        def seeds1 = result1.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+        def seeds2 = result2.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+
+        seeds1.unique().size() == 1
+        seeds2.unique().size() == 1
+
+        verifyAll {
+            seeds1[0] != null
+            seeds2[0] != null
+            seeds1[0] != seeds2[0]
+        }
+        result2.output.contains("Configuration cache entry reused.")
+    }
 }

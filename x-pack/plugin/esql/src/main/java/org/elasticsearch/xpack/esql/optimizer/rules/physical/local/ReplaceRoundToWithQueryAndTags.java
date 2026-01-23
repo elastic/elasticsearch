@@ -7,7 +7,18 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.FuzzyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MultiTermQueryBuilder;
+import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -15,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,6 +42,8 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -275,7 +289,12 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
                 int count = roundTo.points().size();
-                int roundingPointsUpperLimit = roundingPointsThreshold(ctx);
+                int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
+                    ctx.searchStats(),
+                    roundingPointsThreshold(ctx),
+                    queryExec.query(),
+                    queryExec.indexMode()
+                );
                 if (count > roundingPointsUpperLimit) {
                     logger.debug(
                         "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
@@ -283,6 +302,21 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                         count,
                         roundingPointsUpperLimit
                     );
+                    return evalExec;
+                }
+                // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
+                // leading to reading many small chunks of data. It is more efficient to query sequentially
+                // and apply round_to on the timestamp field.
+                //
+                // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
+                // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
+                // of many doc-value blocks.
+                //
+                // However, if the EsQueryExec index mode is time-series (e.g., rate), we should replace round_to with
+                // QueryAndTags when possible, as we currently lack a method to partition the data for increased parallelism.
+                if (queryExec.indexMode() != IndexMode.TIME_SERIES
+                    && ((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
+                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
                     return evalExec;
                 }
                 plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
@@ -324,7 +358,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             queryExec.source(),
             queryExec.indexPattern(),
             queryExec.indexMode(),
-            queryExec.indexNameWithModes(),
             newAttributes,
             queryExec.limit(),
             queryExec.sorts(),
@@ -484,5 +517,64 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             roundingPointsThreshold = queryLevelRoundingPointsThreshold;
         }
         return roundingPointsThreshold;
+    }
+
+    /**
+     * If the main query is expensive (such as including wildcard queries), executing more queries with tags is slower and more costly
+     * than executing fewer queries without tags and then reading points and rounding. The rounding points threshold is treated as the
+     * maximum number of clauses allowed to execute. We estimate the number of clauses in the main query and adjust the threshold so
+     * that the total number of clauses does not exceed the limit by too much. Some expensive queries count as more than one clause;
+     * for example, a wildcard query counts as 5 clauses, and a terms query counts as the number of terms.
+     */
+    static int adjustedRoundingPointsThreshold(SearchStats stats, int threshold, QueryBuilder query, IndexMode indexMode) {
+        int clauses = estimateQueryClauses(stats, query) + 1;
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
+            threshold *= 2;
+        }
+        return Math.ceilDiv(threshold, clauses);
+    }
+
+    static int estimateQueryClauses(SearchStats stats, QueryBuilder q) {
+        if (q == null || q instanceof MatchAllQueryBuilder || q instanceof MatchNoneQueryBuilder) {
+            return 0;
+        }
+        if (q instanceof WildcardQueryBuilder
+            || q instanceof RegexpQueryBuilder
+            || q instanceof PrefixQueryBuilder
+            || q instanceof FuzzyQueryBuilder) {
+            return 5;
+        }
+        if (q instanceof RangeQueryBuilder r) {
+            // with points count 1, without count 3
+            return stats.min(new FieldAttribute.FieldName(r.fieldName())) != null ? 1 : 3;
+        }
+        if (q instanceof MultiTermQueryBuilder) {
+            return 3;
+        }
+        if (q instanceof TermsQueryBuilder terms && terms.values() != null) {
+            return terms.values().size();
+        }
+        if (q instanceof SingleValueQuery.Builder b) {
+            // ignore the single_value clause
+            return Math.max(1, estimateQueryClauses(stats, b.next()));
+        }
+        if (q instanceof BoolQueryBuilder bq) {
+            int total = 0;
+            for (var c : bq.filter()) {
+                total += estimateQueryClauses(stats, c);
+            }
+            for (var c : bq.must()) {
+                total += estimateQueryClauses(stats, c);
+            }
+            for (var c : bq.should()) {
+                total += estimateQueryClauses(stats, c);
+            }
+            for (var c : bq.mustNot()) {
+                total += Math.max(2, estimateQueryClauses(stats, c));
+            }
+            return total;
+        }
+        return 1;
     }
 }

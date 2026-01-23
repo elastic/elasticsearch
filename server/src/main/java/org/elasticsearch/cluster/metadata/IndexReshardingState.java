@@ -181,6 +181,9 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         private final TargetShardState[] targetShards;
 
         Split(SourceShardState[] sourceShards, TargetShardState[] targetShards) {
+            // The resharding metadata is deleted when the last source shard transitions to done
+            assert Arrays.stream(sourceShards).allMatch((state) -> state == SourceShardState.DONE) == false;
+
             this.sourceShards = sourceShards;
             this.targetShards = targetShards;
 
@@ -211,6 +214,20 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             builder.field(TARGET_SHARDS_FIELD.getPreferredName(), targetShards);
 
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return "Split{"
+                + "oldShardCount="
+                + oldShardCount
+                + ", newShardCount="
+                + newShardCount
+                + ", sourceShards="
+                + Arrays.toString(sourceShards)
+                + ", targetShards="
+                + Arrays.toString(targetShards)
+                + '}';
         }
 
         @Override
@@ -251,8 +268,22 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return targetShards.clone();
         }
 
+        /** Return the source shard from which this target shard was split
+         * @param targetShard    target shard id
+         * @return source shard id
+         */
         public int sourceShard(int targetShard) {
             return targetShard % shardCountBefore();
+        }
+
+        /** Return the new target shard that is split from the given source shard
+         * This calculation assumes we only always double the number of shards in
+         * a reshard split operation, so that only one target shard is created per source shard.
+         * @param sourceShard    source shard id
+         * @return target shard id
+         */
+        public int targetShard(int sourceShard) {
+            return (sourceShard + shardCountBefore());
         }
 
         /**
@@ -375,18 +406,14 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return getTargetShardState(shardNum).ordinal() >= targetShardState.ordinal();
         }
 
-        /**
-         * Check whether this metadata represents an incomplete split
-         * @return true if the split is incomplete (not all source shards are DONE)
-         */
-        public boolean inProgress() {
-            for (int i = 0; i < oldShardCount; i++) {
-                if (sourceShards[i] == SourceShardState.SOURCE) {
-                    return true;
+        public boolean allTargetStatesAtLeast(int sourceShardId, TargetShardState targetShardState) {
+            var targets = getTargetStatesFor(sourceShardId);
+            for (TargetShardState state : targets) {
+                if (state.ordinal() < targetShardState.ordinal()) {
+                    return false;
                 }
             }
-
-            return false;
+            return true;
         }
 
         public Stream<TargetShardState> targetStates() {

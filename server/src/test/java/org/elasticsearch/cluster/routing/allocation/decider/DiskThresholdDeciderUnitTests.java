@@ -111,6 +111,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
@@ -180,6 +181,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             Map.of("[test][0][p]", shardSize),
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of(),
@@ -330,6 +332,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             shardSizes,
             Map.of(),
             shardRoutingMap,
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of(),
@@ -722,7 +725,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        assertEquals(110L, getExpectedShardSize(target2, 0L, allocation));
+        assertEquals(510L, getExpectedShardSize(target2, 0L, allocation));
 
         target2 = ShardRouting.newUnassigned(
             new ShardId(new Index("target2", "9101112"), 1),
@@ -731,7 +734,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        assertEquals(1000L, getExpectedShardSize(target2, 0L, allocation));
+        assertEquals(600L, getExpectedShardSize(target2, 0L, allocation));
 
         // check that the DiskThresholdDecider still works even if the source index has been deleted
         ClusterState clusterStateWithMissingSourceIndex = ClusterState.builder(clusterState)

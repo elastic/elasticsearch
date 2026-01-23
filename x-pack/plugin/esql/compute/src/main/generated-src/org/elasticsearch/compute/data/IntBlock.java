@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -33,6 +32,24 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
      * @return the data value (as a int)
      */
     int getInt(int valueIndex);
+
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, int value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getInt(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     IntVector asVector();
@@ -102,10 +119,10 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntArrayBlock b) {
+        } else if (this instanceof IntArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntBigArrayBlock b) {
+        } else if (this instanceof IntBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {

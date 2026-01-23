@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,8 +24,6 @@ import java.util.Objects;
  * {@link QueryRuleset} information which can be retrieved using subsequent GetQueryRuleset requests.
  */
 public class QueryRulesetListItem implements Writeable, ToXContentObject {
-
-    public static final TransportVersion EXPANDED_RULESET_COUNT_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     public static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     public static final ParseField RULE_TOTAL_COUNT_FIELD = new ParseField("rule_total_count");
@@ -62,17 +58,8 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     public QueryRulesetListItem(StreamInput in) throws IOException {
         this.rulesetId = in.readString();
         this.ruleTotalCount = in.readInt();
-        if (in.getTransportVersion().onOrAfter(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
-            this.criteriaTypeToCountMap = in.readMap(m -> in.readEnum(QueryRuleCriteriaType.class), StreamInput::readInt);
-        } else {
-            this.criteriaTypeToCountMap = Map.of();
-        }
-        TransportVersion streamTransportVersion = in.getTransportVersion();
-        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
-            this.ruleTypeToCountMap = in.readMap(m -> in.readEnum(QueryRule.QueryRuleType.class), StreamInput::readInt);
-        } else {
-            this.ruleTypeToCountMap = Map.of();
-        }
+        this.criteriaTypeToCountMap = in.readMap(m -> in.readEnum(QueryRuleCriteriaType.class), StreamInput::readInt);
+        this.ruleTypeToCountMap = in.readMap(m -> in.readEnum(QueryRule.QueryRuleType.class), StreamInput::readInt);
     }
 
     @Override
@@ -98,13 +85,8 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(rulesetId);
         out.writeInt(ruleTotalCount);
-        if (out.getTransportVersion().onOrAfter(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
-            out.writeMap(criteriaTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
-        }
-        TransportVersion streamTransportVersion = out.getTransportVersion();
-        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
-            out.writeMap(ruleTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
-        }
+        out.writeMap(criteriaTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
+        out.writeMap(ruleTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
     }
 
     /**

@@ -19,6 +19,7 @@ import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
@@ -30,24 +31,12 @@ import static jdk.incubator.vector.VectorOperators.OR;
 
 public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
-    static final int VECTOR_BITSIZE;
+    static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
 
-    private static final VectorSpecies<Float> FLOAT_SPECIES;
-    private static final VectorSpecies<Integer> INTEGER_SPECIES;
+    private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
+    private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
-    static final boolean HAS_FAST_INTEGER_VECTORS;
-
-    static {
-        // default to platform supported bitsize
-        VECTOR_BITSIZE = VectorShape.preferredShape().vectorBitSize();
-        FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-        INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-
-        // hotspot misses some SSE intrinsics, workaround it
-        // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon
-        boolean isAMD64withoutAVX2 = Constants.OS_ARCH.equals("amd64") && VECTOR_BITSIZE < 256;
-        HAS_FAST_INTEGER_VECTORS = isAMD64withoutAVX2 == false;
-    }
+    static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
@@ -762,7 +751,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return sum;
     }
 
-    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_PREFFERED_FLOATS;
 
     static {
@@ -1024,6 +1013,12 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void packDibit(int[] vector, byte[] packed) {
+        // TODO
+        DefaultESVectorUtilSupport.packDibitImpl(vector, packed);
+    }
+
+    @Override
     public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
         // 128 / 32 == 4
         if (q.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
@@ -1121,5 +1116,57 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
         quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
         quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+    }
+
+    private static final VectorSpecies<Byte> PREFERRED_BYTE_SPECIES = PanamaVectorConstants.PREFERRED_BYTE_SPECIES;
+
+    @Override
+    public int indexOf(final byte[] bytes, final int offset, final int length, final byte marker) {
+        final ByteVector markerVector = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, marker);
+        final int loopBound = PREFERRED_BYTE_SPECIES.loopBound(length);
+        for (int i = 0; i < loopBound; i += PREFERRED_BYTE_SPECIES.length()) {
+            ByteVector chunk = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, bytes, offset + i);
+            VectorMask<Byte> mask = chunk.eq(markerVector);
+            if (mask.anyTrue()) {
+                return i + mask.firstTrue();
+            }
+        }
+        // tail
+        if (loopBound < length) {
+            int remaining = length - loopBound;
+            int tail = ByteArrayUtils.indexOf(bytes, offset + loopBound, remaining, marker);
+            if (tail >= 0) {
+                return loopBound + tail;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public int codePointCount(final BytesRef bytesRef) {
+        // SWAR logic is faster for lengths below approximately 54
+        if (bytesRef.length < 54) {
+            return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+
+        int continuations = 0;
+        int highBits = 0xC0;
+        int continuationByte = 0x80; // continuation bytes have first bit set and second bit unset
+        final ByteVector highBitsVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, (byte) highBits);
+        final ByteVector continuationVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, (byte) continuationByte);
+        final int loopBound = PREFERRED_BYTE_SPECIES.loopBound(bytesRef.length);
+        int i = 0;
+        for (; i < loopBound; i += PREFERRED_BYTE_SPECIES.length()) {
+            ByteVector chunk = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, bytesRef.bytes, bytesRef.offset + i);
+            VectorMask<Byte> mask = chunk.and(highBitsVec).eq(continuationVec);
+            continuations += mask.trueCount();
+        }
+
+        // tail
+        for (int pos = bytesRef.offset + loopBound; pos < bytesRef.offset + bytesRef.length; pos++) {
+            continuations += (bytesRef.bytes[pos] & highBits) == continuationByte ? 1 : 0;
+        }
+
+        return bytesRef.length - continuations;
     }
 }

@@ -114,33 +114,40 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getBuild()
                     + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
             }
-        } else if (jdk.getVendor().equals(VENDOR_OPENJDK) && "ea".equals(jdk.getDistributionVersion())) {
-            repoUrl = "https://builds.es-jdk-archive.com/";
-            // current pattern since 12.0.1
-            artifactPattern = "jdks/openjdk/"
-                + jdk.getMajor()
-                + "/openjdk-"
-                + jdk.getBaseVersion()
-                + "/"
-                + "openjdk-[revision]_[module]-[classifier]_bin.[ext]";
         } else if (jdk.getVendor().equals(VENDOR_OPENJDK)) {
-            repoUrl = "https://download.oracle.com";
-            if (jdk.getHash() != null) {
+            if ("ea".equals(jdk.getDistributionVersion())) {
+                repoUrl = "https://builds.es-jdk-archive.com/";
                 // current pattern since 12.0.1
-                artifactPattern = "java/GA/jdk"
-                    + jdk.getBaseVersion()
-                    + "/"
-                    + jdk.getHash()
-                    + "/"
-                    + jdk.getBuild()
-                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
-            } else {
-                // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
-                artifactPattern = "java/GA/jdk"
+                artifactPattern = "jdks/openjdk/"
                     + jdk.getMajor()
-                    + "/"
-                    + jdk.getBuild()
-                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                    + "/openjdk-[revision]/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+            } else if ("rc".equals(jdk.getDistributionVersion())) {
+                repoUrl = "https://builds.es-jdk-archive.com/";
+                // current pattern since 12.0.1
+                artifactPattern = "jdks/openjdk/"
+                    + jdk.getMajor()
+                    + "/openjdk-[revision]/openjdk-"
+                    + jdk.getMajor()
+                    + "_[module]-[classifier]_bin.[ext]";
+            } else {
+                repoUrl = "https://download.oracle.com";
+                if (jdk.getHash() != null) {
+                    // current pattern since 12.0.1
+                    artifactPattern = "java/GA/jdk"
+                        + jdk.getBaseVersion()
+                        + "/"
+                        + jdk.getHash()
+                        + "/"
+                        + jdk.getBuild()
+                        + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                } else {
+                    // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
+                    artifactPattern = "java/GA/jdk"
+                        + jdk.getMajor()
+                        + "/"
+                        + jdk.getBuild()
+                        + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                }
             }
         } else if (jdk.getVendor().equals(VENDOR_ZULU)) {
             repoUrl = "https://cdn.azul.com";

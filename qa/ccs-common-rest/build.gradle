@@ -32,15 +32,21 @@ dependencies {
 }
 
 tasks.named("yamlRestTest") {
-  systemProperty 'tests.rest.blacklist',
-    [
-      'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', // terms lookup query with index
-      'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
-      'search.aggregation/220_filters_bucket/cache busting', // node_selector?
-      'search.aggregation/220_filters_bucket/cache hits', // node_selector?
-      'search.aggregation/50_filter/Standard queries get cached',
-      'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
-      'search.aggregation/70_adjacency_matrix/Terms lookup' // terms lookup by "index" doesn't seem to work correctly
-    ].join(',')
+  ArrayList<String> blacklist = [
+    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', // terms lookup query with index
+    'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
+    'search.aggregation/220_filters_bucket/cache busting', // node_selector?
+    'search.aggregation/220_filters_bucket/cache hits', // node_selector?
+    'search.aggregation/50_filter/Standard queries get cached',
+    'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
+    'search.aggregation/70_adjacency_matrix/Terms lookup' // terms lookup by "index" doesn't seem to work correctly
+  ]
+  if (buildParams.snapshotBuild == false) {
+    blacklist += [
+      // doc_values.cardinality option not available in snapshots
+      "search/395_binary_doc_values_search/*"
+    ]
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }
 

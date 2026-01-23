@@ -12,6 +12,227 @@ A guide to the general Elasticsearch components can be found [here](https://gith
 
 # Networking
 
+Every elasticsearch node maintains various networking clients and servers,
+protocols, and synchronous/asynchronous handling. Our public docs cover user
+facing settings and some internal aspects - [Network Settings](https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/networking-settings).
+
+## HTTP Server
+
+The HTTP Server is a single entry point for all external clients (excluding
+cross-cluster communication). Management, ingestion, search, and all other
+external operations pass through the HTTP server.
+
+Elasticsearch works over HTTP 1.1 and supports features such as TLS, chunked
+transfer encoding, content compression, and pipelining. While attempting to
+be HTTP spec compliant, Elasticsearch is not a webserver. ES Supports `GET`
+requests with a payload (though some old proxies may drop content) and
+`POST` for clients unable to send `GET-with-body`. Requests cannot be cached
+by middle boxes.
+
+There is no connection limit, but a limit on payload size exists. The default
+maximum payload is 100MB after compression. It's a very large number and almost
+never a good target that the client should approach. See
+`HttpTransportSettings` class.
+
+Security features, including basic security: authentication(authc),
+authorization(authz), Transport Layer Security (TLS) are available in the free
+tier and achieved with separate x-pack modules.
+
+The HTTP server provides two options for content processing: full aggregation
+and incremental processing. Aggregated content is a preferable choice for small
+messages that do not fit for incremental parsing (e.g., JSON). Aggregation has
+drawbacks: it requires more memory, which is reserved until all bytes are
+received. Concurrent incomplete requests can lead to unbounded memory growth and
+potential OOMs. Large delimited content, such as bulk indexing, which is
+processed in byte chunks, provides better control over memory usage but is more
+complicated for application code.
+
+Incremental bulk indexing includes a back-pressure feature. See `org.
+elasticsearch.index.IndexingPressure`. When memory pressure grows high
+(`LOW_WATERMARK`), reading bytes from TCP sockets is paused for some
+connections, allowing only a few to proceed until the pressure is resolved.
+When memory grows too high (`HIGH_WATERMARK`) bulk items are rejected with 429.
+This mechanism protects against unbounded memory usage and `OutOfMemory`
+errors (OOMs).
+
+ES supports multiple `Content-Type`s for the payload. These are
+implementations of `MediaType` interface. A common implementation is called
+`XContentType`, including CBOR, JSON, SMILE, YAML, and their versioned types.
+X-pack extensions includes PLAIN_TEXT, CSV, etc. Classes that implement
+`ToXContent` and friends can be serialized and sent over HTTP.
+
+HTTP routing is based on a combination of Method and URI. For example,
+`RestCreateIndexAction` handler uses `("PUT", "/{index}")`, where curly braces
+indicate path variables. `RestBulkAction` specifies a list of routes
+
+```java
+@Override
+  public List<Route> routes() {
+    return List.of(
+      new Route(POST, "/_bulk"),
+      new Route(PUT, "/_bulk"),
+      new Route(POST, "/{index}/_bulk"),
+      new Route(PUT, "/{index}/_bulk")
+    );
+  }
+```
+
+Every REST handler must be declared in the `ActionModule` class in the
+`initRestHandlers` method. Plugins implementing `ActionPlugin` can extend the
+list of handlers via the `getRestHandlers` override. Every REST handler
+should extend `BaseRestHandler`.
+
+The REST handler’s job is to parse and validate the HTTP request and construct a
+typed version of the request, often a Transport request. When security is
+enabled, the HTTP layer handles authentication (based on headers), and the
+Transport layer handles authorization.
+
+Request handling flow from Java classes view goes as:
+
+```
+(if security enabled) Security.getHttpServerTransportWithHeadersValidator
+-> `Netty4HttpServerTransport`
+-> `AbstractHttpServerTransport`
+-> `RestController`
+-> `BaseRestHandler`
+-> `Rest{Some}Action`
+```
+
+`Netty4HttpServerTransport` is a single implementation of
+`AbstractHttpServerTransport` from the `transport-netty4`
+module. The `x-pack/security` module injects TLS and headers validator.
+
+## Transport
+
+Transport is the term for node-to-node communication, utilizing a TCP-based
+custom binary protocol. Every node acts as both a client and a server.
+Node-to-node communication almost never uses HTTP transport (except for
+reindex-from-remote).
+
+`Netty4Transport` is the sole implementation of TCP transport, initializing
+both the Transport client and server. The `x-pack/security` plugin provides
+a secure version: `SecurityNetty4Transport` (with TLS and authentication).
+
+A `Connection` between nodes is a pool of `Channel`s, where each channel is a
+non-blocking TCP connection (Java NIO terminology). Once a cluster is
+discovered, a `Connection` (pool of `Channel`s) is opened to every other node,
+and every other node opens a `Connection` back. This results in two
+`Connection`s between any two nodes `(A→B and B→A)`. A node sends requests only
+on the `Connection` it opens (acting as a client). The default pool is around 13
+`Channel`s, divided into sub-pools for different purposes (e.g., ping,
+node-state, bulks). The pool structure is defined in the `ConnectionProfile`
+class.
+
+ES never behaves incorrectly (e.g. loses data) in the face of network outages
+but it may become unavailable unless the network is stable. Network stability
+between nodes is assumed, though connectivity issues remain a constant
+challenge.
+
+Request timeouts are discouraged, as Transport requests are guaranteed to
+eventually receive a response, even without a timeout. `SO_KEEPALIVE` helps
+detect and tear down dead connections. When a connection closes with an error,
+the entire pool is closed, outstanding requests fail, and the pool is
+reconnected.
+
+There are no retries on the Transport layer itself. The application layer
+decides when and how to retry (e.g., via `RetryableAction` or
+`TransportMasterNodeAction`). In the future Transport framework might support
+retries #95100.
+
+Transport can multiplex requests and responses in a single `Channel`, but
+cannot multiplex parts of messages. Each transport message must be fully
+dispatched before the next can be sent. Proper application-layer sizing/chunking
+of messages is recommended to ensure fairness of delivery across multiple
+senders. A Transport message cannot be larger than 30% of heap (
+`org.elasticsearch.transport.TcpTransport#THIRTY_PER_HEAP_SIZE`) or 2GB (due to
+`org.elasticsearch.transport.Header#networkMessageSize` being an `int`).
+
+The `TransportMessage` family tree includes various types (node-to-node,
+broadcast, master node acknowledged) to ensure correct dispatch and response
+handling. For example when a message must be accepted on all nodes.
+
+## Other networking stacks
+
+Snapshotting to remote repositories involves different networking clients
+and SDKs. For example AWS SDK comes with Apache or Netty HTTP client, Azure
+with Netty-based Project-Reactor, GCP uses default Java HTTP client.
+Underlying clients may be reused between repositories, with varying levels of
+control over networking settings.
+
+There are other features such as SAML/JWT metadata reloading, Watcher HTTP
+action, reindex and ML related features such as inference that also use HTTP
+clients.
+
+## Sync/Async IO and threading
+
+ES handles a mix of I/O operations (disk, HTTP server,
+Transport client/server, repositories), resulting in a combination of
+synchronous and asynchronous styles. Asynchronous IO utilizes a small set of
+threads by running small tasks, minimizing context switch. Synchronous IO
+uses many threads and relies on an OS scheduler. ES typically runs with 100+
+threads, where Async and Sync threads compete for resources.
+
+## Netty
+
+Netty is a networking framework/toolkit used extensively for HTTP and Transport
+networks, providing foundational building blocks for networking applications.
+
+### Event-Loop (Transport-Thread)
+
+Netty is an Async IO framework, it runs with a few threads. An event-loop is
+a thread that processes events for one or many `Channels` (TCP connections).
+Every `Channel` has exactly one, unchanging event-loop, eliminating the need to
+synchronize events within that `Channel`. A single, CPU-bound `Transport
+ThreadPool` (e.g.,4 threads for 4 cores) serves all HTTP and Transport
+servers and clients, handling potentially hundreds or thousands of connections.
+
+Event-loop threads serve many connections each, it's critical to not block
+threads for a long time. Fork any blocking operation or heavy computation to
+another thread pool. Forking, however, comes with overhead. Do not fork
+simple requests that can be served from memory and do not require heavy
+computations (milliseconds).
+
+Transport threads are monitored by `ThreadWatchdog`. A warning log appears if a
+single task runs longer than 5 seconds. Slowness can be caused by blocking, GC
+pauses, or CPU starvation from other thread pools.
+
+### ByteBuf - byte buffers and reference counting
+
+Netty's controlled memory allocation provides a performance edge by managing and
+reusing byte buffer pools (e.g., pools of 1MiB byte chunks sliced into 16KiB
+pages). Some pages might not be in use while taking up heap space and show up in
+the heap dump.
+
+Netty reads socket bytes into direct buffers, and ES copies them into pooled
+byte-buffers (`CopyBytesSocketChannel`). The application is responsible for
+retaining (increasing ref-count) and releasing (decreasing ref-count) for
+pooled buffers.
+
+Reference counting introduces two primary problems:
+
+1. Use after release (free): Accessing a buffer after it has been explicitly
+   released.
+2. Never release (leak): Failing to release a buffer, leading to memory leaks.
+
+The compiler does not help detect these issues. They require careful testing
+using Netty's LeakDetector with a Paranoid level. It's enabled by default in
+all tests.
+
+### Async methods return futures
+
+Every asynchronous operation in Netty returns a future. It is easy to forget
+to check the result, as a following call always succeeds:
+
+```java
+ctx.write(message)
+```
+
+Check the result of an async operation:
+
+```java
+ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
+```
+
 ### ThreadPool
 
 (We have many thread pools, what and why)
@@ -27,8 +248,6 @@ See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch
 #### XContent
 
 ### Performance
-
-### Netty
 
 (long running actions should be forked off of the Netty thread. Keep short operations to avoid forking costs)
 
@@ -263,7 +482,10 @@ works in parallel with the storage engine.)
 
 ### Create a Shard
 
-### Local Recovery
+### Local Shards Recovery
+Local shards recovery is a type of recovery that reuses existing data from other shard(s) allocated on the current node (hence local shards). It is used exclusively to implement index [Shrink/Split/Clone APIs](#shrinksplitclone-index-apis).
+
+This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data from the source shard(s) directory. Copy is used if the runtime environment does not support hard links (e.g., on Windows). Source shard(s) directories are added using the `IndexWriter#addIndexes` API. Once an `IndexWriter` is correctly set up with source shard(s), the necessary data modifications are performed (like deleting excess documents during split) and a new commit is created for the recovering shard. After that recovery proceeds using standard store recovery logic utilizing the commit that was just created.
 
 ### Peer Recovery
 
@@ -657,3 +879,68 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 ### Closing a Shard
 
 (this can also happen during shard reallocation, right? This might be a standalone topic, or need another section about it in allocation?...)
+
+# Shrink/Split/Clone index APIs
+
+These APIs are used to create a new index that contains a copy of data from a provided index and differs in number of shards and/or index settings. They can only be executed against source indices that are marked read-only.
+
+The shrink API (`/{index}/_shrink/{target}`) creates an index that has fewer shards than the original index.
+
+The split API (`/{index}/_split/{target}`) creates an index that has more shards than the original index.
+
+The clone API (`/{index}/_clone/{target}`) creates an index that has the same number of shards as the original index but may have different index settings.
+
+The main implementation logic is centralized in `TransportResizeAction` however it only creates a new index in the cluster state using special `recoverFrom` and `resizeType` parameters. The entire workflow involves multiple components.
+
+The high level structure is the following:
+1. `TransportResizeAction` creates index metadata for the new index that contains information about the resize performed. It also creates a routing table for the new index which assigns a `LocalShardsRecoverySource.INSTANCE` recovery source to primary shards based on the resize information in the index metadata .
+2. Allocation logic allocates shards of the index so that they are on the same node as the corresponding shards of the source index. See `ResizeAllocationDecider`. Note that this doesn't work for shrink case since during shrink there are multiple source shards that are "merged" together. These source shards may be on different nodes already. Shard movement in this case needs to be performed manually.
+3. Primary shards perform [local shards recovery](#local-shards-recovery) using index metadata to know what type of resize operation is performed.
+
+# Health API
+
+The Health API (`GET /_health_report`) provides a structured health report for the cluster. It is indicator-based: each health indicator evaluates a specific aspect of cluster health (for example shard allocation or disk) and returns a status (`GREEN`, `YELLOW`, `RED`, or `UNKNOWN`) plus structured details, impacts, and diagnoses. The top-level status is derived from the worst indicator status.
+
+## Health node and data flow
+
+A health node is selected by the master node via a persistent task. The health node maintains a cache of per-node health information. Each node periodically publishes its local health info to the health node cache. That cached health info is then used as input to health indicators when evaluating the overall cluster health. If the health node fails or leaves the cluster, the master node selects a new health node.
+
+```
+Publish: LocalHealthMonitor (local node) -> UpdateHealthInfoCacheAction -> HealthInfoCache (health node)
+Retrieve: Health API (coordination node) -> FetchHealthInfoCacheAction -> HealthInfoCache (health node)
+```
+
+Relevant classes:
+- [HealthNodeTaskExecutor][HealthNodeTaskExecutor]: the persistent task executor that selects the health node.
+- [HealthInfoCache][HealthInfoCache]: contains the cached per-node health info on the health node.
+- [LocalHealthMonitor][LocalHealthMonitor]: monitors local health and publishes to the health node.
+- [HealthTracker][HealthTracker]: invoked by LocalHealthMonitor and tracks local health info on each node.
+
+## Health indicators
+
+There are two kinds of health indicators: preflight and regular. Preflight indicators run first; if any preflight indicator is not GREEN, regular indicators return UNKNOWN to avoid misleading results on an unstable cluster. Currently, the only preflight indicator is [StableMasterHealthIndicatorService][StableMasterHealthIndicatorService], which checks whether the cluster has a stable master node.
+
+Relevant classes:
+- [HealthIndicatorService][HealthIndicatorService]: the interface for health indicators.
+- [HealthService][HealthService]: orchestrates indicator evaluation.
+
+## Health periodic logger
+
+Cluster health status can be logged periodically by [HealthPeriodicLogger][HealthPeriodicLogger], which runs on the health node and calls [HealthService][HealthService] at a configured interval. It enables alerting on the health status.
+
+## Health metadata
+
+Some health configuration is stored in the cluster state [HealthMetadata][HealthMetadata]. It stores user-configurable health settings, such as disk watermark thresholds. The current master node publishes its settings to the cluster state so the same settings are used across nodes in the cluster.
+
+Relevant classes:
+[HealthMetadataService][HealthMetadataService]: runs on master node, publishes health metadata to the cluster state.
+
+[HealthService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/HealthService.java
+[HealthIndicatorService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/HealthIndicatorService.java
+[HealthInfoCache]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/HealthInfoCache.java
+[LocalHealthMonitor]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/LocalHealthMonitor.java
+[HealthPeriodicLogger]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/HealthPeriodicLogger.java
+[HealthTracker]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/node/tracker/HealthTracker.java
+[StableMasterHealthIndicatorService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/StableMasterHealthIndicatorService.java
+[HealthMetadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
+[HealthMetadataService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadataService.java

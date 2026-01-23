@@ -87,4 +87,9 @@ public final class RestrictedTrustConfig implements SslTrustConfig {
         final List<String> trustNodeNames = settings.getAsList(RESTRICTIONS_KEY_SUBJECT_NAME);
         return new CertificateTrustRestrictions(trustNodeNames);
     }
+
+    @Override
+    public boolean hasExplicitConfig() {
+        return delegate.hasExplicitConfig();
+    }
 }

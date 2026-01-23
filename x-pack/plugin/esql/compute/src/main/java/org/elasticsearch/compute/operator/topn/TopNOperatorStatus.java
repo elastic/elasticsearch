@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +25,9 @@ public class TopNOperatorStatus implements Operator.Status {
         "topn",
         TopNOperatorStatus::new
     );
+
+    private static final TransportVersion ESQL_TOPN_TIMINGS = TransportVersion.fromName("esql_topn_timings");
+
     private final long receiveNanos;
     private final long emitNanos;
     private final int occupiedRows;
@@ -56,7 +58,7 @@ public class TopNOperatorStatus implements Operator.Status {
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOPN_TIMINGS)) {
+        if (in.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
             this.receiveNanos = in.readVLong();
             this.emitNanos = in.readVLong();
         } else {
@@ -66,22 +68,16 @@ public class TopNOperatorStatus implements Operator.Status {
         this.occupiedRows = in.readVInt();
         this.ramBytesUsed = in.readVLong();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-            this.pagesReceived = in.readVInt();
-            this.pagesEmitted = in.readVInt();
-            this.rowsReceived = in.readVLong();
-            this.rowsEmitted = in.readVLong();
-        } else {
-            this.pagesReceived = 0;
-            this.pagesEmitted = 0;
-            this.rowsReceived = 0;
-            this.rowsEmitted = 0;
-        }
+        this.pagesReceived = in.readVInt();
+        this.pagesEmitted = in.readVInt();
+        this.rowsReceived = in.readVLong();
+        this.rowsEmitted = in.readVLong();
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOPN_TIMINGS)) {
+        if (out.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
             out.writeVLong(receiveNanos);
             out.writeVLong(emitNanos);
         }
@@ -89,12 +85,10 @@ public class TopNOperatorStatus implements Operator.Status {
         out.writeVInt(occupiedRows);
         out.writeVLong(ramBytesUsed);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-            out.writeVInt(pagesReceived);
-            out.writeVInt(pagesEmitted);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
-        }
+        out.writeVInt(pagesReceived);
+        out.writeVInt(pagesEmitted);
+        out.writeVLong(rowsReceived);
+        out.writeVLong(rowsEmitted);
     }
 
     @Override
@@ -178,6 +172,6 @@ public class TopNOperatorStatus implements Operator.Status {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 }

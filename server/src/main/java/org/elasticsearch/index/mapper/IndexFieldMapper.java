@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -68,7 +69,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
@@ -86,7 +87,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return BlockLoader.constantBytes(new BytesRef(blContext.indexName()));
+            return new ConstantBytes(new BytesRef(blContext.indexName()));
         }
 
         @Override
@@ -130,7 +131,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 indexName = indexName.toLowerCase(Locale.ROOT);
             }
             if (Regex.simpleMatch(value, indexName)) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             }
             return new MatchNoDocsQuery("The \"" + indexName + "\" query was rewritten to a \"match_none\" query.");
         }

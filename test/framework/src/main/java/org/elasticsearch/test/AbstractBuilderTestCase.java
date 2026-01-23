@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
@@ -233,7 +234,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion();
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
@@ -503,7 +504,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                null,
+                null
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
@@ -625,8 +628,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperService.mappingLookup(),
                 emptyMap(),
                 idxSettings,
+                TransportVersion.current(),
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 new Index(
-                    RemoteClusterAware.buildRemoteIndexName(null, idxSettings.getIndex().getName()),
+                    RemoteClusterAware.buildRemoteIndexName(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, idxSettings.getIndex().getName()),
                     idxSettings.getIndex().getUUID()
                 ),
                 indexNameMatcher(),
@@ -637,6 +642,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 createMockResolvedIndices(),
                 null,
                 createMockQueryRewriteInterceptor(),
+                null,
+                false,
                 false
             );
         }

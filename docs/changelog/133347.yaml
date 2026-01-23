@@ -1,6 +1,0 @@
-pr: 133347
-summary: Force rollover on write to true when data stream indices list is empty
-area: Data streams
-type: bug
-issues:
- - 133176

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.reservedstate;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+
+import java.io.IOException;
 
 /**
  * {@link ReservedStateHandler} for updating project-specific cluster state.
@@ -37,4 +40,16 @@ public interface ReservedProjectStateHandler<T> extends ReservedStateHandler<T> 
      */
     TransformState transform(ProjectId projectId, T source, TransformState prevState) throws Exception;
 
+    /**
+     * Called when the source no longer contains a section corresponding to {@link #name}.
+     * A bit like {@link #transform}, but with no {@code source} because the "source" has disappeared,
+     * and no {@link TransformState#keys() keys} in the return value because there aren't any.
+     *
+     * <p>
+     * The intent is to "cancel the reservation" and return the configuration to the state
+     * it would have had if the section had never existed.
+     *
+     * @throws IOException
+     */
+    ClusterState remove(ProjectId projectId, TransformState prevState) throws Exception;
 }

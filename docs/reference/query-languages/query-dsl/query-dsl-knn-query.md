@@ -2,6 +2,9 @@
 navigation_title: "Knn"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-knn-query.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # Knn query [query-dsl-knn-query]
@@ -44,6 +47,7 @@ PUT my-image-index
     { "index": { "_id": "3" } }
     { "image-vector": [15, 11, 23], "file-type": "jpg", "title": "mountain lake lodge" }
     ```
+    % TEST[continued]
 
 2. Run the search using the `knn` query, asking for the top 10 nearest vectors from each shard, and then combine shard results to get the top 3 global results.
 
@@ -60,7 +64,7 @@ PUT my-image-index
       }
     }
     ```
-
+    % TEST[continued]
 
 
 ## Top-level parameters for `knn` [knn-query-top-level-parameters]
@@ -80,11 +84,15 @@ If all queried fields are of type [semantic_text](/reference/elasticsearch/mappi
 
 
 `k`
-:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` results from each shard, then merges them to find the global top results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
+:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
 
 
 `num_candidates`
-:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set.
+:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set. When [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) is applied, `num_candidates` is set to `max(num_candidates, k * oversample)`
+
+
+`visit_percentage` {applies_to}`stack: ga 9.2`
+:   (Optional, float) The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to ~1% per shard for every 1 million vectors.
 
 
 `filter`
@@ -104,11 +112,11 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 :   (Optional, string) Name field to identify the query
 
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
     **Parameters for `rescore_vector`**:
-    
+
     `oversample`
     :   (Required, float)
 
@@ -116,7 +124,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 
      * Retrieve `num_candidates` candidates per shard.
      * From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
-     * The top `k` rescored candidates will be returned. Must be one of the following values: 
+     * The top `k` rescored candidates will be returned. Must be one of the following values:
        * \>= 1f to indicate the oversample factor
        * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
 
@@ -157,6 +165,7 @@ POST my-image-index/_search
   }
 }
 ```
+% TEST[continued]
 
 
 ## Hybrid search with knn query [knn-query-in-hybrid-search]
@@ -192,6 +201,7 @@ POST my-image-index/_search
   }
 }
 ```
+% TEST[continued]
 
 
 ## Knn query inside a nested query [knn-query-with-nested-query]
@@ -213,7 +223,7 @@ To ensure correct results: each individual filter must be either over:
 
 This query performs a basic nested knn search:
 
-```json
+```js
 {
   "query" : {
     "nested" : {
@@ -228,6 +238,7 @@ This query performs a basic nested knn search:
   }
 }
 ```
+% NOTCONSOLE
 
 ### Filter over nested metadata
 
@@ -238,7 +249,7 @@ stack: ga 9.2
 This query filters over nested metadata. For scoring parent documents, this query only considers vectors that
 have "paragraph.language" set to "EN":
 
-```json
+```js
 {
   "query" : {
     "nested" : {
@@ -258,6 +269,7 @@ have "paragraph.language" set to "EN":
   }
 }
 ```
+% NOTCONSOLE
 
 ### Multiple filters (nested and top-level metadata)
 
@@ -269,7 +281,7 @@ This query uses multiple filters: one over nested metadata and another over the 
 this query only considers vectors whose parent's title contain "essay"
 word and have "paragraph.language" set to "EN":
 
-```json
+```js
 {
   "query" : {
     "nested" : {
@@ -296,6 +308,7 @@ word and have "paragraph.language" set to "EN":
   }
 }
 ```
+% NOTCONSOLE
 
 Note that nested `knn` only supports `score_mode=max`.
 
@@ -306,7 +319,7 @@ Elasticsearch supports knn queries over a [
 
 Here is an example using the `query_vector_builder`:
 
-```json
+```js
 {
   "query": {
     "knn": {
@@ -322,6 +335,7 @@ Here is an example using the `query_vector_builder`:
   }
 }
 ```
+% NOTCONSOLE
 
 Note that for `semantic_text` fields, the `model_id` does not have to be
 provided as it can be inferred from the `semantic_text` field mapping.

@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
  */
 public abstract class OperatorTestCase extends AnyOperatorTestCase {
+
     /**
      * Valid input to be sent to {@link #simple};
      */
@@ -68,14 +70,22 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * are more likely to discover accidental behavior for clumped inputs.
      */
     public final void testSimpleSmallInput() {
-        assertSimple(driverContext(), between(10, 100));
+        assertSimple(driverContext(), smallInputSize());
+    }
+
+    protected int smallInputSize() {
+        return randomIntBetween(10, 100);
     }
 
     /**
      * Test a larger input set against {@link #simple}.
      */
     public final void testSimpleLargeInput() {
-        assertSimple(driverContext(), between(1_000, 10_000));
+        assertSimple(driverContext(), largeInputSize());
+    }
+
+    protected int largeInputSize() {
+        return randomIntBetween(1_000, 10_000);
     }
 
     /**
@@ -97,14 +107,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * asserting both that this throws a {@link CircuitBreakingException} and releases
      * all pages.
      */
-    public final void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() {
         /*
          * Build the input before building `simple` to handle the rare
          * cases where `simple` need some state from the input - mostly
          * this is ValuesSourceReaderOperator.
          */
         DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), largeInputSize()));
 
         ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
         Operator.OperatorFactory simple = simple(new SimpleOptions(true));
@@ -124,7 +134,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
         try {
@@ -149,7 +159,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      */
     public final void testSimpleWithCranky() {
         DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), largeInputSize()));
 
         DriverContext driverContext = crankyDriverContext();
 
@@ -307,7 +317,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 TestDriverFactory.create(
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null),
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
@@ -350,5 +360,13 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         } else {
             return between(1, 16 * 1024);
         }
+    }
+
+    // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
+    protected final String byteRefBlockHashSize() {
+        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
+            return "213112b";
+        }
+        return "392b";
     }
 }

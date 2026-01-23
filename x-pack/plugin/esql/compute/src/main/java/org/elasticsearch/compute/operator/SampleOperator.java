@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -177,6 +176,8 @@ public class SampleOperator implements Operator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = TransportVersion.fromName("esql_sample_operator_status");
+
         Status(StreamInput streamInput) throws IOException {
             this(
                 streamInput.readVLong(),
@@ -248,8 +249,7 @@ public class SampleOperator implements Operator {
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return version.onOrAfter(TransportVersions.ESQL_SAMPLE_OPERATOR_STATUS)
-                || version.isPatchFrom(TransportVersions.ESQL_SAMPLE_OPERATOR_STATUS_9_1);
+            return version.supports(ESQL_SAMPLE_OPERATOR_STATUS);
         }
     }
 }

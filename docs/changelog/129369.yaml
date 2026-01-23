@@ -1,6 +1,0 @@
-pr: 129369
-summary: Support semantic reranking using contextual snippets instead of entire field
-  text
-area: Relevance
-type: enhancement
-issues: []

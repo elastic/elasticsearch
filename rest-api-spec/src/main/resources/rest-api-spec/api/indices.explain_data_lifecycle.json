@@ -1,8 +1,8 @@
 {
   "indices.explain_data_lifecycle": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-streams-explain-lifecycle.html",
-      "description": "Retrieves information about the index's current data stream lifecycle, such as any potential encountered error, time since creation etc."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-explain-data-lifecycle",
+      "description": "Get the status for a data stream lifecycle"
     },
     "stability": "stable",
     "visibility": "public",
@@ -20,8 +20,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "The name of the index to explain"
+              "type": "list",
+              "description": "Comma-separated list of index names to explain"
             }
           }
         }
@@ -34,6 +34,7 @@
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for connection to master"
       }
     }

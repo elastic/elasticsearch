@@ -117,7 +117,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             systemIndices,
             projectResolver,
             threadPool::relativeTimeInNanos,
-            featureService
+            featureService,
+            null
         );
         this.indicesService = indicesService;
         this.xContentRegistry = xContentRegistry;
@@ -205,8 +206,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             request.getContentType(),
             request.routing(),
             request.getDynamicTemplates(),
+            request.getDynamicTemplateParams(),
             request.getIncludeSourceOnError(),
-            XContentMeteringParserDecorator.NOOP
+            XContentMeteringParserDecorator.NOOP,
+            request.tsid()
         );
 
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());

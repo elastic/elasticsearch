@@ -116,11 +116,12 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
   private void addRawBlock(BytesRefBlock wkbBlock) {
     BytesRef wkbScratch = new BytesRef();
     for (int p = 0; p < wkbBlock.getPositionCount(); p++) {
-      if (wkbBlock.isNull(p)) {
+      int wkbValueCount = wkbBlock.getValueCount(p);
+      if (wkbValueCount == 0) {
         continue;
       }
       int wkbStart = wkbBlock.getFirstValueIndex(p);
-      int wkbEnd = wkbStart + wkbBlock.getValueCount(p);
+      int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
         SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);
@@ -134,11 +135,12 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (wkbBlock.isNull(p)) {
+      int wkbValueCount = wkbBlock.getValueCount(p);
+      if (wkbValueCount == 0) {
         continue;
       }
       int wkbStart = wkbBlock.getFirstValueIndex(p);
-      int wkbEnd = wkbStart + wkbBlock.getValueCount(p);
+      int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
         SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);

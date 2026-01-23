@@ -10,6 +10,12 @@
 | cartesian_shape | cartesian_shape | boolean |
 | geo_point | geo_point | boolean |
 | geo_point | geo_shape | boolean |
+| geo_point | geohash | boolean |
+| geo_point | geohex | boolean |
+| geo_point | geotile | boolean |
 | geo_shape | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
+| geohash | geo_point | boolean |
+| geohex | geo_point | boolean |
+| geotile | geo_point | boolean |
 

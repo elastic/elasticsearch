@@ -1,58 +1,66 @@
 {
-  "cluster.allocation_explain":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-allocation-explain.html",
-      "description":"Provides explanations for shard allocations in the cluster."
+  "cluster.allocation_explain": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-allocation-explain",
+      "description": "Explain the shard allocations"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cluster/allocation/explain",
-          "methods":[
+          "path": "/_cluster/allocation/explain",
+          "methods": [
             "GET",
             "POST"
           ]
         }
       ]
     },
-    "params":{
+    "params": {
       "index": {
         "type": "string",
         "description": "Specifies the name of the index that you would like an explanation for"
       },
       "shard": {
-        "type": "number",
+        "type": "int",
         "description": "Specifies the ID of the shard that you would like an explanation for"
       },
       "primary": {
-        "type":"boolean",
-        "description":"If true, returns explanation for the primary shard for the given shard ID"
+        "type": "boolean",
+        "description": "If true, returns explanation for the primary shard for the given shard ID"
       },
       "current_node": {
         "type": "string",
         "description": "Specifies the node ID or the name of the node to only explain a shard that is currently located on the specified node"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for connection to master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for connection to master node"
       },
-      "include_yes_decisions":{
-        "type":"boolean",
-        "description":"Return 'YES' decisions in explanation (default: false)"
+      "include_yes_decisions": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return 'YES' decisions in explanation (default: false)"
       },
-      "include_disk_info":{
-        "type":"boolean",
-        "description":"Return information about disk usage and shard sizes (default: false)"
+      "include_disk_info": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return information about disk usage and shard sizes (default: false)"
       }
     },
-    "body":{
-      "description":"The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'"
+    "body": {
+      "description": "The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'",
+      "required": false
     }
   }
 }

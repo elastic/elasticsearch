@@ -9,7 +9,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.TransportVersions;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,9 +30,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.logging.log4j.LogManager.getLogger;
+
 public class JvmInfo implements ReportingService.Info {
 
     private static final JvmInfo INSTANCE;
+
+    private static final Logger logger = getLogger(JvmInfo.class);
 
     static {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -94,47 +98,63 @@ public class JvmInfo implements ReportingService.Info {
             try {
                 Object onErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnError");
                 onError = (String) valueMethod.invoke(onErrorObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object onOutOfMemoryErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnOutOfMemoryError");
                 onOutOfMemoryError = (String) valueMethod.invoke(onOutOfMemoryErrorObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object useCompressedOopsVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
                 useCompressedOops = (String) valueMethod.invoke(useCompressedOopsVmOptionObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object useG1GCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
                 useG1GC = (String) valueMethod.invoke(useG1GCVmOptionObject);
                 Object regionSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "G1HeapRegionSize");
                 g1RegisionSize = Long.parseLong((String) valueMethod.invoke(regionSizeVmOptionObject));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object initialHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "InitialHeapSize");
                 configuredInitialHeapSize = Long.parseLong((String) valueMethod.invoke(initialHeapSizeVmOptionObject));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object maxHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxHeapSize");
                 configuredMaxHeapSize = Long.parseLong((String) valueMethod.invoke(maxHeapSizeVmOptionObject));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object maxDirectMemorySizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxDirectMemorySize");
                 directMemoryMax = Long.parseLong((String) valueMethod.invoke(maxDirectMemorySizeVmOptionObject));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
             try {
                 Object useSerialGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseSerialGC");
                 useSerialGC = (String) valueMethod.invoke(useSerialGCVmOptionObject);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                logger.debug("Error getting JVM info from MX Bean", e);
+            }
 
-        } catch (Exception ignored) {
-
+        } catch (Exception e) {
+            logger.debug("Error getting JVM info from MX Bean", e);
         }
 
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
@@ -255,10 +275,6 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_3_0)) {
-            // Before 8.0 the no-jdk distributions could have bundledJdk false, this is always true now.
-            in.readBoolean();
-        }
         usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
@@ -289,9 +305,6 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)) {
-            out.writeBoolean(true);
-        }
         out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);

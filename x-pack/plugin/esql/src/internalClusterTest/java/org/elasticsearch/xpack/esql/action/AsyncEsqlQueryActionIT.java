@@ -43,6 +43,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -234,14 +235,12 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
         scriptPermits.release(numberOfDocs());
 
-        var request = EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
-            .query("from test | stats sum(pause_me)")
-            .pragmas(queryPragmas())
+        var request = asyncEsqlQueryRequest("from test | stats sum(pause_me)").pragmas(queryPragmas())
             .waitForCompletionTimeout(TimeValue.timeValueSeconds(60))
             .keepOnCompletion(keepOnCompletion)
             .keepAlive(randomKeepAlive());
 
-        try (var response = request.execute().actionGet(60, TimeUnit.SECONDS)) {
+        try (var response = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
             assertThat(response.isRunning(), is(false));
             assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long", null))));
             assertThat(getValuesList(response).size(), equalTo(1));
@@ -270,16 +269,14 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     public void testUpdateKeepAlive() throws Exception {
         long nowInMillis = System.currentTimeMillis();
         TimeValue keepAlive = timeValueSeconds(between(30, 60));
-        var request = EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
-            .query("from test | stats sum(pause_me)")
-            .pragmas(queryPragmas())
+        var request = asyncEsqlQueryRequest("from test | stats sum(pause_me)").pragmas(queryPragmas())
             .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
             .keepOnCompletion(randomBoolean())
             .keepAlive(keepAlive);
         final String asyncId;
         long currentExpiration;
         try {
-            try (EsqlQueryResponse initialResponse = request.execute().actionGet(60, TimeUnit.SECONDS)) {
+            try (EsqlQueryResponse initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(initialResponse.isRunning(), is(true));
                 assertTrue(initialResponse.asyncExecutionId().isPresent());
                 asyncId = initialResponse.asyncExecutionId().get();
@@ -312,6 +309,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 assertThat(resp.isRunning(), is(false));
             }
         });
+        assertThat(getExpirationFromDoc(asyncId), greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
         // update the keepAlive after the query has completed
         int iters = between(1, 5);
         for (int i = 0; i < iters; i++) {
@@ -372,15 +370,14 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
         scriptPermits.release(between(1, 5));
         var pragmas = queryPragmas();
-        return EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
-            .query("from test | stats sum(pause_me)")
-            .pragmas(pragmas)
-            // deliberately small timeout, to frequently trigger incomplete response
-            .waitForCompletionTimeout(TimeValue.timeValueNanos(randomIntBetween(1, 20)))
-            .keepOnCompletion(randomBoolean())
-            .keepAlive(randomKeepAlive())
-            .execute()
-            .actionGet(60, TimeUnit.SECONDS);
+        return client().execute(
+            EsqlQueryAction.INSTANCE,
+            asyncEsqlQueryRequest("from test | stats sum(pause_me)").pragmas(pragmas)
+                // deliberately small timeout, to frequently trigger incomplete response
+                .waitForCompletionTimeout(TimeValue.timeValueNanos(randomIntBetween(1, 20)))
+                .keepOnCompletion(randomBoolean())
+                .keepAlive(randomKeepAlive())
+        ).actionGet(60, TimeUnit.SECONDS);
     }
 
     private QueryPragmas queryPragmas() {

@@ -12,6 +12,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -20,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
-
-import java.util.List;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
@@ -35,7 +34,7 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         FoldContext foldCtx,
         InsensitiveEquals bc,
         Layout layout,
-        List<ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         DataType leftType = bc.left().dataType();
         DataType rightType = bc.right().dataType();

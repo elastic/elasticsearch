@@ -77,7 +77,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     /** "Security Solutions" Entity Store and Asset Criticality indices for Asset Inventory and Entity Analytics */
     public static final String ENTITY_STORE_V1_LATEST_INDEX = ".entities.v1.latest.security_*";
+    public static final String ENTITY_STORE_HISTORY_INDEX = ".entities.*.history.*";
     public static final String ASSET_CRITICALITY_INDEX = ".asset-criticality.asset-criticality-*";
+    public static final String PRIVILEGED_USER_MONITORING_INDEX = ".entity_analytics.monitoring*";
 
     /** Index pattern for Universal Profiling */
     public static final String UNIVERSAL_PROFILING_ALIASES = "profiling-*";
@@ -780,7 +782,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
                         ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8,
                         ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
-                        ReservedRolesStore.ASSET_CRITICALITY_INDEX
+                        ReservedRolesStore.ASSET_CRITICALITY_INDEX,
+                        ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),
@@ -849,7 +853,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Security - Entity Store is view only
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX)
+                    .indices(
+                        ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
+                        ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
+                    )
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Alerts-as-data

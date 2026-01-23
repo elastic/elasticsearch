@@ -48,6 +48,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermVectorsUnitTests extends ESTestCase {
@@ -239,7 +240,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
             assertThat(request.preference(), equalTo(pref));
             assertThat(request.routing(), equalTo(null));
-            assertEquals(new BytesArray("{}"), request.doc());
+            assertThat(request.doc(), equalBytes(new BytesArray("{}")));
             assertEquals(XContentType.JSON, request.xContentType());
         }
     }

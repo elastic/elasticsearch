@@ -102,3 +102,35 @@ java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffl
 
 @defaultMessage Avoid creating FilePermission objects directly, but use FilePermissionUtils instead
 java.io.FilePermission#<init>(java.lang.String,java.lang.String)
+
+@defaultMessage DocumentBuilderFactory should not be used directly. Use XmlUtils#getHardenedDocumentBuilder(java.lang.String[]) instead.
+javax.xml.parsers.DocumentBuilderFactory#newInstance()
+javax.xml.parsers.DocumentBuilderFactory#newInstance(java.lang.String, java.lang.ClassLoader)
+javax.xml.parsers.DocumentBuilderFactory#newDefaultNSInstance()
+javax.xml.parsers.DocumentBuilderFactory#newNSInstance()
+javax.xml.parsers.DocumentBuilderFactory#newNSInstance(java.lang.String, java.lang.ClassLoader)
+
+@defaultMessage TransformerFactory should not be used directly. Use XmlUtils#getHardenedXMLTransformer() instead.
+javax.xml.transform.TransformerFactory#newInstance()
+javax.xml.transform.TransformerFactory#newInstance(java.lang.String, java.lang.ClassLoader)
+
+@defaultMessage SAXParserFactory should not be used directly. Use XmlUtils#getHardenedSaxParser() instead
+javax.xml.parsers.SAXParserFactory#newInstance()
+javax.xml.parsers.SAXParserFactory#newInstance(java.lang.String, java.lang.ClassLoader)
+javax.xml.parsers.SAXParserFactory#newDefaultNSInstance()
+javax.xml.parsers.SAXParserFactory#newNSInstance()
+javax.xml.parsers.SAXParserFactory#newNSInstance(java.lang.String, java.lang.ClassLoader)
+
+@defaultMessage SchemaValidator should not be used directly. Use XmlUtils#getHardenedSchemaValidator() instead
+javax.xml.validation.SchemaFactory#newDefaultInstance()
+javax.xml.validation.SchemaFactory#newInstance(java.lang.String)
+javax.xml.validation.SchemaFactory#newInstance(java.lang.String, java.lang.String, java.lang.ClassLoader)
+
+@defaultMessage Validator should not be used directly. Use XmlUtils#getHardenedValidator() instead
+javax.xml.validation.Schema#newValidator()
+
+@defaultMessage XPathFactory should not be used directly. Use XmlUtils#getHardenedXPath() instead
+javax.xml.xpath.XPathFactory#newDefaultInstance()
+javax.xml.xpath.XPathFactory#newInstance()
+javax.xml.xpath.XPathFactory#newInstance(java.lang.String)
+javax.xml.xpath.XPathFactory#newInstance(java.lang.String, java.lang.String, java.lang.ClassLoader)

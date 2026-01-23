@@ -88,6 +88,7 @@ public class SnapshotHistoryStore {
                 );
             },
                 exception -> logErrorOrWarning(
+                    logger,
                     clusterService.state(),
                     () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                     exception
@@ -95,6 +96,7 @@ public class SnapshotHistoryStore {
             ));
         } catch (IOException exception) {
             logErrorOrWarning(
+                logger,
                 clusterService.state(),
                 () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                 exception
@@ -103,7 +105,7 @@ public class SnapshotHistoryStore {
     }
 
     // On node shutdown, some operations are expected to fail, we log a warning instead of error during node shutdown for those exceptions
-    public static void logErrorOrWarning(ClusterState clusterState, Supplier<?> failureMsgSupplier, Exception exception) {
+    public static void logErrorOrWarning(Logger logger, ClusterState clusterState, Supplier<?> failureMsgSupplier, Exception exception) {
         if (PluginShutdownService.isLocalNodeShutdown(clusterState)) {
             logger.warn(failureMsgSupplier, exception);
         } else {

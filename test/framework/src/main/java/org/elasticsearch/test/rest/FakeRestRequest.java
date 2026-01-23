@@ -117,9 +117,19 @@ public class FakeRestRequest extends RestRequest {
             return new FakeHttpRequest(method, uri, body, filteredHeaders, inboundException);
         }
 
+        public int contentLength() {
+            return switch (body) {
+                case HttpBody.Full f -> f.bytes().length();
+                case HttpBody.Stream s -> {
+                    var len = header("Content-Length");
+                    yield len == null ? 0 : Integer.parseInt(len);
+                }
+            };
+        }
+
         @Override
         public boolean hasContent() {
-            return body.isEmpty() == false;
+            return contentLength() > 0;
         }
 
         @Override
@@ -234,6 +244,11 @@ public class FakeRestRequest extends RestRequest {
 
         public Builder withBody(HttpBody body) {
             this.content = body;
+            return this;
+        }
+
+        public Builder withContentLength(int length) {
+            headers.put("Content-Length", List.of(String.valueOf(length)));
             return this;
         }
 

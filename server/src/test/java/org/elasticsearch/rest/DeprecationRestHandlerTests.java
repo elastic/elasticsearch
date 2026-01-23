@@ -22,7 +22,6 @@ import java.util.List;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests {@link DeprecationRestHandler}.
@@ -154,22 +153,6 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         assertFalse(DeprecationRestHandler.validHeaderValue(blank));
 
         expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(blank));
-    }
-
-    public void testSupportsBulkContentTrue() {
-        when(handler.supportsBulkContent()).thenReturn(true);
-        assertTrue(
-            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
-                .supportsBulkContent()
-        );
-    }
-
-    public void testSupportsBulkContentFalse() {
-        when(handler.supportsBulkContent()).thenReturn(false);
-        assertFalse(
-            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
-                .supportsBulkContent()
-        );
     }
 
     public void testDeprecationLevel() {

@@ -4,12 +4,12 @@
 
 ```esql
 FROM employees
-| STATS STD_DEV(height)
+| STATS std_dev_height = STD_DEV(height)
 ```
 
-| STD_DEV(height):double |
+| std_dev_height:double |
 | --- |
-| 0.20637044362020449 |
+| 0.2063704 |
 
 The expression can use inline functions. For example, to calculate the population standard deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, and then use `STD_DEV` on the result
 
@@ -20,6 +20,6 @@ FROM employees
 
 | stddev_salary_change:double |
 | --- |
-| 6.875829592924112 |
+| 6.87583 |
 
 

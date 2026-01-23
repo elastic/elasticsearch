@@ -198,7 +198,8 @@
     }
   ],
   "examples" : [
-    "ROW str = \"Hello World\"\n| EVAL str = REPLACE(str, \"World\", \"Universe\")\n| KEEP str"
+    "ROW str = \"Hello World\"\n| EVAL str = REPLACE(str, \"World\", \"Universe\")",
+    "ROW str = \"Hello World\"\n| EVAL str = REPLACE(str, \"\\\\\\\\s+\", \"\")"
   ],
   "preview" : false,
   "snapshot_only" : false

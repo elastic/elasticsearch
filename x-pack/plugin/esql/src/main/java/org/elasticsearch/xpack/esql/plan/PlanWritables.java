@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -78,7 +79,6 @@ public class PlanWritables {
             Dissect.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
-            EsqlProject.ENTRY,
             Eval.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
@@ -88,11 +88,14 @@ public class PlanWritables {
             LocalRelation.ENTRY,
             Limit.ENTRY,
             Lookup.ENTRY,
+            MMR.ENTRY,
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
+            Project.V9_ENTRY, // Backward compatibility for reading old "EsqlProject" type
             Rerank.ENTRY,
             Sample.ENTRY,
+            Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
             TopN.ENTRY
         );

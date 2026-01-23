@@ -38,6 +38,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.rank.FailingQueryPlugin;
+import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
 
@@ -45,6 +47,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -66,7 +69,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(RRFRankPlugin.class);
+        return List.of(RRFRankPlugin.class, FailingQueryPlugin.class);
     }
 
     @Before
@@ -111,7 +114,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
               }
             }
             """;
-        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5)).build());
+        int shardCount = randomIntBetween(1, 5);
+        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term");
         indexDoc(
@@ -175,7 +179,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
 
         // all requests would have an equal weight and use the identity normalizer
         source.retriever(
@@ -233,7 +246,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -302,7 +324,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -393,7 +424,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                     ),
                     // this one bring just doc 7 which should be ranked first eventually with a score of 100
                     new CompoundRetrieverBuilder.RetrieverSource(
-                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null),
+                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null, null),
                         null
                     )
                 ),
@@ -447,7 +478,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -537,7 +577,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -764,6 +813,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             10,
             10,
             null,
+            null,
             null
         );
         source.retriever(
@@ -816,8 +866,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 throw new IllegalStateException("Should not be called");
             }
         };
-        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null);
-        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
+        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null);
+        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
         var rrf = new LinearRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10
@@ -867,5 +917,55 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         assertResponse(client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(linearRetriever)), searchResponse -> {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         });
+    }
+
+    public void testLinearRetrieverPartialSearchErrorsFalse() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder failingRetriever = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        source.retriever(
+            new LinearRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null)
+                ),
+                rankWindowSize
+            )
+        );
+
+        // a failure should throw an exception when partial results are not allowed
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(false).setSource(source);
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertTrue(ex.getSuppressed()[0].toString().contains("simulated failure"));
+    }
+
+    public void testLinearRetrieverPartialSearchErrorsTrue() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder failingRetriever = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        source.retriever(
+            new LinearRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null)
+                ),
+                rankWindowSize
+            )
+        );
+
+        // when partial search results are allowed we should instead get a result and for now ignore partial failures
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(true).setSource(source);
+
+        long shardCount = Objects.requireNonNull(client().admin().indices().prepareStats(INDEX).get().getPrimaries().getShards())
+            .getTotalCount();
+
+        if (shardCount == 1) {
+            Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+            assertTrue(ex.getSuppressed()[0].toString().contains("simulated failure"));
+        } else {
+            assertResponse(req, searchResponse -> { assertEquals(shardCount / 2 + shardCount % 2, searchResponse.getFailedShards()); });
+        }
     }
 }

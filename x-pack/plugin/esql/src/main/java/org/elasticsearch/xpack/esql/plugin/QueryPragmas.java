@@ -22,7 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -46,7 +46,7 @@ public final class QueryPragmas implements Writeable {
      * the enum {@link DataPartitioning} which has more documentation. Not an
      * {@link Setting#enumSetting} because those can't have {@code null} defaults.
      * {@code null} here means "use the default from the cluster setting
-     * named {@link PhysicalSettings#DEFAULT_DATA_PARTITIONING}."
+     * named {@link PlannerSettings#DEFAULT_DATA_PARTITIONING}."
      */
     public static final Setting<String> DATA_PARTITIONING = Setting.simpleString("data_partitioning");
 
@@ -93,6 +93,8 @@ public final class QueryPragmas implements Writeable {
      * If the query level threshold is set to 0, no {@code RoundTo} pushdown will be performed.
      */
     public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
+
+    public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -213,6 +215,13 @@ public final class QueryPragmas implements Writeable {
 
     public int roundToPushDownThreshold() {
         return ROUNDTO_PUSHDOWN_THRESHOLD.get(settings);
+    }
+
+    /**
+     * Returns true if we should add the implicit LIMIT to FORK branches
+     */
+    public boolean forkImplicitLimit() {
+        return FORK_IMPLICIT_LIMIT.get(settings);
     }
 
     public boolean isEmpty() {

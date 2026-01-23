@@ -101,6 +101,24 @@ are coordinated.
 > does not hold, in those cases you can locate the transport action for a REST action by looking at the `NodeClient` invocation in the
 > `Rest*Action`'s `prepareRequest` implementation, it should specify the `ActionType` being invoked which can then be used to locate
 > the `Transport*Action` class that handles it.
+>
+> A netty [EventLoop] thread handles the initial steps of a `Rest*Action` request lifecycle such as decoding, validation and routing.
+> Upon entry into the "transport layer", [NodeClient] delegates the decision of execution to individual `TransportAction`. Each action
+> determines whether to execute synchronously on invoking thread-an approach reserved for lightweight processing-or to dispatch execution to an appropriate
+> thread pool, which is recommended practice for heavy workloads. Comprehensive mechanisms are available for propagating [ThreadContext] when tasks
+> are dispatched to alternate thread pools.
+>
+> `TransportAction` can also be initiated through peer-to-peer communication between nodes. In such cases, the [InboundHandler]
+> locates the appropriate `TransportAction` by consulting the [NamedRegistry], then invokes the `TransportAction`'s handleExecution() method. When a `TransportAction`
+> is registered, it can specify an executor to control how the action is run. One option is the `DIRECT_EXECUTOR_SERVICE`, which executes the
+> action on the calling thread. However, this should be used with caution—it's only appropriate when the action is lightweight.
+> Otherwise, it risks blocking the peer-to-peer I/O thread, potentially degrading responsiveness and causing the node to become unresponsive.
+> If `TransportAction` elects a separate executor, `InboundHandler` performs message deserialization before delegating execution to the executor,
+> refer to [TransportResponseHandler] method executor() for more details.
+>
+> `TransportAction` requests received from remote nodes are always deserialized on the Netty `EventLoop`. In contrast, `TransportAction` responses are
+> deserialized only after being dispatched to the designated executor. Outbound messages, including both requests and responses, are serialized
+> synchronously on the calling thread.
 
 ### Action registration
 Elasticsearch contains many [TransportAction]s, configured statically in [ActionModule#setupActions]. [ActionPlugin]s can
@@ -114,6 +132,17 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 [TransportService#sendRequest]). To be callable in this way, actions must register themselves with the [TransportService] by calling
 [TransportService#registerRequestHandler]. [HandledTransportAction] is a common parent class that registers an action with the
 `TransportService`.
+
+> [!NOTE]
+> `TransportAction` `ActionType` naming conventions encode semantic information about the role, scope, plugins, modules and behaviours.
+> [ActionType] instances are mapped to permission privileges via the [ClusterPrivilegeResolver]. Security interceptors enforce access
+> control by invoking RBACEngine.checkPrivileges().
+> Indices-level [ActionType] strings generally follows the pattern: `indices:[data|admin|monitor]/[read|write|get]/[index|bulk|update]`.
+> Cluster-level [ActionType] strings are prefixed by `cluster:` are often followed by a domain-specific such as `autoscaling`, `logstash`, `ingest`,
+> `xpack`.
+> - `internal:` is meant to executed by `_system` user.
+> - `cluster:internal/xpack/..` [ActionType] strings are plugin specific.
+> - `internal:transport/proxy/indices:` [ActionType] strings are automatically wrapped actions when requests for CCR/CCS in proxy mode.
 
 > [!NOTE]
 > The name [TransportAction] can be misleading, as it suggests they are all invoke-able and invoked via the TCP transport. In fact,
@@ -179,6 +208,13 @@ capabilities.
 [TransportService]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/TransportService.java
 [TransportSingleShardAction]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/support/single/shard/TransportSingleShardAction.java
 [Transport]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/Transport.java
+[EventLoop]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/networking-settings#modules-network-threading-model
+[TaskManager]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/tasks/TaskManager.java
+[InboundHandler]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/InboundHandler.java
+[NamedRegistry]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/NamedRegistry.java
+[IndexPrivilege]:https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege/IndexPrivilege.java
+[ClusterPrivilegeResolver]:https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege/ClusterPrivilegeResolver.java
+[TransportResponseHandler]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/TransportResponseHandler.java
 
 ## Serializations
 

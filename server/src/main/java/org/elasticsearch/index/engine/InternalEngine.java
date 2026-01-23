@@ -46,6 +46,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
@@ -230,6 +231,8 @@ public class InternalEngine extends Engine {
 
     private final ByteSizeValue totalDiskSpace;
 
+    private final boolean useTsdbSyntheticId;
+
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
 
@@ -242,6 +245,12 @@ public class InternalEngine extends Engine {
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
+        if (engineConfig.getIndexSettings().useTimeSeriesSyntheticId()) {
+            logger.info("using TSDB with synthetic id");
+            useTsdbSyntheticId = true;
+        } else {
+            useTsdbSyntheticId = false;
+        }
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();
@@ -1058,7 +1067,13 @@ public class InternalEngine extends Engine {
                 directoryReader -> {
                     if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                         assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), op.id(), loadSeqNo);
+                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                            directoryReader,
+                            op.uid(),
+                            op.id(),
+                            loadSeqNo,
+                            useTsdbSyntheticId
+                        );
                     } else {
                         return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                     }
@@ -1433,6 +1448,7 @@ public class InternalEngine extends Engine {
         index.parsedDoc().updateSeqID(index.seqNo(), index.primaryTerm());
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
+            logDocumentsDetails(index.docs(), index.id(), index.uid());
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
@@ -1464,6 +1480,14 @@ public class InternalEngine extends Engine {
                 return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo(), index.id());
             } else {
                 throw ex;
+            }
+        }
+    }
+
+    private void logDocumentsDetails(List<LuceneDocument> docs, String id, BytesRef uid) {
+        if (useTsdbSyntheticId && logger.isTraceEnabled()) {
+            for (var doc : docs) {
+                logger.trace("indexing document [id: {}, uid: {}]:\n{}\r\n", id, uid, doc.getFields());
             }
         }
     }
@@ -1841,7 +1865,10 @@ public class InternalEngine extends Engine {
         try {
             final ParsedDocument tombstone = ParsedDocument.deleteTombstone(
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
-                delete.id()
+                engineConfig.getIndexSettings().useDocValuesSkipper(),
+                useTsdbSyntheticId,
+                delete.id(),
+                delete.uid()
             );
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
@@ -1850,6 +1877,7 @@ public class InternalEngine extends Engine {
             assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                 : "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
             doc.add(softDeletesField);
+            logDocumentsDetails(List.of(doc), delete.id(), delete.uid());
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                 indexWriter.addDocument(doc);
             } else {
@@ -2755,11 +2783,7 @@ public class InternalEngine extends Engine {
 
     // protected for testing
     protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
-        if (Assertions.ENABLED) {
-            return new AssertingIndexWriter(directory, iwc);
-        } else {
-            return new IndexWriter(directory, iwc);
-        }
+        return new ElasticsearchIndexWriter(directory, iwc, logger);
     }
 
     // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
@@ -2791,7 +2815,7 @@ public class InternalEngine extends Engine {
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
                 () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
-                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
+                useTsdbSyntheticId ? mergePolicy : new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
             )
         );
         if (SHUFFLE_FORCE_MERGE) {
@@ -2807,7 +2831,7 @@ public class InternalEngine extends Engine {
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
 
         Codec codec = engineConfig.getCodec();
-        if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+        if (DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings())) {
             codec = new TrackingPostingsInMemoryBytesCodec(codec);
         }
         iwc.setCodec(codec);
@@ -2919,8 +2943,10 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
-    private void maybeFlushAfterMerge(OnGoingMerge merge) {
-        if (indexWriter.hasPendingMerges() == false && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+    protected void maybeFlushAfterMerge(OnGoingMerge merge) {
+        if (indexWriter.getTragicException() == null
+            && indexWriter.hasPendingMerges() == false
+            && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
             // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the
             // writer
             // we deadlock on engine#close for instance.
@@ -3376,19 +3402,49 @@ public class InternalEngine extends Engine {
         return commitData;
     }
 
-    private static class AssertingIndexWriter extends IndexWriter {
-        AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
-            super(d, conf);
+    private static class ElasticsearchIndexWriter extends IndexWriter {
+
+        private final Logger logger;
+
+        ElasticsearchIndexWriter(Directory directory, IndexWriterConfig indexWriterConfig, Logger logger) throws IOException {
+            super(directory, indexWriterConfig);
+            this.logger = logger;
         }
 
         @Override
-        public long deleteDocuments(Term... terms) {
-            throw new AssertionError("must not hard delete documents");
+        public void onTragicEvent(Throwable tragedy, String location) {
+            assert tragedy != null;
+            try {
+                if (getConfig().getMergeScheduler() instanceof ThreadPoolMergeScheduler mergeScheduler) {
+                    try {
+                        // Must be executed before calling IndexWriter#onTragicEvent
+                        mergeScheduler.onTragicEvent(tragedy);
+                    } catch (Exception e) {
+                        logger.warn("Exception thrown when notifying the merge scheduler of a tragic event", e);
+                        if (tragedy != e) {
+                            tragedy.addSuppressed(e);
+                        }
+                    }
+                }
+            } finally {
+                super.onTragicEvent(tragedy, location);
+            }
         }
 
         @Override
-        public long tryDeleteDocument(IndexReader readerIn, int docID) {
-            throw new AssertionError("tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs");
+        public long deleteDocuments(Term... terms) throws IOException {
+            if (Assertions.ENABLED) {
+                throw new AssertionError("must not hard delete documents");
+            }
+            return super.deleteDocuments(terms);
+        }
+
+        @Override
+        public long tryDeleteDocument(IndexReader readerIn, int docID) throws IOException {
+            if (Assertions.ENABLED) {
+                throw new AssertionError("tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs");
+            }
+            return super.tryDeleteDocument(readerIn, docID);
         }
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.cohere;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +19,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -45,9 +45,10 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
 
     public static final String NAME = "cohere_service_settings";
     public static final String OLD_MODEL_ID_FIELD = "model";
-    public static final String MODEL_ID = "model_id";
     public static final String API_VERSION = "api_version";
     public static final String MODEL_REQUIRED_FOR_V2_API = "The [service_settings.model_id] field is required for the Cohere V2 API.";
+
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     public enum CohereApiVersion {
         V1,
@@ -81,7 +82,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
             logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
@@ -176,17 +177,11 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         dimensions = in.readOptionalVInt();
         maxInputTokens = in.readOptionalVInt();
         modelId = in.readOptionalString();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
+        rateLimitSettings = new RateLimitSettings(in);
+        if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
+            this.apiVersion = in.readEnum(CohereApiVersion.class);
         } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
-            this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
-        } else {
-            this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
+            this.apiVersion = CohereApiVersion.V1;
         }
     }
 
@@ -261,7 +256,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
         if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
+            builder.field(ServiceFields.MODEL_ID, modelId);
         }
         rateLimitSettings.toXContent(builder, params);
 
@@ -270,7 +265,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -282,11 +277,8 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalString(modelId);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             out.writeEnum(apiVersion);
         }
     }

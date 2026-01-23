@@ -20,8 +20,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
 
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, bulkSize, memorySegment);
     }
 
     @Override
@@ -48,14 +48,19 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         return res;
     }
 
+    private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
+        final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
+        final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions * count);
+        final MemorySegment querySegment = MemorySegment.ofArray(q);
+        Similarities.dotProduct7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+        in.skipBytes(dimensions * count);
+    }
+
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
         if (NATIVE_SUPPORTED) {
-            // TODO: can we speed up bulks in native code?
-            for (int i = 0; i < count; i++) {
-                scores[i] = nativeInt7DotProduct(q);
-            }
+            nativeInt7DotProductBulk(q, count, scores);
         } else {
             panamaInt7DotProductBulk(q, count, scores);
         }
@@ -70,9 +75,10 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, BULK_SIZE, scores);
+        int7DotProductBulk(q, bulkSize, scores);
         applyCorrectionsBulk(
             queryLowerInterval,
             queryUpperInterval,
@@ -80,7 +86,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
             queryAdditionalCorrection,
             similarityFunction,
             centroidDp,
-            scores
+            scores,
+            bulkSize
         );
     }
 }

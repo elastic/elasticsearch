@@ -1,0 +1,225 @@
+###############################################
+# Tests for Chunk function
+#
+
+chunkDefaults
+required_capability: chunk_function_v2
+
+// tag::chunk-example[]
+ROW result = CHUNK("It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief.", {"strategy": "word", "max_chunk_size": 10, "overlap": 1})
+| MV_EXPAND result
+// end::chunk-example[]
+| KEEP result
+| LIMIT 5
+;
+
+// tag::chunk-example-result[]
+result:keyword
+It was the best of times, it was the worst
+worst of times, it was the age of wisdom, it
+, it was the age of foolishness, it was the epoch
+epoch of belief.
+// end::chunk-example-result[]
+;
+
+chunkTextWithMatch
+required_capability: chunk_function_v2
+required_capability: match_function
+
+FROM books 
+| WHERE MATCH(title, "Return")
+| EVAL chunks = CHUNK(description, {"strategy": "sentence", "max_chunk_size": 20, "sentence_overlap": 0})
+| KEEP book_no, title, chunks;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                       | chunks:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | [Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of, part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the, , featuring an exclusive cover image from the film, the definitive text, and a detailed map of Middle-earth., The armies of the Dark Lord Sauron are massing as his evil shadow spreads ever wider., Men, Dwarves, Elves and Ents unite forces to do battle agains the Dark., Meanwhile, Frodo and Sam struggle further into Mordor in their heroic quest to destroy the One Ring., The devastating conclusion of J.R.R., Tolkien s classic tale of magic and adventure, begun in The Fellowship of the Ring and The Two Towers, features, Fellowship of the Ring and The Two Towers, features the definitive edition of the text and includes the Appendices and, edition of the text and includes the Appendices and a revised Index in full., To celebrate the release of the first of Peter Jackson s two-part film adaptation of The Hobbit, THE HOBBIT, two-part film adaptation of The Hobbit, THE HOBBIT: AN UNEXPECTED JOURNEY, this third part of The Lord of the, JOURNEY, this third part of The Lord of the Rings is available for a limited time with an exclusive cover, available for a limited time with an exclusive cover image from Peter Jackson s award-winning trilogy.]
+7350            | Return of the Shadow                                             | [In this sixth volume of The History of Middle-earth the story reaches The Lord of the Rings., In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of, first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution, notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and the gradual emergence of, Fellowship of the Ring and the gradual emergence of the conceptions that transformed what J.R.R., Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'., The enlargement of Bilbo's 'magic ring' into the supremely potent and dangerous Ruling Ring of the Dark Lord is traced, dangerous Ruling Ring of the Dark Lord is traced and the precise moment is seen when, in an astonishing and, precise moment is seen when, in an astonishing and unforeseen leap in the earliest narrative, a Black Rider first rode, in the earliest narrative, a Black Rider first rode into the Shire, his significance still unknown., The character of the hobbit called Trotter (afterwards Strider or Aragorn) is developed while his indentity remains an absolute puzzle, ) is developed while his indentity remains an absolute puzzle, and the suspicion only very slowly becomes certainty that he must, suspicion only very slowly becomes certainty that he must after all be a Man., The hobbits, Frodo's companions, undergo intricate permutations of name and personality, and other major figures appear in strange modes: a, , and other major figures appear in strange modes: a sinister Treebeard, in league with the Enemy, a ferocious and malevolent, , in league with the Enemy, a ferocious and malevolent Farmer Maggot., The story in this book ends at the point where J.R.R., Tolkien halted in the story for a long time, as the Company of the Ring, still lacking Legolas and Gimli, Company of the Ring, still lacking Legolas and Gimli, stood before the tomb of Balin in the Mines of Moria., The Return of the Shadow is illustrated with reproductions of the first maps and notable pages from the earliest manuscripts.]
+;
+
+chunkTextWithMatchMultipleChunksMvExpand
+required_capability: chunk_function_v2
+required_capability: match_function
+
+FROM books 
+| WHERE MATCH(title, "Return")
+| EVAL chunks = CHUNK(description, {"strategy": "sentence", "max_chunk_size": 20, "sentence_overlap": 0})
+| MV_EXPAND chunks
+| KEEP book_no, title, chunks;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                       | chunks:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | , featuring an exclusive cover image from the film, the definitive text, and a detailed map of Middle-earth.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Fellowship of the Ring and The Two Towers, features the definitive edition of the text and includes the Appendices and
+2714            | Return of the King Being the Third Part of The Lord of the Rings | JOURNEY, this third part of The Lord of the Rings is available for a limited time with an exclusive cover
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Meanwhile, Frodo and Sam struggle further into Mordor in their heroic quest to destroy the One Ring.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Men, Dwarves, Elves and Ents unite forces to do battle agains the Dark.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | The armies of the Dark Lord Sauron are massing as his evil shadow spreads ever wider.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | The devastating conclusion of J.R.R.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | To celebrate the release of the first of Peter Jackson s two-part film adaptation of The Hobbit, THE HOBBIT
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Tolkien s classic tale of magic and adventure, begun in The Fellowship of the Ring and The Two Towers, features
+2714            | Return of the King Being the Third Part of The Lord of the Rings | available for a limited time with an exclusive cover image from Peter Jackson s award-winning trilogy.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | edition of the text and includes the Appendices and a revised Index in full.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the
+2714            | Return of the King Being the Third Part of The Lord of the Rings | two-part film adaptation of The Hobbit, THE HOBBIT: AN UNEXPECTED JOURNEY, this third part of The Lord of the
+7350            | Return of the Shadow                                             | ) is developed while his indentity remains an absolute puzzle, and the suspicion only very slowly becomes certainty that he must
+7350            | Return of the Shadow                                             | , and other major figures appear in strange modes: a sinister Treebeard, in league with the Enemy, a ferocious and malevolent
+7350            | Return of the Shadow                                             | , in league with the Enemy, a ferocious and malevolent Farmer Maggot.
+7350            | Return of the Shadow                                             | Company of the Ring, still lacking Legolas and Gimli, stood before the tomb of Balin in the Mines of Moria.
+7350            | Return of the Shadow                                             | Fellowship of the Ring and the gradual emergence of the conceptions that transformed what J.R.R.
+7350            | Return of the Shadow                                             | In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of
+7350            | Return of the Shadow                                             | In this sixth volume of The History of Middle-earth the story reaches The Lord of the Rings.
+7350            | Return of the Shadow                                             | The Return of the Shadow is illustrated with reproductions of the first maps and notable pages from the earliest manuscripts.
+7350            | Return of the Shadow                                             | The character of the hobbit called Trotter (afterwards Strider or Aragorn) is developed while his indentity remains an absolute puzzle
+7350            | Return of the Shadow                                             | The enlargement of Bilbo's 'magic ring' into the supremely potent and dangerous Ruling Ring of the Dark Lord is traced
+7350            | Return of the Shadow                                             | The hobbits, Frodo's companions, undergo intricate permutations of name and personality, and other major figures appear in strange modes: a
+7350            | Return of the Shadow                                             | The story in this book ends at the point where J.R.R.
+7350            | Return of the Shadow                                             | Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+7350            | Return of the Shadow                                             | Tolkien halted in the story for a long time, as the Company of the Ring, still lacking Legolas and Gimli
+7350            | Return of the Shadow                                             | dangerous Ruling Ring of the Dark Lord is traced and the precise moment is seen when, in an astonishing and
+7350            | Return of the Shadow                                             | first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution
+7350            | Return of the Shadow                                             | in the earliest narrative, a Black Rider first rode into the Shire, his significance still unknown.
+7350            | Return of the Shadow                                             | notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and the gradual emergence of
+7350            | Return of the Shadow                                             | precise moment is seen when, in an astonishing and unforeseen leap in the earliest narrative, a Black Rider first rode
+7350            | Return of the Shadow                                             | suspicion only very slowly becomes certainty that he must after all be a Man.
+;
+
+chunkTextWithMatchMultipleChunksMvSliceMvExpand
+required_capability: chunk_function_v2
+required_capability: match_function
+
+FROM books 
+| WHERE MATCH(title, "Return")
+| EVAL chunks = CHUNK(description, {"strategy": "sentence", "max_chunk_size": 20, "sentence_overlap": 0})
+| EVAL truncated = MV_SLICE(chunks, 0, 3)
+| MV_EXPAND truncated
+| KEEP book_no, title, truncated;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                       | truncated:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | , featuring an exclusive cover image from the film, the definitive text, and a detailed map of Middle-earth.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of
+2714            | Return of the King Being the Third Part of The Lord of the Rings | The armies of the Dark Lord Sauron are massing as his evil shadow spreads ever wider.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the
+7350            | Return of the Shadow                                             | In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of
+7350            | Return of the Shadow                                             | In this sixth volume of The History of Middle-earth the story reaches The Lord of the Rings.
+7350            | Return of the Shadow                                             | first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution
+7350            | Return of the Shadow                                             | notes, outline plans, and narrative drafts, the intricate evolution of The Fellowship of the Ring and the gradual emergence of
+;
+
+
+chunkTextWithConcatenatedField
+required_capability: chunk_function_v2
+
+FROM books
+| EVAL title_description = CONCAT(title, " ", description)
+| EVAL chunks = CHUNK(title_description, {"strategy": "sentence", "max_chunk_size": 20, "sentence_overlap": 0})
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | [The brothers Karamazov In 1880 Dostoevsky completed The Brothers Karamazov\, the literary effort for which he had been preparing all, literary effort for which he had been preparing all his life., Compelling\, profound\, complex\, it is the story of a patricide and of the four sons who each had a motive, of the four sons who each had a motive for murder: Dmitry\, the sensualist\, Ivan\, the intellectual\, Alyosha\, the mystic, : Dmitry\, the sensualist\, Ivan\, the intellectual\, Alyosha\, the mystic\, and twisted\, cunning Smerdyakov\, the bastard child., Frequently lurid\, nightmarish\, always brilliant\, the novel plunges the reader into a sordid love triangle\, a pathological obsession\, and a, a sordid love triangle\, a pathological obsession\, and a gripping courtroom drama., But throughout the whole\, Dostoevsky searhes for the truth--about man\, about life\, about the existence of God., A terrifying answer to man's eternal questions\, this monumental work remains the crowning achievement of perhaps the finest novelist of, the crowning achievement of perhaps the finest novelist of all time. From the Paperback edition.]
+1463            | Realms of Tolkien: Images of Middle-earth             | [Realms of Tolkien: Images of Middle-earth Twenty new and familiar Tolkien artists are represented in this fabulous volume\, breathing, Tolkien artists are represented in this fabulous volume\, breathing an extraordinary variety of life into 58 different scenes\, each of, variety of life into 58 different scenes\, each of which is accompanied by appropriate passage from The Hobbit and The, accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion]
+1502            | Selected Passages from Correspondence with Friends    | [Selected Passages from Correspondence with Friends Nikolai Gogol wrote some letters to his friends\, none of which were a nose, to his friends\, none of which were a nose of high rank. Many are reproduced here (the letters\, not noses).]
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | [The Best Short Stories of Dostoevsky (Modern Library) This collection\, unique to the Modern Library\, gathers seven of Dostoevsky's key, to the Modern Library\, gathers seven of Dostoevsky's key works and shows him to be equally adept at the short, shows him to be equally adept at the short story as with the novel., Exploring many of the same themes as in his longer works\, these small masterpieces move from the tender and romantic, \, these small masterpieces move from the tender and romantic White Nights\, an archetypal nineteenth-century morality tale of pathos and, \, an archetypal nineteenth-century morality tale of pathos and loss\, to the famous Notes from the Underground\, a story of, the famous Notes from the Underground\, a story of guilt\, ineffectiveness\, and uncompromising cynicism\, and the first major work of, \, and uncompromising cynicism\, and the first major work of existential literature., Among Dostoevsky's prototypical characters is Yemelyan in The Honest Thief\, whose tragedy turns on an inability to resist crime., Presented in chronological order\, in David Magarshack's celebrated translation\, this is the definitive edition of Dostoevsky's best stories.]
+1985            | Brothers Karamazov                                    | [Brothers Karamazov Four brothers reunite in their hometown in Russia., The murder of their father forces the brothers to question their beliefs about each other\, religion\, and morality.]
+;
+
+chunkTextWithMultivaluedField
+required_capability: chunk_function_v2
+
+FROM employees
+| EVAL chunks = CHUNK(job_positions)
+| KEEP emp_no, first_name, last_name, chunks
+| SORT emp_no
+| LIMIT 5
+;
+warning:Line 2:17: evaluation of [CHUNK(job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword | last_name:keyword | chunks:keyword
+10001          | Georgi             | Facello           | null
+10002          | Bezalel            | Simmel            | Senior Team Lead
+10003          | Parto              | Bamford           | null
+10004          | Chirstian          | Koblick           | null
+10005          | Kyoichi            | Maliniak          | null
+;
+
+chunkWithNoneChunkingSettings
+required_capability: chunk_function_v2
+
+FROM books
+| EVAL chunks = CHUNK(description, {"strategy": "none"})
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | In 1880 Dostoevsky completed The Brothers Karamazov, the literary effort for which he had been preparing all his life. Compelling, profound, complex, it is the story of a patricide and of the four sons who each had a motive for murder: Dmitry, the sensualist, Ivan, the intellectual, Alyosha, the mystic, and twisted, cunning Smerdyakov, the bastard child. Frequently lurid, nightmarish, always brilliant, the novel plunges the reader into a sordid love triangle, a pathological obsession, and a gripping courtroom drama. But throughout the whole, Dostoevsky searhes for the truth--about man, about life, about the existence of God. A terrifying answer to man's eternal questions, this monumental work remains the crowning achievement of perhaps the finest novelist of all time. From the Paperback edition.
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | Nikolai Gogol wrote some letters to his friends, none of which were a nose of high rank. Many are reproduced here (the letters, not noses).
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | This collection, unique to the Modern Library, gathers seven of Dostoevsky's key works and shows him to be equally adept at the short story as with the novel. Exploring many of the same themes as in his longer works, these small masterpieces move from the tender and romantic White Nights, an archetypal nineteenth-century morality tale of pathos and loss, to the famous Notes from the Underground, a story of guilt, ineffectiveness, and uncompromising cynicism, and the first major work of existential literature. Among Dostoevsky's prototypical characters is Yemelyan in The Honest Thief, whose tragedy turns on an inability to resist crime. Presented in chronological order, in David Magarshack's celebrated translation, this is the definitive edition of Dostoevsky's best stories.
+1985            | Brothers Karamazov                                    | Four brothers reunite in their hometown in Russia. The murder of their father forces the brothers to question their beliefs about each other, religion, and morality.
+;
+
+chunkWithWordChunkingSettings
+required_capability: chunk_function_v2
+
+FROM books
+| EVAL chunks = CHUNK(description, {"strategy": "word", "max_chunk_size": 10, "overlap": 1})
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | [In 1880 Dostoevsky completed The Brothers Karamazov\, the literary effort, effort for which he had been preparing all his life, life. Compelling\, profound\, complex\, it is the story of a, a patricide and of the four sons who each had, had a motive for murder: Dmitry\, the sensualist\, Ivan\, the, \, the intellectual\, Alyosha\, the mystic\, and twisted\, cunning Smerdyakov\, the, \, the bastard child. Frequently lurid\, nightmarish\, always brilliant\, the novel, novel plunges the reader into a sordid love triangle\, a, \, a pathological obsession\, and a gripping courtroom drama. But throughout, throughout the whole\, Dostoevsky searhes for the truth--about man, man\, about life\, about the existence of God. A terrifying, terrifying answer to man's eternal questions\, this monumental work remains, remains the crowning achievement of perhaps the finest novelist of, of all time. From the Paperback edition.]
+1463            | Realms of Tolkien: Images of Middle-earth             | [Twenty new and familiar Tolkien artists are represented in this, this fabulous volume\, breathing an extraordinary variety of life into, into 58 different scenes\, each of which is accompanied by, by appropriate passage from The Hobbit and The Lord of, of the Rings and The Silmarillion]
+1502            | Selected Passages from Correspondence with Friends    | [Nikolai Gogol wrote some letters to his friends\, none of, of which were a nose of high rank. Many are, are reproduced here (the letters\, not noses).]
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | [This collection\, unique to the Modern Library\, gathers seven of, of Dostoevsky's key works and shows him to be equally, equally adept at the short story as with the novel, novel. Exploring many of the same themes as in his, his longer works\, these small masterpieces move from the tender, tender and romantic White Nights\, an archetypal nineteenth-century morality, morality tale of pathos and loss\, to the famous Notes, Notes from the Underground\, a story of guilt\, ineffectiveness\, and, \, and uncompromising cynicism\, and the first major work of existential, existential literature. Among Dostoevsky's prototypical characters is Yemelyan in The, The Honest Thief\, whose tragedy turns on an inability to, to resist crime. Presented in chronological order\, in David Magarshack's, Magarshack's celebrated translation\, this is the definitive edition of Dostoevsky's, Dostoevsky's best stories.]
+1985            | Brothers Karamazov                                    | [Four brothers reunite in their hometown in Russia. The murder, murder of their father forces the brothers to question their, their beliefs about each other\, religion\, and morality.]
+;
+
+chunkWithRecursiveChunkingSettingsAndSeparatorGroup
+required_capability: chunk_function_v2
+
+FROM books
+| EVAL chunks = CHUNK(description, {"strategy": "recursive", "max_chunk_size": 10, "separator_group": "plaintext"})
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | [In 1880 Dostoevsky completed The Brothers Karamazov\, the literary effort, Karamazov\, the literary effort for which he had been preparing, he had been preparing all his life., Compelling\, profound\, complex\, it is the story of a patricide, story of a patricide and of the four sons who, the four sons who each had a motive for murder, a motive for murder: Dmitry\, the sensualist\, Ivan\, the intellectual, sensualist\, Ivan\, the intellectual\, Alyosha\, the mystic\, and twisted\, cunning, mystic\, and twisted\, cunning Smerdyakov\, the bastard child., Frequently lurid\, nightmarish\, always brilliant\, the novel plunges the reader, novel plunges the reader into a sordid love triangle\, a, sordid love triangle\, a pathological obsession\, and a gripping courtroom, \, and a gripping courtroom drama., But throughout the whole\, Dostoevsky searhes for the truth--about, for the truth--about man\, about life\, about the existence, life\, about the existence of God., A terrifying answer to man's eternal questions\, this monumental work, questions\, this monumental work remains the crowning achievement of perhaps, crowning achievement of perhaps the finest novelist of all time., From the Paperback edition.]
+1463            | Realms of Tolkien: Images of Middle-earth             | [Twenty new and familiar Tolkien artists are represented in this, are represented in this fabulous volume\, breathing an extraordinary variety, \, breathing an extraordinary variety of life into 58 different scenes, into 58 different scenes\, each of which is accompanied by, which is accompanied by appropriate passage from The Hobbit and, from The Hobbit and The Lord of the Rings and, of the Rings and The Silmarillion]
+1502            | Selected Passages from Correspondence with Friends    | [Nikolai Gogol wrote some letters to his friends\, none of, his friends\, none of which were a nose of high, a nose of high rank., Many are reproduced here (the letters\, not noses).]
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | [This collection\, unique to the Modern Library\, gathers seven of, Library\, gathers seven of Dostoevsky's key works and shows him, works and shows him to be equally adept at the, equally adept at the short story as with the novel., Exploring many of the same themes as in his longer, as in his longer works\, these small masterpieces move from, small masterpieces move from the tender and romantic White Nights, and romantic White Nights\, an archetypal nineteenth-century morality tale, nineteenth-century morality tale of pathos and loss\, to the, and loss\, to the famous Notes from the Underground\, a, from the Underground\, a story of guilt\, ineffectiveness\, and uncompromising, guilt\, ineffectiveness\, and uncompromising cynicism\, and the first major work, the first major work of existential literature., Among Dostoevsky's prototypical characters is Yemelyan in The Honest Thief, in The Honest Thief\, whose tragedy turns on an inability, turns on an inability to resist crime., Presented in chronological order\, in David Magarshack's celebrated translation\, this, Magarshack's celebrated translation\, this is the definitive edition of Dostoevsky's, definitive edition of Dostoevsky's best stories.]
+1985            | Brothers Karamazov                                    | [Four brothers reunite in their hometown in Russia., The murder of their father forces the brothers to question, the brothers to question their beliefs about each other\, religion, about each other\, religion\, and morality.]
+;
+
+chunkWithRecursiveChunkingSettingsAndSeparators
+required_capability: chunk_function_v2
+
+FROM books
+| EVAL chunks = CHUNK(description, {"strategy": "recursive", "max_chunk_size": 100, "separators": [". ", ", "]})
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | [In 1880 Dostoevsky completed The Brothers Karamazov\, the literary effort for which he had been preparing all his life. Compelling\, profound\, complex\, it is the story of a patricide and of the four sons who each had a motive for murder: Dmitry\, the sensualist\, Ivan\, the intellectual\, Alyosha\, the mystic\, and twisted\, cunning Smerdyakov\, the bastard child. Frequently lurid\, nightmarish\, always brilliant\, the novel plunges the reader into a sordid love triangle\, a pathological obsession\, and, a gripping courtroom drama. But throughout the whole\, Dostoevsky searhes for the truth--about man\, about life\, about the existence of God. A terrifying answer to man's eternal questions\, this monumental work remains the crowning achievement of perhaps the finest novelist of all time. From the Paperback edition.]
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | Nikolai Gogol wrote some letters to his friends, none of which were a nose of high rank. Many are reproduced here (the letters, not noses).
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | [This collection\, unique to the Modern Library\, gathers seven of Dostoevsky's key works and shows him to be equally adept at the short story as with the novel. Exploring many of the same themes as in his longer works\, these small masterpieces move from the tender and romantic White Nights\, an archetypal nineteenth-century morality tale of pathos and loss\, to the famous Notes from the Underground\, a story of guilt\, ineffectiveness\, and uncompromising cynicism\, and the first major work of existential literature. Among Dostoevsky's prototypical characters is Yemelyan i, n The Honest Thief\, whose tragedy turns on an inability to resist crime. Presented in chronological order\, in David Magarshack's celebrated translation\, this is the definitive edition of Dostoevsky's best stories.]
+1985            | Brothers Karamazov                                    | Four brothers reunite in their hometown in Russia. The murder of their father forces the brothers to question their beliefs about each other, religion, and morality.
+;
+
+
+
+

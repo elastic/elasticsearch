@@ -21,6 +21,10 @@
     "vector": {
       "type": "dense_vector",
       "similarity": "l2_norm"
+    },
+    "semantic": {
+      "type": "semantic_text",
+      "inference_id": "test_inference"
     }
   }
 }

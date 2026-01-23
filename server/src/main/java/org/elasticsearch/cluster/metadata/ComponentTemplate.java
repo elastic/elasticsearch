@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -60,6 +60,8 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE_MILLIS);
     }
 
+    private static final TransportVersion COMPONENT_TEMPLATE_TRACKING_INFO = TransportVersion.fromName("component_template_tracking_info");
+
     private final Template template;
     @Nullable
     private final Long version;
@@ -108,12 +110,8 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         } else {
             this.metadata = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.deprecated = in.readOptionalBoolean();
-        } else {
-            deprecated = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.COMPONENT_TEMPLATE_TRACKING_INFO)) {
+        this.deprecated = in.readOptionalBoolean();
+        if (in.getTransportVersion().supports(COMPONENT_TEMPLATE_TRACKING_INFO)) {
             this.createdDateMillis = in.readOptionalLong();
             this.modifiedDateMillis = in.readOptionalLong();
         } else {
@@ -162,10 +160,8 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeBoolean(true);
             out.writeGenericMap(this.metadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalBoolean(this.deprecated);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.COMPONENT_TEMPLATE_TRACKING_INFO)) {
+        out.writeOptionalBoolean(this.deprecated);
+        if (out.getTransportVersion().supports(COMPONENT_TEMPLATE_TRACKING_INFO)) {
             out.writeOptionalLong(this.createdDateMillis);
             out.writeOptionalLong(this.modifiedDateMillis);
         }
@@ -185,12 +181,23 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             return false;
         }
         ComponentTemplate other = (ComponentTemplate) obj;
+        return contentEquals(other)
+            && Objects.equals(createdDateMillis, other.createdDateMillis)
+            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
+    }
+
+    /**
+     * Check whether the content of this component template is equal to another component template. Can be used to determine if a template
+     * already exists.
+     */
+    public boolean contentEquals(ComponentTemplate other) {
+        if (other == null) {
+            return false;
+        }
         return Objects.equals(template, other.template)
             && Objects.equals(version, other.version)
             && Objects.equals(metadata, other.metadata)
-            && Objects.equals(deprecated, other.deprecated)
-            && Objects.equals(createdDateMillis, other.createdDateMillis)
-            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     @Override

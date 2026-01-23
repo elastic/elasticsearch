@@ -46,6 +46,11 @@ public class FilterOperatorTests extends OperatorTestCase {
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            return 0;
+        }
+
+        @Override
         public String toString() {
             return "SameLastDigit[lhs=" + lhs + ", rhs=" + rhs + ']';
         }

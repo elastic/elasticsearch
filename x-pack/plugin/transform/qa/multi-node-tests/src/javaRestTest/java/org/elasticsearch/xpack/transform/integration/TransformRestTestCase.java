@@ -223,6 +223,10 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         return (String) getBasicTransformStats(id).get("state");
     }
 
+    protected String getTransformHealthStatus(String id) throws IOException {
+        return (String) XContentMapValues.extractValue("health.status", getBasicTransformStats(id));
+    }
+
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getTransform(String id) throws IOException {
         var request = new Request("GET", TRANSFORM_ENDPOINT + id);
@@ -390,7 +394,40 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     ) throws Exception {
         assert numUsers > 0;
 
-        // create mapping
+        createReviewsIndexMappings(indexName, defaultPipeline);
+
+        // create index
+        StringBuilder sourceBuilder = new StringBuilder();
+        for (int i = 0; i < numDocs; i++) {
+            Integer user = userIdProvider.apply(i);
+            int stars = i % 5;
+            long business = i % 50;
+            String dateString = dateStringProvider.apply(i);
+
+            sourceBuilder.append(Strings.format("""
+                {"create":{"_index":"%s"}}
+                """, indexName));
+
+            sourceBuilder.append("{");
+            if (user != null) {
+                sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
+            }
+            sourceBuilder.append(Strings.format("""
+                "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
+                {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
+                """, i, business, stars, stars, dateString));
+
+            if (i % 100 == 0) {
+                sourceBuilder.append("\r\n");
+                doBulk(sourceBuilder.toString(), false);
+                sourceBuilder.setLength(0);
+            }
+        }
+        sourceBuilder.append("\r\n");
+        doBulk(sourceBuilder.toString(), true);
+    }
+
+    protected void createReviewsIndexMappings(String indexName, String defaultPipeline) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
@@ -439,36 +476,6 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
             req.setOptions(RequestOptions.DEFAULT);
             assertOKAndConsume(adminClient().performRequest(req));
         }
-
-        // create index
-        StringBuilder sourceBuilder = new StringBuilder();
-        for (int i = 0; i < numDocs; i++) {
-            Integer user = userIdProvider.apply(i);
-            int stars = i % 5;
-            long business = i % 50;
-            String dateString = dateStringProvider.apply(i);
-
-            sourceBuilder.append(Strings.format("""
-                {"create":{"_index":"%s"}}
-                """, indexName));
-
-            sourceBuilder.append("{");
-            if (user != null) {
-                sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
-            }
-            sourceBuilder.append(Strings.format("""
-                "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
-                {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
-                """, i, business, stars, stars, dateString));
-
-            if (i % 100 == 0) {
-                sourceBuilder.append("\r\n");
-                doBulk(sourceBuilder.toString(), false);
-                sourceBuilder.setLength(0);
-            }
-        }
-        sourceBuilder.append("\r\n");
-        doBulk(sourceBuilder.toString(), true);
     }
 
     protected void doBulk(String bulkDocuments, boolean refresh) throws IOException {

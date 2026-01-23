@@ -1,0 +1,6 @@
+pr: 140086
+summary: Fix read/write counts for copy in repo analysis
+area: Snapshot/Restore
+type: bug
+issues:
+ - 126569

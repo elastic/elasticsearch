@@ -41,6 +41,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LOW_PRIORITY_MODELS_PER_NODE;
 
@@ -53,19 +54,22 @@ class TrainedModelAssignmentRebalancer {
     private final Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone;
     private final Optional<CreateTrainedModelAssignmentAction.Request> createAssignmentRequest;
     private final int allocatedProcessorsScale;
+    private final boolean useAutoMemoryPercentage;
 
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
         Optional<CreateTrainedModelAssignmentAction.Request> createAssignmentRequest,
-        int allocatedProcessorsScale
+        int allocatedProcessorsScale,
+        boolean useAutoMemoryPercentage
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
         this.mlNodesByZone = Objects.requireNonNull(mlNodesByZone);
         this.createAssignmentRequest = Objects.requireNonNull(createAssignmentRequest);
         this.allocatedProcessorsScale = allocatedProcessorsScale;
+        this.useAutoMemoryPercentage = useAutoMemoryPercentage;
     }
 
     TrainedModelAssignmentMetadata.Builder rebalance() {
@@ -298,9 +302,7 @@ class TrainedModelAssignmentRebalancer {
                         nodes.add(
                             new AssignmentPlan.Node(
                                 discoveryNode.getId(),
-                                // We subtract native inference memory as the planner expects available memory for
-                                // native inference including current assignments.
-                                getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
+                                load.getFreeMemoryExcludingPerNodeOverhead(),
                                 MlProcessors.get(discoveryNode, allocatedProcessorsScale).roundUp()
                             )
                         );
@@ -315,10 +317,6 @@ class TrainedModelAssignmentRebalancer {
             }
             return nodes;
         }));
-    }
-
-    private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
-        return load.getFreeMemoryExcludingPerNodeOverhead() - load.getAssignedNativeInferenceMemory();
     }
 
     private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {
@@ -406,7 +404,28 @@ class TrainedModelAssignmentRebalancer {
             return Optional.of(load.getError());
         }
 
-        if (deployment.memoryBytes() > assignmentPlan.getRemainingNodeMemory(node.getId())) {
+        // Find how many allocations already exist on this node
+        // We need to search by node ID as assignmentPlan.assignments() returns a map
+        // of AssignmentPlan.Node and the argument node of the DiscoveryNode
+        int existingAllocationsOnNode = assignmentPlan.assignments(deployment)
+            .map(
+                assignments -> assignments.getOrDefault(
+                    assignments.keySet().stream().filter(n -> n.id().equals(node.getId())).findFirst().orElse(null),
+                    0
+                )
+            )
+            .orElse(0);
+
+        // Calculate how many allocations remain to be assigned
+        int unassignedAllocations = deployment.allocations() - assignmentPlan.totalAllocations(deployment);
+
+        // Check if there's enough memory for additional allocations
+        long additionalMemory = deployment.estimateAdditionalMemoryUsageBytes(
+            existingAllocationsOnNode,
+            existingAllocationsOnNode + unassignedAllocations
+        );
+        long availableMemory = assignmentPlan.getRemainingNodeMemory(node.getId());
+        if (additionalMemory > availableMemory) {
             // If any ML processes are running on a node we require some space to load the shared libraries.
             // So if none are currently running then this per-node overhead must be added to the requirement.
             // From node load we know if we had any jobs or models assigned before the rebalance.
@@ -420,20 +439,25 @@ class TrainedModelAssignmentRebalancer {
             long nodeFreeMemory = assignmentPlan.getRemainingNodeMemory(node.getId()) + (isPerNodeOverheadAccountedFor
                 ? 0
                 : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
-            return Optional.of(
-                ParameterizedMessage.format(
-                    "This node has insufficient available memory. Available memory for ML [{} ({})], "
-                        + "free memory [{} ({})], "
-                        + "estimated memory required for this model [{} ({})].",
-                    new Object[] {
-                        load.getMaxMlMemory(),
-                        ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
-                        nodeFreeMemory,
-                        ByteSizeValue.ofBytes(nodeFreeMemory).toString(),
-                        requiredMemory,
-                        ByteSizeValue.ofBytes(requiredMemory).toString() }
-                )
+            String message = ParameterizedMessage.format(
+                "This node has insufficient available memory. Available memory for ML [{} ({})], "
+                    + "free memory [{} ({})], "
+                    + "estimated memory required for this model [{} ({})]. ",
+                new Object[] {
+                    load.getMaxMlMemory(),
+                    ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
+                    nodeFreeMemory,
+                    ByteSizeValue.ofBytes(nodeFreeMemory).toString(),
+                    requiredMemory,
+                    ByteSizeValue.ofBytes(requiredMemory).toString() }
             );
+            if (useAutoMemoryPercentage == false) {
+                message += format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]. ",
+                    MACHINE_LEARNING_SETTINGS
+                );
+            }
+            return Optional.of(message);
         }
 
         if (deployment.threadsPerAllocation() > assignmentPlan.getRemainingNodeCores(node.getId())) {

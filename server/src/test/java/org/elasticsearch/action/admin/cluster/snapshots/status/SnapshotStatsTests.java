@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -22,6 +21,10 @@ import java.io.IOException;
 import java.util.List;
 
 public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> {
+
+    private static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = TransportVersion.fromName(
+        "snapshot_index_shard_status_missing_stats"
+    );
 
     @Override
     protected SnapshotStats createTestInstance() {
@@ -78,8 +81,8 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
 
         // Verify round trip Transport serialization.
         for (var transportVersion : List.of(
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS,
+            TransportVersion.minimumCompatible(),
+            SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS,
             TransportVersion.current()
         )) {
 
@@ -89,7 +92,7 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
                 try (var streamOut = new OutputStreamStreamOutput(bytesOut)) {
                     streamOut.setTransportVersion(transportVersion);
 
-                    if (transportVersion.onOrAfter(TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) || stats != missingStats) {
+                    if (transportVersion.supports(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) || stats != missingStats) {
                         stats.writeTo(streamOut);
                     } else {
                         assertThrows(IllegalStateException.class, () -> stats.writeTo(streamOut));

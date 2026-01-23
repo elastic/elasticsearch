@@ -50,7 +50,8 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId()))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

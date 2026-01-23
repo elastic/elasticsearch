@@ -86,6 +86,7 @@ import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.snapshots.Snapshot;
@@ -237,7 +238,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     private <T extends Exception> T serialize(T exception) throws IOException {
-        return serialize(exception, TransportVersionUtils.randomVersion(random()));
+        return serialize(exception, TransportVersionUtils.randomCompatibleVersion());
     }
 
     private <T extends Exception> T serialize(T exception, TransportVersion version) throws IOException {
@@ -248,6 +249,20 @@ public class ExceptionSerializationTests extends ESTestCase {
         StreamInput in = out.bytes().streamInput();
         in.setTransportVersion(version);
         return in.readException();
+    }
+
+    private <T extends Exception> T serializeOptional(T exception) throws IOException {
+        return serializeOptional(exception, TransportVersionUtils.randomCompatibleVersion());
+    }
+
+    private <T extends Exception> T serializeOptional(T exception, TransportVersion version) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        out.writeOptionalException(exception);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
+        return in.readOptionalException();
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
@@ -298,6 +313,14 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(ex.shard());
         assertEquals(ex.getMessage(), "hello world");
         assertTrue(ex.getCause() instanceof NullPointerException);
+    }
+
+    public void testOptionalSearchException() throws IOException {
+        SearchException ex = serializeOptional(new SearchException(null, "hello world", new NullPointerException()));
+        assertNull(ex.shard());
+        assertEquals(ex.getMessage(), "hello world");
+        assertTrue(ex.getCause() instanceof NullPointerException);
+        assertNull(serializeOptional(null));
     }
 
     public void testActionNotFoundTransportException() throws IOException {
@@ -356,7 +379,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchContextMissingException() throws IOException {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
         assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
@@ -365,7 +388,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            TransportVersions.V_8_0_0
+            TransportVersionUtils.randomCompatibleVersion()
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
@@ -374,7 +397,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         MultiBucketConsumerService.TooManyBucketsException ex = serialize(
             new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
             version
@@ -846,6 +869,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(182, IngestPipelineException.class);
         ids.put(183, IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class);
         ids.put(184, RemoteException.class);
+        ids.put(185, NoMatchingProjectException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
@@ -909,7 +933,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testShardLockObtainFailedException() throws IOException {
         ShardId shardId = new ShardId("foo", "_na_", 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         ShardLockObtainFailedException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
         assertEquals(orig.getShardId(), ex.getShardId());
@@ -917,7 +941,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSnapshotInProgressException() throws IOException {
         SnapshotInProgressException orig = new SnapshotInProgressException("boom");
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         SnapshotInProgressException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
     }

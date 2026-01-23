@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -22,29 +20,35 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
-import org.elasticsearch.compute.lucene.read.TimeSeriesExtractFieldOperator;
+import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -57,9 +61,11 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -67,20 +73,22 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesFieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,13 +101,14 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
+import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
 
     /**
      * Context of each shard we're operating against. Note these objects are shared across multiple operators as
-     * {@link org.elasticsearch.core.RefCounted}.
+     * {@link RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
@@ -145,47 +154,40 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public abstract double storedFieldsSequentialProportion();
     }
 
-    private final List<ShardContext> shardContexts;
-    private final PhysicalSettings physicalSettings;
+    private final IndexedByShardId<? extends ShardContext> shardContexts;
+    private final PlannerSettings plannerSettings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
-        List<ShardContext> shardContexts,
+        IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        PhysicalSettings physicalSettings
+        PlannerSettings plannerSettings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
-        this.physicalSettings = physicalSettings;
+        this.plannerSettings = plannerSettings;
     }
 
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
-        List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
-            .map(
-                s -> new ValuesSourceReaderOperator.ShardContext(
-                    s.searcher().getIndexReader(),
-                    s::newSourceLoader,
-                    s.storedFieldsSequentialProportion()
-                )
-            )
-            .toList();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
         }
         var fields = extractFields(fieldExtractExec);
-        if (fieldExtractExec instanceof TimeSeriesFieldExtractExec) {
-            // TODO: consolidate with ValuesSourceReaderOperator
-            return source.with(new TimeSeriesExtractFieldOperator.Factory(fields, shardContexts), layout.build());
-        } else {
-            return source.with(
-                new ValuesSourceReaderOperator.Factory(physicalSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
-                layout.build()
-            );
-        }
+        IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.map(
+            s -> new ValuesSourceReaderOperator.ShardContext(
+                s.searcher().getIndexReader(),
+                s::newSourceLoader,
+                s.storedFieldsSequentialProportion()
+            )
+        );
+        return source.with(
+            new ValuesSourceReaderOperator.Factory(plannerSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
+            layout.build()
+        );
     }
 
     private static String getFieldName(Attribute attr) {
@@ -193,25 +195,43 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return attr instanceof FieldAttribute fa ? fa.fieldName().string() : attr.name();
     }
 
-    private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
+    private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
+        int shardId,
+        Attribute attr,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference
+    ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
+        // Apply any block loader function if present
+        BlockLoaderFunctionConfig functionConfig = null;
+        if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
+            functionConfig = functionEsField.functionConfig();
+        }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
-        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference);
+        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, functionConfig);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
-        if (unionTypes != null) {
-            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-            Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
-            return conversion == null
-                ? BlockLoader.CONSTANT_NULLS
-                : new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion);
+        if (unionTypes == null) {
+            return ValuesSourceReaderOperator.load(blockLoader);
         }
-        return blockLoader;
+        // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+        Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
+        if (conversion == null) {
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        if (conversion instanceof BlockLoaderExpression ble) {
+            BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
+            if (e != null) {
+                return ValuesSourceReaderOperator.load(
+                    shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, e.config())
+                );
+            }
+        }
+        return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
     }
 
     /** A hack to pretend an unmapped field still exists. */
@@ -237,14 +257,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
-            var builder = new KeywordFieldMapper.Builder(name, context.ctx.indexVersionCreated());
+            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
             builder.docValues(false);
             builder.indexed(false);
             return new KeywordFieldMapper.KeywordFieldType(
                 name,
-                UNMAPPED_FIELD_TYPE,
-                Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER,
+                IndexType.terms(false, false),
+                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Lucene.KEYWORD_ANALYZER,
                 builder,
                 context.ctx.isSourceSynthetic()
@@ -280,10 +299,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
-        if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-            assert false : "Time series source should be translated to TimeSeriesSourceExec";
-            throw new IllegalStateException("Time series source should be translated to TimeSeriesSourceExec");
-        }
         final LuceneOperator.Factory luceneFactory;
         logger.trace("Query Exec is {}", esQueryExec);
 
@@ -292,31 +307,48 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
-        if ((sorts != null && sorts.isEmpty() == false)) {
+        if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
+            long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
+                estimatedPerRowSortSize += EstimatesRowSize.estimateSize(sort.resulType());
             }
+            /*
+             * In the worst case Lucene's TopN keeps each value in memory twice. Once
+             * for the actual sort and once for the top doc. In the best case they share
+             * references to the same underlying data, but we're being a bit paranoid here.
+             */
+            estimatedPerRowSortSize *= 2;
             // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
             // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.queryPragmas().taskConcurrency(),
-                context.pageSize(rowEstimatedSize),
+                context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 sortBuilders,
+                estimatedPerRowSortSize,
                 scoring
+            );
+        } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+            luceneFactory = new TimeSeriesSourceOperator.Factory(
+                shardContexts,
+                querySupplier(esQueryExec.queryBuilderAndTags()),
+                context.queryPragmas().taskConcurrency(),
+                context.pageSize(esQueryExec, rowEstimatedSize),
+                limit
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
-                context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
-                context.autoPartitioningStrategy().get(),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+                context.autoPartitioningStrategy(),
                 context.queryPragmas().taskConcurrency(),
-                context.pageSize(rowEstimatedSize),
+                context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 scoring
             );
@@ -325,22 +357,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         layout.append(esQueryExec.output());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
-        return PhysicalOperation.fromSource(luceneFactory, layout.build());
-    }
-
-    @Override
-    public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
-        final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
-        LuceneOperator.Factory luceneFactory = TimeSeriesSourceOperatorFactory.create(
-            limit,
-            context.pageSize(ts.estimatedRowSize()),
-            context.queryPragmas().taskConcurrency(),
-            shardContexts,
-            querySupplier(ts.query())
-        );
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(ts.output());
-        context.driverParallelism(DriverParallelism.SINGLE);
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
@@ -358,10 +374,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             var fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, attr, fieldExtractPreference);
+            IntFunction<ValuesSourceReaderOperator.LoaderAndConverter> loaderAndConverter = s -> blockLoaderAndConverter(
+                s,
+                attr,
+                fieldExtractPreference
+            );
             String fieldName = getFieldName(attr);
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
-            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loader));
+            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loaderAndConverter));
         }
         return fieldInfos;
     }
@@ -394,12 +414,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     /**
      * Build a {@link SourceOperator.SourceOperatorFactory} that counts documents in the search index.
      */
-    public LuceneCountOperator.Factory countSource(LocalExecutionPlannerContext context, QueryBuilder queryBuilder, Expression limit) {
+    public LuceneCountOperator.Factory countSource(
+        LocalExecutionPlannerContext context,
+        Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+        List<ElementType> tagTypes,
+        Expression limit
+    ) {
         return new LuceneCountOperator.Factory(
             shardContexts,
-            querySupplier(queryBuilder),
-            context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+            queryFunction,
+            context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
+            tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }
@@ -414,18 +440,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
-            shardContexts.size() == 1 && ts.anyMatch(p -> p instanceof TimeSeriesSourceExec),
+            ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts.estimatedRowSize())
+            context.pageSize(ts, ts.estimatedRowSize())
         );
     }
 
     public static class DefaultShardContext extends ShardContext {
         private final int index;
+
         /**
-         * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
+         * In production, this will be a {@link SearchContext}, but we don't want to drag that huge
          * dependency here.
          */
         private final Releasable releasable;
@@ -463,8 +490,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public SourceLoader newSourceLoader() {
-            return ctx.newSourceLoader(null, false);
+        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
+            var filter = sourcePaths != null ? new SourceFilter(sourcePaths.toArray(new String[0]), null) : null;
+            // Apply vector exclusion logic similar to ShardGetService
+            var fetchSourceContext = filter != null ? FetchSourceContext.of(true, null, filter.getIncludes(), filter.getExcludes()) : null;
+            var result = maybeExcludeVectorFields(ctx.getMappingLookup(), ctx.getIndexSettings(), fetchSourceContext, null);
+            var vectorFilter = result.v2();
+            if (vectorFilter != null) {
+                filter = vectorFilter;
+            }
+            return ctx.newSourceLoader(filter, false);
         }
 
         @Override
@@ -489,15 +524,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             if (asUnsupportedSource) {
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
             MappedFieldType fieldType = fieldType(name);
             if (fieldType == null) {
                 // the field does not exist in this context
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
@@ -534,10 +570,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                     return (FieldNamesFieldMapper.FieldNamesFieldType) ctx.lookup().fieldType(FieldNamesFieldMapper.NAME);
                 }
+
+                @Override
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                    return blockLoaderFunctionConfig;
+                }
+
+                @Override
+                public MappingLookup mappingLookup() {
+                    return ctx.getMappingLookup();
+                }
             });
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", name);
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
 
             return loader;
@@ -556,80 +602,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public void close() {
             releasable.close();
-        }
-    }
-
-    private static class TypeConvertingBlockLoader implements BlockLoader {
-        private final BlockLoader delegate;
-        private final TypeConverter typeConverter;
-
-        protected TypeConvertingBlockLoader(BlockLoader delegate, EsqlScalarFunction convertFunction) {
-            this.delegate = delegate;
-            this.typeConverter = TypeConverter.fromScalarFunction(convertFunction);
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            // Return the delegates builder, which can build the original mapped type, before conversion
-            return delegate.builder(factory, expectedCount);
-        }
-
-        @Override
-        public Block convert(Block block) {
-            return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
-        }
-
-        @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
-            ColumnAtATimeReader reader = delegate.columnAtATimeReader(context);
-            if (reader == null) {
-                return null;
-            }
-            return new ColumnAtATimeReader() {
-                @Override
-                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-                    Block block = reader.read(factory, docs, offset, nullsFiltered);
-                    return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
-                }
-
-                @Override
-                public boolean canReuse(int startingDocID) {
-                    return reader.canReuse(startingDocID);
-                }
-
-                @Override
-                public String toString() {
-                    return reader.toString();
-                }
-            };
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            // We do no type conversion here, since that will be done in the ValueSourceReaderOperator for row-stride cases
-            // Using the BlockLoader.convert(Block) function defined above
-            return delegate.rowStrideReader(context);
-        }
-
-        @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return delegate.rowStrideStoredFieldSpec();
-        }
-
-        @Override
-        public boolean supportsOrdinals() {
-            // Fields with mismatching types cannot use ordinals for uniqueness determination, but must convert the values first
-            return false;
-        }
-
-        @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) {
-            throw new IllegalArgumentException("Ordinals are not supported for type conversion");
-        }
-
-        @Override
-        public final String toString() {
-            return "TypeConvertingBlockLoader[delegate=" + delegate + ", typeConverter=" + typeConverter + "]";
         }
     }
 }

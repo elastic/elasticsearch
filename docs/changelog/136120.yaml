@@ -1,0 +1,5 @@
+pr: 136120
+summary: Allow updating `inference_id` of `semantic_text` fields
+area: "Mapping"
+type: enhancement
+issues: []

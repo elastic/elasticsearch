@@ -10,7 +10,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +35,11 @@ import java.util.Map;
  * BulkItemResponse in IngestService.
  */
 public class SimulateIndexResponse extends IndexResponse {
+
+    private static final TransportVersion SIMULATE_INGEST_EFFECTIVE_MAPPING = TransportVersion.fromName(
+        "simulate_ingest_effective_mapping"
+    );
+
     private final BytesReference source;
     private final XContentType sourceXContentType;
     private final Collection<String> ignoredFields;
@@ -47,17 +52,9 @@ public class SimulateIndexResponse extends IndexResponse {
         this.source = in.readBytesReference();
         this.sourceXContentType = XContentType.valueOf(in.readString());
         setShardInfo(ShardInfo.EMPTY);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.exception = in.readException();
-        } else {
-            this.exception = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
-            this.ignoredFields = in.readStringCollectionAsList();
-        } else {
-            this.ignoredFields = List.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+        this.exception = in.readException();
+        this.ignoredFields = in.readStringCollectionAsList();
+        if (in.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
             if (in.readBoolean()) {
                 this.effectiveMapping = CompressedXContent.readCompressedString(in);
             } else {
@@ -143,13 +140,9 @@ public class SimulateIndexResponse extends IndexResponse {
         super.writeTo(out);
         out.writeBytesReference(source);
         out.writeString(sourceXContentType.name());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeException(exception);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
-            out.writeStringCollection(ignoredFields);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+        out.writeException(exception);
+        out.writeStringCollection(ignoredFields);
+        if (out.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
             out.writeBoolean(effectiveMapping != null);
             if (effectiveMapping != null) {
                 effectiveMapping.writeTo(out);

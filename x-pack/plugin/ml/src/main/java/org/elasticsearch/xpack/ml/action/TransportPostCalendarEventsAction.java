@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -41,6 +43,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportPostCalendarEventsAction extends HandledTransportAction<
     PostCalendarEventsAction.Request,
     PostCalendarEventsAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPostCalendarEventsAction.class);
 
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
@@ -75,6 +79,13 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
         List<ScheduledEvent> events = request.getScheduledEvents();
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
+            logger.debug(
+                "Calendar [{}] accepted for background update: {} jobs with {} events",
+                request.getCalendarId(),
+                calendar.getJobIds().size(),
+                events.size()
+            );
+
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
             for (ScheduledEvent event : events) {
@@ -102,13 +113,10 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
                 new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse response) {
-                        jobManager.updateProcessOnCalendarChanged(
-                            calendar.getJobIds(),
-                            ActionListener.wrap(
-                                r -> listener.onResponse(new PostCalendarEventsAction.Response(events)),
-                                listener::onFailure
-                            )
-                        );
+                        jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(r -> {
+                            logger.debug("Calendar [{}] update initiated successfully", request.getCalendarId());
+                            listener.onResponse(new PostCalendarEventsAction.Response(events));
+                        }, listener::onFailure));
                     }
 
                     @Override

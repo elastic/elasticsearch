@@ -616,7 +616,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         List<SearchOperationListener> soListener,
         IndexingOperationListener... listeners
     ) throws IOException {
-        final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
+        final Settings nodeSettings = Settings.builder().put(nodeSettings()).put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
         if (storeProvider == null) {
@@ -1335,5 +1335,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     public static long recoverLocallyUpToGlobalCheckpoint(IndexShard indexShard) {
         return safeAwait(indexShard::recoverLocallyUpToGlobalCheckpoint);
+    }
+
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
     }
 }

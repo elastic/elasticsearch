@@ -33,7 +33,7 @@ public class ExponentialHistogramGeneratorTests extends ExponentialHistogramTest
 
     public void testVeryLargeValue() {
         double value = Double.MAX_VALUE / 10;
-        ExponentialHistogram histo = createAutoReleasedHistogram(1, value);
+        ExponentialHistogram histo = createAutoReleasedHistogram(4, value);
         long index = histo.positiveBuckets().iterator().peekIndex();
         int scale = histo.scale();
 

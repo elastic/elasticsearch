@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -31,7 +32,7 @@ public class XContentRowEncoderTests extends ComputeTestCase {
     public void testEncode() {
         // Create a DriverContext, which is required by the encoder
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
         // Define the fields to be encoded, along with mock evaluators that will produce the data
         Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> fields = new LinkedHashMap<>();
@@ -44,6 +45,11 @@ public class XContentRowEncoderTests extends ComputeTestCase {
                 builder.appendNull();
                 builder.appendNull();
                 return builder.build();
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override
@@ -61,6 +67,11 @@ public class XContentRowEncoderTests extends ComputeTestCase {
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {}
         });
         fields.put(new ColumnInfoImpl("field3", DataType.BOOLEAN, Collections.emptyList()), c -> new EvalOperator.ExpressionEvaluator() {
@@ -75,11 +86,16 @@ public class XContentRowEncoderTests extends ComputeTestCase {
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {}
         });
 
         // Create the encoder instance
-        XContentRowEncoder.Factory factory = new XContentRowEncoder.Factory(XContentType.JSON, fields);
+        XContentRowEncoder.Factory factory = new XContentRowEncoder.Factory(XContentType.JSON, ZoneOffset.UTC, fields);
         XContentRowEncoder encoder = factory.get(driverContext);
 
         // Create a page of data to be encoded

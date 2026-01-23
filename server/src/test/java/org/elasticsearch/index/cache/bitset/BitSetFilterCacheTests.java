@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -32,6 +31,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
@@ -201,7 +201,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
             }
         });
         // match all
-        Query matchAll = randomBoolean() ? LongPoint.newRangeQuery("f", 0, numDocs + between(0, 1000)) : new MatchAllDocsQuery();
+        Query matchAll = randomBoolean() ? LongPoint.newRangeQuery("f", 0, numDocs + between(0, 1000)) : Queries.ALL_DOCS_INSTANCE;
         BitSetProducer bitSetProducer = cache.getBitSetProducer(matchAll);
         BitSet bitset = bitSetProducer.getBitSet(reader.leaves().get(0));
         assertThat(bitset, instanceOf(MatchAllBitSet.class));
@@ -235,7 +235,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.close();
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test2", "_na_", 0));
 
-        BitSetProducer producer = cache.getBitSetProducer(new MatchAllDocsQuery());
+        BitSetProducer producer = cache.getBitSetProducer(Queries.ALL_DOCS_INSTANCE);
 
         try {
             producer.getBitSet(reader.leaves().get(0));

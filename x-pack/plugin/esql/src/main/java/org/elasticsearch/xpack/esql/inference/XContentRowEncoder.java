@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.action.PositionToXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +37,10 @@ import java.util.stream.Collectors;
  * Extracted columns can be specified using {@link ExpressionEvaluator}
  */
 public class XContentRowEncoder implements ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(XContentRowEncoder.class);
+
     private final XContentType xContentType;
+    private final ZoneId zoneId;
     private final BlockFactory blockFactory;
     private final ColumnInfoImpl[] columnsInfo;
     private final ExpressionEvaluator[] fieldsValueEvaluators;
@@ -46,18 +51,20 @@ public class XContentRowEncoder implements ExpressionEvaluator {
      * @param fieldsEvaluatorFactories A map of column information to expression evaluators.
      * @return A Factory instance for creating YAML row encoder for the specified column.
      */
-    public static Factory yamlRowEncoderFactory(Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
-        return new Factory(XContentType.YAML, fieldsEvaluatorFactories);
+    public static Factory yamlRowEncoderFactory(ZoneId zoneId, Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
+        return new Factory(XContentType.YAML, zoneId, fieldsEvaluatorFactories);
     }
 
     private XContentRowEncoder(
         XContentType xContentType,
+        ZoneId zoneId,
         BlockFactory blockFactory,
         ColumnInfoImpl[] columnsInfo,
         ExpressionEvaluator[] fieldsValueEvaluators
     ) {
         assert columnsInfo.length == fieldsValueEvaluators.length;
         this.xContentType = xContentType;
+        this.zoneId = zoneId;
         this.blockFactory = blockFactory;
         this.columnsInfo = columnsInfo;
         this.fieldsValueEvaluators = fieldsValueEvaluators;
@@ -86,7 +93,7 @@ public class XContentRowEncoder implements ExpressionEvaluator {
             PositionToXContent[] toXContents = new PositionToXContent[fieldsValueEvaluators.length];
             for (int b = 0; b < fieldValueBlocks.length; b++) {
                 fieldValueBlocks[b] = fieldsValueEvaluators[b].eval(page);
-                toXContents[b] = PositionToXContent.positionToXContent(columnsInfo[b], fieldValueBlocks[b], new BytesRef());
+                toXContents[b] = PositionToXContent.positionToXContent(columnsInfo[b], fieldValueBlocks[b], zoneId, new BytesRef());
             }
 
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
@@ -122,6 +129,15 @@ public class XContentRowEncoder implements ExpressionEvaluator {
         }
     }
 
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : fieldsValueEvaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
+    }
+
     public List<String> fieldNames() {
         return Arrays.stream(columnsInfo).map(ColumnInfoImpl::name).collect(Collectors.toList());
     }
@@ -133,15 +149,17 @@ public class XContentRowEncoder implements ExpressionEvaluator {
 
     public static class Factory implements ExpressionEvaluator.Factory {
         private final XContentType xContentType;
+        private final ZoneId zoneId;
         private final Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories;
 
-        Factory(XContentType xContentType, Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
+        Factory(XContentType xContentType, ZoneId zoneId, Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
             this.xContentType = xContentType;
+            this.zoneId = zoneId;
             this.fieldsEvaluatorFactories = fieldsEvaluatorFactories;
         }
 
         public XContentRowEncoder get(DriverContext context) {
-            return new XContentRowEncoder(xContentType, context.blockFactory(), columnsInfo(), fieldsValueEvaluators(context));
+            return new XContentRowEncoder(xContentType, zoneId, context.blockFactory(), columnsInfo(), fieldsValueEvaluators(context));
         }
 
         private ColumnInfoImpl[] columnsInfo() {

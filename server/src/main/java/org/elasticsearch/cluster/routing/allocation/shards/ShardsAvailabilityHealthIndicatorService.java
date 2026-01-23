@@ -65,8 +65,10 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -166,17 +168,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * primary and replica availability, providing the color, diagnosis, and
      * messages about the available or unavailable shards in the cluster.
      * @param metadata Metadata for the cluster
+     * @param maxAffectedResourcesCount Max number of affect resources to return
      * @return A new ShardAllocationStatus that has not yet been filled.
      */
-    public ShardAllocationStatus createNewStatus(Metadata metadata) {
-        return new ShardAllocationStatus(metadata);
+    public ShardAllocationStatus createNewStatus(Metadata metadata, int maxAffectedResourcesCount) {
+        return new ShardAllocationStatus(metadata, maxAffectedResourcesCount);
     }
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
-        var status = createNewStatus(state.getMetadata());
+        var status = createNewStatus(state.getMetadata(), maxAffectedResourcesCount);
         updateShardAllocationStatus(status, state, shutdown, verbose, replicaUnassignedBufferTime);
         return createIndicator(
             status.getStatus(),
@@ -464,18 +467,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         );
 
     public class ShardAllocationCounts {
-        int unassigned = 0;
-        int unassigned_new = 0;
-        int unassigned_restarting = 0;
-        int initializing = 0;
-        int started = 0;
-        int relocating = 0;
-        public final Set<ProjectIndexName> indicesWithUnavailableShards = new HashSet<>();
-        public final Set<ProjectIndexName> indicesWithAllShardsUnavailable = new HashSet<>();
+        final int maxAffectedResourcesCount;
+        int unassigned;
+        int unassigned_new;
+        int unassigned_restarting;
+        int initializing;
+        int started;
+        int relocating;
+        public final Set<ProjectIndexName> indicesWithUnavailableShards;
+        public final Set<ProjectIndexName> indicesWithAllShardsUnavailable;
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
-        public SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
-        final Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisDefinitions = new HashMap<>();
+        public SearchableSnapshotsState searchableSnapshotsState;
+        final Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisDefinitions;
+
+        public ShardAllocationCounts(int maxAffectedResourcesCount) {
+            this.maxAffectedResourcesCount = maxAffectedResourcesCount;
+            unassigned = 0;
+            unassigned_new = 0;
+            unassigned_restarting = 0;
+            initializing = 0;
+            started = 0;
+            relocating = 0;
+            indicesWithUnavailableShards = new HashSet<>();
+            indicesWithAllShardsUnavailable = new HashSet<>();
+            searchableSnapshotsState = new SearchableSnapshotsState();
+            diagnosisDefinitions = new HashMap<>();
+        }
 
         public void increment(
             ProjectId projectId,
@@ -512,7 +530,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        if (verbose) {
+                        // Computing the diagnosis can be very expensive in large clusters, so we limit the number of
+                        // computations to the maxAffectedResourcesCount. The main negative side effect of this is that
+                        // we might miss some diagnoses. We are willing to take this risk, and users can always
+                        // use the allocation explain API for more details or increase the maxAffectedResourcesCount.
+                        // Since we have two ShardAllocationCounts instances (primaries and replicas), we technically
+                        // do 2 * maxAffectedResourcesCount computations, but the added complexity of accurately
+                        // limiting the number of calls doesn't outweigh the benefits, as the main goal is to limit
+                        // the number of computations to a constant rather than a number that grows with the cluster size.
+                        if (verbose && unassigned <= maxAffectedResourcesCount) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(definition -> addDefinition(definition, projectIndex));
                         }
                     }
@@ -957,12 +983,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     public class ShardAllocationStatus {
-        protected final ShardAllocationCounts primaries = new ShardAllocationCounts();
-        protected final ShardAllocationCounts replicas = new ShardAllocationCounts();
+        protected final ShardAllocationCounts primaries;
+        protected final ShardAllocationCounts replicas;
         protected final Metadata clusterMetadata;
+        protected final int maxAffectedResourcesCount;
 
-        public ShardAllocationStatus(Metadata clusterMetadata) {
+        public ShardAllocationStatus(Metadata clusterMetadata, int maxAffectedResourcesCount) {
             this.clusterMetadata = clusterMetadata;
+            this.maxAffectedResourcesCount = maxAffectedResourcesCount;
+            primaries = new ShardAllocationCounts(maxAffectedResourcesCount);
+            replicas = new ShardAllocationCounts(maxAffectedResourcesCount);
         }
 
         void addPrimary(ProjectId projectId, ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
@@ -1050,30 +1080,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "unassigned_primaries",
-                    primaries.unassigned,
-                    "initializing_primaries",
-                    primaries.initializing,
-                    "creating_primaries",
-                    primaries.unassigned_new,
-                    "restarting_primaries",
-                    primaries.unassigned_restarting,
-                    "started_primaries",
-                    primaries.started + primaries.relocating,
-                    "unassigned_replicas",
-                    replicas.unassigned,
-                    "initializing_replicas",
-                    replicas.initializing,
-                    "creating_replicas",
-                    replicas.unassigned_new,
-                    "restarting_replicas",
-                    replicas.unassigned_restarting,
-                    "started_replicas",
-                    replicas.started + replicas.relocating
-                )
-            );
+            final Map<String, Integer> details = new LinkedHashMap<>();
+            details.put("unassigned_primaries", primaries.unassigned);
+            details.put("initializing_primaries", primaries.initializing);
+            details.put("creating_primaries", primaries.unassigned_new);
+            details.put("restarting_primaries", primaries.unassigned_restarting);
+            details.put("started_primaries", primaries.started + primaries.relocating);
+            details.put("unassigned_replicas", replicas.unassigned);
+            details.put("initializing_replicas", replicas.initializing);
+            details.put("creating_replicas", replicas.unassigned_new);
+            details.put("restarting_replicas", replicas.unassigned_restarting);
+            details.put("started_replicas", replicas.started + replicas.relocating);
+            return new SimpleHealthIndicatorDetails(Collections.unmodifiableMap(details));
         }
 
         public List<HealthIndicatorImpact> getImpacts() {

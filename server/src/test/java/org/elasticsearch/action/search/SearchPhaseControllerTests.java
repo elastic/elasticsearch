@@ -68,6 +68,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.Text;
@@ -134,7 +135,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             "test",
             1,
             10,
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
@@ -585,7 +586,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
     private static SearchRequest randomSearchRequest() {
         return randomBoolean()
             ? new SearchRequest()
-            : SearchRequest.subSearchRequest(new TaskId("n", 1), new SearchRequest(), Strings.EMPTY_ARRAY, "remote", 0, randomBoolean());
+            : SearchRequest.subSearchRequest(
+                new TaskId("n", 1),
+                new SearchRequest(),
+                Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                "remote",
+                0,
+                randomBoolean()
+            );
     }
 
     public void testConsumer() throws Exception {

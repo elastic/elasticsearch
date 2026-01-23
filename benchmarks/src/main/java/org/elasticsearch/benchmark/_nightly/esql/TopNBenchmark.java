@@ -141,7 +141,7 @@ public class TopNBenchmark {
             encoders,
             IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, true, false)).toList(),
             8 * 1024,
-            sortedInput
+            sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED
         );
     }
 
@@ -185,16 +185,26 @@ public class TopNBenchmark {
             }
             case BOOLEANS -> {
                 BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendBoolean(i % 2 == 1);
+
+                int falseCount = BLOCK_LENGTH / 2;
+                int trueCount = BLOCK_LENGTH - falseCount;
+
+                for (int i = 0; i < falseCount; i++) {
+                    builder.appendBoolean(false);
                 }
+                for (int i = 0; i < trueCount; i++) {
+                    builder.appendBoolean(true);
+                }
+
                 yield builder.build();
             }
             case BYTES_REFS -> {
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendBytesRef(new BytesRef(Integer.toString(i)));
-                }
+                new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE)
+                    .mapToObj(Integer::toString)
+                    .sorted()
+                    .forEachOrdered(s -> builder.appendBytesRef(new BytesRef(s)));
+
                 yield builder.build();
             }
             default -> throw new UnsupportedOperationException("unsupported data [" + data + "]");
@@ -208,9 +218,6 @@ public class TopNBenchmark {
     }
 
     private static void run(String data, int topCount, boolean sortedInput) {
-        if (sortedInput && (data.equals(BOOLEANS) || data.equals(BYTES_REFS))) {
-            return;
-        }
         try (Operator operator = operator(data, topCount, sortedInput)) {
             Page page = page(data);
             for (int i = 0; i < 1024; i++) {

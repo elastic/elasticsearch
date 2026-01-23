@@ -525,7 +525,7 @@ public class LocalExecutionPlanner {
                 asList(encoders),
                 orders,
                 context.pageSize(topNExec, rowSize),
-                topNExec.sortedInput()
+                topNExec.inputOrdering()
             ),
             source.layout
         );

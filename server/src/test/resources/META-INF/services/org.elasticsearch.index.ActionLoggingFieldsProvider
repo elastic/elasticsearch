@@ -7,5 +7,5 @@
  # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-org.elasticsearch.indices.IndicesServiceTests$TestSlowLogFieldProvider
-org.elasticsearch.indices.IndicesServiceTests$TestAnotherSlowLogFieldProvider
+org.elasticsearch.indices.IndicesServiceTests$TestActionActionLoggingFieldsProvider
+org.elasticsearch.indices.IndicesServiceTests$TestAnotherActionActionLoggingFieldsProvider

@@ -27,13 +27,6 @@ public abstract class ESVectorizationProvider {
 
     protected static final Logger logger = LogManager.getLogger(ESVectorizationProvider.class);
 
-    /**
-     * For now, we simply set the upper bound to the runtime version, effectively enabling
-     * the provider lookup on all JDK's. We keep the upperbound check to potentially limit
-     * the JDK version in the future, if needed.
-     */
-    private static final int UPPER_JAVA_FEATURE_VERSION = Runtime.version().feature();
-
     public static ESVectorizationProvider getInstance() {
         return Objects.requireNonNull(
             ESVectorizationProvider.Holder.INSTANCE,
@@ -67,40 +60,31 @@ public abstract class ESVectorizationProvider {
     static ESVectorizationProvider lookup(boolean testMode) {
         final int runtimeVersion = Runtime.version().feature();
         assert runtimeVersion >= 21;
-        if (runtimeVersion <= UPPER_JAVA_FEATURE_VERSION) {
-            // only use vector module with Hotspot VM
-            if (Constants.IS_HOTSPOT_VM == false) {
-                logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");
-                return new DefaultESVectorizationProvider();
-            }
-            // is the incubator module present and readable (JVM providers may to exclude them or it is
-            // build with jlink)
-            final var vectorMod = lookupVectorModule();
-            if (vectorMod.isEmpty()) {
-                logger.warn(
-                    "Java vector incubator module is not readable. "
-                        + "For optimal vector performance, pass '--add-modules jdk.incubator.vector' to enable Vector API."
-                );
-                return new DefaultESVectorizationProvider();
-            }
-            vectorMod.ifPresent(ESVectorizationProvider.class.getModule()::addReads);
-            var impl = new PanamaESVectorizationProvider();
-            logger.info(
-                String.format(
-                    Locale.ENGLISH,
-                    "Java vector incubator API enabled; uses preferredBitSize=%d",
-                    PanamaESVectorUtilSupport.VECTOR_BITSIZE
-                )
-            );
-            return impl;
-        } else {
-            logger.warn(
-                "You are running with unsupported Java "
-                    + runtimeVersion
-                    + ". To make full use of the Vector API, please update Elasticsearch."
-            );
+        // only use vector module with Hotspot VM
+        if (Constants.IS_HOTSPOT_VM == false) {
+            logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");
+            return new DefaultESVectorizationProvider();
         }
-        return new DefaultESVectorizationProvider();
+        // is the incubator module present and readable (JVM providers may to exclude them or it is
+        // build with jlink)
+        final var vectorMod = lookupVectorModule();
+        if (vectorMod.isEmpty()) {
+            logger.warn(
+                "Java vector incubator module is not readable. "
+                    + "For optimal vector performance, pass '--add-modules jdk.incubator.vector' to enable Vector API."
+            );
+            return new DefaultESVectorizationProvider();
+        }
+        vectorMod.ifPresent(ESVectorizationProvider.class.getModule()::addReads);
+        var impl = new PanamaESVectorizationProvider();
+        logger.info(
+            String.format(
+                Locale.ENGLISH,
+                "Java vector incubator API enabled; uses preferredBitSize=%d",
+                PanamaESVectorUtilSupport.VECTOR_BITSIZE
+            )
+        );
+        return impl;
     }
 
     private static Optional<Module> lookupVectorModule() {

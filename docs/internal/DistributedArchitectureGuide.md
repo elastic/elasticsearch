@@ -683,8 +683,8 @@ snapshots.
 This [snapshots Java package documentation][] provides a good explanation on how snapshot operations work.
 
 Restoring a snapshot is a process which largely relies on [index recoveries](#Recovery). The restore service initializes
-the process by preparing shards of restore indices as unassigned with snapshot as their recovery source in the cluster
-state. These shards go through the regular allocation process to be allocated. They then recover on the target nodes
+the process by preparing shards of restore indices as unassigned with snapshot as their recovery source ([SnapshotRecoverySource][])
+in the cluster state. These shards go through the regular allocation process to be allocated. They then recover on the target nodes
 by copying data files from the snapshot repository to local storage.
 
 Both snapshot and restore are coordinated by the master node, while index data transfer is done by the data nodes.
@@ -694,6 +694,7 @@ which can be further reacted upon by the data nodes until the processes are comp
 
 [Metadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
 [snapshots Java package documentation]: https://github.com/elastic/elasticsearch/blob/8ccbdd553b096465a282297332d2389328ed665a/server/src/main/java/org/elasticsearch/snapshots/package-info.java#L11
+[SnapshotRecoverySource]: https://github.com/elastic/elasticsearch/blob/31db11b3b067baf97e305bfefefea9e11cb85371/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java#L207
 
 ### Snapshot Repository
 

@@ -35,7 +35,7 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase {
+public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
     public void testIsGreenDuringIndexCreate() {
@@ -138,7 +138,12 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         var systemIndices = internalCluster().getCurrentMasterNodeInstance(SystemIndices.class);
         var projectResolver = internalCluster().getCurrentMasterNodeInstance(ProjectResolver.class);
 
-        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
+        var service = new StatefulShardsAvailabilityHealthIndicatorService(
+            clusterService,
+            allocationService,
+            systemIndices,
+            projectResolver
+        );
         var states = new ArrayList<RoutingNodesAndHealth>();
         var listener = new ClusterStateListener() {
             @Override

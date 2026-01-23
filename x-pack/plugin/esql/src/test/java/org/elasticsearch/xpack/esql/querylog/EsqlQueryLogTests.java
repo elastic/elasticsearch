@@ -25,8 +25,9 @@ import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -125,7 +126,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(tookMillis, is(tookMillisExpected));
 
                 // Checks values for all planning timespans
-                for (PlanningProfile.TimeSpanMarker timeSpan : warnQuery.planningProfile().timeSpanMarkers()) {
+                for (TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
                     String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
                     assertNotNull(tookValue);
                     Long timeSpanTook = Long.valueOf(tookValue);
@@ -190,8 +191,9 @@ public class EsqlQueryLogTests extends ESTestCase {
             }
 
             @Override
-            public PlanningProfile planningProfile() {
-                return new PlanningProfile(
+            public EsqlQueryProfile queryProfile() {
+                return new EsqlQueryProfile(
+                    randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),

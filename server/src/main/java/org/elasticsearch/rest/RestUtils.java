@@ -348,7 +348,7 @@ public class RestUtils {
 
     // Remove the BWC support for the deprecated ?local parameter.
     // NOTE: ensure each usage of this method has been deprecated for long enough to remove it.
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public static void consumeDeprecatedLocalParameter(RestRequest request) {
         if (request.hasParam("local") == false) {
             return;

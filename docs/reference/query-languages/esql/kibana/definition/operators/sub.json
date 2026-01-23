@@ -4,7 +4,7 @@
   "operator" : "-",
   "name" : "sub",
   "titleName" : "subtract",
-  "description" : "Subtract one number from another. If either field is multivalued then the result is `null`.",
+  "description" : "Subtract one value from another. In case of numeric fields, if either field is multivalued\nthen the result is `null`. For dense_vector fields, both arguments should be dense_vectors. Inequal vector dimensions generate\nnull result.\n",
   "signatures" : [
     {
       "params" : [
@@ -12,13 +12,13 @@
           "name" : "lhs",
           "type" : "date",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "date_period",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -30,13 +30,13 @@
           "name" : "lhs",
           "type" : "date",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -48,13 +48,13 @@
           "name" : "lhs",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "date_period",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -66,13 +66,13 @@
           "name" : "lhs",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -84,13 +84,13 @@
           "name" : "lhs",
           "type" : "date_period",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -102,13 +102,13 @@
           "name" : "lhs",
           "type" : "date_period",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "date_period",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -118,15 +118,33 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value, dense_vector or a date time value."
+        },
+        {
+          "name" : "rhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value, dense_vector or a date time value."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -138,13 +156,13 @@
           "name" : "lhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -156,13 +174,13 @@
           "name" : "lhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -174,13 +192,13 @@
           "name" : "lhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -192,13 +210,13 @@
           "name" : "lhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -210,13 +228,13 @@
           "name" : "lhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -228,13 +246,13 @@
           "name" : "lhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "double",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -246,13 +264,13 @@
           "name" : "lhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "integer",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -264,13 +282,13 @@
           "name" : "lhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -282,13 +300,13 @@
           "name" : "lhs",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -300,13 +318,13 @@
           "name" : "lhs",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,
@@ -318,13 +336,13 @@
           "name" : "lhs",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         },
         {
           "name" : "rhs",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "A numeric value or a date time value."
+          "description" : "A numeric value, dense_vector or a date time value."
         }
       ],
       "variadic" : false,

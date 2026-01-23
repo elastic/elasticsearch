@@ -838,7 +838,8 @@ it takes the shards with the `INIT` state and hosted on itself to create a shard
 of them. The shard state is computed for all shards involved in the snapshot at once when the snapshot entry
 is created. A large snapshot can easily have thousands of shards with `INIT` state indicating ready to be snapshotted.
 To avoid overwhelming the data nodes, a dedicated snapshot thread pool as well as `ThrottledTaskRunner` are
-used to keep concurrent running shard snapshots under control.
+used to keep concurrent running shard snapshots under control. Priority is given for snapshots which started
+earlier. We also order by shard to limit the number of incomplete shard snapshots.
 
 The lifecycle of each shard snapshot is also tracked in-memory on the data node with `IndexShardSnapshotStatus`.
 The status is indicated by `IndexShardSnapshotStatus#Stage` which is updated at various points during the process.

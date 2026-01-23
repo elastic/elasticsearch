@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -36,7 +35,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     private final ClusterService clusterService;
     private final AsyncTaskIndexService<Response> store;
     private final boolean updateInitialResultsInStore;
-    private final TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener;
+    private final QuadFunction<Task, ActionListener<Response>, TimeValue, Boolean, Boolean> addCompletionListener;
 
     /**
      * Creates async results service
@@ -52,7 +51,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         AsyncTaskIndexService<Response> store,
         boolean updateInitialResultsInStore,
         Class<? extends Task> asyncTaskClass,
-        TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener,
+        QuadFunction<Task, ActionListener<Response>, TimeValue, Boolean, Boolean> addCompletionListener,
         TaskManager taskManager,
         ClusterService clusterService
     ) {
@@ -120,7 +119,8 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             boolean added = addCompletionListener.apply(
                 task,
                 listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)),
-                request.getWaitForCompletionTimeout()
+                request.getWaitForCompletionTimeout(),
+                request.getReturnPartialResults()
             );
             if (added == false) {
                 // the task must have completed, since we cannot add a completion listener
@@ -183,5 +183,28 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                 l.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
             }
         }));
+    }
+
+    /**
+     * Represents a function that accepts three arguments and produces a result.
+     *
+     * @param <S> the type of the first argument
+     * @param <T> the type of the second argument
+     * @param <U> the type of the third argument
+     * @param <V> the type of the fourth argument
+     * @param <R> the return type
+     */
+    @FunctionalInterface
+    public interface QuadFunction<S, T, U, V, R> {
+        /**
+         * Applies this function to the given arguments.
+         *
+         * @param s the first function argument
+         * @param t the second function argument
+         * @param u the third function argument
+         * @param v the fourth function argument
+         * @return the result
+         */
+        R apply(S s, T t, U u, V v);
     }
 }

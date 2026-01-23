@@ -113,11 +113,26 @@ public final class SearchResponseMerger implements Releasable {
     /**
      * Returns the merged response of all SearchResponses received so far. Can be called at any point,
      * including when only some clusters have finished, in order to get "incremental" partial results.
+     *
      * @param clusters The Clusters object for the search to report on the status of each cluster
      *                 involved in the cross-cluster search
      * @return merged response
      */
     public SearchResponse getMergedResponse(Clusters clusters) {
+        return getMergedResponse(clusters, true);
+    }
+
+    /**
+     * Returns the merged response of all SearchResponses received so far. Can be called at any point,
+     * including when only some clusters have finished, in order to get "incremental" partial results.
+     *
+     * @param clusters The Clusters object for the search to report on the status of each cluster
+     *                 involved in the cross-cluster search
+     * @param includeResults        Whether to merge aggs, hits, etc. or just progress information. Can be used to elide partial results
+     *                              when the query is still running.
+     * @return merged response
+     */
+    public SearchResponse getMergedResponse(Clusters clusters, boolean includeResults) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
@@ -147,6 +162,10 @@ public final class SearchResponseMerger implements Releasable {
             Collections.addAll(failures, searchResponse.getShardFailures());
 
             profileResults.putAll(searchResponse.getProfileResults());
+
+            if (includeResults == false) {
+                continue;
+            }
 
             if (searchResponse.hasAggregations()) {
                 InternalAggregations internalAggs = searchResponse.getAggregations();

@@ -179,7 +179,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                     // the completion listener once the wait for completion timeout expires.
                     onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListenerWithHeaders);
                 }
-            }, request.getWaitForCompletionTimeout());
+            }, request.getWaitForCompletionTimeout(), true); // TODO do we want have the option for partial results in the submit?
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform;
 
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -25,19 +26,22 @@ public record TransformServices(
     TransformCheckpointService checkpointService,
     TransformAuditor auditor,
     TransformScheduler scheduler,
-    TransformNode transformNode
+    TransformNode transformNode,
+    CrossProjectModeDecider crossProjectModeDecider
 ) {
     public TransformServices(
         TransformConfigManager configManager,
         TransformCheckpointService checkpointService,
         TransformAuditor auditor,
         TransformScheduler scheduler,
-        TransformNode transformNode
+        TransformNode transformNode,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.configManager = Objects.requireNonNull(configManager);
         this.checkpointService = Objects.requireNonNull(checkpointService);
         this.auditor = Objects.requireNonNull(auditor);
         this.scheduler = Objects.requireNonNull(scheduler);
         this.transformNode = Objects.requireNonNull(transformNode);
+        this.crossProjectModeDecider = Objects.requireNonNull(crossProjectModeDecider);
     }
 }

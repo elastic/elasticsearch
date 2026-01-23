@@ -232,7 +232,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -252,6 +256,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -979,12 +984,29 @@ class NodeConstruction {
             ProjectRoutingResolver.class,
             () -> ProjectRoutingResolver.NOOP
         );
+        AtomicReference<TransportService> transportServiceRef = new AtomicReference<>();
+        var remoteTransportClient = new RemoteTransportClient() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                DiscoveryNode node,
+                String action,
+                TransportRequest request,
+                TransportResponseHandler<T> handler
+            ) {
+                TransportService transportService = transportServiceRef.get();
+                if (transportService == null) {
+                    throw new AssertionError("TransportService is not initialized yet");
+                }
+                transportService.sendRequest(node, action, request, handler);
+            }
+        };
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
             rerouteService,
             threadPool,
+            bigArrays,
             createResourceWatcherService(settings, threadPool),
             scriptService,
             xContentRegistry,
@@ -1005,7 +1027,8 @@ class NodeConstruction {
             slowLogFieldProvider,
             indexingLimits,
             linkedProjectConfigService,
-            projectRoutingResolver
+            projectRoutingResolver,
+            remoteTransportClient
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1050,7 +1073,7 @@ class NodeConstruction {
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
         ActionModule actionModule = new ActionModule(
-            settings,
+            environment,
             clusterModule.getIndexNameExpressionResolver(),
             namedWriteableRegistry,
             settingsModule.getIndexScopedSettings(),
@@ -1129,6 +1152,7 @@ class NodeConstruction {
             linkedProjectConfigService,
             projectResolver
         );
+        transportServiceRef.set(transportService);
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,

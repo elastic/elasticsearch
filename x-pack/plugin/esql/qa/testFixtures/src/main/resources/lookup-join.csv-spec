@@ -1689,7 +1689,7 @@ salary_change.long:double|foo:long
 joinMaskingEval
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_eval
-from languag*, -languages_mixed_numerics
+from languag*, -languages_mixed_numerics, -languages_copy
 | eval type = null
 | rename language_name as message
 | lookup join message_types_lookup on message

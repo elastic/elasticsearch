@@ -201,12 +201,13 @@ public class IndexAbstractionResolver {
                     boolean visible = indexExists(projectMetadata, indexAbstraction);
                     if (visible) {
                         try {
-                            visible = indexNameExpressionResolver.concreteIndexNames(
+                            visible = indexNameExpressionResolver.resolveExpressions(
                                 projectMetadata,
                                 indicesOptions,
                                 includeDataStreams,
+                                false,
                                 indexAbstraction
-                            ).length != 0;
+                            ).isEmpty() == false;
                         } catch (Exception e) {
                             visible = false;
                         }
@@ -281,7 +282,7 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
+        // assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
 
         IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {

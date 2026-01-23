@@ -181,10 +181,10 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         }
 
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
-            // We need to cast here because ExtractHistogramComponent returns a double.
-            return new ToLong(
+            return new Coalesce(
                 s,
-                new Coalesce(
+                // We need to cast here because ExtractHistogramComponent returns a double.
+                new ToLong(
                     s,
                     new Sum(
                         s,
@@ -192,9 +192,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                         filter(),
                         window(),
                         SummationMode.COMPENSATED_LITERAL
-                    ),
-                    List.of(new Literal(s, 0, DataType.DOUBLE))
-                )
+                    )
+                ),
+            List.of(new Literal(s, 0L, DataType.LONG))
             );
         }
 

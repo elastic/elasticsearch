@@ -137,6 +137,21 @@ cnt:long
 0
 ;
 
+// -------------------------------------------------------------------------------
+
+Count of tdigest with no matching rows (time series mode)
+required_capability: tdigest_tech_preview
+
+TS tdigest_timeseries_index 
+ | WHERE instance == "does-not-exist"
+ | STATS cnt = count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long
+0
+;
+
 
 ungroupedPercentiles
 required_capability: tdigest_tech_preview

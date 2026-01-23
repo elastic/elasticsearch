@@ -1676,6 +1676,12 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
+         * Adds the ability for the {@link org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case}
+         * to return values of type TDIGEST, type HISTOGRAM, and type AGGREGATE_METRIC_DOUBLE.
+         */
+        CASE_SUPPORT_FOR_SUMMARY_FIELDS,
+
+        /**
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,

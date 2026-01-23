@@ -46,10 +46,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
@@ -66,6 +63,7 @@ public final class Case extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = {
+            "aggregate_metric_double",
             "boolean",
             "cartesian_point",
             "cartesian_shape",
@@ -78,10 +76,12 @@ public final class Case extends EsqlScalarFunction {
             "geohash",
             "geotile",
             "geohex",
+            "histogram",
             "integer",
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
             "version",
             "exponential_histogram" },
@@ -111,6 +111,7 @@ public final class Case extends EsqlScalarFunction {
         @Param(
             name = "trueValue",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -123,10 +124,12 @@ public final class Case extends EsqlScalarFunction {
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version",
@@ -213,15 +216,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM && t != DataType.DATE_RANGE,
+                t -> t != DataType.DATE_RANGE,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double, histogram, tdigest, or date_range"
+                originalWasNull ? NULL.typeName() : "any but date_range"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM && t != DataType.DATE_RANGE,
+            t -> t.noText() == dataType && t != DataType.DATE_RANGE,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

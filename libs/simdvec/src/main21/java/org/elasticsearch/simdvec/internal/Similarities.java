@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec.internal;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 
@@ -28,6 +29,10 @@ public class Similarities {
     static final MethodHandle DOT_PRODUCT_I1I4 = DISTANCE_FUNCS.dotProductHandleI1I4();
     static final MethodHandle DOT_PRODUCT_I1I4_BULK = DISTANCE_FUNCS.dotProductHandleI1I4Bulk();
     static final MethodHandle DOT_PRODUCT_I1I4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.dotProductHandleI1I4BulkWithOffsets();
+
+    static final MethodHandle SCORE_EUCLIDEAN_BULK = DISTANCE_FUNCS.scoreEuclideanBulk();
+    static final MethodHandle SCORE_MAX_INNER_PRODUCT_BULK = DISTANCE_FUNCS.scoreMaxInnerProductBulk();
+    static final MethodHandle SCORE_OTHERS_BULK = DISTANCE_FUNCS.scoreOthersBulk();
 
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
     static final MethodHandle SQUARE_DISTANCE_7U_BULK = DISTANCE_FUNCS.squareDistanceHandle7uBulk();
@@ -99,6 +104,63 @@ public class Similarities {
     ) {
         try {
             DOT_PRODUCT_I1I4_BULK_WITH_OFFSETS.invokeExact(a, query, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static float nativeScoreBulk(
+        VectorSimilarityFunction similarityFunction,
+        MemorySegment corrections,
+        int bulkSize,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float centroidDp,
+        MemorySegment scores
+    ) {
+        try {
+            return switch (similarityFunction) {
+                case EUCLIDEAN -> (float) SCORE_EUCLIDEAN_BULK.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    centroidDp,
+                    scores
+                );
+                case DOT_PRODUCT, COSINE -> (float) SCORE_OTHERS_BULK.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    centroidDp,
+                    scores
+                );
+                case MAXIMUM_INNER_PRODUCT -> (float) SCORE_MAX_INNER_PRODUCT_BULK.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    centroidDp,
+                    scores
+                );
+            };
         } catch (Throwable e) {
             throw rethrow(e);
         }

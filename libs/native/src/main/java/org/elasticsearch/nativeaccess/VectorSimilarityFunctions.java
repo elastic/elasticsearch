@@ -273,4 +273,10 @@ public interface VectorSimilarityFunctions {
      * </ol>
      */
     MethodHandle squareDistanceHandleFloat32BulkWithOffsets();
+
+    MethodHandle scoreEuclideanBulk();
+
+    MethodHandle scoreMaxInnerProductBulk();
+
+    MethodHandle scoreOthersBulk();
 }

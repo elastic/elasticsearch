@@ -20,6 +20,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -404,15 +405,19 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         // 128 / 8 == 16
         if (length >= 16) {
             if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-                if (NATIVE_SUPPORTED) {
+                if (NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS) {
                     nativeQuantizeScoreBulk(q, bulkSize, scores);
+                    return nativeScoreBulk(
+                        queryLowerInterval,
+                        queryUpperInterval,
+                        queryComponentSum,
+                        queryAdditionalCorrection,
+                        similarityFunction,
+                        centroidDp,
+                        scores
+                    );
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     quantizeScore256Bulk(q, bulkSize, scores);
-                } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                    quantizeScore128Bulk(q, bulkSize, scores);
-                }
-                // TODO: fully native
-                if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     return score256Bulk(
                         queryLowerInterval,
                         queryUpperInterval,
@@ -423,6 +428,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                         scores
                     );
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
+                    quantizeScore128Bulk(q, bulkSize, scores);
                     return score128Bulk(
                         queryLowerInterval,
                         queryUpperInterval,
@@ -580,6 +586,34 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 }
             }
         }
+        in.seek(offset + 14L * bulkSize);
+        return maxScore;
+    }
+
+    private float nativeScoreBulk(
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores
+    ) throws IOException {
+        long offset = in.getFilePointer();
+
+        final float maxScore = Similarities.nativeScoreBulk(
+            similarityFunction,
+            memorySegment.asSlice(offset),
+            bulkSize,
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            1.0f,
+            centroidDp,
+            MemorySegment.ofArray(scores)
+        );
         in.seek(offset + 14L * bulkSize);
         return maxScore;
     }

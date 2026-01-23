@@ -35,7 +35,7 @@ public class EvalGenerator implements CommandGenerator {
     ) {
         StringBuilder cmd = new StringBuilder(" | eval ");
         int nFields = randomIntBetween(1, 10);
-        Map<String, Column> usablePrevious = previousOutput.stream().collect(Collectors.toMap(Column::name, c -> c));
+        Map<String, Column> usablePrevious = previousOutput.stream().collect(Collectors.toMap(Column::name, c -> c, (c1, c2) -> c1));
         // TODO pass newly created fields to next expressions
         var newColumns = new ArrayList<>();
         for (int i = 0; i < nFields; i++) {

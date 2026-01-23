@@ -1,0 +1,5 @@
+pr: 140956
+summary: Small optimization in `SyntheticIdPostingsEnum`
+area: TSDB
+type: enhancement
+issues: []

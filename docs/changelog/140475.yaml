@@ -1,0 +1,5 @@
+pr: 140475
+summary: Partition time-series source
+area: ES|QL
+type: enhancement
+issues: []

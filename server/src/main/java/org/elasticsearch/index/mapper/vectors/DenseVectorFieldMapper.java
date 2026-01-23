@@ -77,6 +77,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
@@ -101,6 +102,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -1157,8 +1159,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
             throws IOException {
+            XContentString.UTF8Bytes utfBytes = context.parser().optimizedText().bytes();
+            ByteBuffer srcBuffer = ByteBuffer.wrap(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             // BIG_ENDIAN is the default, but just being explicit here
-            ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(context.parser().text())).order(ByteOrder.BIG_ENDIAN);
+            ByteBuffer byteBuffer = Base64.getDecoder().decode(srcBuffer).order(ByteOrder.BIG_ENDIAN);
             float[] decodedVector = new float[dims];
             if (byteBuffer.remaining() == dims * Float.BYTES) {
                 byteBuffer.asFloatBuffer().get(decodedVector);
@@ -2420,14 +2424,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
-                    onDiskRescore
+                    onDiskRescore,
+                    mergingExecutorService,
+                    numMergeWorkers
                 );
             }
             return new ES920DiskBBQVectorsFormat(
                 clusterSize,
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
-                onDiskRescore
+                onDiskRescore,
+                mergingExecutorService,
+                numMergeWorkers
             );
         }
 
@@ -2991,7 +2999,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             if (dims == null) {
                 // No data has been indexed yet
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
 
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
@@ -3314,7 +3322,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    elementType
+                    elementType,
+                    mergingExecutorService,
+                    maxMergingWorkers
                 );
                 if (extraKnnFormat != null) {
                     break;

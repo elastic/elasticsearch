@@ -24,6 +24,7 @@ max_bytes:long | cluster: keyword
 maxRate
 required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max=max(rate(network.total_bytes_in)) | EVAL max=ROUND(max, 6) | KEEP max;
 
 max: double
@@ -33,6 +34,7 @@ max: double
 maxRatePerMinute
 required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max=max(60 * rate(network.total_bytes_in)) | EVAL max=ROUND(max, 6) | KEEP max;
 
 max: double
@@ -41,6 +43,7 @@ max: double
 
 maxCost
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_cost=max(rate(network.total_cost)) | EVAL max_cost=ROUND(max_cost, 6) | KEEP max_cost;
 
 max_cost: double
@@ -49,6 +52,7 @@ max_cost: double
 
 maxRateAndBytes
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(60 * rate(network.total_bytes_in)), max_bytes=max(network.bytes_in) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes;
 
 max_rate: double | max_bytes: long
@@ -57,6 +61,7 @@ max_rate: double | max_bytes: long
 
 maxRateAndBytesExplicit
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(60 * rate(network.total_bytes_in)), max_bytes=max(last_over_time(network.bytes_in)) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes;
 
 max_rate: double | max_bytes: long
@@ -65,6 +70,7 @@ max_rate: double | max_bytes: long
 
 maxRateAndMarkupBytes
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_markup=max(network.bytes_in * 1.05) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_markup;
 
 max_rate: double | max_markup: double
@@ -73,6 +79,7 @@ max_rate: double | max_markup: double
 
 maxRateAndMarkupBytesExplicit
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_bytes_in = max(last_over_time(network.bytes_in) * 1.05) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes_in;
 
 max_rate: double | max_bytes_in: double
@@ -81,6 +88,7 @@ max_rate: double | max_bytes_in: double
 
 maxRateAndLastBytesIn
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_bytes_in = max(last_over_time(network.bytes_in * 1.05)) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_bytes_in;
 
 max_rate: double | max_bytes_in: double
@@ -89,6 +97,7 @@ max_rate: double | max_bytes_in: double
 
 maxRateAndBytesAndCost
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_bytes=max(max_over_time(network.bytes_in)), max_cost=max(rate(network.total_cost)) | EVAL max_rate=ROUND(max_rate, 6), max_cost=ROUND(max_cost, 6) | KEEP max_rate, max_bytes, max_cost;
 
 max_rate:double | max_bytes:long | max_cost:double
@@ -97,6 +106,7 @@ max_rate:double | max_bytes:long | max_cost:double
 
 sumRate
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum_cost=sum(rate(network.total_cost)) BY cluster | EVAL bytes=ROUND(bytes, 6), sum_cost=ROUND(sum_cost, 6) | KEEP bytes, sum_cost, cluster | SORT cluster;
 
 bytes: double | sum_cost: double | cluster: keyword
@@ -108,6 +118,7 @@ bytes: double | sum_cost: double | cluster: keyword
 oneRateWithBucket
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 // tag::rate[]
 TS k8s
@@ -125,8 +136,8 @@ max_rate: double | time_bucket:date
 
 oneRateWithTBucket
 required_capability: ts_command_v0
-required_capability: tbucket
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s
 | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute)
@@ -139,8 +150,9 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithPromql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 PROMQL index=k8s step=5m max(rate(network.total_bytes_in[5m]))
 | SORT step DESC | LIMIT 2;
@@ -153,7 +165,8 @@ max(rate(network.total_bytes_in[5m])):double | step:datetime
 
 oneRateWithSingleTBucket
 required_capability: ts_command_v0
-required_capability: tbucket
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s
 | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = tbucket(1h)
 | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, time_bucket;
@@ -163,7 +176,8 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
+required_capability: rate_fix_resets_multiple_segments
 PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]));
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime
@@ -174,6 +188,7 @@ max(rate(network.total_bytes_in[1h])):double | step:datetime
 twoRatesWithBucket
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), sum_rate=sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | EVAL max_rate=ROUND(max_rate, 6), sum_rate=ROUND(sum_rate, 6) | KEEP max_rate, sum_rate, time_bucket | SORT time_bucket DESC | LIMIT 3;
 
@@ -185,8 +200,9 @@ max_rate:double | sum_rate:double | time_bucket:datetime
 
 twoRatesWithTBucket
 required_capability: ts_command_v0
-required_capability: tbucket
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), sum_rate=sum(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute) | EVAL max_rate=ROUND(max_rate, 6), sum_rate=ROUND(sum_rate, 6) | KEEP max_rate, sum_rate, time_bucket | SORT time_bucket DESC | LIMIT 3;
 
 max_rate:double | sum_rate:double | time_bucket:datetime    
@@ -198,6 +214,8 @@ max_rate:double | sum_rate:double | time_bucket:datetime
 oneRateWithBucketAndCluster
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, time_bucket, cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
 max_rate:double | time_bucket:datetime     | cluster:keyword
@@ -212,6 +230,7 @@ max_rate:double | time_bucket:datetime     | cluster:keyword
 BytesAndCostByBucketAndCluster
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s | STATS max_rate=max(rate(network.total_bytes_in)), max_cost=max(max_over_time(network.cost)) BY time_bucket = bucket(@timestamp,5minute), cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, max_cost, time_bucket, cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
@@ -228,6 +247,7 @@ max_rate:double | max_cost:double | time_bucket:date         | cluster: keyword
 oneRateWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s | WHERE cluster=="prod" | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, time_bucket, cluster | SORT time_bucket DESC | LIMIT 3;
 
@@ -240,6 +260,8 @@ max_rate:double | time_bucket:datetime     | cluster:keyword
 
 maxRateWithInlineFilter
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) WHERE cluster=="prod" BY cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, cluster | SORT cluster;
 
 max_rate:double | cluster:keyword
@@ -250,6 +272,8 @@ null            | staging
 
 maxRateWithPreFilter
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
+
 TS k8s | WHERE cluster=="prod" | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, cluster | SORT cluster;
 
 max_rate:double | cluster:keyword
@@ -259,6 +283,7 @@ max_rate:double | cluster:keyword
 notEnoughSamples
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s | WHERE @timestamp <= "2024-05-10T00:06:14.000Z" | STATS max_rate=max(rate(network.total_bytes_in)) BY pod, time_bucket = bucket(@timestamp,1minute) | EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate, pod, time_bucket | SORT pod, time_bucket DESC | LIMIT 10;
 
@@ -516,6 +541,7 @@ distincts:long | distincts_imprecise:long | cluster:keyword | time_bucket:dateti
 two_rates
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s | STATS cost_per_mb=max(rate(network.total_bytes_in) / 1024 * 1024 * rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp,5minute) | EVAL cost_per_mb=ROUND(cost_per_mb, 6) | KEEP cost_per_mb, cluster, time_bucket | SORT cost_per_mb DESC, cluster, time_bucket DESC | LIMIT 5;
 
@@ -716,6 +742,7 @@ sd:double | var:double | sd_squared:double | cluster:keyword | time_bucket:datet
 
 Max of Rate with Bucket
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s
 | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
@@ -727,6 +754,7 @@ maxRate:double | tbucket:datetime
 
 Max of Rate with Bucket, rename _tsid
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s METADATA _tsid
 | RENAME _tsid AS newTsid
@@ -741,6 +769,7 @@ maxRate:double | tbucket:datetime
 
 Max of Rate with Bucket, drop _tsid
 required_capability: ts_command_v0
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s METADATA _tsid
 | DROP _tsid
@@ -751,20 +780,8 @@ maxRate:double | tbucket:datetime
 0.05898        | 2024-05-10T00:00:00.000Z
 ;
 
-Rename timestamp when aggs don't require timestamp
-required_capability: ts_command_v0
-
-TS k8s 
-| RENAME @timestamp AS newTs 
-| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
-;
-
-mx:integer | tbucket:datetime
-1716       | 2024-05-10T00:00:00.000Z
-;
-
 instant_selector_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
@@ -830,7 +847,7 @@ count:long | _timeseries:keyword                                                
 ;
 
 bare_count_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h count=(count_over_time(network.cost[1h]))
 | SORT count DESC
@@ -847,6 +864,49 @@ count:double | step:datetime            | _timeseries:keyword
 24.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
 29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
 29.0         | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
+bare_metric_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all  
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: ts_stats_binary_ops
+
+TS k8s
+| STATS network.cost BY tbucket = TBUCKET(1 hour)
+| SORT network.cost DESC
+;
+ignoreOrder:true
+
+network.cost:double | _timeseries:keyword                                                   | tbucket:datetime
+0.0                 | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+1.75                | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+4.625               | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z
+6.25                | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
+7.875               | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+9.375               | "{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z
+9.5                 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+10.75               | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+10.875              | "{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z
+;
+
+bare_metric_with_tbucket_outputs_dimensions_promql
+required_capability: promql_command_v0
+PROMQL index=k8s step=1h network.cost
+| SORT network.cost DESC
+;
+ignoreOrder:true
+
+network.cost:double | step:datetime            | _timeseries:keyword
+0.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.75                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+4.625               | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+6.25                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+7.875               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9.375               | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9.5                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+10.75               | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10.875              | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
 ;
 
 bare_avg_over_time_outputs_dimensions
@@ -896,7 +956,7 @@ avg:double         | _timeseries:keyword                                        
 ;
 
 bare_avg_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h avg=(avg_over_time(network.cost[1h]))
 | SORT avg DESC
@@ -962,7 +1022,7 @@ sum:double | _timeseries:keyword                                                
 ;
 
 bare_sum_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h sum=(sum_over_time(network.cost[1h]))
 | SORT sum DESC
@@ -1007,7 +1067,7 @@ _timeseries:keyword                                                   | tbucket:
 ;
 
 bare_rate_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
 | EVAL rate=ROUND(rate, 3)
@@ -1069,6 +1129,7 @@ max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
 dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos_2
+required_capability: rate_fix_resets_multiple_segments
 
 TS datenanos-k8s
 | WHERE cluster=="prod"
@@ -1117,6 +1178,7 @@ required_capability: ts_command_v0
 required_capability: ts_linreg_derivative
 required_capability: ts_deriv_datenanos
 required_capability: rate_with_interpolation_v2
+required_capability: rate_fix_resets_multiple_segments
 
 TS k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -1185,7 +1247,7 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 ;
 
 derivative_of_gauge_metric_promql
-required_capability: promql_pre_tech_preview_v12
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=5m max_deriv=(max by (pod) (deriv(network.cost{pod="three"}[5m])))
 | SORT step

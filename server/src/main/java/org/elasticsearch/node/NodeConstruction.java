@@ -113,8 +113,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SlowLogContext;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -232,7 +232,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -252,6 +256,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -872,64 +877,20 @@ class NodeConstruction {
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
         SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-            public SlowLogFields create() {
+            public SlowLogFields create(SlowLogContext context) {
                 final List<SlowLogFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
-                    fields.add(provider.create());
+                    fields.add(provider.create(context));
                 }
-                return new SlowLogFields() {
+                return new SlowLogFields(context) {
                     @Override
-                    public Map<String, String> indexFields() {
+                    public Map<String, String> logFields() {
                         return fields.stream()
-                            .flatMap(f -> f.indexFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.searchFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> queryFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.queryFields().entrySet().stream())
+                            .flatMap(f -> f.logFields().entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     }
                 };
             }
-
-            public SlowLogFields create(IndexSettings indexSettings) {
-                final List<SlowLogFields> fields = new ArrayList<>();
-                for (var provider : slowLogFieldProviders) {
-                    fields.add(provider.create(indexSettings));
-                }
-                return new SlowLogFields() {
-                    @Override
-                    public Map<String, String> indexFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.indexFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> searchFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.searchFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-
-                    @Override
-                    public Map<String, String> queryFields() {
-                        return fields.stream()
-                            .flatMap(f -> f.queryFields().entrySet().stream())
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    }
-                };
-            }
-
         };
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -1023,12 +984,29 @@ class NodeConstruction {
             ProjectRoutingResolver.class,
             () -> ProjectRoutingResolver.NOOP
         );
+        AtomicReference<TransportService> transportServiceRef = new AtomicReference<>();
+        var remoteTransportClient = new RemoteTransportClient() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                DiscoveryNode node,
+                String action,
+                TransportRequest request,
+                TransportResponseHandler<T> handler
+            ) {
+                TransportService transportService = transportServiceRef.get();
+                if (transportService == null) {
+                    throw new AssertionError("TransportService is not initialized yet");
+                }
+                transportService.sendRequest(node, action, request, handler);
+            }
+        };
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
             rerouteService,
             threadPool,
+            bigArrays,
             createResourceWatcherService(settings, threadPool),
             scriptService,
             xContentRegistry,
@@ -1049,7 +1027,8 @@ class NodeConstruction {
             slowLogFieldProvider,
             indexingLimits,
             linkedProjectConfigService,
-            projectRoutingResolver
+            projectRoutingResolver,
+            remoteTransportClient
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1094,7 +1073,7 @@ class NodeConstruction {
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
         ActionModule actionModule = new ActionModule(
-            settings,
+            environment,
             clusterModule.getIndexNameExpressionResolver(),
             namedWriteableRegistry,
             settingsModule.getIndexScopedSettings(),
@@ -1173,6 +1152,7 @@ class NodeConstruction {
             linkedProjectConfigService,
             projectResolver
         );
+        transportServiceRef.set(transportService);
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
@@ -1285,7 +1265,7 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
-        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, taskManager, terminationHandler);
+        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 

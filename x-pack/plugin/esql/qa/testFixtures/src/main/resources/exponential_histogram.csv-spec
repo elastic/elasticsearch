@@ -722,6 +722,7 @@ cnt:long
 // -------------------------------------------------------------------------------
 
 Count no matching rows (time series mode)
+required_capability: ts_command_v0
 required_capability: count_of_histogram_types
 
 TS exp_histo_sample 

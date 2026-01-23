@@ -7,15 +7,13 @@
 # type:
 #   A required string that contains the type of change
 #   It can be one of:
-#   - feature
-#   - enhancement
-#   - bug-fix
-#   - known-issue
 #   - breaking-change
+#   - bug-fix
 #   - deprecation
 #   - docs
+#   - enhancement
+#   - feature
 #   - regression
-#   - security
 #   - other
 
 # products:
@@ -88,5 +86,5 @@ products:
   target: 9.3.0
 areas:
 - Indices APIs
-- ILM+SLM
+- SLM
 title: Add deprecation notice for max_size rollover condition

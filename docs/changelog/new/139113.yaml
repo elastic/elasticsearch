@@ -7,15 +7,13 @@
 # type:
 #   A required string that contains the type of change
 #   It can be one of:
-#   - feature
-#   - enhancement
-#   - bug-fix
-#   - known-issue
 #   - breaking-change
+#   - bug-fix
 #   - deprecation
 #   - docs
+#   - enhancement
+#   - feature
 #   - regression
-#   - security
 #   - other
 
 # products:
@@ -86,4 +84,4 @@ type: bug-fix
 products:
 - product: elasticsearch
   target: 9.3.0
-title: ': Update Vector Similarity To Support BFLOAT16'
+title: Update Vector Similarity To Support BFLOAT16

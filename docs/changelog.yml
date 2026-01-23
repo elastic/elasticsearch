@@ -3,7 +3,7 @@
 # Place this file as `changelog.yml` in the `docs/` directory
 
 # Available products (optional - if not specified, all products from products.yml are allowed)
-products:
+available_products:
   - elasticsearch
   - cloud-serverless
   # Add more products as needed
@@ -54,7 +54,7 @@ pivot:
   # Multiple labels can be comma-separated
   areas:
     # Example mappings - customize based on your label naming conventions
-    Aggregations: "Analytics/Aggregations"
+    Aggregations: ":Analytics/Aggregations"
     Allocation: ":Distributed Coordination/Allocation"
     Analysis: ":Search Relevance/Analysis"
     Application: ":EnterpriseSearch/Application"
@@ -83,9 +83,9 @@ pivot:
     FIPS: ":Security/FIPS"
     Geo: ":Analytics/Geo"
     # Graph: TBD
-    Health: ":Data Management/Health"
+    Health: ":Distributed/Health"
     Highlighting: ":Search Relevance/Highlighting"
-    "ILM": ":StorageEngine/ILM"
+    "ILM": ":StorageEngine/ILM, :Data Management/ILM+SLM"
     IdentityProvider: ":Security/IdentityProvider"
     "Indices APIs": ":Data Management/Indices APIs"
     Inference: ":SearchOrg/Inference"
@@ -103,7 +103,7 @@ pivot:
     "Infra/Settings": ":Core/Infra/Settings"
     "Infra/Transport API": ":Core/Infra/Transport API"
     # Ingest: TBD
-    "Ingest Node": ":Data Management/Ingest Node"
+    "Ingest Node": ":Distributed/Ingest Node"
     "Java High Level REST Client": ":Clients/Java High Level REST Client"
     "Java Low Level REST Client": ":Clients/Java Low Level REST Client"
     License: ":Security/License"
@@ -111,7 +111,7 @@ pivot:
     Logs: ":StorageEngine/Logs, StorageEngine/Logs"
     "Machine Learning": ":ml"
     Mapping: ":StorageEngine/Mapping, :Search Foundations/Mapping"
-    Monitoring: ":Data Management/Monitoring"
+    Monitoring: ":Core/Infra/Monitoring"
     Network: ":Distributed Coordination/Network"
     Packaging: ":Delivery/Packaging"
     Percolator: ":Search Relevance/Percolator"
@@ -122,10 +122,10 @@ pivot:
     Reindex: ":Distributed Indexing/Reindex"
     Relevance: ":Search Relevance/Search"
     Rollup: ":StorageEngine/Rollup"
-    Search: ":Search/Search"
+    Search: ":Search/Search, :Search Foundations/Search"
     "Searchable snapshots": ":Distributed Indexing/Searchable Snapshots"
     Security: ":Security/Security"
-    SLM: ":Distributed/SLM"
+    SLM: ":Distributed/SLM, :Data Management/ILM+SLM"
     "Snapshot/Restore": ":Distributed Coordination/Snapshot/Restore"
     SQL: ":Query Languages/SQL"
     Stats: ":Data Management/Stats"
@@ -138,53 +138,102 @@ pivot:
     "Vector search": ":Search Relevance/Vectors"
     Watcher: ":Data Management/Watcher"
 
+# Product-specific label blockers (optional)
+# Maps product IDs to lists of labels that prevent changelog creation for that product
+# If you run the changelog add command with the --prs option and a PR has any of these labels, the changelog is not created
+add_blockers:
+  elasticsearch,cloud-serverless:
+    - ">non-issue"
+    - ">test"
+    - ">refactoring"
+    - ":Delivery/Build"
+    - ":Delivery/Tooling"
+
+render_blockers:
+  cloud-serverless:
+    areas:
+      - Allocation
+      - Audit
+      - Authentication
+      - Autoscaling
+      - CCR
+      - CCS
+      - "Cluster Coordination"
+      - Codec
+      - "Discovery-Plugins"
+      - Engine
+      - FIPS
+      - Health
+      - "ILM+SLM"
+      - "IdentityProvider"
+      - "Infra/CLI"
+      - "Circuit Breakers"
+      - "Infra/Core"
+      - "Infra/Entitlements"
+      - "Infra/Logging"
+      - "Infra/Metrics"
+      - "Infra/Node Lifecycle"
+      - "Infra/Plugins"
+      - "Infra/Transport API"
+      - License
+      - Monitoring
+      - Packaging
+      - Searchable Snapshots
+      - "Snapshot/Restore"
+      - Stats
+      - Watcher
+    types:
+      - docs
+  elasticsearch:
+    types:
+      - docs
+
 # Block configuration - combined create and publish blockers
-block:
+# block:
   # Global labels that block changelog creation for all products (comma-separated string)
-  create: ">non-issue, >test, >refactoring, :Delivery/Build, :Delivery/Tooling"
+  # create: ">non-issue, >test, >refactoring, :Delivery/Build, :Delivery/Tooling"
   # Block changelog entries from publishing based on entry type or area
   # publish:
-  #   types:
-  #     - deprecation
-  #     - known-issue
+    # types:
+      # - docs
   #   areas:
   #     - "Internal"
   # Product-specific overrides (override global blockers, don't merge)
   # Dictionary key can be a single product ID or comma-separated product IDs
-  product:
-    'elasticsearch':
-      publish:
-        types:
-          - docs
-    'cloud-serverless':
-      publish:
-        areas:
-          - Allocation
-          - Audit
-          - Authentication
-          - Autoscaling
-          - CCR
-          - CCS
-          - "Cluster Coordination"
-          - Codec
-          - "Discovery-Plugins"
-          - Engine
-          - FIPS
-          - Health
-          - "ILM"
-          - IdentityProvider
-          - "Infra/CLI"
-          - "Infra/Logging"
-          - "Infra/Metrics"
-          - "Infra/Node Lifecycle"
-          - "Infra/Plugins"
-          - "Infra/Transport API"
-          - License
-          - Monitoring
-          - Packaging
-          - "Searchable Snapshots"
-          - "Snapshot/Restore"
-          - Stats
-          - Watcher
-        types:
-          - docs
+  # product:
+  #   'elasticsearch':
+  #     publish:
+  #       types:
+  #         - docs
+  #   'cloud-serverless':
+      # publish:
+      #   areas:
+      #     - Allocation
+      #     - Audit
+      #     - Authentication
+      #     - Autoscaling
+      #     - CCR
+      #     - CCS
+      #     - "Cluster Coordination"
+      #     - Codec
+      #     - "Discovery-Plugins"
+      #     - Engine
+      #     - FIPS
+      #     - Health
+      #     - "ILM"
+      #     - IdentityProvider
+      #     - "Infra/CLI"
+      #     - "Infra/Logging"
+      #     - "Infra/Metrics"
+      #     - "Infra/Node Lifecycle"
+      #     - "Infra/Plugins"
+      #     - "Infra/Transport API"
+      #     - License
+      #     - Monitoring
+      #     - Packaging
+      #     - "Searchable Snapshots"
+      #     - "Snapshot/Restore"
+      #     - Stats
+      #     - Watcher
+      #   types:
+      #     - docs

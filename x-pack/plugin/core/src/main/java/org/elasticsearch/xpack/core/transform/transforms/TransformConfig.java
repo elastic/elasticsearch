@@ -368,7 +368,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         if (crossProjectModeDecider.crossProjectEnabled()) {
             return validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(TRANSFORM_CROSS_PROJECT.isEnabled(), validationException);
         }
-        return null;
+        return validationException;
     }
 
     // visible for testing

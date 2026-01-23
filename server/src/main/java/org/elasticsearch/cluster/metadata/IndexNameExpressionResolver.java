@@ -271,6 +271,25 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, indexExpressions);
     }
 
+    public String[] concreteIndexNamesWithSystemAccess(
+        ProjectMetadata project,
+        IndicesOptions options,
+        boolean includeDataStreams,
+        String... indexExpressions
+    ) {
+        Context context = new Context(
+            project,
+            options,
+            false,
+            false,
+            includeDataStreams,
+            SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY,
+            Predicates.always(),
+            getNetNewSystemIndexPredicate()
+        );
+        return concreteIndexNames(context, indexExpressions);
+    }
+
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
         return concreteIndexNames(projectResolver.getProjectMetadata(state), options, request);
     }

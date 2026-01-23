@@ -201,13 +201,12 @@ public class IndexAbstractionResolver {
                     boolean visible = indexExists(projectMetadata, indexAbstraction);
                     if (visible) {
                         try {
-                            visible = indexNameExpressionResolver.resolveExpressions(
+                            visible = indexNameExpressionResolver.concreteIndexNamesWithSystemAccess(
                                 projectMetadata,
                                 indicesOptions,
                                 includeDataStreams,
-                                false,
                                 indexAbstraction
-                            ).isEmpty() == false;
+                            ).length != 0;
                         } catch (Exception e) {
                             visible = false;
                         }

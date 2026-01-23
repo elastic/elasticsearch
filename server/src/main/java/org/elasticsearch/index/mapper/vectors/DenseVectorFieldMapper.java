@@ -1492,7 +1492,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
                 if (onDiskRescore) {
-                    throw new IllegalArgumentException("on_disk_rescore is only supported for quantized vector types");
+                    throw new IllegalArgumentException("on_disk_rescore is only supported for indexed and quantized vector types");
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
 

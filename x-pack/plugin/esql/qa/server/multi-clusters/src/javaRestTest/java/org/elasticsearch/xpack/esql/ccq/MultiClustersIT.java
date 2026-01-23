@@ -791,7 +791,7 @@ public class MultiClustersIT extends ESRestTestCase {
                 | STATS total = COUNT(*)
                 """, localIndexWithNewDataType, REMOTE_CLUSTER_NAME, remoteIndex, localIndex, localIndexWithNewDataType);
 
-            assertErrorMessage(query, List.of("[float_vector] has conflicting data types in subqueries: [unsupported,"));
+            assertErrorMessage(query, List.of("[float_vector] has conflicting or unsupported data types in subqueries: [dense_vector,"));
 
             // two fields with new data type, one field is a mixed(dense_vector and keyword) typed field
             query = LoggerMessageFormat.format(null, """
@@ -806,10 +806,29 @@ public class MultiClustersIT extends ESRestTestCase {
             assertErrorMessage(
                 query,
                 List.of(
-                    "[float_vector] has conflicting data types in subqueries: [unsupported,",
-                    "[color] has conflicting data types in subqueries: [unsupported,"
+                    "[float_vector] has conflicting or unsupported data types in subqueries: [dense_vector,",
+                    "[color] has conflicting or unsupported data types in subqueries: [dense_vector,"
                 )
             );
+
+            query = LoggerMessageFormat.format(
+                null,
+                """
+                    FROM
+                        (FROM {}),
+                        (FROM {}:{}, {}),
+                        (FROM {}, {})
+                    | STATS total = COUNT(float_vector)
+                    """,
+                localIndexWithNewDataType,
+                REMOTE_CLUSTER_NAME,
+                remoteIndex,
+                localIndexWithNewDataType,
+                localIndex,
+                localIndexWithNewDataType
+            );
+
+            assertErrorMessage(query, List.of("[float_vector] has conflicting or unsupported data types in subqueries: [dense_vector,"));
         } finally {
             deleteIndex(client(), localIndexWithNewDataType);
         }
@@ -874,7 +893,7 @@ public class MultiClustersIT extends ESRestTestCase {
                 | KEEP float_vector, color
                 """, localIndexWithNewDataType, REMOTE_CLUSTER_NAME, remoteIndex, localIndex, localIndexWithNewDataType);
 
-            assertErrorMessage(query, List.of("[color] has conflicting data types in subqueries: [dense_vector, keyword"));
+            assertErrorMessage(query, List.of("[color] has conflicting or unsupported data types in subqueries: [dense_vector, keyword"));
         } finally {
             deleteIndex(client(), localIndexWithNewDataType);
         }

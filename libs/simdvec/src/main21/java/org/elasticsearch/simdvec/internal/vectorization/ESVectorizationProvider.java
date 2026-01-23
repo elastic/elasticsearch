@@ -27,6 +27,13 @@ public abstract class ESVectorizationProvider {
 
     protected static final Logger logger = LogManager.getLogger(ESVectorizationProvider.class);
 
+    /**
+     * For now, we simply set the upper bound to the runtime version, effectively enabling
+     * the provider lookup on all JDK's. We keep the upperbound check to potentially limit
+     * the JDK version in the future, if needed.
+     */
+    private static final int UPPER_JAVA_FEATURE_VERSION = Runtime.version().feature();
+
     public static ESVectorizationProvider getInstance() {
         return Objects.requireNonNull(
             ESVectorizationProvider.Holder.INSTANCE,
@@ -60,7 +67,7 @@ public abstract class ESVectorizationProvider {
     static ESVectorizationProvider lookup(boolean testMode) {
         final int runtimeVersion = Runtime.version().feature();
         assert runtimeVersion >= 21;
-        if (runtimeVersion <= 25) {
+        if (runtimeVersion <= UPPER_JAVA_FEATURE_VERSION) {
             // only use vector module with Hotspot VM
             if (Constants.IS_HOTSPOT_VM == false) {
                 logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");

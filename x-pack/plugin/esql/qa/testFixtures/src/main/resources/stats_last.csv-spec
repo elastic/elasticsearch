@@ -50,7 +50,7 @@ LAST(a, @timestamp):integer
 ;
 
 row_boolean
-required_capability: agg_first_last
+required_capability: agg_first_last_ip_datetime_boolean
 ROW a = true, @timestamp = "2025-01-01"::DATETIME
 | STATS LAST(a, @timestamp)
 ;
@@ -60,7 +60,7 @@ true
 ;
 
 row_datetime
-required_capability: agg_first_last
+required_capability: agg_first_last_ip_datetime_boolean
 ROW a = "2025-01-01"::DATETIME, @timestamp = "2025-01-01"::DATETIME
 | STATS LAST(a, @timestamp)
 ;
@@ -70,7 +70,7 @@ LAST(a, @timestamp):datetime
 ;
 
 row_ip
-required_capability: agg_first_last
+required_capability: agg_first_last_ip_datetime_boolean
 ROW a = "127.0.0.1"::IP, @timestamp = "2025-01-01"::DATETIME
 | STATS LAST(a, @timestamp)
 ;

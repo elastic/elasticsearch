@@ -1455,6 +1455,7 @@ public class EsqlCapabilities {
          */
         AGG_FIRST_LAST(Build.current().isSnapshot()),
         AGG_FIRST_LAST_STRING(Build.current().isSnapshot()),
+        AGG_FIRST_LAST_IP_DATETIME_BOOLEAN(Build.current().isSnapshot()),
 
         /**
          * Support correct counting of skipped shards.

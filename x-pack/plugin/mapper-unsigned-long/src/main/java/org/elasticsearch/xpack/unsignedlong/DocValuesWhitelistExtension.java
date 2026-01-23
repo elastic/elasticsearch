@@ -44,7 +44,7 @@ public class DocValuesWhitelistExtension implements PainlessExtension {
             entry(AggregationScript.CONTEXT, whitelist),
             entry(NumberSortScript.CONTEXT, whitelist),
             entry(StringSortScript.CONTEXT, whitelist),
-            entry(NumberSortScript.CONTEXT, whitelist),
+            entry(LongSortScript.CONTEXT, whitelist),
             entry(BucketAggregationSelectorScript.CONTEXT, whitelist),
             entry(ScriptedMetricAggContexts.InitScript.CONTEXT, whitelist),
             entry(ScriptedMetricAggContexts.MapScript.CONTEXT, whitelist),

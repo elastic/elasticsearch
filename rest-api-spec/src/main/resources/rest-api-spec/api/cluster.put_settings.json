@@ -28,7 +28,7 @@
       "flat_settings": {
         "type": "boolean",
         "default": false,
-        "description": "Return settings in flat format (default: false)"
+        "description": "Return settings in flat format"
       },
       "master_timeout": {
         "type": "time",

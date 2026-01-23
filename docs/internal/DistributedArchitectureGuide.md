@@ -726,7 +726,8 @@ my-repository/
 See also the [blobstore Java package documentation][] for more details on the repository structure.
 
 The most important file in the repository is the `index-N` file, where `N` is a numeric generation number starting
-from 0. This file holds the global state of the repository, including all valid snapshots and their corresponding
+from `9`. Its corresponding Java class is [RepositoryData][].
+This file holds the global state of the repository, including all valid snapshots and their corresponding
 indices, shards and index metadata. Every mutable operation on the repository, such as creating or deleting a snapshot,
 results in a new `index-N` file being created with an incremented generation number. The `index.latest` file stores
 the latest repository generation and is effectively a pointer to the latest `index-N` file.
@@ -746,6 +747,7 @@ and identify any corrupted snapshots.
 [Repository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/Repository.java#L53
 [BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
 [blobstore Java package documentation]: https://github.com/elastic/elasticsearch/blob/24fad8fac774983bb231da34321108abef102745/server/src/main/java/org/elasticsearch/repositories/blobstore/package-info.java#L11
+[RepositoryData]: https://github.com/elastic/elasticsearch/blob/31db11b3b067baf97e305bfefefea9e11cb85371/server/src/main/java/org/elasticsearch/repositories/RepositoryData.java#L58
 [GetSnapshot API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-get
 [VerifyRepositoryIntegrity API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-verify-integrity
 

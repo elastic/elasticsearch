@@ -271,14 +271,18 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Object fold(FoldContext ctx) {
-        // We can't rely on EvaluatorMapper.fold(), because this can contain DATE_PERIOD and TIME_DURATION
-        // that don't have a data type associated, so the creation of the evaluator would fail.
-        for (Condition condition : conditions) {
-            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
-                return condition.value.fold(ctx);
+        DataType type = dataType();
+        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
+            // These can't be managed by evaluators, we have to fold them manually.
+            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
+            for (Condition condition : conditions) {
+                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                    return condition.value.fold(ctx);
+                }
             }
+            return elseValue.fold(ctx);
         }
-        return elseValue.fold(ctx);
+        return super.fold(ctx);
     }
 
     /**

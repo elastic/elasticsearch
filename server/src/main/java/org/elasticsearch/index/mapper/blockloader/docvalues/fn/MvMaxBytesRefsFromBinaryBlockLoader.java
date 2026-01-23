@@ -13,12 +13,14 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
@@ -36,14 +38,18 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         if (values != null) {
             String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
             NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-            if (counts != null) {
-                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-                if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
-                    return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
-                }
-                return new MvMaxBinary(values, counts);
+            assert counts != null
+                : "no counts field ["
+                    + countsFieldName
+                    + "], this block loader only works with ["
+                    + MultiValuedBinaryDocValuesField.SeparateCount.class.getSimpleName()
+                    + "]";
+            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+            if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
+                return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
             }
+            return new MvMaxBinary(values, counts);
         }
         return ConstantNull.READER;
     }
@@ -59,8 +65,8 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
         MvMaxBinary(BinaryDocValues values, NumericDocValues counts) {
-            this.values = values;
-            this.counts = counts;
+            this.values = Objects.requireNonNull(values);
+            this.counts = Objects.requireNonNull(counts);
         }
 
         @Override

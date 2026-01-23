@@ -55,7 +55,7 @@ ROW a = true, @timestamp = "2025-01-01"::DATETIME
 | STATS FIRST(a, @timestamp)
 ;
 
-LAST(a, @timestamp):boolean
+FIRST(a, @timestamp):boolean
 true
 ;
 
@@ -65,7 +65,7 @@ ROW a = "2025-01-01"::DATETIME, @timestamp = "2025-01-01"::DATETIME
 | STATS FIRST(a, @timestamp)
 ;
 
-LAST(a, @timestamp):datetime
+FIRST(a, @timestamp):datetime
 "2025-01-01"
 ;
 
@@ -75,7 +75,7 @@ ROW a = "127.0.0.1"::IP, @timestamp = "2025-01-01"::DATETIME
 | STATS FIRST(a, @timestamp)
 ;
 
-LAST(a, @timestamp):ip
+FIRST(a, @timestamp):ip
 "127.0.0.1"
 ;
 

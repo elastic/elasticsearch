@@ -1196,6 +1196,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         validateModelBuilding(model);
     }
 
+    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
+        var model = createTestModel(TaskType.CHAT_COMPLETION);
+        validateModelBuilding(model);
+    }
+
     public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
         var model = createTestModel(TaskType.RERANK);
         validateModelBuilding(model);

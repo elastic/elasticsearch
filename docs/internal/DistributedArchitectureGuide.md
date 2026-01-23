@@ -682,7 +682,7 @@ snapshots.
 
 This [snapshots Java package documentation][] provides a good explanation on how snapshot operations work.
 
-Restoring a snapshot is a process largely relies on [index recoveries](#Recovery). The restore service initializes
+Restoring a snapshot is a process which largely relies on [index recoveries](#Recovery). The restore service initializes
 the process by preparing shards of restore indices as unassigned with snapshot as their recovery source in the cluster
 state. These shards go through the regular allocation process to be allocated. They then recover on the target nodes
 by copying data files from the snapshot repository to local storage.
@@ -850,7 +850,7 @@ followed by an UUID to avoid name collision. The actual name is mapped and store
 Once the shard snapshot is completed successfully, the data node releases the previously acquired index commit and
 sends a transport request(`UpdateIndexShardSnapshotStatusRequest`) with the new shard generation (`ShardGeneration`)
 to the master node to update its shard status (`SnapshotsInProgress#ShardState`) in the cluster state. If there is any
-`QUEUED` shard snapshot for the same shard, the master node (`SnapshotsService`) update one such shard snapshot
+`QUEUED` shard snapshot for the same shard, the master node (`SnapshotsService`) updates the next one's
 status to `INIT` so that it can run. The master responds to the data node only after the cluster state is published.
 
 When all shards in a snapshot are completed, the master node performs a finalization step

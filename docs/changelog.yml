@@ -54,7 +54,7 @@ pivot:
   # Multiple labels can be comma-separated
   areas:
     # Example mappings - customize based on your label naming conventions
-    Aggregations: "Analytics/Aggregations"
+    Aggregations: ":Analytics/Aggregations"
     Allocation: ":Distributed Coordination/Allocation"
     Analysis: ":Search Relevance/Analysis"
     Application: ":EnterpriseSearch/Application"
@@ -83,9 +83,9 @@ pivot:
     FIPS: ":Security/FIPS"
     Geo: ":Analytics/Geo"
     # Graph: TBD
-    Health: ":Data Management/Health"
+    Health: ":Distributed/Health"
     Highlighting: ":Search Relevance/Highlighting"
-    "ILM": ":StorageEngine/ILM"
+    "ILM": ":StorageEngine/ILM, :Data Management/ILM+SLM"
     IdentityProvider: ":Security/IdentityProvider"
     "Indices APIs": ":Data Management/Indices APIs"
     Inference: ":SearchOrg/Inference"
@@ -103,7 +103,7 @@ pivot:
     "Infra/Settings": ":Core/Infra/Settings"
     "Infra/Transport API": ":Core/Infra/Transport API"
     # Ingest: TBD
-    "Ingest Node": ":Data Management/Ingest Node"
+    "Ingest Node": ":Distributed/Ingest Node"
     "Java High Level REST Client": ":Clients/Java High Level REST Client"
     "Java Low Level REST Client": ":Clients/Java Low Level REST Client"
     License: ":Security/License"
@@ -111,7 +111,7 @@ pivot:
     Logs: ":StorageEngine/Logs, StorageEngine/Logs"
     "Machine Learning": ":ml"
     Mapping: ":StorageEngine/Mapping, :Search Foundations/Mapping"
-    Monitoring: ":Data Management/Monitoring"
+    Monitoring: ":Core/Infra/Monitoring"
     Network: ":Distributed Coordination/Network"
     Packaging: ":Delivery/Packaging"
     Percolator: ":Search Relevance/Percolator"
@@ -122,10 +122,10 @@ pivot:
     Reindex: ":Distributed Indexing/Reindex"
     Relevance: ":Search Relevance/Search"
     Rollup: ":StorageEngine/Rollup"
-    Search: ":Search/Search"
+    Search: ":Search/Search, :Search Foundations/Search"
     "Searchable snapshots": ":Distributed Indexing/Searchable Snapshots"
     Security: ":Security/Security"
-    SLM: ":Distributed/SLM"
+    SLM: ":Distributed/SLM, :Data Management/ILM+SLM"
     "Snapshot/Restore": ":Distributed Coordination/Snapshot/Restore"
     SQL: ":Query Languages/SQL"
     Stats: ":Data Management/Stats"

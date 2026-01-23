@@ -284,7 +284,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             ELSER_V2_ENDPOINT_ID,
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ELSER_V2_MODEL_NAME, null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ELSER_V2_MODEL_NAME, null, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
@@ -474,7 +474,13 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_EMBED_V3_ENDPOINT_ID,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                JINA_EMBED_V3_MODEL_NAME,
+                SimilarityMeasure.COSINE,
+                1024,
+                null,
+                null
+            ),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),

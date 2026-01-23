@@ -23,8 +23,11 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.plugins.Plugin;
@@ -36,6 +39,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
@@ -51,6 +56,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -930,6 +936,105 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
             assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testChunkedInfer_GivenDenseAndBatchSizeOfOne() throws IOException {
+        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 1),
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" world")));
+        }
+    }
+
+    public void testChunkedInfer_GivenDenseAndBatchSizeOfTwo() throws IOException {
+        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 2),
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" plus")));
+        }
+    }
+
+    public void testChunkedInfer_GivenSparseAndBatchSizeOfOne() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            1,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" world")));
+        }
+    }
+
+    public void testChunkedInfer_GivenSparseAndBatchSizeOfTwo() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            2,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" plus")));
+        }
+    }
+
+    private static void assertThatBatchContains(EmbeddingRequestChunker.BatchRequestAndListener batch, List<List<String>> expectedChunks) {
+        List<InferenceStringGroup> inferenceStringGroups = batch.batch().inputs().get();
+        assertThat(inferenceStringGroups, hasSize(expectedChunks.size()));
+        for (int i = 0; i < expectedChunks.size(); i++) {
+            assertThat(
+                inferenceStringGroups.get(i).inferenceStrings().stream().map(InferenceString::value).toList(),
+                equalTo(expectedChunks.get(i))
+            );
         }
     }
 

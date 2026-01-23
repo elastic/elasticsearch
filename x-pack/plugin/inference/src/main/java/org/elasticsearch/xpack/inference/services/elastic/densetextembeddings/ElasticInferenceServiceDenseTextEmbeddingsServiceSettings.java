@@ -21,17 +21,21 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
@@ -51,11 +55,14 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         "inference_api_disable_eis_rate_limiting"
     );
 
+    private static final int MAX_BATCH_SIZE_UPPER_BOUND = 512;
+
     private final String modelId;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
+    private final Integer maxBatchSize;
 
     public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromMap(
         Map<String, Object> map,
@@ -67,6 +74,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+
+        Integer maxBatchSize = parseMaxBatchSize(map, validationException);
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
@@ -81,19 +90,21 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             throw validationException;
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens, maxBatchSize);
     }
 
     public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
         String modelId,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable Integer maxBatchSize
     ) {
         this.modelId = modelId;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
+        this.maxBatchSize = maxBatchSize;
         this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
     }
 
@@ -106,6 +117,11 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
         if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             new RateLimitSettings(in);
+        }
+        if (in.getTransportVersion().supports(ElasticInferenceServiceSparseEmbeddingsServiceSettings.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+            this.maxBatchSize = in.readOptionalVInt();
+        } else {
+            this.maxBatchSize = null;
         }
     }
 
@@ -121,6 +137,10 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     public Integer maxInputTokens() {
         return maxInputTokens;
+    }
+
+    public Integer maxBatchSize() {
+        return maxBatchSize;
     }
 
     @Override
@@ -171,6 +191,10 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
 
+        if (maxBatchSize != null) {
+            builder.field(MAX_BATCH_SIZE, maxBatchSize);
+        }
+
         toXContentFragmentOfExposedFields(builder, params);
 
         builder.endObject();
@@ -197,6 +221,9 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             rateLimitSettings.writeTo(out);
         }
+        if (out.getTransportVersion().supports(ElasticInferenceServiceSparseEmbeddingsServiceSettings.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+            out.writeOptionalVInt(maxBatchSize);
+        }
     }
 
     @Override
@@ -208,11 +235,82 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             && similarity == that.similarity
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(maxBatchSize, that.maxBatchSize)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, similarity, dimensions, maxInputTokens, rateLimitSettings);
+        return Objects.hash(modelId, similarity, dimensions, maxInputTokens, maxBatchSize, rateLimitSettings);
+    }
+
+    private ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.Builder createBuilderWithCopy() {
+        return new Builder(modelId).similarity(similarity).dimensions(dimensions).maxInputTokens(maxInputTokens).maxBatchSize(maxBatchSize);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        serviceSettings = new HashMap<>(serviceSettings);
+
+        Integer maxBatchSize = parseMaxBatchSize(serviceSettings, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return createBuilderWithCopy().maxBatchSize(maxBatchSize).build();
+    }
+
+    private static Integer parseMaxBatchSize(Map<String, Object> serviceSettings, ValidationException validationException) {
+        return extractOptionalPositiveIntegerLessThanOrEqualToMax(
+            serviceSettings,
+            MAX_BATCH_SIZE,
+            MAX_BATCH_SIZE_UPPER_BOUND,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+    }
+
+    private static class Builder {
+        private final String modelId;
+        private SimilarityMeasure similarity;
+        private Integer dimensions;
+        private Integer maxInputTokens;
+        private Integer maxBatchSize;
+
+        Builder(String modelId) {
+            this.modelId = Objects.requireNonNull(modelId);
+        }
+
+        Builder similarity(SimilarityMeasure similarity) {
+            this.similarity = similarity;
+            return this;
+        }
+
+        Builder dimensions(Integer dimensions) {
+            this.dimensions = dimensions;
+            return this;
+        }
+
+        Builder maxInputTokens(Integer maxInputTokens) {
+            this.maxInputTokens = maxInputTokens;
+            return this;
+        }
+
+        Builder maxBatchSize(Integer maxBatchSize) {
+            this.maxBatchSize = maxBatchSize;
+            return this;
+        }
+
+        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings build() {
+            return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                modelId,
+                similarity,
+                dimensions,
+                maxInputTokens,
+                maxBatchSize
+            );
+        }
     }
 }

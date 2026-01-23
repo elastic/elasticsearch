@@ -34,6 +34,7 @@ public final class ServiceFields {
      * {@link org.elasticsearch.inference.TaskType#EMBEDDING} task type. Defaults to true.
      */
     public static final String MULTIMODAL_MODEL = "multimodal_model";
+    public static final String MAX_BATCH_SIZE = "max_batch_size";
 
     private ServiceFields() {
 

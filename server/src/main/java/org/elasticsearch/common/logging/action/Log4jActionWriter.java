@@ -9,10 +9,11 @@
 
 package org.elasticsearch.common.logging.action;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.internal.LevelUtil;
+import org.elasticsearch.logging.Level;
 
 /**
  * Writer that just uses one of the standard log4j loggers.
@@ -31,6 +32,6 @@ public class Log4jActionWriter implements ActionLogWriter {
 
     @Override
     public void write(Level level, ESLogMessage message) {
-        logger.log(level, message);
+        logger.log(LevelUtil.log4jLevel(level), message);
     }
 }

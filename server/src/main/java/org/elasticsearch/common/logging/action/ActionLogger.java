@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.logging.action;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -18,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SlowLogContext;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.logging.Level;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -80,7 +80,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         settings.addAffixUpdateConsumer(ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
         settings.addAffixUpdateConsumer(ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
         settings.addAffixUpdateConsumer(ACTION_LOGGER_LEVEL, updater(name, v -> logLevel = v), (k, v) -> {
-            if (v.isMoreSpecificThan(Level.ERROR)) {
+            if (v.equals(Level.ERROR) || v.equals(Level.FATAL)) {
                 throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
             }
         });

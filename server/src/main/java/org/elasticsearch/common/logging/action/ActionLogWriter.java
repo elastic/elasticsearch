@@ -9,8 +9,8 @@
 
 package org.elasticsearch.common.logging.action;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.logging.Level;
 
 /**
  * Generic writer interface to record a log message.

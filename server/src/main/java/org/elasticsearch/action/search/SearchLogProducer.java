@@ -9,12 +9,12 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.logging.Level;
 
 import java.util.Arrays;
 

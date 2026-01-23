@@ -9,9 +9,9 @@
 
 package org.elasticsearch.common.logging.action;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.logging.Level;
 
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;

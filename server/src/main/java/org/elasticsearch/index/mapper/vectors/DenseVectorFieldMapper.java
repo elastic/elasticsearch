@@ -2887,9 +2887,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case BFLOAT16 -> {
                     byte[] hexBytes = null;
                     if (base64Bytes == null
-                        || (dims != null
-                            && base64Bytes.length != dims * Float.BYTES
-                            && base64Bytes.length != dims * BFloat16.BYTES)) {
+                        || (dims != null && base64Bytes.length != dims * Float.BYTES && base64Bytes.length != dims * BFloat16.BYTES)) {
                         try {
                             hexBytes = HexFormat.of().parseHex(encoded);
                         } catch (IllegalArgumentException e) {

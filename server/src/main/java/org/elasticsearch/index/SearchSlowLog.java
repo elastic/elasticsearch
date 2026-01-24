@@ -46,7 +46,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     private static final Logger queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     private static final Logger fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
-    private final SlowLogFields slowLogFields;
+    private final ActionLoggingFields loggingFields;
 
     public static final Setting<Boolean> INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".include.user",
@@ -127,9 +127,11 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public SearchSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldsProvider) {
-        SlowLogContext logContext = new SlowLogContext(indexSettings.getValue(INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING));
-        this.slowLogFields = slowLogFieldsProvider.create(logContext);
+    public SearchSlowLog(IndexSettings indexSettings, ActionLoggingFieldsProvider slowLogFieldsProvider) {
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext(
+            indexSettings.getValue(INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING)
+        );
+        this.loggingFields = slowLogFieldsProvider.create(logContext);
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
         indexSettings.getScopedSettings()
@@ -161,7 +163,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
-        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos);
+        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(loggingFields.logFields(), context, tookInNanos);
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
             queryLogger.warn(messageProducer.get());
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
@@ -175,7 +177,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
-        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(slowLogFields.logFields(), context, tookInNanos);
+        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(loggingFields.logFields(), context, tookInNanos);
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
             fetchLogger.warn(messageProducer.get());
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {

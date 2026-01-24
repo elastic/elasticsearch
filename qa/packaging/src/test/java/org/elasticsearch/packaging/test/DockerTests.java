@@ -57,6 +57,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeE
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.getContainerId;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -123,13 +124,20 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
-        removeContainer();
+        // Container cleanup is handled in PackagingTestCase.teardown() so that the TestWatcher
+        // can dump container logs before we remove the container on failures.
         rm(tempDir);
+    }
+
+    @Override
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return true;
     }
 
     @Override
     protected void dumpDebug() {
         final Result containerLogs = getContainerLogs();
+        logger.warn("Container id for debug logs: " + getContainerId());
         logger.warn("Elasticsearch log stdout:\n" + containerLogs.stdout());
         logger.warn("Elasticsearch log stderr:\n" + containerLogs.stderr());
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregator
 import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -120,12 +121,15 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
             field(),
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
+                || dt == DataType.IP
                 || DataType.isString(dt)
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
             sourceText(),
             FIRST,
             "boolean",
             "date",
+            "date_nanos",
             "ip",
             "string",
             "numeric except unsigned_long or counter types"
@@ -144,11 +148,12 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
+            case LONG, DATE_NANOS, DATETIME, UNSIGNED_LONG -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
             case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case KEYWORD, TEXT, IP -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case BOOLEAN -> new AllLastBooleanByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -121,6 +121,7 @@ public class Last extends AggregateFunction implements ToAggregator {
             FIRST,
             "boolean",
             "date",
+            "date_nanos",
             "ip",
             "string",
             "numeric except unsigned_long or counter types"

@@ -161,7 +161,9 @@ public class KnnIndexTester {
                 elementType,
                 args.onDiskRescore(),
                 exec,
-                exec != null ? args.numMergeWorkers() : 1
+                exec != null ? args.numMergeWorkers() : 1,
+                args.doPrecondition(),
+                args.preconditioningBlockDims()
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (quantizeBits == 32) {

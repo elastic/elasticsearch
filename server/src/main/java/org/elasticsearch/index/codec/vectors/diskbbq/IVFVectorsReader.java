@@ -45,6 +45,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILA
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CENTROID_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.IVF_META_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
 /**
@@ -52,7 +53,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
 
-    private final IndexInput ivfCentroids, ivfClusters;
+    protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
@@ -64,11 +65,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
         this.genericReaders = new GenericFlatVectorReaders();
-        String meta = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
-        );
+        String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, IVF_META_EXTENSION);
 
         int versionMeta = -1;
         try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta)) {
@@ -108,7 +105,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         float visitRatio
     ) throws IOException;
 
-    private static IndexInput openDataInput(
+    protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
         String fileExtension,

@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
+  method: testReadBlobWithReadTimeouts
+  issue: https://github.com/elastic/elasticsearch/issues/141230
 
 # Examples:
 #

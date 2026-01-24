@@ -2657,16 +2657,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
+        public VectorData resolveQueryVector(VectorData queryVector) {
+            if (queryVector == null || queryVector.isBase64() == false) {
+                return queryVector;
+            }
+            VectorData decoded = decodeQueryVector(queryVector.base64Vector());
+            int queryDims = decoded.isFloat() ? decoded.asFloatVector().length : decoded.asByteVector().length;
+            element.checkDimensions(dims, queryDims);
+            if (decoded.isFloat()) {
+                element.checkVectorBounds(decoded.asFloatVector());
+            }
+            return decoded;
+        }
+
         public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
             if (indexType() == IndexType.NONE) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = switch (element.elementType()) {
-                case BYTE -> createExactKnnByteQuery(queryVector.asByteVector());
-                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(queryVector.asFloatVector());
-                case BIT -> createExactKnnBitQuery(queryVector.asByteVector());
+                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
+                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector());
+                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
             };
             if (vectorSimilarity != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2730,6 +2744,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             if (dims == null) {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
@@ -2737,7 +2752,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             hnswEarlyTermination &= canApplyPatienceQuery();
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(
-                    queryVector.asByteVector(),
+                    resolvedQueryVector.asByteVector(),
                     k,
                     numCands,
                     filter,
@@ -2747,7 +2762,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     hnswEarlyTermination
                 );
                 case FLOAT, BFLOAT16 -> createKnnFloatQuery(
-                    queryVector.asFloatVector(),
+                    resolvedQueryVector.asFloatVector(),
                     k,
                     numCands,
                     visitPercentage,
@@ -2759,7 +2774,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     hnswEarlyTermination
                 );
                 case BIT -> createKnnBitQuery(
-                    queryVector.asByteVector(),
+                    resolvedQueryVector.asByteVector(),
                     k,
                     numCands,
                     filter,
@@ -2769,6 +2784,142 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     hnswEarlyTermination
                 );
             };
+        }
+
+        private VectorData decodeQueryVector(String encoded) {
+            IllegalArgumentException base64Exception = null;
+            byte[] base64Bytes = null;
+            try {
+                base64Bytes = Base64.getDecoder().decode(encoded);
+            } catch (IllegalArgumentException e) {
+                base64Exception = e;
+            }
+
+            switch (element.elementType()) {
+                case BYTE, BIT -> {
+                    byte[] hexBytes = null;
+                    if (base64Bytes == null || (dims != null && base64Bytes.length != element.getNumBytes(dims))) {
+                        try {
+                            hexBytes = HexFormat.of().parseHex(encoded);
+                        } catch (IllegalArgumentException e) {
+                            hexBytes = null;
+                        }
+                    }
+                    if (base64Bytes != null && shouldAcceptBase64Bytes(base64Bytes)) {
+                        return VectorData.fromBytes(base64Bytes);
+                    }
+                    if (hexBytes != null) {
+                        return VectorData.fromBytes(hexBytes);
+                    }
+                    if (base64Bytes != null) {
+                        return VectorData.fromBytes(base64Bytes);
+                    }
+                    throw invalidEncodedVector(base64Exception);
+                }
+                case FLOAT -> {
+                    byte[] hexBytes = null;
+                    if (base64Bytes == null || (dims != null && base64Bytes.length != dims * Float.BYTES)) {
+                        try {
+                            hexBytes = HexFormat.of().parseHex(encoded);
+                        } catch (IllegalArgumentException e) {
+                            hexBytes = null;
+                        }
+                    }
+                    if (base64Bytes != null) {
+                        if (dims != null && base64Bytes.length == dims * Float.BYTES) {
+                            return decodeFloatVector(base64Bytes);
+                        }
+                        if (hexBytes != null) {
+                            return VectorData.fromBytes(hexBytes);
+                        }
+                        if (base64Bytes.length % Float.BYTES == 0) {
+                            return decodeFloatVector(base64Bytes);
+                        }
+                        throw invalidBase64Length(base64Bytes.length, "[query_vector] must contain a valid Base64-encoded float vector");
+                    }
+                    if (hexBytes != null) {
+                        return VectorData.fromBytes(hexBytes);
+                    }
+                    throw invalidEncodedVector(base64Exception);
+                }
+                case BFLOAT16 -> {
+                    byte[] hexBytes = null;
+                    if (base64Bytes == null
+                        || (dims != null
+                            && base64Bytes.length != dims * Float.BYTES
+                            && base64Bytes.length != dims * BFloat16.BYTES)) {
+                        try {
+                            hexBytes = HexFormat.of().parseHex(encoded);
+                        } catch (IllegalArgumentException e) {
+                            hexBytes = null;
+                        }
+                    }
+                    if (base64Bytes != null) {
+                        if (dims != null) {
+                            if (base64Bytes.length == dims * BFloat16.BYTES) {
+                                return decodeBFloat16Vector(base64Bytes);
+                            }
+                            if (base64Bytes.length == dims * Float.BYTES) {
+                                return decodeFloatVector(base64Bytes);
+                            }
+                        }
+                        if (hexBytes != null) {
+                            return VectorData.fromBytes(hexBytes);
+                        }
+                        if (base64Bytes.length % Float.BYTES == 0) {
+                            return decodeFloatVector(base64Bytes);
+                        }
+                        if (base64Bytes.length % BFloat16.BYTES == 0) {
+                            return decodeBFloat16Vector(base64Bytes);
+                        }
+                        throw invalidBase64Length(
+                            base64Bytes.length,
+                            "[query_vector] must contain a valid Base64-encoded float or bfloat16 vector"
+                        );
+                    }
+                    if (hexBytes != null) {
+                        return VectorData.fromBytes(hexBytes);
+                    }
+                    throw invalidEncodedVector(base64Exception);
+                }
+                default -> throw new IllegalStateException("Unsupported element type [" + element.elementType() + "]");
+            }
+        }
+
+        private boolean shouldAcceptBase64Bytes(byte[] base64Bytes) {
+            if (dims == null) {
+                return true;
+            }
+            return base64Bytes.length == element.getNumBytes(dims);
+        }
+
+        private static IllegalArgumentException invalidEncodedVector(IllegalArgumentException base64Exception) {
+            IllegalArgumentException error = new IllegalArgumentException("[query_vector] must be a valid base64 or hex string");
+            if (base64Exception != null) {
+                error.addSuppressed(base64Exception);
+            }
+            return error;
+        }
+
+        private static IllegalArgumentException invalidBase64Length(int length, String prefix) {
+            return new IllegalArgumentException(
+                prefix + ", but the decoded bytes length [" + length + "] is not compatible with the expected vector length"
+            );
+        }
+
+        private static VectorData decodeFloatVector(byte[] bytes) {
+            int numFloats = bytes.length / Float.BYTES;
+            float[] floats = new float[numFloats];
+            ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).asFloatBuffer().get(floats);
+            return VectorData.fromFloats(floats);
+        }
+
+        private static VectorData decodeBFloat16Vector(byte[] bytes) {
+            int numFloats = bytes.length / BFloat16.BYTES;
+            float[] floats = new float[numFloats];
+            ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
+            BFloat16.bFloat16ToFloat(buffer.asShortBuffer(), floats);
+            return VectorData.fromFloats(floats);
         }
 
         private boolean needsRescore(Float rescoreOversample) {

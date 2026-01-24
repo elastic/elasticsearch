@@ -671,7 +671,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             int adjustedNumCandidates = numCandidates == null
                 ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
                 : numCandidates;
-
             return new KnnSearchBuilder(
                 field,
                 queryVectorBuilder,

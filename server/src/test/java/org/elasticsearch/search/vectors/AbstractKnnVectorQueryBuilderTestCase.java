@@ -367,7 +367,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             KnnVectorQueryBuilder rewritten = (KnnVectorQueryBuilder) parsed.rewrite(context);
 
             DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
-            VectorData resolved = rewritten.queryVector().resolveBase64(vectorFieldType);
+            VectorData resolved = vectorFieldType.resolveQueryVector(rewritten.queryVector());
             assertArrayEquals(expectedVector, resolved.asFloatVector(), 0f);
             assertNull("base64 should be resolved without a query_vector_builder", rewritten.queryVectorBuilder());
         }
@@ -390,7 +390,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> parsed.queryVector().resolveBase64(vectorFieldType)
+                () -> vectorFieldType.resolveQueryVector(parsed.queryVector())
             );
             assertThat(e.getMessage(), containsString("query_vector"));
             assertThat(e.getMessage(), containsString("base64"));
@@ -425,7 +425,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> parsed.queryVector().resolveBase64(vectorFieldType)
+                () -> vectorFieldType.resolveQueryVector(parsed.queryVector())
             );
             assertThat(e.getMessage(), containsString("different number of dimensions"));
         }

@@ -246,11 +246,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
             throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0.0 and 100.0");
         }
-        int vectorSourceCount = 0;
-        if (queryVector != null) vectorSourceCount++;
-        if (queryVectorBuilder != null) vectorSourceCount++;
-
-        if (vectorSourceCount == 0) {
+        if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
                 format(
                     "either [%s] or [%s] must be provided",
@@ -258,7 +254,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                     QUERY_VECTOR_BUILDER_FIELD.getPreferredName()
                 )
             );
-        } else if (vectorSourceCount > 1) {
+        } else if (queryVector != null && queryVectorBuilder != null) {
             throw new IllegalArgumentException(
                 format(
                     "only one of [%s] and [%s] must be provided",
@@ -497,15 +493,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
-            VectorData vectorForInnerHits = queryVector;
-            if (vectorForInnerHits != null && vectorForInnerHits.isBase64()) {
-                vectorForInnerHits = vectorForInnerHits.resolveBase64(getVectorFieldType(ctx));
-            }
-            if (vectorForInnerHits == null) {
+            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            if (queryVector == null) {
                 throw new IllegalStateException("missing a rewriteAndFetch?");
-            }
-
-            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(vectorForInnerHits, fieldName, vectorSimilarity);
+            }            
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {
@@ -546,11 +537,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             );
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
-
-        VectorData effectiveQueryVector = queryVector;
-        if (effectiveQueryVector != null && effectiveQueryVector.isBase64()) {
-            effectiveQueryVector = effectiveQueryVector.resolveBase64(vectorFieldType);
-        }
 
         List<Query> filtersInitial = doFiltersToQuery(context);
 
@@ -604,7 +590,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
 
         return vectorFieldType.createKnnQuery(
-            effectiveQueryVector,
+            queryVector,
             k,
             adjustedNumCands,
             visitPercentage,
@@ -655,17 +641,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         return filterQuery;
-    }
-
-    private DenseVectorFieldType getVectorFieldType(QueryRewriteContext ctx) {
-        if (ctx == null) {
-            return null;
-        }
-        MappedFieldType fieldType = ctx.getFieldType(fieldName);
-        if (fieldType instanceof DenseVectorFieldType == false) {
-            return null;
-        }
-        return (DenseVectorFieldType) fieldType;
     }
 
     @Override

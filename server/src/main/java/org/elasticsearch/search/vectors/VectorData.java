@@ -15,17 +15,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -53,16 +50,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
     }
 
     public VectorData {
-        int count = 0;
-        if (floatVector != null) {
-            count++;
-        }
-        if (byteVector != null) {
-            count++;
-        }
-        if (base64Vector != null) {
-            count++;
-        }
+        int count = (floatVector != null ? 1 : 0) + (byteVector != null ? 1 : 0) + (base64Vector != null ? 1 : 0);
         if (count != 1) {
             throw new IllegalArgumentException("please supply exactly one of a float vector, byte vector, or base64 vector");
         }
@@ -210,14 +198,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
     }
 
     private static VectorData parseStringVector(XContentParser parser) throws IOException {
-        String text = parser.text();
-        if (looksLikeHex(text)) {
-            if ((text.length() & 1) == 1) {
-                throw new ParsingException(parser.getTokenLocation(), "[query_vector] must be a valid hex string");
-            }
-            return VectorData.fromBytes(HexFormat.of().parseHex(text));
-        }
-        return VectorData.fromBase64(text);
+        return VectorData.fromBase64(parser.text());
     }
 
     private static VectorData parseNumberVector(XContentParser parser) throws IOException {
@@ -236,84 +217,11 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
         return base64 == null ? null : new VectorData(null, null, base64);
     }
 
-    public VectorData resolveBase64(DenseVectorFieldType vectorFieldType) {
-        if (base64Vector == null) {
-            return this;
-        }
-        return decodeBase64Vector(base64Vector, vectorFieldType);
-    }
-
     private static String readOptionalBase64Vector(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
             return in.readOptionalString();
         }
         return null;
-    }
-
-    private static boolean looksLikeHex(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            boolean isHex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-            if (isHex == false) {
-                return false;
-            }
-        }
-        return text.isEmpty() == false;
-    }
-
-    private static byte[] decodeBase64Bytes(String base64String) {
-        try {
-            return Base64.getDecoder().decode(base64String);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("[query_vector] must be a valid base64 string: " + e.getMessage(), e);
-        }
-    }
-
-    private static VectorData decodeBase64Vector(String base64String, DenseVectorFieldType vectorFieldType) {
-        byte[] bytes = decodeBase64Bytes(base64String);
-
-        final DenseVectorFieldMapper.ElementType elementType;
-        if (vectorFieldType != null) {
-            elementType = vectorFieldType.getElementType();
-        } else {
-            elementType = bytes.length % Float.BYTES == 0
-                ? DenseVectorFieldMapper.ElementType.FLOAT
-                : DenseVectorFieldMapper.ElementType.BYTE;
-        }
-
-        final VectorData decoded = switch (elementType) {
-            case FLOAT, BFLOAT16 -> {
-                if (bytes.length % Float.BYTES != 0) {
-                    throw new IllegalArgumentException(
-                        "["
-                            + "query_vector"
-                            + "] must contain a valid Base64-encoded float vector, "
-                            + "but the decoded bytes length ["
-                            + bytes.length
-                            + "] is not a multiple of "
-                            + Float.BYTES
-                    );
-                }
-                int numFloats = bytes.length / Float.BYTES;
-                float[] floats = new float[numFloats];
-                ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-                for (int i = 0; i < numFloats; i++) {
-                    floats[i] = buffer.getFloat();
-                }
-                yield VectorData.fromFloats(floats);
-            }
-            case BYTE, BIT -> VectorData.fromBytes(bytes);
-        };
-
-        if (vectorFieldType != null) {
-            DenseVectorFieldMapper.Element element = DenseVectorFieldMapper.Element.getElement(elementType);
-            int dims = decoded.isFloat() ? decoded.asFloatVector().length : decoded.asByteVector().length;
-            element.checkDimensions(vectorFieldType.getVectorDimensions(), dims);
-            if (decoded.isFloat()) {
-                element.checkVectorBounds(decoded.asFloatVector());
-            }
-        }
-        return decoded;
     }
 
 }

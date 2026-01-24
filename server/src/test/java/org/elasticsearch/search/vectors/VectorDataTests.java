@@ -92,7 +92,19 @@ public class VectorDataTests extends ESTestCase {
         ) {
             parser.nextToken();
             VectorData parsed = VectorData.parseXContent(parser);
-            assertArrayEquals(expected, parsed.asByteVector());
+            DenseVectorFieldType fieldType = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                ElementType.BYTE,
+                expected.length,
+                false,
+                VectorSimilarity.L2_NORM,
+                null,
+                Collections.emptyMap(),
+                false
+            );
+            VectorData resolved = fieldType.resolveQueryVector(parsed);
+            assertArrayEquals(expected, resolved.asByteVector());
         }
     }
 
@@ -137,7 +149,7 @@ public class VectorDataTests extends ESTestCase {
                 Collections.emptyMap(),
                 false
             );
-            VectorData resolved = parsed.resolveBase64(fieldType);
+            VectorData resolved = fieldType.resolveQueryVector(parsed);
             assertArrayEquals(expected, resolved.asFloatVector(), DELTA);
         }
     }
@@ -164,7 +176,7 @@ public class VectorDataTests extends ESTestCase {
                 Collections.emptyMap(),
                 false
             );
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parsed.resolveBase64(fieldType));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> fieldType.resolveQueryVector(parsed));
             assertThat(ex.getMessage(), containsString("query_vector"));
             assertThat(ex.getMessage(), containsString("base64"));
         }

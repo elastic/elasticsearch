@@ -118,16 +118,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
-        this(
-            field,
-            VectorData.fromFloats(queryVector),
-            queryVectorBuilder,
-            k,
-            numCands,
-            visitPercentage,
-            rescoreVectorBuilder,
-            similarity
-        );
+        this(field, VectorData.fromFloats(queryVector), queryVectorBuilder, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
     }
 
     public KnnRetrieverBuilder(

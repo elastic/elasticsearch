@@ -231,9 +231,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.readiness.ReadinessClusterIT
-  method: testReadinessDuringRestartsNormalOrder
-  issue: https://github.com/elastic/elasticsearch/issues/136955
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
   issue: https://github.com/elastic/elasticsearch/issues/137457
@@ -396,6 +393,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
+  method: testReadBlobWithReadTimeouts
+  issue: https://github.com/elastic/elasticsearch/issues/141230
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testExecute_Throws_WhenRateLimitedQueueIsFull
+  issue: https://github.com/elastic/elasticsearch/issues/141231
 
 # Examples:
 #

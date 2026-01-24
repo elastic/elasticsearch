@@ -81,7 +81,8 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
             List.of(aggregatorFactory),
             () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
-            driverContext
+            driverContext,
+            Integer.MAX_VALUE
         );
         List<Page> outputPages = new ArrayList<>();
         Driver driver = TestDriverFactory.create(

@@ -145,94 +145,119 @@ class ValuesFloatAggregator {
             hashes.add((((long) groupId) << Float.SIZE) | (Float.floatToIntBits(v) & 0xFFFFFFFFL));
         }
 
-        float getValue(int index) {
-            long both = hashes.get(ids[index]);
+        float getValue(PreparedForEmitting prepared, int index) {
+            long both = hashes.get(prepared.ids[index]);
             return Float.intBitsToFloat((int) (both & 0xFFFFFFFFL));
         }
 
-        private void reserveBytesForIntArray(long numElements) {
-            long adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + numElements * Integer.BYTES);
-            blockFactory.adjustBreaker(adjust);
-            extraMemoryUsed += adjust;
-        }
-
-        private void prepareForEmitting(IntVector selected) {
+        private PreparedForEmitting prepareForEmitting(IntVector selected) {
+            PreparedForEmitting result = new PreparedForEmitting(blockFactory);
             if (hashes.size() == 0) {
-                return;
+                return result;
             }
-            /*
-             * Get a count of all groups less than the maximum selected group. Count
-             * *downwards* so that we can flip the sign on all of the actually selected
-             * groups. Negative values in this array are always unselected groups.
-             */
-            int selectedCountsLen = selected.max() + 1;
-            reserveBytesForIntArray(selectedCountsLen);
-            this.selectedCounts = new int[selectedCountsLen];
-            for (int id = 0; id < hashes.size(); id++) {
-                long both = hashes.get(id);
-                int group = (int) (both >>> Float.SIZE);
-                if (group < selectedCounts.length) {
-                    selectedCounts[group]--;
+            try {
+                /*
+                 * Get a count of all groups less than the maximum selected group. Count
+                 * *downwards* so that we can flip the sign on all of the actually selected
+                 * groups. Negative values in this array are always unselected groups.
+                 */
+                int selectedCountsLen = selected.max() + 1;
+                result.reserveBytesForIntArray(selectedCountsLen);
+                result.selectedCounts = new int[selectedCountsLen];
+                for (int id = 0; id < hashes.size(); id++) {
+                    long both = hashes.get(id);
+                    int group = (int) (both >>> Float.SIZE);
+                    if (group < result.selectedCounts.length) {
+                        result.selectedCounts[group]--;
+                    }
                 }
-            }
 
-            /*
-             * Total the selected groups and turn the counts into the start index into a sort-of
-             * off-by-one running count. It's really the number of values that have been inserted
-             * into the results before starting on this group. Unselected groups will still
-             * have negative counts.
-             *
-             * For example, if
-             * | Group | Value Count | Selected |
-             * |-------|-------------|----------|
-             * |     0 | 3           | <-       |
-             * |     1 | 1           | <-       |
-             * |     2 | 2           |          |
-             * |     3 | 1           | <-       |
-             * |     4 | 4           | <-       |
-             *
-             * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
-             */
-            int total = 0;
-            for (int s = 0; s < selected.getPositionCount(); s++) {
-                int group = selected.getInt(s);
-                int count = -selectedCounts[group];
-                selectedCounts[group] = total;
-                total += count;
-            }
+                /*
+                 * Total the selected groups and turn the counts into the start index into a sort-of
+                 * off-by-one running count. It's really the number of values that have been inserted
+                 * into the results before starting on this group. Unselected groups will still
+                 * have negative counts.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
+                 */
+                int total = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int count = -result.selectedCounts[group];
+                    result.selectedCounts[group] = total;
+                    total += count;
+                }
 
-            /*
-             * Build a list of ids to insert in order *and* convert the running
-             * count in selectedCounts[group] into the end index (exclusive) in
-             * ids for each group.
-             * Here we use the negative counts to signal that a group hasn't been
-             * selected and the id containing values for that group is ignored.
-             *
-             * For example, if
-             * | Group | Value Count | Selected |
-             * |-------|-------------|----------|
-             * |     0 | 3           | <-       |
-             * |     1 | 1           | <-       |
-             * |     2 | 2           |          |
-             * |     3 | 1           | <-       |
-             * |     4 | 4           | <-       |
-             *
-             * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
-             * The counts will end with 3, 4, -2, 5, 9.
-             */
-            reserveBytesForIntArray(total);
-
-            this.ids = new int[total];
-            for (int id = 0; id < hashes.size(); id++) {
-                long both = hashes.get(id);
-                int group = (int) (both >>> Float.SIZE);
-                ids[selectedCounts[group]++] = id;
+                /*
+                 * Build a list of ids to insert in order *and* convert the running
+                 * count in selectedCounts[group] into the end index (exclusive) in
+                 * ids for each group.
+                 * Here we use the negative counts to signal that a group hasn't been
+                 * selected and the id containing values for that group is ignored.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
+                 * The counts will end with 3, 4, -2, 5, 9.
+                 */
+                result.reserveBytesForIntArray(total);
+                result.ids = new int[total];
+                for (int id = 0; id < hashes.size(); id++) {
+                    long both = hashes.get(id);
+                    int group = (int) (both >>> Float.SIZE);
+                    if (group < result.selectedCounts.length && result.selectedCounts[group] >= 0) {
+                        result.ids[result.selectedCounts[group]++] = id;
+                    }
+                }
+                PreparedForEmitting done = result;
+                result = null;
+                return done;
+            } finally {
+                Releasables.close(result);
             }
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(hashes, () -> blockFactory.adjustBreaker(-extraMemoryUsed));
+            Releasables.closeExpectNoException(hashes);
+        }
+    }
+
+    private static class PreparedForEmitting implements Releasable {
+        private final BlockFactory blockFactory;
+        private int[] selectedCounts;
+        private int[] ids;
+        private long ramBytesUsed = 0;
+
+        PreparedForEmitting(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
+        private void reserveBytesForIntArray(long numElements) {
+            long adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + numElements * Integer.BYTES);
+            blockFactory.adjustBreaker(adjust);
+            ramBytesUsed += adjust;
+        }
+
+        @Override
+        public void close() {
+            blockFactory.adjustBreaker(-ramBytesUsed);
         }
     }
 
@@ -313,15 +338,15 @@ class ValuesFloatAggregator {
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            nextValues.prepareForEmitting(selected);
-            return buildOutputBlock(blockFactory, selected);
+            try (PreparedForEmitting prepared = nextValues.prepareForEmitting(selected)) {
+                return buildOutputBlock(blockFactory, selected, prepared);
+            }
         }
 
-        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected) {
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, PreparedForEmitting prepared) {
             /*
              * Insert the ids in order.
              */
-            final int[] nextValueCounts = nextValues.selectedCounts;
             try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
                 int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -331,7 +356,7 @@ class ValuesFloatAggregator {
                         continue;
                     }
                     float firstValue = firstValues.get(group);
-                    final int nextValuesEnd = nextValueCounts != null ? nextValueCounts[group] : nextValuesStart;
+                    final int nextValuesEnd = prepared.selectedCounts != null ? prepared.selectedCounts[group] : nextValuesStart;
                     if (nextValuesEnd == nextValuesStart) {
                         builder.appendFloat(firstValue);
                     } else {
@@ -339,7 +364,7 @@ class ValuesFloatAggregator {
                         builder.appendFloat(firstValue);
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            var nextValue = nextValues.getValue(i);
+                            var nextValue = nextValues.getValue(prepared, i);
                             builder.appendFloat(nextValue);
                         }
                         builder.endPositionEntry();

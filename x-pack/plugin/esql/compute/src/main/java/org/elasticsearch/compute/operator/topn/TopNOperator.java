@@ -292,6 +292,9 @@ public class TopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
 
+    /**
+     * Maximum number of rows per output page.
+     */
     private final int maxPageSize;
 
     private final List<ElementType> elementTypes;

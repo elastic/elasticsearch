@@ -436,7 +436,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),

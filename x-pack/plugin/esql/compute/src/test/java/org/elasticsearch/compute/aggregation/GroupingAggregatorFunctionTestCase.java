@@ -45,6 +45,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -59,6 +60,7 @@ import java.util.stream.Stream;
 import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -129,6 +131,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
                 randomPageSize(),
+                randomPageSize(),
                 null
             );
         } else {
@@ -136,6 +139,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
+                randomPageSize(),
                 randomPageSize(),
                 null
             );
@@ -184,11 +188,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return new SeenGroups(seenGroups, seenNullGroup);
     }
 
-    private record SeenGroups(SortedSet<Long> nonNull, boolean seenNull) {
-        int size() {
-            return nonNull.size() + (seenNull ? 1 : 0);
-        }
-    }
+    private record SeenGroups(SortedSet<Long> nonNull, boolean seenNull) {}
 
     protected long randomGroupId(int pageSize) {
         int maxGroupId = pageSize < 10 && randomBoolean() ? 4 : 100;
@@ -200,25 +200,49 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(input, results, true);
     }
 
-    private void assertSimpleOutput(List<Page> input, List<Page> results, boolean assertGroupCount) {
+    private void assertSimpleOutput(List<Page> input, List<Page> results, boolean expectExactGroups) {
         SeenGroups seenGroups = seenGroups(input);
 
-        assertThat(results, hasSize(1));
-        assertThat(results.get(0).getBlockCount(), equalTo(2));
-        if (assertGroupCount) {
-            assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(2));
         }
 
-        Block groups = results.get(0).getBlock(0);
-        Block result = results.get(0).getBlock(1);
-        for (int i = 0; i < seenGroups.size(); i++) {
-            final Long group;
-            if (groups.isNull(i)) {
-                group = null;
-            } else {
-                group = ((LongBlock) groups).getLong(i);
+        boolean actualSeenNull = false;
+        List<Long> actualGroups = new ArrayList<>();
+        for (Page page : results) {
+            LongBlock groups = page.getBlock(0);
+            for (int p = 0; p < groups.getPositionCount(); p++) {
+                if (groups.isNull(p)) {
+                    actualSeenNull = true;
+                } else {
+                    actualGroups.add(groups.getLong(p));
+                }
             }
-            assertSimpleGroup(input, result, i, group);
+        }
+        Collections.sort(actualGroups);
+        if (expectExactGroups) {
+            assertThat(actualSeenNull, equalTo(seenGroups.seenNull));
+            assertThat(actualGroups, equalTo(seenGroups.nonNull.stream().toList()));
+        } else {
+            // Sometimes we might get *more* groups than we were bargaining for. That's ok.
+            if (seenGroups.seenNull) {
+                assertThat(actualSeenNull, equalTo(true));
+            }
+            assertThat(actualGroups, hasItems(seenGroups.nonNull.toArray(Long[]::new)));
+        }
+
+        for (Page page : results) {
+            LongBlock groups = page.getBlock(0);
+            Block result = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                final Long group;
+                if (groups.isNull(p)) {
+                    group = null;
+                } else {
+                    group = groups.getLong(p);
+                }
+                assertSimpleGroup(input, result, p, group);
+            }
         }
     }
 
@@ -444,8 +468,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
         List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
-        assertThat(results, hasSize(1));
-        assertOutputFromAllFiltered(results.get(0).getBlock(1));
+        for (Page page : results) {
+            assertOutputFromAllFiltered(page.getBlock(1));
+        }
     }
 
     public final void testNoneFiltered() {
@@ -458,7 +483,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
-        assertThat(results, hasSize(1));
         assertSimpleOutput(origInput, results);
     }
 
@@ -476,8 +500,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         input = CannedSourceOperator.collectPages(new AddGarbageRowsSourceOperator(new CannedSourceOperator(input.iterator())));
         // Feed it to the aggregator
         List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
-        // Check the results
-        assertThat(results, hasSize(1));
         assertSimpleOutput(origInput, results, false);
     }
 
@@ -576,14 +598,15 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         List<Page> results = drive(operators, source.iterator(), driverContext);
 
-        assertThat(results, hasSize(1));
-        LongVector groups = results.get(0).<LongBlock>getBlock(0).asVector();
-        Block resultBlock = results.get(0).getBlock(1);
         boolean foundNullPosition = false;
-        for (int p = 0; p < groups.getPositionCount(); p++) {
-            if (groups.getLong(p) == nullGroup) {
-                foundNullPosition = true;
-                assertOutputFromNullOnly(resultBlock, p);
+        for (Page page : results) {
+            LongVector groups = page.<LongBlock>getBlock(0).asVector();
+            Block resultBlock = page.getBlock(1);
+            for (int p = 0; p < groups.getPositionCount(); p++) {
+                if (groups.getLong(p) == nullGroup) {
+                    foundNullPosition = true;
+                    assertOutputFromNullOnly(resultBlock, p);
+                }
             }
         }
         assertTrue("didn't find the null position. bad position range?", foundNullPosition);
@@ -898,6 +921,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize,
+        int aggregationBatchSize,
         AnalysisRegistry analysisRegistry
     ) implements Operator.OperatorFactory {
 
@@ -948,7 +972,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 };
             };
 
-            return new HashAggregationOperator(aggregators, blockHashSupplier, driverContext);
+            return new HashAggregationOperator(aggregators, blockHashSupplier, driverContext, maxPageSize);
         }
 
         @Override
@@ -958,6 +982,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 aggregatorMode,
                 aggregators,
                 maxPageSize,
+                aggregationBatchSize,
                 analysisRegistry
             ).describe();
         }

@@ -203,6 +203,7 @@ $endif$
         private final BlockFactory blockFactory;
 $if(long||double)$
         private final LongLongHash hashes;
+
 $else$
         private final LongHashTable hashes;
 $endif$
@@ -239,111 +240,136 @@ $elseif(float)$
 $endif$
         }
 
-        $if(BytesRef)$int$else$$type$$endif$ getValue(int index) {
+        $if(BytesRef)$int$else$$type$$endif$ getValue(PreparedForEmitting prepared, int index) {
 $if(long)$
-            return hashes.getKey2(ids[index]);
+            return hashes.getKey2(prepared.ids[index]);
 $elseif(double)$
-            return Double.longBitsToDouble(hashes.getKey2(ids[index]));
+            return Double.longBitsToDouble(hashes.getKey2(prepared.ids[index]));
 $elseif(float)$
-            long both = hashes.get(ids[index]);
+            long both = hashes.get(prepared.ids[index]);
             return Float.intBitsToFloat((int) (both & 0xFFFFFFFFL));
 $elseif(BytesRef||int)$
-            long both = hashes.get(ids[index]);
+            long both = hashes.get(prepared.ids[index]);
             return (int) (both & 0xFFFFFFFFL);
 $endif$
         }
 
-        private void reserveBytesForIntArray(long numElements) {
-            long adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + numElements * Integer.BYTES);
-            blockFactory.adjustBreaker(adjust);
-            extraMemoryUsed += adjust;
-        }
-
-        private void prepareForEmitting(IntVector selected) {
+        private PreparedForEmitting prepareForEmitting(IntVector selected) {
+            PreparedForEmitting result = new PreparedForEmitting(blockFactory);
             if (hashes.size() == 0) {
-                return;
+                return result;
             }
-            /*
-             * Get a count of all groups less than the maximum selected group. Count
-             * *downwards* so that we can flip the sign on all of the actually selected
-             * groups. Negative values in this array are always unselected groups.
-             */
-            int selectedCountsLen = selected.max() + 1;
-            reserveBytesForIntArray(selectedCountsLen);
-            this.selectedCounts = new int[selectedCountsLen];
-            for (int id = 0; id < hashes.size(); id++) {
+            try {
+                /*
+                 * Get a count of all groups less than the maximum selected group. Count
+                 * *downwards* so that we can flip the sign on all of the actually selected
+                 * groups. Negative values in this array are always unselected groups.
+                 */
+                int selectedCountsLen = selected.max() + 1;
+                result.reserveBytesForIntArray(selectedCountsLen);
+                result.selectedCounts = new int[selectedCountsLen];
+                for (int id = 0; id < hashes.size(); id++) {
 $if(long||double)$
-                int group = (int) hashes.getKey1(id);
+                    int group = (int) hashes.getKey1(id);
 $elseif(float||int||BytesRef)$
-                long both = hashes.get(id);
-                int group = (int) (both >>> Float.SIZE);
+                    long both = hashes.get(id);
+                    int group = (int) (both >>> Float.SIZE);
 $endif$
-                if (group < selectedCounts.length) {
-                    selectedCounts[group]--;
+                    if (group < result.selectedCounts.length) {
+                        result.selectedCounts[group]--;
+                    }
                 }
-            }
 
-            /*
-             * Total the selected groups and turn the counts into the start index into a sort-of
-             * off-by-one running count. It's really the number of values that have been inserted
-             * into the results before starting on this group. Unselected groups will still
-             * have negative counts.
-             *
-             * For example, if
-             * | Group | Value Count | Selected |
-             * |-------|-------------|----------|
-             * |     0 | 3           | <-       |
-             * |     1 | 1           | <-       |
-             * |     2 | 2           |          |
-             * |     3 | 1           | <-       |
-             * |     4 | 4           | <-       |
-             *
-             * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
-             */
-            int total = 0;
-            for (int s = 0; s < selected.getPositionCount(); s++) {
-                int group = selected.getInt(s);
-                int count = -selectedCounts[group];
-                selectedCounts[group] = total;
-                total += count;
-            }
+                /*
+                 * Total the selected groups and turn the counts into the start index into a sort-of
+                 * off-by-one running count. It's really the number of values that have been inserted
+                 * into the results before starting on this group. Unselected groups will still
+                 * have negative counts.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
+                 */
+                int total = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int count = -result.selectedCounts[group];
+                    result.selectedCounts[group] = total;
+                    total += count;
+                }
 
-            /*
-             * Build a list of ids to insert in order *and* convert the running
-             * count in selectedCounts[group] into the end index (exclusive) in
-             * ids for each group.
-             * Here we use the negative counts to signal that a group hasn't been
-             * selected and the id containing values for that group is ignored.
-             *
-             * For example, if
-             * | Group | Value Count | Selected |
-             * |-------|-------------|----------|
-             * |     0 | 3           | <-       |
-             * |     1 | 1           | <-       |
-             * |     2 | 2           |          |
-             * |     3 | 1           | <-       |
-             * |     4 | 4           | <-       |
-             *
-             * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
-             * The counts will end with 3, 4, -2, 5, 9.
-             */
-            reserveBytesForIntArray(total);
-
-            this.ids = new int[total];
-            for (int id = 0; id < hashes.size(); id++) {
+                /*
+                 * Build a list of ids to insert in order *and* convert the running
+                 * count in selectedCounts[group] into the end index (exclusive) in
+                 * ids for each group.
+                 * Here we use the negative counts to signal that a group hasn't been
+                 * selected and the id containing values for that group is ignored.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
+                 * The counts will end with 3, 4, -2, 5, 9.
+                 */
+                result.reserveBytesForIntArray(total);
+                result.ids = new int[total];
+                for (int id = 0; id < hashes.size(); id++) {
 $if(long||double)$
-                int group = (int) hashes.getKey1(id);
+                    int group = (int) hashes.getKey1(id);
 $elseif(float||int||BytesRef)$
-                long both = hashes.get(id);
-                int group = (int) (both >>> Float.SIZE);
+                    long both = hashes.get(id);
+                    int group = (int) (both >>> Float.SIZE);
 $endif$
-                ids[selectedCounts[group]++] = id;
+                    if (group < result.selectedCounts.length && result.selectedCounts[group] >= 0) {
+                        result.ids[result.selectedCounts[group]++] = id;
+                    }
+                }
+                PreparedForEmitting done = result;
+                result = null;
+                return done;
+            } finally {
+                Releasables.close(result);
             }
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(hashes, () -> blockFactory.adjustBreaker(-extraMemoryUsed));
+            Releasables.closeExpectNoException(hashes);
+        }
+    }
+
+    private static class PreparedForEmitting implements Releasable {
+        private final BlockFactory blockFactory;
+        private int[] selectedCounts;
+        private int[] ids;
+        private long ramBytesUsed = 0;
+
+        PreparedForEmitting(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
+        private void reserveBytesForIntArray(long numElements) {
+            long adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + numElements * Integer.BYTES);
+            blockFactory.adjustBreaker(adjust);
+            ramBytesUsed += adjust;
+        }
+
+        @Override
+        public void close() {
+            blockFactory.adjustBreaker(-ramBytesUsed);
         }
     }
 
@@ -463,26 +489,27 @@ $endif$
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            nextValues.prepareForEmitting(selected);
+            try (PreparedForEmitting prepared = nextValues.prepareForEmitting(selected)) {
 $if(BytesRef)$
-            if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.hashes.size(), bytes.size())) {
-                return buildOrdinalOutputBlock(blockFactory, selected);
-            } else {
-                return buildOutputBlock(blockFactory, selected);
-            }
+                // TODO restore this ordinal https://github.com/elastic/elasticsearch/issues/138705
+                // if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.hashes.size(), bytes.size())) {
+                // return buildOrdinalOutputBlock(blockFactory, selected, prepared);
+                // } else {
+                return buildOutputBlock(blockFactory, selected, prepared);
+                // }
 $else$
-            return buildOutputBlock(blockFactory, selected);
+                return buildOutputBlock(blockFactory, selected, prepared);
 $endif$
+            }
         }
 
-        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected) {
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, PreparedForEmitting prepared) {
             /*
              * Insert the ids in order.
              */
 $if(BytesRef)$
             BytesRef scratch = new BytesRef();
 $endif$
-            final int[] nextValueCounts = nextValues.selectedCounts;
             try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
                 int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -500,7 +527,7 @@ $else$
                     }
                     $type$ firstValue = firstValues.get(group);
 $endif$
-                    final int nextValuesEnd = nextValueCounts != null ? nextValueCounts[group] : nextValuesStart;
+                    final int nextValuesEnd = prepared.selectedCounts != null ? prepared.selectedCounts[group] : nextValuesStart;
                     if (nextValuesEnd == nextValuesStart) {
                         builder.append$Type$($if(BytesRef)$bytes.get(firstValue, scratch)$else$firstValue$endif$);
                     } else {
@@ -508,7 +535,7 @@ $endif$
                         builder.append$Type$($if(BytesRef)$bytes.get(firstValue, scratch)$else$firstValue$endif$);
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            var nextValue = nextValues.getValue(i);
+                            var nextValue = nextValues.getValue(prepared, i);
                             builder.append$Type$($if(BytesRef)$bytes.get(nextValue, scratch)$else$nextValue$endif$);
                         }
                         builder.endPositionEntry();
@@ -520,14 +547,14 @@ $endif$
         }
 
 $if(BytesRef)$
-        Block buildOrdinalOutputBlock(BlockFactory blockFactory, IntVector selected) {
+        Block buildOrdinalOutputBlock(BlockFactory blockFactory, IntVector selected, PreparedForEmitting prepared) {
             BytesRefVector dict = null;
             IntBlock ordinals = null;
             BytesRefBlock result = null;
             var dictArray = bytes.takeBytesRefsOwnership();
             bytes = null; // transfer ownership to dictArray
             int estimateSize = Math.toIntExact(firstValues.size() + nextValues.hashes.size());
-            final int[] nextValueCounts = nextValues.selectedCounts;
+            final int[] nextValueCounts = prepared.selectedCounts;
             try (var builder = blockFactory.newIntBlockBuilder(estimateSize)) {
                 int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -544,7 +571,7 @@ $if(BytesRef)$
                         builder.beginPositionEntry();
                         builder.appendInt(firstValue);
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            builder.appendInt(nextValues.getValue(i));
+                            builder.appendInt(nextValues.getValue(prepared, i));
                         }
                         builder.endPositionEntry();
                     }

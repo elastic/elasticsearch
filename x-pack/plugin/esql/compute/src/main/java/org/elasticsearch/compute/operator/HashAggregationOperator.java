@@ -21,8 +21,10 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -45,28 +47,21 @@ public class HashAggregationOperator implements Operator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize,
+        int aggregationBatchSize,
         AnalysisRegistry analysisRegistry
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
-                return new HashAggregationOperator(
-                    aggregators,
-                    () -> BlockHash.buildCategorizeBlockHash(
-                        groups,
-                        aggregatorMode,
-                        driverContext.blockFactory(),
-                        analysisRegistry,
-                        maxPageSize
-                    ),
-                    driverContext
-                );
+            boolean anyCategorize = groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize);
+            Supplier<BlockHash> blockHash = anyCategorize
+                ? () -> buildCategorizeBlockHash(driverContext)
+                : () -> buildStandardBlockHash(driverContext);
+            int maxPageSize = this.maxPageSize;
+            if (anyCategorize) {
+                // TODO allow splitting pages from CATEGORIZE https://github.com/elastic/elasticsearch/issues/138705
+                maxPageSize = Integer.MAX_VALUE;
             }
-            return new HashAggregationOperator(
-                aggregators,
-                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
-                driverContext
-            );
+            return new HashAggregationOperator(aggregators, blockHash, driverContext, maxPageSize);
         }
 
         @Override
@@ -77,16 +72,35 @@ public class HashAggregationOperator implements Operator {
                 + aggregators.stream().map(Describable::describe).collect(joining(", "))
                 + "]";
         }
+
+        private BlockHash buildCategorizeBlockHash(DriverContext driverContext) {
+            return BlockHash.buildCategorizeBlockHash(
+                groups,
+                aggregatorMode,
+                driverContext.blockFactory(),
+                analysisRegistry,
+                aggregationBatchSize
+            );
+        }
+
+        private BlockHash buildStandardBlockHash(DriverContext driverContext) {
+            return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, false);
+        }
     }
 
     private boolean finished;
-    private Page output;
+    private ReleasableIterator<Page> output;
 
     final BlockHash blockHash;
 
     protected final List<GroupingAggregator> aggregators;
 
     protected final DriverContext driverContext;
+
+    /**
+     * Maximum number of rows per output page.
+     */
+    private final int maxPageSize;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -118,10 +132,12 @@ public class HashAggregationOperator implements Operator {
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
-        DriverContext driverContext
+        DriverContext driverContext,
+        int maxPageSize
     ) {
         this.aggregators = new ArrayList<>(aggregators.size());
         this.driverContext = driverContext;
+        this.maxPageSize = maxPageSize;
         boolean success = false;
         try {
             this.blockHash = blockHash.get();
@@ -211,11 +227,16 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        Page p = output;
-        if (p != null) {
-            rowsEmitted += p.getPositionCount();
+        if (output == null) {
+            return null;
         }
-        output = null;
+        if (output.hasNext() == false) {
+            output.close();
+            output = null;
+            return null;
+        }
+        Page p = output.next();
+        rowsEmitted += p.getPositionCount();
         return p;
     }
 
@@ -225,33 +246,21 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         finished = true;
-        Block[] blocks = null;
+        Block[] keys = null;
         IntVector selected = null;
         long startInNanos = System.nanoTime();
-        boolean success = false;
         try {
             selected = blockHash.nonEmpty();
-            Block[] keys = blockHash.getKeys();
             int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
-            int offset = keys.length;
-            var evaluationContext = evaluationContext(blockHash, keys);
-            for (int i = 0; i < aggregators.size(); i++) {
-                var aggregator = aggregators.get(i);
-                evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
-                offset += aggBlockCounts[i];
+
+            if (selected.getPositionCount() <= maxPageSize) {
+                output = ReleasableIterator.single(addAggResults(blockHash.getKeys(), selected, aggBlockCounts));
+            } else {
+                output = new MultiPageResult(blockHash.getKeys(), selected, aggBlockCounts);
+                selected = null; // Selected has moved into the output
             }
-            output = new Page(blocks);
-            success = true;
         } finally {
-            // selected should always be closed
-            if (selected != null) {
-                selected.close();
-            }
-            if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(blocks);
-            }
+            Releasables.close(selected);
             emitNanos += System.nanoTime() - startInNanos;
         }
     }
@@ -277,10 +286,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void close() {
-        if (output != null) {
-            output.releaseBlocks();
-        }
-        Releasables.close(blockHash, () -> Releasables.close(aggregators));
+        Releasables.close(blockHash, () -> Releasables.close(aggregators), output);
     }
 
     @Override
@@ -481,6 +487,102 @@ public class HashAggregationOperator implements Operator {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.minimumCompatible();
+        }
+    }
+
+    /**
+     * Returns many pages of results from aggregations. Works by breaking chunks off
+     * of the {@code selected} and {@code keys}.
+     * <p>
+     *     This is a step towards a system that breaks rows off of the {@link BlockHash}
+     *     itself. Right now, the {@link BlockHash} implementations returns all results
+     *     at once so the best we can do is break pieces off. But soon! Soon we can make
+     *     them smarter.
+     * </p>
+     */
+    class MultiPageResult implements ReleasableIterator<Page> {
+        private final Block[] keys;
+        private final IntVector selected;
+        private final int[] aggBlockCounts;
+
+        private int rowOffset = 0;
+
+        MultiPageResult(Block[] keys, IntVector selected, int[] aggBlockCounts) {
+            this.keys = keys;
+            this.selected = selected;
+            this.aggBlockCounts = aggBlockCounts;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return rowOffset < selected.getPositionCount();
+        }
+
+        @Override
+        public Page next() {
+            long startInNanos = System.nanoTime();
+            IntVector selectedInThisPage = null;
+            try {
+                int endOffset = Math.min(maxPageSize + rowOffset, selected.getPositionCount());
+                int pageSize = endOffset - rowOffset;
+
+                try (IntBlock.Builder selectedInThisPageBuilder = driverContext.blockFactory().newIntBlockBuilder(pageSize)) {
+                    selectedInThisPageBuilder.copyFrom(selected.asBlock(), rowOffset, endOffset);
+                    selectedInThisPage = selectedInThisPageBuilder.build().asVector();
+                }
+
+                Page output = addAggResults(sliceKeys(pageSize, endOffset), selectedInThisPage, aggBlockCounts);
+                rowOffset = endOffset;
+                return output;
+            } finally {
+                Releasables.close(selectedInThisPage);
+                emitNanos += System.nanoTime() - startInNanos;
+            }
+        }
+
+        private Block[] sliceKeys(int pageSize, int endOffset) {
+            Block[] keysInThisPage = new Block[keys.length];
+            try {
+                for (int i = 0; i < keys.length; i++) {
+                    try (Block.Builder builder = keys[i].elementType().newBlockBuilder(pageSize, driverContext.blockFactory())) {
+                        builder.copyFrom(keys[i], rowOffset, endOffset);
+                        keysInThisPage[i] = builder.build();
+                    }
+                }
+                Block[] result = keysInThisPage;
+                keysInThisPage = null;
+                return result;
+            } finally {
+                if (keysInThisPage != null) {
+                    Releasables.close(keysInThisPage);
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(selected, Releasables.wrap(keys));
+        }
+    }
+
+    private Page addAggResults(Block[] keys, IntVector selected, int[] aggBlockCounts) {
+        Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+        try {
+            System.arraycopy(keys, 0, blocks, 0, keys.length);
+            int blockOffset = keys.length;
+            var evaluationContext = evaluationContext(blockHash, keys);
+            for (int i = 0; i < aggregators.size(); i++) {
+                var aggregator = aggregators.get(i);
+                evaluateAggregator(aggregator, blocks, blockOffset, selected, evaluationContext);
+                blockOffset += aggBlockCounts[i];
+            }
+            Page result = new Page(blocks);
+            blocks = null;
+            return result;
+        } finally {
+            if (blocks != null) {
+                Releasables.close(blocks);
+            }
         }
     }
 }

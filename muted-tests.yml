@@ -396,6 +396,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testReadBlobWithReadTimeouts
   issue: https://github.com/elastic/elasticsearch/issues/141230
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testExecute_Throws_WhenRateLimitedQueueIsFull
+  issue: https://github.com/elastic/elasticsearch/issues/141231
 
 # Examples:
 #

@@ -130,6 +130,7 @@ book_no:keyword | title:text                                            | chunks
 
 chunkTextWithMultivaluedField
 required_capability: chunk_function_v2
+required_capability: chunk_mv
 
 FROM employees
 | EVAL chunks = CHUNK(job_positions)
@@ -137,14 +138,12 @@ FROM employees
 | SORT emp_no
 | LIMIT 5
 ;
-warning:Line 2:17: evaluation of [CHUNK(job_positions)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | first_name:keyword | last_name:keyword | chunks:keyword
-10001          | Georgi             | Facello           | null
+10001          | Georgi             | Facello           | [Accountant, Senior Python Developer]
 10002          | Bezalel            | Simmel            | Senior Team Lead
 10003          | Parto              | Bamford           | null
-10004          | Chirstian          | Koblick           | null
+10004          | Chirstian          | Koblick           | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
 10005          | Kyoichi            | Maliniak          | null
 ;
 
@@ -220,6 +219,14 @@ book_no:keyword | title:text                                            | chunks
 1985            | Brothers Karamazov                                    | Four brothers reunite in their hometown in Russia. The murder of their father forces the brothers to question their beliefs about each other, religion, and morality.
 ;
 
+chunkMv
+required_capability: chunk_function_v2
+required_capability: chunk_mv
 
+ROW text = ["Hello world. This is a test.", "Another sentence here."]
+| EVAL chunks = CHUNK(text, {"strategy": "sentence", "max_chunk_size": 20, "sentence_overlap": 0})
+;
 
-
+text:keyword                                                  | chunks:keyword
+["Hello world. This is a test.", "Another sentence here."] | [Hello world. This is a test., Another sentence here.]
+;

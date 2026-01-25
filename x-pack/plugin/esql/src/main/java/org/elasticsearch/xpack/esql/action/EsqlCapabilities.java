@@ -1082,6 +1082,11 @@ public class EsqlCapabilities {
         TO_LOWER_MV,
 
         /**
+         * Does {@code CHUNK} process all field values?
+         */
+        CHUNK_MV,
+
+        /**
          * Use double parameter markers to represent field or function names.
          */
         DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS,

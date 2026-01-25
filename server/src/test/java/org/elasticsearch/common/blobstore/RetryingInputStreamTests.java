@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,8 +30,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.hamcrest.Matchers.empty;
 
 public class RetryingInputStreamTests extends ESTestCase {
@@ -384,5 +383,16 @@ public class RetryingInputStreamTests extends ESTestCase {
     private static InputStream inputStreamAtIndex(BytesReference bytesReference, int startIndex) throws IOException {
         final int remainingBytes = bytesReference.length() - startIndex;
         return bytesReference.slice(startIndex, remainingBytes).streamInput();
+    }
+
+    public static OperationPurpose randomRetryingPurpose() {
+        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
+    }
+
+    public static OperationPurpose randomFiniteRetryingPurpose() {
+        return randomValueOtherThanMany(
+            purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
+            BlobStoreTestUtil::randomPurpose
+        );
     }
 }

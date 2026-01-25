@@ -43,10 +43,6 @@ public class TransportGetCrossProjectHeadersAction extends TransportAction<
         ActionListener<GetCrossProjectHeadersAction.Response> listener
     ) {
         final TransformConfig transformConfig = request.getTransformConfig();
-        if (transformConfig == null) {
-            listener.onFailure(new IllegalStateException("InternalPrepareCpsAction must be executed locally"));
-            return;
-        }
 
         if (transformConfig.getHeaders().containsKey("_security_serverless_request_scoped_credential")) {
             logger.warn("Transform config contains serverless credential header, skipping...");

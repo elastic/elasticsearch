@@ -14,6 +14,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Minimal helper that runs {@link GetCrossProjectHeadersAction} as a local-only internal action.
  */
@@ -24,8 +27,10 @@ public final class CrossProjectHeadersHelper {
     private CrossProjectHeadersHelper() {}
 
     public static void executeWithCrossProjectHeaders(Client client, TransformConfig transformConfig, ActionListener<Void> listener) {
+        // force fresh token by removing any existing request-scoped credential
+        Map<String, String> currentHeaders = copyWithoutRequestScopedCredential(transformConfig.getHeaders());
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            currentHeaders,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             GetCrossProjectHeadersAction.INSTANCE,
@@ -33,4 +38,14 @@ public final class CrossProjectHeadersHelper {
             ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
         );
     }
+
+    private static Map<String, String> copyWithoutRequestScopedCredential(Map<String, String> headers) {
+        if (headers.containsKey("_security_serverless_request_scoped_credential") == false) {
+            return headers;
+        }
+        var copy = new HashMap<>(headers);
+        copy.remove("_security_serverless_request_scoped_credential");
+        return copy;
+    }
+
 }

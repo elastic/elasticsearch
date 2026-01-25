@@ -111,4 +111,22 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED;
     }
+
+    @Override
+    public String toString() {
+        return "IntRangeVector{" + "startInclusive=" + startInclusive + ", endExclusive=" + endExclusive + '}';
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof IntVector that) {
+            return IntVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return IntVector.hash(this);
+    }
 }

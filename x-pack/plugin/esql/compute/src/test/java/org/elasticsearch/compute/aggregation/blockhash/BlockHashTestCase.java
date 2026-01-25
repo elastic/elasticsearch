@@ -227,12 +227,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
     }
 
     protected IntVector intRange(int startInclusive, int endExclusive) {
-        try (var builder = TestBlockFactory.getNonBreakingInstance().newIntVectorFixedBuilder(endExclusive - startInclusive)) {
-            for (int i = startInclusive; i < endExclusive; i++) {
-                builder.appendInt(i);
-            }
-            return builder.build();
-        }
+        return TestBlockFactory.getNonBreakingInstance().newIntRangeVector(startInclusive, endExclusive);
     }
 
     protected IntVector intVector(int... values) {

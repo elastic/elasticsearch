@@ -100,7 +100,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        InternalPrepareCps.execute(
+        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(
             client,
             transformConfig,
             ActionListener.wrap(v -> getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
@@ -119,7 +119,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
-        InternalPrepareCps.execute(client, transformConfig, ActionListener.wrap(v -> {
+        CrossProjectHeadersHelper.executeWithCrossProjectHeaders(client, transformConfig, ActionListener.wrap(v -> {
             try {
                 ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
                 ActionListener<Map<String, long[]>> groupedListener = listener;

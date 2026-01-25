@@ -23,24 +23,24 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportInternalPrepareCpsAction extends TransportAction<
-    InternalPrepareCpsAction.Request,
-    InternalPrepareCpsAction.Response> {
-    private static final Logger logger = LogManager.getLogger(TransportInternalPrepareCpsAction.class);
+public class TransportGetCrossProjectHeadersAction extends TransportAction<
+    GetCrossProjectHeadersAction.Request,
+    GetCrossProjectHeadersAction.Response> {
+    private static final Logger logger = LogManager.getLogger(TransportGetCrossProjectHeadersAction.class);
 
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportInternalPrepareCpsAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
-        super(InternalPrepareCpsAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    public TransportGetCrossProjectHeadersAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
+        super(GetCrossProjectHeadersAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(
         Task task,
-        InternalPrepareCpsAction.Request request,
-        ActionListener<InternalPrepareCpsAction.Response> listener
+        GetCrossProjectHeadersAction.Request request,
+        ActionListener<GetCrossProjectHeadersAction.Response> listener
     ) {
         final TransformConfig transformConfig = request.getTransformConfig();
         if (transformConfig == null) {
@@ -50,7 +50,7 @@ public class TransportInternalPrepareCpsAction extends TransportAction<
 
         if (transformConfig.getHeaders().containsKey("_security_serverless_request_scoped_credential")) {
             logger.warn("Transform config contains serverless credential header, skipping...");
-            listener.onResponse(InternalPrepareCpsAction.Response.INSTANCE);
+            listener.onResponse(GetCrossProjectHeadersAction.Response.INSTANCE);
             return;
         }
 
@@ -70,6 +70,6 @@ public class TransportInternalPrepareCpsAction extends TransportAction<
         logger.info("Previous headers: {} and current headers {}", previousHeaders, mergedHeaders);
         transformConfig.setHeaders(Map.copyOf(mergedHeaders));
 
-        listener.onResponse(InternalPrepareCpsAction.Response.INSTANCE);
+        listener.onResponse(GetCrossProjectHeadersAction.Response.INSTANCE);
     }
 }

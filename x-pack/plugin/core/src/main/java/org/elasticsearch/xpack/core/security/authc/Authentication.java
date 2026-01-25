@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.BufferedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -251,12 +250,6 @@ public final class Authentication implements ToXContentObject {
 
     public AuthenticationType getAuthenticationType() {
         return type;
-    }
-
-    @Nullable
-    public SecureString getCloudToken() {
-        String o = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.SECURITY_TASK_AUTHENTICATING_TOKEN_KEY);
-        return o != null ? new SecureString(o) : null;
     }
 
     /**

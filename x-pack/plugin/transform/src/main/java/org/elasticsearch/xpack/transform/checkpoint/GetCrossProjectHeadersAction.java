@@ -18,12 +18,12 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
-public class InternalPrepareCpsAction extends ActionType<InternalPrepareCpsAction.Response> {
+public class GetCrossProjectHeadersAction extends ActionType<GetCrossProjectHeadersAction.Response> {
 
-    public static final String NAME = "indices:data/transform/internal_prepare_cps";
-    public static final InternalPrepareCpsAction INSTANCE = new InternalPrepareCpsAction(NAME);
+    public static final String NAME = "indices:data/cross_project/headers/get";
+    public static final GetCrossProjectHeadersAction INSTANCE = new GetCrossProjectHeadersAction(NAME);
 
-    public InternalPrepareCpsAction(String name) {
+    public GetCrossProjectHeadersAction(String name) {
         super(name);
     }
 

@@ -10,30 +10,26 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
-import java.util.Map;
-
 /**
- * Minimal helper that runs {@link InternalPrepareCpsAction} as a local-only internal action.
+ * Minimal helper that runs {@link GetCrossProjectHeadersAction} as a local-only internal action.
  */
-public final class InternalPrepareCps {
+public final class CrossProjectHeadersHelper {
 
-    private static final Logger logger = LogManager.getLogger(InternalPrepareCps.class);
+    private static final Logger logger = LogManager.getLogger(CrossProjectHeadersHelper.class);
 
-    private InternalPrepareCps() {}
+    private CrossProjectHeadersHelper() {}
 
-    public static void execute(ParentTaskAssigningClient client, TransformConfig transformConfig, ActionListener<Void> listener) {
-        Map<String, String> headers = transformConfig.getHeaders();
-        logger.info("Preparing CPS with headers: {}", headers);
+    public static void executeWithCrossProjectHeaders(Client client, TransformConfig transformConfig, ActionListener<Void> listener) {
         ClientHelper.executeWithHeadersAsync(
-            headers,
+            transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            InternalPrepareCpsAction.INSTANCE,
-            new InternalPrepareCpsAction.Request(transformConfig),
+            GetCrossProjectHeadersAction.INSTANCE,
+            new GetCrossProjectHeadersAction.Request(transformConfig),
             ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
         );
     }

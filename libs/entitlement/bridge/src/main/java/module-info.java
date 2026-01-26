@@ -14,5 +14,6 @@ module org.elasticsearch.entitlement.bridge {
     requires jdk.net;
     requires java.logging;
 
+    exports org.elasticsearch.entitlement.bridge.registry;
     exports org.elasticsearch.entitlement.bridge;
 }

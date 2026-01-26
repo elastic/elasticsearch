@@ -17,6 +17,18 @@ import com.sun.tools.attach.VirtualMachine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.config.ClassLoaderInstrumentation;
+import org.elasticsearch.entitlement.config.FileInstrumentation;
+import org.elasticsearch.entitlement.config.FileStoreInstrumentation;
+import org.elasticsearch.entitlement.config.FileSystemProviderInstrumentation;
+import org.elasticsearch.entitlement.config.InstrumentationConfig;
+import org.elasticsearch.entitlement.config.L10nInstrumentation;
+import org.elasticsearch.entitlement.config.NetworkInstrumentation;
+import org.elasticsearch.entitlement.config.PathInstrumentation;
+import org.elasticsearch.entitlement.config.SecurityInstrumentation;
+import org.elasticsearch.entitlement.config.SelectorProviderInstrumentation;
+import org.elasticsearch.entitlement.config.SystemInstrumentation;
+import org.elasticsearch.entitlement.config.ThreadInstrumentation;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
@@ -29,6 +41,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -80,6 +93,21 @@ public class EntitlementBootstrap {
         if (EntitlementInitialization.initializeArgs != null) {
             throw new IllegalStateException("initialization data is already set");
         }
+
+        List.of(
+            new ClassLoaderInstrumentation(),
+            new FileInstrumentation(),
+            new FileStoreInstrumentation(),
+            new FileSystemProviderInstrumentation(),
+            new L10nInstrumentation(),
+            new NetworkInstrumentation(),
+            new PathInstrumentation(),
+            new SecurityInstrumentation(),
+            new SelectorProviderInstrumentation(),
+            new SystemInstrumentation(),
+            new ThreadInstrumentation()
+        ).forEach(InstrumentationConfig::init);
+
         PathLookupImpl pathLookup = new PathLookupImpl(
             getUserHome(),
             configDir,

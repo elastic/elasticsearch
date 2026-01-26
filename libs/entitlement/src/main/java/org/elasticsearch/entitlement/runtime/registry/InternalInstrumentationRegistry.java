@@ -7,13 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.entitlement.runtime.registry;
+
+import org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry;
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
 import java.util.Map;
 
-/**
- * The SPI service entry point for instrumentation.
- */
-public interface InstrumentationService {
-    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, String> methods);
+public interface InternalInstrumentationRegistry extends InstrumentationRegistry {
+    Map<MethodKey, String> getInstrumentedMethods();
 }

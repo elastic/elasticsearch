@@ -40,43 +40,13 @@ public class DynamicInstrumentationUtils {
         LogConfigurator.configureESLogging();
 
         var path = requireNonNull(args.length > 0 ? args[0] : System.getProperty("es.entitlements.dump"), "destination for dump required");
-        var descriptors = loadInstrumentedMethodDescriptors();
-        Files.write(
-            Path.of(path),
-            () -> descriptors.stream().filter(d -> d.methodDescriptor != null).map(Descriptor::toLine).iterator(),
-            StandardCharsets.UTF_8
-        );
-    }
-
-    static List<Descriptor> loadInstrumentedMethodDescriptors() throws Exception {
-        Map<MethodKey, CheckMethod> methodsToInstrument = DynamicInstrumentation.getMethodsToInstrument(
-            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature())
-        );
-        return methodsToInstrument.keySet().stream().map(DynamicInstrumentationUtils::lookupDescriptor).toList();
-    }
-
-    private static Descriptor lookupDescriptor(MethodKey key) {
-        final String[] foundDescriptor = { null };
-        try {
-            ClassReader reader = new ClassReader(key.className());
-            reader.accept(new ClassVisitor(Opcodes.ASM9) {
-                @Override
-                public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                    if (name.equals(key.methodName()) == false) {
-                        return null;
-                    }
-                    List<String> argTypes = Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList();
-                    if (argTypes.equals(key.parameterTypes())) {
-                        foundDescriptor[0] = descriptor;
-                    }
-                    return null;
-                }
-            }, 0);
-        } catch (IOException e) {
-            // nothing to do
-        }
-        return new Descriptor(key.className(), key.methodName(), key.parameterTypes(), foundDescriptor[0]);
-
+        // TODO - Update this to use EntitlementRegistry
+//        var descriptors = loadInstrumentedMethodDescriptors();
+//        Files.write(
+//            Path.of(path),
+//            () -> descriptors.stream().filter(d -> d.methodDescriptor != null).map(Descriptor::toLine).iterator(),
+//            StandardCharsets.UTF_8
+//        );
     }
 
     record Descriptor(String className, String methodName, List<String> parameterTypes, String methodDescriptor) {

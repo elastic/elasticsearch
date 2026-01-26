@@ -7,14 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.bridge;
+package org.elasticsearch.entitlement.bridge.registry;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-class HandleLoader {
-
-    static <T extends EntitlementChecker> T load(Class<T> checkerClass) {
+public class InstrumentationRegistryHandleLoader {
+    static <T extends InstrumentationRegistry> T load(Class<T> registryClass) {
         String initClassName = "org.elasticsearch.entitlement.initialization.EntitlementInitialization";
         final Class<?> initClazz;
         try {
@@ -22,19 +21,19 @@ class HandleLoader {
         } catch (ClassNotFoundException e) {
             throw new AssertionError("java.base cannot find entitlement initialization", e);
         }
-        final Method checkerMethod;
+        final Method instrumentationRegistryMethod;
         try {
-            checkerMethod = initClazz.getMethod("checker");
+            instrumentationRegistryMethod = initClazz.getMethod("instrumentationRegistry");
         } catch (NoSuchMethodException e) {
-            throw new AssertionError("EntitlementInitialization is missing checker() method", e);
+            throw new AssertionError("EntitlementInitialization is missing instrumentationRegistry() method", e);
         }
         try {
-            return checkerClass.cast(checkerMethod.invoke(null));
+            return registryClass.cast(instrumentationRegistryMethod.invoke(null));
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new AssertionError(e);
         }
     }
 
     // no instance
-    private HandleLoader() {}
+    private InstrumentationRegistryHandleLoader() {}
 }

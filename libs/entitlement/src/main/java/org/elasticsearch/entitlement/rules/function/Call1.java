@@ -7,6 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.bridge;
+package org.elasticsearch.entitlement.rules.function;
 
-public interface Java23EntitlementChecker extends EntitlementChecker {}
+import java.io.Serializable;
+
+public interface Call1<R, A> extends Serializable, VarargCallAdapter<R> {
+    R call(A arg0) throws Exception;
+
+    @SuppressWarnings("unchecked")
+    @Override
+    default VarargCall<R> asVarargCall() {
+        return args -> call((A) args[0]);
+    }
+}

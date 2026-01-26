@@ -7,21 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.bridge;
+package org.elasticsearch.entitlement.bridge.registry;
 
-/**
- * Java23 variant of {@link EntitlementChecker} handle holder.
- */
-public class Java23EntitlementCheckerHandle {
+public class InstrumentationRegistryHandle {
 
-    public static Java23EntitlementChecker instance() {
-        return Holder.instance;
+    @SuppressWarnings("unused")
+    public static InstrumentationRegistry instance() {
+        return InstrumentationRegistryHandle.Holder.instance;
     }
 
     private static class Holder {
-        private static final Java23EntitlementChecker instance = HandleLoader.load(Java23EntitlementChecker.class);
+        private static final InstrumentationRegistry instance = InstrumentationRegistryHandleLoader.load(InstrumentationRegistry.class);
     }
 
     // no construction
-    private Java23EntitlementCheckerHandle() {}
+    private InstrumentationRegistryHandle() {}
 }

@@ -7,13 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.entitlement.rules.function;
 
-import java.util.Map;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
-/**
- * The SPI service entry point for instrumentation.
- */
-public interface InstrumentationService {
-    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, String> methods);
+public interface CheckMethod {
+    void check(Class<?> callingClass, PolicyChecker policyChecker) throws Exception;
+
+    default CheckMethod and(CheckMethod next) {
+        return (callingClass, policyChecker) -> {
+            check(callingClass, policyChecker);
+            next.check(callingClass, policyChecker);
+        };
+    }
 }

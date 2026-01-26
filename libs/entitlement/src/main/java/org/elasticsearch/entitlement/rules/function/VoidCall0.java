@@ -7,13 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.entitlement.rules.function;
 
-import java.util.Map;
+import java.io.Serializable;
 
-/**
- * The SPI service entry point for instrumentation.
- */
-public interface InstrumentationService {
-    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, String> methods);
+@FunctionalInterface
+public interface VoidCall0 extends Serializable {
+    void call() throws Exception;
 }

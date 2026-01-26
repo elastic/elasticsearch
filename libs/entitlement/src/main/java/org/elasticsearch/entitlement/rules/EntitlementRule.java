@@ -7,13 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.entitlement.rules;
 
-import java.util.Map;
+import org.elasticsearch.entitlement.rules.function.CheckMethod;
+import org.elasticsearch.entitlement.rules.function.VarargCall;
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
-/**
- * The SPI service entry point for instrumentation.
- */
-public interface InstrumentationService {
-    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, String> methods);
-}
+public record EntitlementRule(MethodKey methodKey, VarargCall<CheckMethod> checkMethod) {}

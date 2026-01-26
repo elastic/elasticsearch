@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -37,7 +36,6 @@ import java.util.stream.Stream;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
-import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
@@ -51,13 +49,13 @@ public final class InstrumenterImpl implements Instrumenter {
      * To avoid class name collisions during testing without an agent to replace classes in-place.
      */
     private final String classNameSuffix;
-    private final Map<MethodKey, CheckMethod> checkMethods;
+    private final Map<MethodKey, String> checkMethods;
 
     InstrumenterImpl(
         String handleClass,
         String getCheckerClassMethodDescriptor,
         String classNameSuffix,
-        Map<MethodKey, CheckMethod> checkMethods
+        Map<MethodKey, String> checkMethods
     ) {
         this.handleClass = handleClass;
         this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
@@ -65,7 +63,7 @@ public final class InstrumenterImpl implements Instrumenter {
         this.checkMethods = checkMethods;
     }
 
-    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
+    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, String> checkMethods) {
 
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
@@ -201,7 +199,11 @@ public final class InstrumenterImpl implements Instrumenter {
             if (isAnnotationPresent == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
                 boolean isCtor = "<init>".equals(name);
-                var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
+                var key = new MethodKey(
+                    className,
+                    name,
+                    Stream.of(Type.getArgumentTypes(descriptor)).map(EntitlementClassVisitor::getTypeName).toList()
+                );
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {
                     logger.debug("Will instrument {}", key);
@@ -211,6 +213,32 @@ public final class InstrumenterImpl implements Instrumenter {
                 }
             }
             return mv;
+        }
+
+        private static String getTypeName(Type type) {
+            switch (type.getSort()) {
+                case Type.BOOLEAN:
+                    return Boolean.class.getName();
+                case Type.CHAR:
+                    return Character.class.getName();
+                case Type.BYTE:
+                    return Byte.class.getName();
+                case Type.SHORT:
+                    return Short.class.getName();
+                case Type.INT:
+                    return Integer.class.getName();
+                case Type.FLOAT:
+                    return Float.class.getName();
+                case Type.DOUBLE:
+                    return Double.class.getName();
+                case Type.LONG:
+                    return Long.class.getName();
+                case Type.ARRAY:
+                case Type.OBJECT:
+                    return type.getClassName();
+                default:
+                    throw new IllegalStateException("Unexpected type sort: " + type.getSort());
+            }
         }
 
         /**
@@ -236,7 +264,7 @@ public final class InstrumenterImpl implements Instrumenter {
         private final boolean instrumentedMethodIsStatic;
         private final boolean instrumentedMethodIsCtor;
         private final String instrumentedMethodDescriptor;
-        private final CheckMethod checkMethod;
+        private final String instrumentationId;
         private boolean hasCallerSensitiveAnnotation = false;
 
         EntitlementMethodVisitor(
@@ -245,13 +273,13 @@ public final class InstrumenterImpl implements Instrumenter {
             boolean instrumentedMethodIsStatic,
             boolean instrumentedMethodIsCtor,
             String instrumentedMethodDescriptor,
-            CheckMethod checkMethod
+            String instrumentationId
         ) {
             super(api, methodVisitor);
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
             this.instrumentedMethodIsCtor = instrumentedMethodIsCtor;
             this.instrumentedMethodDescriptor = instrumentedMethodDescriptor;
-            this.checkMethod = checkMethod;
+            this.instrumentationId = instrumentationId;
         }
 
         @Override
@@ -265,15 +293,19 @@ public final class InstrumenterImpl implements Instrumenter {
         @Override
         public void visitCode() {
             pushEntitlementChecker();
+            pushInstrumentationId();
             pushCallerClass();
-            forwardIncomingArguments();
+            pushArguments();
             invokeInstrumentationMethod();
             super.visitCode();
         }
 
         private void pushEntitlementChecker() {
             mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
-            mv.visitTypeInsn(CHECKCAST, checkMethod.className());
+        }
+
+        private void pushInstrumentationId() {
+            mv.visitLdcInsn(instrumentationId);
         }
 
         private void pushCallerClass() {
@@ -296,28 +328,90 @@ public final class InstrumenterImpl implements Instrumenter {
             }
         }
 
-        private void forwardIncomingArguments() {
-            int localVarIndex = 0;
-            if (instrumentedMethodIsCtor) {
-                localVarIndex++;
-            } else if (instrumentedMethodIsStatic == false) {
-                mv.visitVarInsn(Opcodes.ALOAD, localVarIndex++);
+        private void pushArguments() {
+            Type[] argumentTypes = Type.getArgumentTypes(instrumentedMethodDescriptor);
+            boolean passThis = instrumentedMethodIsStatic == false && instrumentedMethodIsCtor == false;
+            int numArgs = argumentTypes.length + (passThis ? 1 : 0);
+
+            pushInt(numArgs);
+            mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+
+            int arrayIndex = 0;
+            if (passThis) {
+                mv.visitInsn(Opcodes.DUP);
+                pushInt(arrayIndex++);
+                mv.visitVarInsn(Opcodes.ALOAD, 0);
+                mv.visitInsn(Opcodes.AASTORE);
             }
-            for (Type type : Type.getArgumentTypes(instrumentedMethodDescriptor)) {
+
+            int localVarIndex = instrumentedMethodIsStatic ? 0 : 1;
+
+            for (int i = 0; i < argumentTypes.length; i++) {
+                mv.visitInsn(Opcodes.DUP);
+                pushInt(arrayIndex++);
+                Type type = argumentTypes[i];
                 mv.visitVarInsn(type.getOpcode(Opcodes.ILOAD), localVarIndex);
+                box(type);
+                mv.visitInsn(Opcodes.AASTORE);
                 localVarIndex += type.getSize();
             }
+        }
+
+        private void pushInt(int value) {
+            if (value >= -1 && value <= 5) {
+                mv.visitInsn(Opcodes.ICONST_0 + value);
+            } else if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
+                mv.visitIntInsn(Opcodes.BIPUSH, value);
+            } else if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
+                mv.visitIntInsn(Opcodes.SIPUSH, value);
+            } else {
+                mv.visitLdcInsn(value);
+            }
+        }
+
+        private void box(Type type) {
+            if (type.getSort() == Type.OBJECT || type.getSort() == Type.ARRAY) {
+                return;
+            }
+            String descriptor = type.getDescriptor();
+            String owner;
+            switch (type.getSort()) {
+                case Type.BOOLEAN:
+                    owner = "java/lang/Boolean";
+                    break;
+                case Type.CHAR:
+                    owner = "java/lang/Character";
+                    break;
+                case Type.BYTE:
+                    owner = "java/lang/Byte";
+                    break;
+                case Type.SHORT:
+                    owner = "java/lang/Short";
+                    break;
+                case Type.INT:
+                    owner = "java/lang/Integer";
+                    break;
+                case Type.FLOAT:
+                    owner = "java/lang/Float";
+                    break;
+                case Type.LONG:
+                    owner = "java/lang/Long";
+                    break;
+                case Type.DOUBLE:
+                    owner = "java/lang/Double";
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unexpected type sort: " + type.getSort());
+            }
+            mv.visitMethodInsn(INVOKESTATIC, owner, "valueOf", "(" + descriptor + ")L" + owner + ";", false);
         }
 
         private void invokeInstrumentationMethod() {
             mv.visitMethodInsn(
                 INVOKEINTERFACE,
-                checkMethod.className(),
-                checkMethod.methodName(),
-                Type.getMethodDescriptor(
-                    Type.VOID_TYPE,
-                    checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
-                ),
+                Type.getReturnType(getCheckerClassMethodDescriptor).getInternalName(),
+                "check$",
+                "(Ljava/lang/String;Ljava/lang/Class;[Ljava/lang/Object;)V",
                 true
             );
         }

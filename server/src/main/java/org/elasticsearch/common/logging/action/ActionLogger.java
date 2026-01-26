@@ -76,15 +76,28 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         this.producer = producer;
         this.writer = writer;
         var context = new ActionLoggingFieldsContext(true);
+        // Initialize
         this.additionalFields = fieldsProvider.create(context);
+        this.enabled = settings.get(ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace(name));
+        this.threshold = settings.get(ACTION_LOGGER_THRESHOLD.getConcreteSettingForNamespace(name)).nanos();
+        setLogLevel(settings.get(ACTION_LOGGER_LEVEL.getConcreteSettingForNamespace(name)));
+        context.setIncludeUserInformation(settings.get(ACTION_LOGGER_INCLUDE_USER.getConcreteSettingForNamespace(name)));
+
         settings.addAffixUpdateConsumer(ACTION_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
         settings.addAffixUpdateConsumer(ACTION_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
-        settings.addAffixUpdateConsumer(ACTION_LOGGER_LEVEL, updater(name, v -> logLevel = v), (k, v) -> {
+        settings.addAffixUpdateConsumer(ACTION_LOGGER_LEVEL, updater(name, this::setLogLevel), (k, v) -> {
             if (v.equals(Level.ERROR) || v.equals(Level.FATAL)) {
                 throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
             }
         });
         settings.addAffixUpdateConsumer(ACTION_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
+    }
+
+    private void setLogLevel(Level level) {
+        if (level.equals(Level.ERROR) || level.equals(Level.FATAL)) {
+            throw new IllegalStateException("Log level can not be " + level.name());
+        }
+        logLevel = level;
     }
 
     private <T> BiConsumer<String, T> updater(String name, Consumer<T> updater) {

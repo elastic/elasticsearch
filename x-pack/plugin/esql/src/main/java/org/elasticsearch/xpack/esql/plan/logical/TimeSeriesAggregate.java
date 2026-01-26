@@ -332,8 +332,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         /**
          * The minimum timestamp in epoch milliseconds.
          */
-
         private final long min;
+
         /**
          * The maximum timestamp in epoch milliseconds.
          */

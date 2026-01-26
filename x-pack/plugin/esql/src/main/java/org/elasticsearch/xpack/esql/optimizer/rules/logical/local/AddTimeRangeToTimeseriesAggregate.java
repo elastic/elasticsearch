@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 
+/**
+ * Extracts the time range a {@link TimeSeriesAggregate} operates on from the search stats and adds it to the aggregation
+ * if possible. This allows us to optimize the time rounding, e.g. for timezones with daylight saving time changes.
+ */
 public class AddTimeRangeToTimeseriesAggregate extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override

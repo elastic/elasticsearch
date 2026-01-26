@@ -222,7 +222,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
 
         @Override
         public IntVector nonEmpty() {
-            return IntVector.range(0, numEntries(), blockFactory);
+            return blockFactory.newIntRangeVector(0, numEntries());
         }
 
         @Override

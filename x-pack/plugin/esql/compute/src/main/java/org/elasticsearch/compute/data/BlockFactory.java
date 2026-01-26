@@ -434,6 +434,15 @@ public class BlockFactory {
         return b;
     }
 
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }

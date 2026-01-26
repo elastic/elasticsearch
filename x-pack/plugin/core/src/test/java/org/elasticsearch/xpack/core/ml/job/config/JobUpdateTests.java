@@ -412,6 +412,21 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(3L));
     }
 
+    public void testUpdate_WithNullAnalysisLimitsPreviouslyDefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        Job job = jobBuilder.build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
+        Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
+
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(4L));
+    }
+
     public void testUpdate_WithNullUpdateModelMemoryLimitAndAnalysisLimitsPreviouslyDefined() {
         Job.Builder jobBuilder = new Job.Builder("foo");
         Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");

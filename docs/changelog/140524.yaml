@@ -2,4 +2,5 @@ pr: 140524
 summary: Fix AD job update overrides `categorization_examples_limit` with default
 area: Machine Learning
 type: bug
-issues: []
+issues:
+  - 108068

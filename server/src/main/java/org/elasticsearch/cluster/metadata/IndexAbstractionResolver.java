@@ -281,7 +281,7 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-         assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
+        assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
 
         IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {

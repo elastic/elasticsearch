@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -114,8 +114,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         EsqlFlags flags,
         Configuration configuration,
         PhysicalPlan dataNodePlan,
+        String[] originalIndices,
         Set<String> concreteIndices,
-        OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
@@ -128,7 +128,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             transportService,
             esqlExecutor,
             parentTask,
-            originalIndices,
             PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), dataNodePlan),
             clusterAlias,
             configuration.allowPartialResults(),
@@ -201,8 +200,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 shards,
                                 aliasFilters,
                                 dataNodePlan,
-                                originalIndices.indices(),
-                                originalIndices.indicesOptions(),
+                                originalIndices,
+                                SearchRequest.DEFAULT_INDICES_OPTIONS,
                                 // If the coordinator and data node are the same, we don't need to run the node-level reduction (except for
                                 // TopN late materialization, listed below), as the node-reduce driver would end up doing the exact same
                                 // work as the final driver.
@@ -233,6 +232,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
             }
         }.startComputeOnDataNodes(
+            originalIndices,
             concreteIndices,
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())

@@ -18,4 +18,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
  *                                  used for the document, may be different.
  * @param documentCentroidScore     The score of the document postings centroid and the query vector
  */
-public record PostingMetadata(long offset, long length, int queryCentroidOrdinal, float documentCentroidScore) {}
+public record PostingMetadata(long offset, long length, int queryCentroidOrdinal, float documentCentroidScore) {
+    public static final int NO_ORDINAL = -1;
+}

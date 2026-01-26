@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
+import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
 import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
 
 /**
@@ -285,7 +286,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrd);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new PostingMetadata(postingListOffset, postingListLength, -1, score);
+                // NO_ORDINAL indicates that the global centroid should be used for query quantization
+                return new PostingMetadata(postingListOffset, postingListLength, NO_ORDINAL, score);
             }
         };
     }
@@ -635,7 +637,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                     parentsSlice.readFloats(centroidScratch, 0, centroidScratch.length);
                     queryCentroid = centroidScratch;
                 } else {
-                    assert nextCentroidOrdinal == -1;
+                    assert nextCentroidOrdinal == NO_ORDINAL;
                     queryCentroid = globalCentroid;
                 }
                 OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
@@ -729,10 +731,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             docEncoding = indexInput.readByte();
             docBase = 0;
             slicePos = indexInput.getFilePointer();
+            // The score is the transformed score used when searching the centroids.
+            // we need to convert it back to the raw similarity to be used as part of
+            // final corrections
             centroidDistance = switch (similarityFunction) {
                 case EUCLIDEAN -> ((1 / score) - 1) - centroidToParentSqDist;
-                case COSINE, DOT_PRODUCT -> score - 1;
-                case MAXIMUM_INNER_PRODUCT -> score < 1 ? 1 - (1 / score) : score - 1;
+                case COSINE, DOT_PRODUCT -> 2 * score - 1;
+                case MAXIMUM_INNER_PRODUCT -> score < 1 ? 1 - (1 / score) : 2 * score - 1;
             };
             queryQuantizer.reset(metadata.queryCentroidOrdinal());
             return vectors;

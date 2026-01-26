@@ -41,7 +41,7 @@ public class KMeansResult {
     };
 
     public static KMeansResult singleCluster(float[] centroid, int numVectors) {
-        return new KMeansResult(new float[][] { centroid }, new int[numVectors], null);
+        return new KMeansResult(new float[][] { centroid }, new int[numVectors], new int[0]);
     }
 
     KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments) {

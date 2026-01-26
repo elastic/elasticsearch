@@ -65,7 +65,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     }
 
     @After
-    public void removeNonDefaultProjects() throws IOException {
+    public void cleanup() throws IOException {
         if (preserveClusterUponCompletion() == false) {
             // Cancel all running reindex tasks before deleting projects to avoid
             // errors when tasks try to access project metadata after project deletion
@@ -267,7 +267,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         final Request cancelRequest = new Request("POST", "/_tasks/_cancel");
         cancelRequest.addParameter("actions", ReindexAction.NAME);
         cancelRequest.addParameter("wait_for_completion", "true");
-        adminClient().performRequest(cancelRequest);
+        assertOK(adminClient().performRequest(cancelRequest));
     }
 
 }

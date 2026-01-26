@@ -208,7 +208,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
                 if (id < 0) {
                     return -1; // empty
                 }
-                final int offset = keyOffset(id);
+                final long offset = keyOffset(id);
                 if (key1(offset) == key1 && key2(offset) == key2) {
                     return id;
                 }
@@ -222,14 +222,14 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
                 final int idOffset = idOffset(slot);
                 final int currentId = (int) INT_HANDLE.get(idPage, idOffset);
                 if (currentId >= 0) {
-                    final int keyOffset = keyOffset(currentId);
+                    final long keyOffset = keyOffset(currentId);
                     if (key1(keyOffset) == key1 && key2(keyOffset) == key2) {
                         return -1 - currentId;
                     }
                     slot = slot(slot + 1);
                 } else {
                     int id = size;
-                    final int keyOffset = keyOffset(id);
+                    final long keyOffset = keyOffset(id);
                     INT_HANDLE.set(idPage, idOffset, id);
                     setKeys(keyOffset, key1, key2);
                     size++;
@@ -281,21 +281,21 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
 
         private void rehash() {
             for (int i = 0; i < size; i++) {
-                final int keyOffset = keyOffset(i);
+                final long keyOffset = keyOffset(i);
                 final int hash = hash(key1(keyOffset), key2(keyOffset));
                 bigCore.insert(hash, control(hash), i);
             }
         }
 
-        private long key1(int offset) {
+        private long key1(long offset) {
             return (long) LONG_HANDLE.get(keyPages[0], offset);
         }
 
-        private long key2(int offset) {
+        private long key2(long offset) {
             return (long) LONG_HANDLE.get(keyPages[0], offset + Long.BYTES);
         }
 
-        private void setKeys(int offset, long value1, long value2) {
+        private void setKeys(long offset, long value1, long value2) {
             LONG_HANDLE.set(keyPages[0], offset, value1);
             LONG_HANDLE.set(keyPages[0], offset + Long.BYTES, value2);
         }
@@ -332,7 +332,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
                 for (int i = 0; i < keyPagesNeeded; i++) {
                     keyPages[i] = (i < initialKeyPages.length) ? initialKeyPages[i] : grabKeyPage();
                 }
-                assert keyPages[keyOffset(mask) >> PAGE_SHIFT] != null
+                assert keyPages[Math.toIntExact(keyOffset(mask) >> PAGE_SHIFT)] != null
                     && Arrays.stream(keyPages).mapToInt(b -> b.length).distinct().count() == 1L
                     && keyPagesNeeded > initialKeyPages.length;
 
@@ -359,7 +359,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
                 while (matches != 0) {
                     final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
                     final int id = id(checkSlot);
-                    final int keyOffset = keyOffset(id);
+                    final long keyOffset = keyOffset(id);
                     if (key1(keyOffset) == key1 && key2(keyOffset) == key2) {
                         return id;
                     }
@@ -387,7 +387,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
                 while (matches != 0) {
                     final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
                     final int id = id(checkSlot);
-                    final int keyOffset = keyOffset(id);
+                    final long keyOffset = keyOffset(id);
                     if (key1(keyOffset) == key1 && key2(keyOffset) == key2) {
                         return -1 - id;
                     }
@@ -397,7 +397,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
                 if (empty != 0) {
                     final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
                     final int id = size;
-                    final int keyOffset = keyOffset(id);
+                    final long keyOffset = keyOffset(id);
                     setKeys(keyOffset, key1, key2);
                     bigCore.insertAtSlot(insertSlot, control, id);
                     size++;
@@ -467,7 +467,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
 
         private void rehash(BigCore newBigCore) {
             for (int i = 0; i < size; i++) {
-                final int keyOffset = keyOffset(i);
+                final long keyOffset = keyOffset(i);
                 final int hash = hash(key1(keyOffset), key2(keyOffset));
                 newBigCore.insert(hash, control(hash), i);
             }
@@ -493,17 +493,18 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
             }
         }
 
-        private long key1(final int keyOffset) {
-            return (long) LONG_HANDLE.get(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK);
+        private long key1(final long keyOffset) {
+            return (long) LONG_HANDLE.get(keyPages[Math.toIntExact(keyOffset >> PAGE_SHIFT)], keyOffset & PAGE_MASK);
         }
 
-        private long key2(final int keyOffset) {
-            return (long) LONG_HANDLE.get(keyPages[keyOffset >> PAGE_SHIFT], (keyOffset + Long.BYTES) & PAGE_MASK);
+        private long key2(final long keyOffset) {
+            return (long) LONG_HANDLE.get(keyPages[Math.toIntExact(keyOffset >> PAGE_SHIFT)], (keyOffset + Long.BYTES) & PAGE_MASK);
         }
 
-        private void setKeys(final int keyOffset, final long value1, final long value2) {
-            LONG_HANDLE.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, value1);
-            LONG_HANDLE.set(keyPages[keyOffset >> PAGE_SHIFT], (keyOffset + Long.BYTES) & PAGE_MASK, value2);
+        private void setKeys(final long keyOffset, final long value1, final long value2) {
+            final int keyPageOffset = Math.toIntExact(keyOffset >> PAGE_SHIFT);
+            LONG_HANDLE.set(keyPages[keyPageOffset], keyOffset & PAGE_MASK, value1);
+            LONG_HANDLE.set(keyPages[keyPageOffset], (keyOffset + Long.BYTES) & PAGE_MASK, value2);
         }
 
         private int id(final int slot) {
@@ -516,7 +517,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     public long getKey1(final long id) {
         final int actualId = Math.toIntExact(id);
         Objects.checkIndex(actualId, size());
-        final int keyOffset = keyOffset(actualId);
+        final long keyOffset = keyOffset(actualId);
         return smallCore != null ? smallCore.key1(keyOffset) : bigCore.key1(keyOffset);
     }
 
@@ -524,12 +525,12 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     public long getKey2(final long id) {
         final int actualId = Math.toIntExact(id);
         Objects.checkIndex(actualId, size());
-        final int keyOffset = keyOffset(actualId);
+        final long keyOffset = keyOffset(actualId);
         return smallCore != null ? smallCore.key2(keyOffset) : bigCore.key2(keyOffset);
     }
 
-    private int keyOffset(final int id) {
-        return id * KEY_SIZE;
+    private long keyOffset(final int id) {
+        return (long) id * KEY_SIZE;
     }
 
     private int idOffset(final int slot) {

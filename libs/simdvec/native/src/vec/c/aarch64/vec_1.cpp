@@ -302,9 +302,10 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     float32x4_t sum7 = vdupq_n_f32(0.0f);
 
     int i = 0;
+    constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t) * 8;
     // Each float32x4_t holds 4 floats, so unroll 8x = 32 floats per loop
-    int32_t unrolled_limit = elementCount & ~31UL;
-    for (; i < unrolled_limit; i += 32) {
+    int unrolled_limit = elementCount & ~(stride - 1);
+    for (; i < unrolled_limit; i += stride) {
         sum0 = vfmaq_f32(sum0, vld1q_f32(a + i),      vld1q_f32(b + i));
         sum1 = vfmaq_f32(sum1, vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
         sum2 = vfmaq_f32(sum2, vld1q_f32(a + i + 8),  vld1q_f32(b + i + 8));

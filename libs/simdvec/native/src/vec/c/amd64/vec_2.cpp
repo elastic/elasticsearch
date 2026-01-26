@@ -43,6 +43,10 @@
 #define STRIDE_BYTES_LEN sizeof(__m512i) // Must be a power of 2
 #endif
 
+#ifndef STRIDE
+#define STRIDE(size, num) STRIDE_BYTES_LEN / size * num
+#endif
+
 // Returns acc + ( p1 * p2 ), for 64-wide int lanes.
 template<int offsetRegs>
 inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
@@ -335,9 +339,9 @@ EXPORT f32_t vec_dotf32_2(const f32_t* a, const f32_t* b, const int32_t elementC
     __m512 sum3 = _mm512_setzero_ps();
 
     int32_t i = 0;
-    int32_t unrolled_limit = elementCount & ~63UL;
+    int32_t unrolled_limit = elementCount & ~(STRIDE(sizeof(f32_t), 4) - 1);
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    for (; i < unrolled_limit; i += 64) {
+    for (; i < unrolled_limit; i += STRIDE(sizeof(f32_t), 4)) {
         sum0 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i),      sum0);
         sum1 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 16), _mm512_loadu_ps(b + i + 16), sum1);
         sum2 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 32), _mm512_loadu_ps(b + i + 32), sum2);
@@ -366,7 +370,7 @@ static inline void dotf32_inner_bulk(
     f32_t* results
 ) {
     int vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
+    for (int c = 0; c < count; c++) {
         const f32_t* a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_dotf32_2(a0, b, dims);
     }
@@ -397,9 +401,9 @@ EXPORT f32_t vec_sqrf32_2(const f32_t* a, const f32_t* b, const int32_t elementC
     __m512 sum3 = _mm512_setzero_ps();
 
     int i = 0;
-    int unrolled_limit = elementCount & ~63UL;
+    int unrolled_limit = elementCount & ~(STRIDE(sizeof(f32_t), 4) - 1);
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    for (; i < unrolled_limit; i += 64) {
+    for (; i < unrolled_limit; i += STRIDE(sizeof(f32_t), 4)) {
         __m512 d0 = _mm512_sub_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i));
         __m512 d1 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 16), _mm512_loadu_ps(b + i + 16));
         __m512 d2 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 32), _mm512_loadu_ps(b + i + 32));
@@ -434,7 +438,7 @@ static inline void sqrf32_inner_bulk(
     f32_t* results
 ) {
     int vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
+    for (int c = 0; c < count; c++) {
         const f32_t* a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_sqrf32_2(a0, b, dims);
     }
@@ -469,9 +473,9 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     __m512i acc2 = _mm512_setzero_si512();
     __m512i acc3 = _mm512_setzero_si512();
 
-    int upperBound = length & ~(sizeof(__m512i) - 1);
-    for (; r < upperBound; r += sizeof(__m512i)) {
-        const __m512i value = _mm512_loadu_si512((const __m512i *)(a + r));
+    int upperBound = length & ~(STRIDE_BYTES_LEN - 1);
+    for (; r < upperBound; r += STRIDE_BYTES_LEN) {
+        const __m512i value = _mm512_loadu_si512((const __m512i*)(a + r));
 
         acc0 = _mm512_add_epi64(acc0, dot_bit_512(value, query + r));
         acc1 = _mm512_add_epi64(acc1, dot_bit_512(value, query + r + length));
@@ -513,7 +517,6 @@ static inline void dot_int1_int4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int blk = length & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
     int c = 0;
 

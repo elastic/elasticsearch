@@ -25,6 +25,10 @@
 #define STRIDE_BYTES_LEN sizeof(__m256i) // Must be a power of 2
 #endif
 
+#ifndef STRIDE
+#define STRIDE(size, num) STRIDE_BYTES_LEN / size * num
+#endif
+
 #ifdef _MSC_VER
 #include <intrin.h>
 #elif __clang__
@@ -332,9 +336,8 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     __m256 acc3 = _mm256_setzero_ps();
 
     int i = 0;
-    // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
-    int unrolled_limit = elementCount & ~31UL;
-    for (; i < unrolled_limit; i += 32) {
+    int unrolled_limit = elementCount & ~(STRIDE(sizeof(f32_t), 4) - 1);
+    for (; i < unrolled_limit; i += STRIDE(sizeof(f32_t), 4)) {
         acc0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i),      acc0);
         acc1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8),  _mm256_loadu_ps(b + i + 8),  acc1);
         acc2 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), acc2);
@@ -394,9 +397,8 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     __m256 sum3 = _mm256_setzero_ps();
 
     int i = 0;
-    int unrolled_limit = elementCount & ~31UL;
-    // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
-    for (; i < unrolled_limit; i += 32) {
+    int unrolled_limit = elementCount & ~(STRIDE(sizeof(f32_t), 4) - 1);
+    for (; i < unrolled_limit; i += STRIDE(sizeof(f32_t), 4)) {
         __m256 d0 = _mm256_sub_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i));
         __m256 d1 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 8),  _mm256_loadu_ps(b + i + 8));
         __m256 d2 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16));
@@ -490,8 +492,8 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     __m256i acc2 = _mm256_setzero_si256();
     __m256i acc3 = _mm256_setzero_si256();
 
-    int upperBound = length & ~(sizeof(__m256i) - 1);
-    for (; r < upperBound; r += sizeof(__m256i)) {
+    int upperBound = length & ~(STRIDE_BYTES_LEN - 1);
+    for (; r < upperBound; r += STRIDE_BYTES_LEN) {
         __m256i value = _mm256_loadu_si256((const __m256i_u*)(a + r));
 
         __m256i local = dot_bit_256(value, query + r);
@@ -556,7 +558,6 @@ static inline void dot_int1_int4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int blk = length & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
     int c = 0;
 

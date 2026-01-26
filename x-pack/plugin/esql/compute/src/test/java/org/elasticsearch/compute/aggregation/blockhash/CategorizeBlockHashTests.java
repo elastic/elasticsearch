@@ -549,8 +549,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(groupSpec),
                     AggregatorMode.FINAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
+                        new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2, 3)),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
                     ),
                     16 * 1024,
                     analysisRegistry

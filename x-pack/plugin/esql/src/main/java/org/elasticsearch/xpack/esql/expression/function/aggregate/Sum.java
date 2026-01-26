@@ -59,6 +59,12 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     private static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
 
     private final Expression summationMode;
+    /**
+     * True to use the old, overflowing aggregator. False to use the current, fixed implementation.
+     * <p>
+     *     Do not set directly; it's automatically set for backwards compatibility at planning time, and defaults to {@code false}.
+     * </p>
+     */
     private final boolean useOverflowingLongSupplier;
 
     @FunctionInfo(
@@ -89,7 +95,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
         this(source, field, filter, window, summationMode, false);
     }
 
-    private Sum(
+    public Sum(
         Source source,
         Expression field,
         Expression filter,
@@ -109,7 +115,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
             in.readNamedWriteable(Expression.class),
             readWindow(in),
             readSummationMode(in),
-            in.getTransportVersion().supports(ESQL_SUM_LONG_OVERFLOW_FIX) ? in.readBoolean() : false
+            in.getTransportVersion().supports(ESQL_SUM_LONG_OVERFLOW_FIX) ? in.readBoolean() : true
         );
     }
 
@@ -187,6 +193,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     public Expression summationMode() {
         return summationMode;
+    }
+
+    public boolean useOverflowingLongSupplier() {
+        return useOverflowingLongSupplier;
     }
 
     @Override

@@ -274,8 +274,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         // Supplier of operators to ensure that they're identical, simulating a datanode/coordinator connection
         Function<AggregatorMode, Operator> makeAggWithMode = (mode) -> {
-            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
-            var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
+            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2, 3) : List.of(1);
+            var maxAggregatorChannels = mode.isInputPartial() ? List.of(4, 5) : List.of(1);
 
             return new HashAggregationOperator.HashAggregationOperatorFactory(
                 List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),

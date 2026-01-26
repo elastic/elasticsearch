@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -149,7 +148,11 @@ public class WriteLoadConstraintMonitor {
         }
 
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        Set<NodeIdName> lastHotspotNodeIdNames = recordHotspotDurations(state, writeNodeIdNamesExceedingQueueLatencyThreshold, currentTimeMillis);
+        Set<NodeIdName> lastHotspotNodeIdNames = recordHotspotDurations(
+            state,
+            writeNodeIdNamesExceedingQueueLatencyThreshold,
+            currentTimeMillis
+        );
 
         if (writeNodeIdNamesExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
@@ -211,9 +214,7 @@ public class WriteLoadConstraintMonitor {
             for (NodeIdName nodeIdName : newHotspotNodeIdNames) {
                 hotspotNodeStartTimesUpdate.put(nodeIdName, startTimestamp);
             }
-            hotspotNodeStartTimes = new ImmutableOpenMap.Builder<NodeIdName, Long>()
-                .putAllFromMap(hotspotNodeStartTimesUpdate)
-                .build();
+            hotspotNodeStartTimes = new ImmutableOpenMap.Builder<NodeIdName, Long>().putAllFromMap(hotspotNodeStartTimesUpdate).build();
         }
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
     }
@@ -239,9 +240,7 @@ public class WriteLoadConstraintMonitor {
                     Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName())
                 );
             }
-            hotspotNodeStartTimes = new ImmutableOpenMap.Builder<NodeIdName, Long>()
-                .putAllFromMap(hotspotNodeStartTimesUpdate)
-                .build();
+            hotspotNodeStartTimes = new ImmutableOpenMap.Builder<NodeIdName, Long>().putAllFromMap(hotspotNodeStartTimesUpdate).build();
         }
 
         hotspotNodesCount.set(hotspotNodeStartTimes.size());

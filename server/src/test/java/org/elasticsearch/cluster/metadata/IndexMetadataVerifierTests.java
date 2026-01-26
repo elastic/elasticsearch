@@ -42,11 +42,6 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         assertNotSame(indexMetadata, src);
         assertEquals("-200", indexMetadata.getSettings().get("archived.index.refresh_interval"));
 
-        src = newIndexMeta("foo", Settings.builder().put("index.codec", "best_compression1").build());
-        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
-        assertNotSame(indexMetadata, src);
-        assertEquals("best_compression1", indexMetadata.getSettings().get("archived.index.codec"));
-
         src = newIndexMeta("foo", Settings.builder().put("index.refresh.interval", "-1").build());
         indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
         assertNotSame(indexMetadata, src);

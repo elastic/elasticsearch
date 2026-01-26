@@ -414,8 +414,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS, false, false);
         assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, true, true);
         assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, false, true);
-        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID, true, false);
-        assertTimeSeriesIndexing(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID, false, false);
+        IndexVersion noSkippersVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+        assertTimeSeriesIndexing(noSkippersVersion, true, false);
+        assertTimeSeriesIndexing(noSkippersVersion, false, false);
     }
 
     public void assertTimeSeriesIndexing(IndexVersion indexVersion, boolean isDimension, boolean hasSkippers) throws IOException {

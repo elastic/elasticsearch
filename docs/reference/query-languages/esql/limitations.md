@@ -103,6 +103,37 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 
 - In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
+#### Spatial precision [esql-limitations-spatial-precision]
+
+The spatial types `geo_point`, `geo_shape`, `cartesian_point` and `cartesian_shape` are maintained at source precision in the original documents,
+but indexed at reduced precision by Lucene, for performance reasons.
+To ensure this optimization is available in the widest context, all [spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) will produce results
+at this reduced precision, aligned with the underlying Lucene index grid.
+For `geo_point` and `geo_shape`, this grid is smaller than 1 cm at the equator, which is still very high precision for most use cases.
+If the exact, original precision is desired, return the original field in the ES|QL query, which will maintain the original values.
+To prioritize performance over precision, simply drop that field.
+
+For example:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| KEEP location, geohex
+```
+
+This query will perform slowly, due to the need to retrieve the original `location` field from the source document.
+However, the following example will perform much faster:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP x, y, geohex
+```
+
+This query will perform much faster, since the original field `location` is not retrieved, and the three spatial functions used will all return values aligned with the Lucene index grid.
+Note that if you return both the original `location` and the extracted `x` and `y` you will see very slight differences in the extracted values due to the precision loss.
+
 #### Partial support in 9.2.0
 
 * {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
@@ -235,10 +266,6 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
-
-## Cross-cluster search limitations [esql-ccs-limitations]
-
-{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 ## Known issues [esql-known-issues]
 

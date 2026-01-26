@@ -1553,4 +1553,21 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             assertArrayEquals(contents, decoder.decode(out.toBase64String(encoder)));
         }
     }
+
+    public void testWriteAllBytesFrom() throws IOException {
+        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            if (randomBoolean()) {
+                out.writeAllBytesFrom(bytes.streamInput());
+            } else {
+                var remaining = bytes;
+                while (remaining.length() > 0) {
+                    var thisSlice = remaining.slice(0, between(1, remaining.length()));
+                    remaining = remaining.slice(thisSlice.length(), remaining.length() - thisSlice.length());
+                    out.writeAllBytesFrom(thisSlice.streamInput());
+                }
+            }
+            assertThat(out.bytes(), equalBytes(bytes));
+        }
+    }
 }

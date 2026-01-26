@@ -9,12 +9,15 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -23,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
@@ -34,8 +38,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -128,6 +135,13 @@ public class RestShardsActionTests extends ESTestCase {
         this.shardRoutings = new ArrayList<>(numShards);
         Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
         String index = "index";
+        Metadata metadata = mock(Metadata.class);
+        IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        when(metadata.findIndex(any())).thenReturn(Optional.of(indexMetadata));
         for (int i = 0; i < numShards; i++) {
             ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
             ShardRouting shardRouting = TestShardRouting.newShardRouting(index, i, localNode.getId(), randomBoolean(), shardRoutingState);
@@ -186,6 +200,37 @@ public class RestShardsActionTests extends ESTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.routingTable()).thenReturn(routingTable);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(clusterState.metadata()).thenReturn(metadata);
         when(clusterStateResponse.getState()).thenReturn(clusterState);
     }
+
+    public void testNewColumnsAndNullSafety() {
+        mockShardStats(false);
+
+        final RestShardsAction action = new RestShardsAction();
+        final Table table = action.buildTable(new FakeRestRequest(), clusterStateResponse, indicesStatsResponse);
+
+        List<Table.Cell> headers = table.getHeaders();
+
+        int tierPreferenceIndex = -1;
+        int nodeRoleIndex = -1;
+
+        for (int i = 0; i < headers.size(); i++) {
+            if ("tier_preference".equals(headers.get(i).value)) {
+                tierPreferenceIndex = i;
+            }
+            if ("node.role".equals(headers.get(i).value)) {
+                nodeRoleIndex = i;
+            }
+        }
+
+        final List<List<Table.Cell>> rows = table.getRows();
+        assertThat(rows.size(), equalTo(shardRoutings.size()));
+
+        for (final List<Table.Cell> row : rows) {
+            assertThat(row.get(tierPreferenceIndex).value, equalTo(""));
+            assertNotNull(row.get(nodeRoleIndex).value);
+        }
+    }
+
 }

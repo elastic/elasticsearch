@@ -370,40 +370,41 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            var valuesBuilder = blockFactory.new$Type$BlockBuilder(groups.getPositionCount());
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int group = groups.getInt(p);
-                int count = 0;
-                if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                    count = (int) values.get(group).size();
-                }
-                switch (count) {
-                    case 0 -> valuesBuilder.appendNull();
-                    $if(BytesRef)$
-                    case 1 -> {
-                        BytesRef bytesScratch = new BytesRef();
-                        values.get(group).get(0, bytesScratch);
-                        valuesBuilder.appendBytesRef(bytesScratch);
+            try (var valuesBuilder = blockFactory.new$Type$BlockBuilder(groups.getPositionCount())) {
+                for (int p = 0; p < groups.getPositionCount(); p++) {
+                    int group = groups.getInt(p);
+                    int count = 0;
+                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
+                        count = (int) values.get(group).size();
                     }
-                    $else$
-                    case 1 -> valuesBuilder.append$Type$(values.get(group).get(0));
-                    $endif$
-                    default -> {
-                        valuesBuilder.beginPositionEntry();
-                        for (int i = 0; i < count; ++i) {
-                            $if(BytesRef)$
+                    switch (count) {
+                        case 0 -> valuesBuilder.appendNull();
+                        $if(BytesRef)$
+                        case 1 -> {
                             BytesRef bytesScratch = new BytesRef();
-                            values.get(group).get(i, bytesScratch);
+                            values.get(group).get(0, bytesScratch);
                             valuesBuilder.appendBytesRef(bytesScratch);
-                            $else$
-                            valuesBuilder.append$Type$(values.get(group).get(i));
-                            $endif$
                         }
-                        valuesBuilder.endPositionEntry();
+                        $else$
+                        case 1 -> valuesBuilder.append$Type$(values.get(group).get(0));
+                        $endif$
+                        default -> {
+                            valuesBuilder.beginPositionEntry();
+                            for (int i = 0; i < count; ++i) {
+                                $if(BytesRef)$
+                                BytesRef bytesScratch = new BytesRef();
+                                values.get(group).get(i, bytesScratch);
+                                valuesBuilder.appendBytesRef(bytesScratch);
+                                $else$
+                                valuesBuilder.append$Type$(values.get(group).get(i));
+                                $endif$
+                            }
+                            valuesBuilder.endPositionEntry();
+                        }
                     }
                 }
+                return valuesBuilder.build();
             }
-            return valuesBuilder.build();
         }
     }
 }

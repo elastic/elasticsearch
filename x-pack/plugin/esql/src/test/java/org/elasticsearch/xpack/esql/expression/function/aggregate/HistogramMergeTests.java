@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.aggregation.TDigestStates;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.test.TDigestTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,7 +33,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.aggregation.ExponentialHistogramStates.MAX_BUCKET_COUNT;
-import static org.hamcrest.Matchers.equalTo;
 
 public class HistogramMergeTests extends AbstractAggregationTestCase {
     public HistogramMergeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -85,45 +82,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
     }
 
     private static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
-        // TDigest is non-deterministic, we just do a sanity check here:
-        // the total count should match exactly and the result should have at least as many centroids as the largest input
-        // in addition we check the p1 and p99 with a rather large tolerance
-
-        long totalCount = 0;
-        double min = Double.POSITIVE_INFINITY;
-        double max = Double.NEGATIVE_INFINITY;
-        double sum = 0.0;
-        boolean anyValuesNonNull = false;
-
-        long maxCentroidCount = 0;
-        TDigestState reference = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
-
-        for (var fieldValue : fieldValues) {
-            TDigestHolder tdigest = (TDigestHolder) fieldValue;
-            if (tdigest != null) {
-                anyValuesNonNull = true;
-                totalCount += tdigest.getValueCount();
-                min = Double.isNaN(tdigest.getMin()) ? min : Math.min(min, tdigest.getMin());
-                max = Double.isNaN(tdigest.getMax()) ? max : Math.max(max, tdigest.getMax());
-                sum += Double.isNaN(tdigest.getSum()) ? 0.0 : tdigest.getSum();
-
-                TDigestState decoded = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
-                tdigest.addTo(decoded);
-                tdigest.addTo(reference);
-                maxCentroidCount = Math.max(maxCentroidCount, decoded.centroidCount());
-            }
-        }
-
-        if (anyValuesNonNull == false) {
-            return equalTo(null);
-        }
-
-        double finalMin = min;
-        double finalMax = max;
-        double finalSum = sum;
-        long finalTotalCount = totalCount;
-        long finalMaxCentroidCount = maxCentroidCount;
-
+        List<TDigestHolder> inputValues = fieldValues.stream().map(v -> (TDigestHolder) v).toList();
         return new BaseMatcher<TDigestHolder>() {
             @Override
             public boolean matches(Object actualObj) {
@@ -131,44 +90,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
                     return false;
                 }
                 TDigestHolder actual = (TDigestHolder) actualObj;
-
-                if (finalTotalCount > 0) {
-                    if (finalMin != actual.getMin() || finalMax != actual.getMax() || finalSum != actual.getSum()) {
-                        return false;
-                    }
-                } else {
-                    if (Double.isNaN(actual.getMin()) == false
-                        || Double.isNaN(actual.getMax()) == false
-                        || Double.isNaN(actual.getSum()) == false) {
-                        return false;
-                    }
-                }
-                if (finalTotalCount != actual.getValueCount()) {
-                    return false;
-                }
-
-                TDigestState decoded = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
-                actual.addTo(decoded);
-                if (decoded.centroidCount() < finalMaxCentroidCount) {
-                    return false;
-                }
-                long tDigestTotalCount = 0;
-                for (Centroid centroid : decoded.centroids()) {
-                    tDigestTotalCount += centroid.count();
-                }
-                if (tDigestTotalCount != finalTotalCount) {
-                    return false;
-                }
-                if (tDigestTotalCount > 0) {
-                    if (Math.abs(decoded.quantile(0.01) - reference.quantile(0.01)) > 0.1) {
-                        return false;
-                    }
-                    if (Math.abs(decoded.quantile(0.99) - reference.quantile(0.99)) > 0.1) {
-                        return false;
-                    }
-                }
-
-                return true;
+                return TDigestTestUtils.isMergedFrom(actual, inputValues);
             }
 
             @Override

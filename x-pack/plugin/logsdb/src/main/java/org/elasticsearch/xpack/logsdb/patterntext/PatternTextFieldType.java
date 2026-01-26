@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -124,12 +125,12 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
         return new ValueFetcher() {
-            PatternTextCompositeValues docValues;
+            BinaryDocValues docValues;
 
             @Override
             public void setNextReader(LeafReaderContext context) {
                 try {
-                    this.docValues = PatternTextCompositeValues.from(context.reader(), PatternTextFieldType.this);
+                    this.docValues = PatternTextFallbackDocValues.from(context.reader(), PatternTextFieldType.this);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -336,7 +337,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             }
         }
 
-        return new PatternTextBlockLoader((leafReader -> PatternTextCompositeValues.from(leafReader, this)));
+        return new PatternTextBlockLoader((leafReader -> PatternTextFallbackDocValues.from(leafReader, this)));
     }
 
     @Override

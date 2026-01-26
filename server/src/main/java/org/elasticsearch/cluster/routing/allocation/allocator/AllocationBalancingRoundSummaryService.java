@@ -38,9 +38,18 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class AllocationBalancingRoundSummaryService {
 
-    /** Turns on or off balancing round summary reporting. */
+    /** Turns on or off balancing round summary reporting to metrics, and potentially to logs.
+     *  Log reporting must also be enabled separately (see below). */
     public static final Setting<Boolean> ENABLE_BALANCER_ROUND_SUMMARIES_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.desired_balance.enable_balancer_round_summaries",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Turns on or off logging of balancing round summaries. */
+    public static final Setting<Boolean> ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.desired_balance.enable_balancer_round_summaries_logging",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -58,6 +67,7 @@ public class AllocationBalancingRoundSummaryService {
     private static final Logger logger = LogManager.getLogger(AllocationBalancingRoundSummaryService.class);
     private final ThreadPool threadPool;
     private volatile boolean enableBalancerRoundSummaries;
+    private volatile boolean enableBalancerRoundSummariesLogging;
     private volatile TimeValue summaryReportInterval;
     private final AllocationBalancingRoundMetrics balancingRoundMetrics;
 
@@ -79,11 +89,16 @@ public class AllocationBalancingRoundSummaryService {
         // Initialize the local setting values to avoid a null access when ClusterSettings#initializeAndWatch is called on each setting:
         // updating enableBalancerRoundSummaries accesses summaryReportInterval.
         this.enableBalancerRoundSummaries = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_SETTING);
+        this.enableBalancerRoundSummariesLogging = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING);
         this.summaryReportInterval = clusterSettings.get(BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING);
         this.balancingRoundMetrics = balancingRoundMetrics;
 
         clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_SETTING, value -> {
             this.enableBalancerRoundSummaries = value;
+            updateBalancingRoundSummaryReporting();
+        });
+        clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING, value -> {
+            this.enableBalancerRoundSummariesLogging = value;
             updateBalancingRoundSummaryReporting();
         });
         clusterSettings.initializeAndWatch(BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING, value -> {
@@ -169,9 +184,12 @@ public class AllocationBalancingRoundSummaryService {
         if (enableBalancerRoundSummaries == false) {
             return;
         }
-
-        summaries.add(summary);
         balancingRoundMetrics.addBalancingRoundSummary(summary);
+
+        if (enableBalancerRoundSummariesLogging == false) {
+            return;
+        }
+        summaries.add(summary);
     }
 
     /**
@@ -215,7 +233,7 @@ public class AllocationBalancingRoundSummaryService {
      * will only take effect when the periodic task completes and reschedules itself.
      */
     private void updateBalancingRoundSummaryReporting() {
-        if (this.enableBalancerRoundSummaries) {
+        if (this.enableBalancerRoundSummaries && this.enableBalancerRoundSummariesLogging) {
             startReporting(this.summaryReportInterval);
         } else {
             cancelReporting();
@@ -256,7 +274,7 @@ public class AllocationBalancingRoundSummaryService {
      * Looks at the given setting values and decides whether to schedule another reporting task or cancel reporting now.
      */
     private void rescheduleReporting() {
-        if (this.enableBalancerRoundSummaries) {
+        if (this.enableBalancerRoundSummaries && this.enableBalancerRoundSummariesLogging) {
             // It's possible that this races with a concurrent call to cancel reporting, but that's okay. The next rescheduleReporting call
             // will check the latest settings and cancel.
             scheduleReporting(this.summaryReportInterval);

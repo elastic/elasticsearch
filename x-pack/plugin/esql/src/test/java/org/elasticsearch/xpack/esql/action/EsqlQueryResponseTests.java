@@ -178,7 +178,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     EsqlExecutionInfo createExecutionInfo() {
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
-        executionInfo.overallTook(new TimeValue(5000));
+        TimeSpanMarkerTestUtil.setTimespan(executionInfo.queryProfile().total(), 5000);
         executionInfo.swapCluster(
             "",
             (k, v) -> new EsqlExecutionInfo.Cluster(
@@ -465,7 +465,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List<List<Object>> values,
             EsqlExecutionInfo executionInfo
         ) {
-            executionInfo.overallTook(new TimeValue(took));
+            TimeSpanMarkerTestUtil.setTimespan(executionInfo.queryProfile().total(), took);
             this.response = new EsqlQueryResponse(
                 columns,
                 List.of(valuesToPage(TestBlockFactory.getNonBreakingInstance(), columns, values)),
@@ -539,12 +539,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             if (clusterInfoMap.isEmpty()) {
                 return createEsqlExecutionInfo(true);
             } else {
-                return new EsqlExecutionInfo(
-                    clusterInfoMap,
-                    Predicates.always(),
-                    EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY,
-                    null
-                );
+                return new EsqlExecutionInfo(clusterInfoMap, Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY);
             }
         }
 

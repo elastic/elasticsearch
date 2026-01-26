@@ -32,8 +32,7 @@ public final class PatternTextDocValues extends BinaryDocValues {
      * To maintain backwards compatibility, if a BinaryDocValues column does not exist, use the old SortedSetDocValues.
      * Since pattern_text fields are not multivalued we can wrap the SortedSetDocValues in a BinaryDocValues interface.
      */
-    static BinaryDocValues getArgsDocValues(LeafReader leafReader, String argsFieldName, boolean useBinaryDocValueArgs)
-        throws IOException {
+    static BinaryDocValues getArgsDocValues(LeafReader leafReader, String argsFieldName, boolean useBinaryDocValueArgs) throws IOException {
         if (useBinaryDocValueArgs) {
             return DocValues.getBinary(leafReader, argsFieldName);
         } else {

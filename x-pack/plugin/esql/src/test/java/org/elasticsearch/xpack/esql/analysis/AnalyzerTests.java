@@ -4174,7 +4174,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldValidTypes() {
-        List<String> validFieldNames = List.of("constant_keyword", "keyword", "text", "wildcard");
+        List<String> validFieldNames = List.of("`constant_keyword-foo`", "keyword", "text", "wildcard");
 
         for (String fieldName : validFieldNames) {
             LogicalPlan plan = analyze(
@@ -4187,7 +4187,8 @@ public class AnalyzerTests extends ESTestCase {
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             EsRelation relation = as(rerank.child(), EsRelation.class);
             Attribute fieldAttribute = getAttributeByName(relation.output(), fieldName);
-            assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias(fieldName, fieldAttribute))));
+            assertEquals(1, rerank.rerankFields().size());
+            assertEquals(fieldName, rerank.rerankFields().getFirst().child().sourceText());
         }
     }
 

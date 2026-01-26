@@ -11,6 +11,6 @@ FROM airport_city_boundaries
 
 | abbrev:keyword | airport:text | envelope:geo_shape |
 | --- | --- | --- |
-| CPH | Copenhagen | BBOX(12.453, 12.6398, 55.7327, 55.6318) |
+| CPH | Copenhagen | BBOX (12.45299999602139, 12.639799928292632, 55.732699991203845, 55.63179998192936) |
 
 

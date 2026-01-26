@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -71,6 +73,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -639,8 +643,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | SORT in_n_out""");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
         Add add = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Add.class);
-        assertThat(add.left().sourceText(), equalTo("network.eth0.rx"));
-        assertThat(add.right().sourceText(), equalTo("network.eth0.tx"));
+        assertThat(add.children().stream().map(Expression::sourceText).toList(), containsInAnyOrder("network.eth0.rx", "network.eth0.tx"));
     }
 
     public void testGroupByAllWithinSeriesAggregate() {
@@ -659,6 +662,32 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
         LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryArithmeticInstantSelectorAndScalarFunction() {
+        boolean piFirst = randomBoolean();
+        LogicalPlan plan;
+        if (piFirst) {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(pi() - network.bytes_in)");
+        } else {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in - pi())");
+        }
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
+
+        Sub sub = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Sub.class);
+        Expression piExpression = piFirst ? sub.left() : sub.right();
+        assertThat((double) as(piExpression, Literal.class).fold(null), closeTo(Math.PI, 1e-9));
+
+        Expression bytesInExpression = piFirst ? sub.right() : sub.left();
+        assertThat(as(as(bytesInExpression, ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
+
+        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryArithmeticScalarFunctions() {
+        assertConstantResult("pi() - pi()", equalTo(0.0));
     }
 
     public void testBinaryAcrossSeriesAndLiteral() {

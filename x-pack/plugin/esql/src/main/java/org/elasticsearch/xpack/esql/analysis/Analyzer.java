@@ -1005,7 +1005,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
                 // We need to add an explicit projection to align the outputs.
-                if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
+                if (logicalPlan instanceof Project == false
+                    || (subPlanColumns.equals(forkColumns) == false && forkColumns.isEmpty() == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {

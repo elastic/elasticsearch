@@ -863,6 +863,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
+        return planProject(project, source);
+    }
+
+    public static PhysicalOperation planProject(ProjectExec project, PhysicalOperation source) {
         List<? extends NamedExpression> projections = project.projections();
         List<Integer> projectionList = new ArrayList<>(projections.size());
 
@@ -957,28 +961,28 @@ public class LocalExecutionPlanner {
         /**
          * Creates a new physical operation with the given source and layout.
          */
-        static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
+        public static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             return new PhysicalOperation(sourceOperatorFactory, layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given layout.
          */
-        PhysicalOperation with(Layout layout) {
+        public PhysicalOperation with(Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given intermediate operator and layout.
          */
-        PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
+        public PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
             return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given sink and layout.
          */
-        PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
+        public PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
         }
 
@@ -1013,6 +1017,10 @@ public class LocalExecutionPlanner {
 
         public SinkOperator sink(DriverContext driverContext) {
             return sinkOperatorFactory.get(driverContext);
+        }
+
+        public Layout layout() {
+            return layout;
         }
 
         public Supplier<String> longDescription() {
@@ -1133,7 +1141,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), description);
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

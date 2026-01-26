@@ -176,6 +176,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
+    private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
     private static final TestDataset BASE_CONVERSION = new TestDataset("base_conversion");
@@ -191,6 +192,11 @@ public class CsvTestsDataLoader {
         "tdigest_timeseries_index-mappings.json",
         "tdigest_standard_index.csv"
     ).withSetting("tdigest_timeseries_index-settings.json");
+    private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
+        "histogram_timeseries_index",
+        "mapping-histogram_time_series_index.json",
+        "histogram_standard_index.csv"
+    ).withSetting("settings-histogram_time_series_index.json");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -259,6 +265,7 @@ public class CsvTestsDataLoader {
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
         Map.entry(DENSE_VECTOR_BFLOAT16.indexName, DENSE_VECTOR_BFLOAT16),
+        Map.entry(DENSE_VECTOR_ARITHMETIC.indexName, DENSE_VECTOR_ARITHMETIC),
         Map.entry(COLORS.indexName, COLORS),
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(BASE_CONVERSION.indexName, BASE_CONVERSION),
@@ -267,7 +274,8 @@ public class CsvTestsDataLoader {
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
         Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX),
         Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
-        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX)
+        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
+        Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -702,7 +710,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+    public static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
         logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
         URL policyMapping = getResource("/" + policyFileName);
         String entity = readTextFile(policyMapping);
@@ -788,7 +796,7 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
+    public static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
 
         ArrayList<String> failures = new ArrayList<>();

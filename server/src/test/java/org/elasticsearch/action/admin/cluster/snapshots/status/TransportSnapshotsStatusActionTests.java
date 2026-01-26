@@ -56,7 +56,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
     private TransportSnapshotsStatusAction action;
 
     @Before
-    public void initializeComponents() throws Exception {
+    public void initializeComponents() {
         threadPool = new TestThreadPool(TransportSnapshotsStatusActionTests.class.getName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
@@ -90,18 +90,18 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
     }
 
     @After
-    public void shutdownComponents() throws Exception {
+    public void shutdownComponents() {
         threadPool.shutdown();
         repositoriesService.close();
         transportService.close();
         clusterService.close();
     }
 
-    public void testBuildResponseDetectsTaskIsCancelledWhileProcessingCurrentSnapshotEntries() throws Exception {
+    public void testBuildResponseDetectsTaskIsCancelledWhileProcessingCurrentSnapshotEntries() {
         runBasicBuildResponseTest(true);
     }
 
-    public void testBuildResponseInvokesListenerWithResponseWhenTaskIsNotCancelled() throws Exception {
+    public void testBuildResponseInvokesListenerWithResponseWhenTaskIsNotCancelled() {
         runBasicBuildResponseTest(false);
     }
 
@@ -412,17 +412,15 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
     }
 
     /**
-     * This tests whether the {@code SnapshotStatus} API reports the {@link SnapshotIndexShardStage} as {@code INIT} when the
-     * {@link SnapshotsInProgress.ShardState} is {@code QUEUED}. No other API fields are validated for correctness in this test
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#INIT} for
+     * {@link SnapshotsInProgress.ShardState#QUEUED}. No other API fields are validated for correctness in this test
      */
     public void testSnapshotStatusAPIReportsSnapshotIndexShardStageAsInitForQueuedShards() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
         final var indexName = "test-index-name";
         final var indexUuid = "test-index-uuid";
         final var shardId0 = new ShardId(indexName, indexUuid, 0);
-
-        // For simplicity, create a single snapshot that is queued, even though in practice this is not possible
-        final var currentSnapshotEntries = List.of(
+        snapshotInProgressShardStateInternal(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 randomBoolean(),
@@ -437,8 +435,255 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
                 null,
                 Map.of(),
                 IndexVersion.current()
-            )
+            ),
+            SnapshotsInProgress.State.STARTED,
+            SnapshotIndexShardStage.INIT
         );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#DONE} for
+     * {@link SnapshotsInProgress.ShardState#SUCCESS}. No other API fields are validated for correctness in this test
+     */
+    public void testSuccessfulSnapshotInProgressShardState() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+        final var shardGeneration = new ShardGeneration("gen");
+        snapshotInProgressShardStateInternal(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.SUCCESS,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(
+                    shardId0,
+                    SnapshotsInProgress.ShardSnapshotStatus.success(
+                        "nodeId",
+                        new ShardSnapshotResult(shardGeneration, ByteSizeValue.ofKb(8), 1)
+                    )
+                ),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            ),
+            SnapshotsInProgress.State.SUCCESS,
+            SnapshotIndexShardStage.DONE
+        );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#STARTED} for
+     * {@link SnapshotsInProgress.ShardState#INIT}. No other API fields are validated for correctness in this test
+     */
+    public void testInitialisedSnapshotInProgressShardState() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+
+        snapshotInProgressShardStateInternal(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.STARTED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(shardId0, new SnapshotsInProgress.ShardSnapshotStatus("nodeId", SnapshotsInProgress.ShardState.INIT, null)),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            ),
+            SnapshotsInProgress.State.STARTED,
+            SnapshotIndexShardStage.STARTED
+        );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#STARTED} for
+     * {@link SnapshotsInProgress.ShardState#WAITING}. No other API fields are validated for correctness in this test
+     */
+    public void testWaitingSnapshotInProgressShardState() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+
+        snapshotInProgressShardStateInternal(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.STARTED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(shardId0, new SnapshotsInProgress.ShardSnapshotStatus("nodeId", SnapshotsInProgress.ShardState.WAITING, null)),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            ),
+            SnapshotsInProgress.State.STARTED,
+            SnapshotIndexShardStage.STARTED
+        );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#STARTED} for
+     * {@link SnapshotsInProgress.ShardState#PAUSED_FOR_NODE_REMOVAL}. No other API fields are validated for correctness in this test
+     */
+    public void testPausedForNodeRemovalSnapshotInProgressShardState() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+
+        snapshotInProgressShardStateInternal(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.STARTED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(
+                    shardId0,
+                    new SnapshotsInProgress.ShardSnapshotStatus("nodeId", SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL, null)
+                ),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            ),
+            SnapshotsInProgress.State.STARTED,
+            SnapshotIndexShardStage.STARTED
+        );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#FAILURE} for
+     * {@link SnapshotsInProgress.ShardState#FAILED}. No other API fields are validated for correctness in this test
+     */
+    public void testFailedSnapshotInProgressShardState() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+
+        snapshotInProgressShardStateInternal(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.FAILED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(
+                    shardId0,
+                    new SnapshotsInProgress.ShardSnapshotStatus("nodeId", SnapshotsInProgress.ShardState.FAILED, null, "failure reason")
+                ),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            ),
+            SnapshotsInProgress.State.FAILED,
+            SnapshotIndexShardStage.FAILURE
+        );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#FAILURE} for
+     * {@link SnapshotsInProgress.ShardState#ABORTED}. No other API fields are validated for correctness in this test
+     */
+    public void testAbortedSnapshotInProgressShardState() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+
+        snapshotInProgressShardStateInternal(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.STARTED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(
+                    shardId0,
+                    new SnapshotsInProgress.ShardSnapshotStatus("nodeId", SnapshotsInProgress.ShardState.ABORTED, null, "failure reason")
+                ),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            ),
+            SnapshotsInProgress.State.STARTED,
+            SnapshotIndexShardStage.FAILURE
+        );
+    }
+
+    /**
+     * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#FAILURE} for
+     * {@link SnapshotsInProgress.ShardState#MISSING}. No other API fields are validated for correctness in this test
+     */
+    public void testMissingSnapshotInProgressShardState() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardId0 = new ShardId(indexName, indexUuid, 0);
+
+        snapshotInProgressShardStateInternal(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.FAILED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(
+                    shardId0,
+                    new SnapshotsInProgress.ShardSnapshotStatus("nodeId", SnapshotsInProgress.ShardState.MISSING, null, "failure reason")
+                ),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            ),
+            SnapshotsInProgress.State.FAILED,
+            SnapshotIndexShardStage.FAILURE
+        );
+    }
+
+    private void snapshotInProgressShardStateInternal(
+        SnapshotsInProgress.Entry snapshotsInProgress,
+        SnapshotsInProgress.State snapshotInProgressState,
+        SnapshotIndexShardStage snapshotIndexShardStage
+    ) {
+        final var indexName = "test-index-name";
+        // For simplicity, create a single snapshot
+        final var currentSnapshotEntries = List.of(snapshotsInProgress);
 
         final Consumer<SnapshotsStatusResponse> verifyResponse = rsp -> {
             assertNotNull(rsp);
@@ -450,7 +695,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
                 snapshotStatuses.size()
             );
             final var snapshotStatus = snapshotStatuses.getFirst();
-            assertEquals(SnapshotsInProgress.State.STARTED, snapshotStatus.getState());
+            assertEquals(snapshotInProgressState, snapshotStatus.getState());
 
             final var snapshotStatusIndices = snapshotStatus.getIndices();
             assertNotNull("expected a non-null map from getIndices() from SnapshotStatus: " + snapshotStatus, snapshotStatusIndices);
@@ -465,7 +710,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             // Verify data for the shard 0 entry, expecting it to be in the init stage.
             final var shard0Entry = shardMap.get(0);
             assertNotNull("no entry for shard 0 found in indexName [" + indexName + "] shardMap: " + shardMap, shard0Entry);
-            assertEquals(SnapshotIndexShardStage.INIT, shard0Entry.getStage());
+            assertEquals(snapshotIndexShardStage, shard0Entry.getStage());
         };
 
         final var listener = new ActionListener<SnapshotsStatusResponse>() {

@@ -11,6 +11,7 @@
 | date_period | date | date |
 | date_period | date_nanos | date_nanos |
 | date_period | date_period | date_period |
+| dense_vector | dense_vector | dense_vector |
 | double | double | double |
 | double | integer | double |
 | double | long | double |

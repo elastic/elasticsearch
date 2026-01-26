@@ -78,17 +78,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     }
 
     @Override
-    protected List<List<Object>> expectedTop(List<List<Object>> input, List<SortOrder> sortOrders, int topCount) {
-        // input is channel-oriented, whereas computeTopN expects row-oriented, thus, transpose before and after.
-        return transpose(computeTopN(transpose(input), groupKeys(), sortOrders, topCount));
-    }
-
-    private static List<List<Object>> transpose(List<List<Object>> input) {
-        return input.isEmpty()
-            ? List.of()
-            : IntStream.range(0, input.getFirst().size())
-                .mapToObj(row -> input.stream().map(channel -> channel.get(row)).toList())
-                .toList();
+    protected List<List<Object>> expectedTopRowOriented(List<List<Object>> rowOriented, List<SortOrder> sortOrders, int topCount) {
+        return computeTopN(rowOriented, groupKeys(), sortOrders, topCount);
     }
 
     public void testBasicTopN() {

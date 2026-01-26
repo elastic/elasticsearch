@@ -420,7 +420,24 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    protected abstract List<List<Object>> expectedTop(List<List<Object>> input, List<TopNOperator.SortOrder> sortOrders, int topCount);
+    protected List<List<Object>> expectedTop(List<List<Object>> input, List<TopNOperator.SortOrder> sortOrders, int topCount) {
+        // input is channel-oriented, transpose to row-oriented for processing and then back format.
+        return transpose(expectedTopRowOriented(transpose(input), sortOrders, topCount));
+    }
+
+    protected abstract List<List<Object>> expectedTopRowOriented(
+        List<List<Object>> rowOriented,
+        List<TopNOperator.SortOrder> sortOrders,
+        int topCount
+    );
+
+    private static List<List<Object>> transpose(List<List<Object>> input) {
+        if (input.isEmpty()) {
+            return new ArrayList<>();
+        }
+        int numRows = input.getFirst().size();
+        return IntStream.range(0, numRows).mapToObj(row -> input.stream().map(channel -> channel.get(row)).toList()).toList();
+    }
 
     public void testCollectAllValues_RandomMultiValues() {
         DriverContext driverContext = driverContext();

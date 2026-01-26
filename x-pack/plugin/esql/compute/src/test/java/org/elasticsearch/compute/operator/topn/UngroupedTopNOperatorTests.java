@@ -71,10 +71,11 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
     }
 
     @Override
-    protected List<List<Object>> expectedTop(List<List<Object>> input, List<TopNOperator.SortOrder> sortOrders, int topCount) {
-        // input is channel-oriented, transpose to row-oriented for sorting
-        List<List<Object>> rowOriented = transpose(input);
-
+    protected List<List<Object>> expectedTopRowOriented(
+        List<List<Object>> rowOriented,
+        List<TopNOperator.SortOrder> sortOrders,
+        int topCount
+    ) {
         // Sort all rows by sort orders and take top N (no grouping)
         Comparator<List<Object>> comparator = (row1, row2) -> {
             for (TopNOperator.SortOrder order : sortOrders) {
@@ -100,18 +101,7 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
             return 0;
         };
 
-        List<List<Object>> resultRowOriented = rowOriented.stream().sorted(comparator).limit(topCount).toList();
-
-        // Transpose back to channel-oriented format
-        return transpose(resultRowOriented);
-    }
-
-    private static List<List<Object>> transpose(List<List<Object>> input) {
-        if (input.isEmpty()) {
-            return new ArrayList<>();
-        }
-        int numRows = input.getFirst().size();
-        return IntStream.range(0, numRows).mapToObj(row -> input.stream().map(channel -> channel.get(row)).toList()).toList();
+        return rowOriented.stream().sorted(comparator).limit(topCount).toList();
     }
 
     @Override

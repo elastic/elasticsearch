@@ -449,6 +449,10 @@ GWL            |9                  |4                      |military
 
 byMvExpand
 required_capability: inline_stats
+required_capability: st_x_y_quantized
+// ST_X and ST_Y return slightly different precision in older versions
+// So mixed clusters will return no results due to precision differences
+// We could consider relaxing equality for spatial types, but that is expensive
 
 FROM airports
 | MV_EXPAND type

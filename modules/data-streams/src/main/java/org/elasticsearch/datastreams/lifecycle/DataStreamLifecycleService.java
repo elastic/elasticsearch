@@ -450,7 +450,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
 
-            maybeProcessDlmActions(projectState, dataStream, indicesToExcludeForRemainingRun);
+            try {
+                indicesToExcludeForRemainingRun.addAll(maybeProcessDlmActions(projectState, dataStream, indicesToExcludeForRemainingRun));
+            } catch (Exception e) {
+                logger.warn(
+                    () -> String.format(
+                        Locale.ROOT,
+                        "Data stream lifecycle failed to execute actions for data stream [%s]",
+                        dataStream.getName()
+                    ),
+                    e
+                );
+            }
 
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
@@ -471,9 +482,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * For each configured {@link DlmAction}, this method:
      *   * Determines if the action is scheduled for the data stream.
      *   * Finds indices eligible for the action, excluding those in {@code indicesToExclude}.
-     *   * For each eligible index, iterates through the action's steps in reverse order:
-     *     * Checks if the step is already completed for the index.
-     *     * If not completed, attempts to execute the step, handling and logging any exceptions.
+     *   * For each eligible index, iterates through the action's steps in reverse order until finding a step that is complete or
+     *     reaching the start of the list
+     *     * Iterate one step forward through the list to find the first incomplete step.
+     *     * Execute the step handling and logging any exceptions.
      *     * Adds the index to {@code indicesToExclude} after a step is executed to avoid reprocessing in this run.
      * <p>
      * Any errors encountered during step completion checks or execution are logged, but do not prevent processing of
@@ -481,10 +493,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      *
      * @param projectState      the current project state
      * @param dataStream        the data stream to process
-     * @param indicesToExclude  indices to skip for this run (will be updated with processed indices)
+     * @return The set of indices processed that should be ignored by later actions / included in stats
      */
     // Visible for testing
-    void maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
+    Set<Index> maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
+        HashSet<Index> indicesProcessed = new HashSet<>();
         for (DlmAction action : actions) {
             var actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
 
@@ -505,6 +518,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             indicesEligibleForAction.removeAll(indicesToExclude);
+            indicesEligibleForAction.removeAll(indicesProcessed);
 
             logger.trace(
                 "Data stream lifecycle action [{}] found [{}] eligible indices for data stream [{}]",
@@ -514,42 +528,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             for (Index index : indicesEligibleForAction) {
-                DlmStep stepToExecute = null;
-                for (DlmStep step : action.steps().reversed()) {
-                    try {
-                        if (step.stepCompleted(index, projectState) == false) {
-                            stepToExecute = step;
-                            logger.trace(
-                                "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete",
-                                step.stepName(),
-                                action.name(),
-                                dataStream.getName(),
-                                index.getName()
-                            );
-                        } else {
-                            logger.trace(
-                                "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete",
-                                step.stepName(),
-                                action.name(),
-                                dataStream.getName(),
-                                index.getName()
-                            );
-                            break;
-                        }
-                    } catch (Exception ex) {
-                        logger.warn(
-                            logger.getMessageFactory()
-                                .newMessage(
-                                    "Unable to execute check for step complete [{}] for action [{}] on datastream [{}] index [{}]",
-                                    step.stepName(),
-                                    action.name(),
-                                    dataStream.getName(),
-                                    index.getName()
-                                ),
-                            ex
-                        );
-                    }
-                }
+                DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
 
                 if (stepToExecute != null) {
                     try {
@@ -584,10 +563,51 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         );
                         continue;
                     }
-                    indicesToExclude.add(index);
+                    indicesProcessed.add(index);
                 }
             }
         }
+        return indicesProcessed;
+    }
+
+    private DlmStep findFirstIncompleteStep(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
+        DlmStep stepToExecute = null;
+        for (DlmStep step : action.steps().reversed()) {
+            try {
+                if (step.stepCompleted(index, projectState) == false) {
+                    stepToExecute = step;
+                    logger.trace(
+                        "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete",
+                        step.stepName(),
+                        action.name(),
+                        dataStream.getName(),
+                        index.getName()
+                    );
+                } else {
+                    logger.trace(
+                        "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete",
+                        step.stepName(),
+                        action.name(),
+                        dataStream.getName(),
+                        index.getName()
+                    );
+                    break;
+                }
+            } catch (Exception ex) {
+                logger.warn(
+                    logger.getMessageFactory()
+                        .newMessage(
+                            "Unable to execute check for step complete [{}] for action [{}] on datastream [{}] index [{}]",
+                            step.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            index.getName()
+                        ),
+                    ex
+                );
+            }
+        }
+        return stepToExecute;
     }
 
     // visible for testing

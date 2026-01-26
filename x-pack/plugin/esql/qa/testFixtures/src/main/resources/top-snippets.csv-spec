@@ -134,3 +134,29 @@ null
 null
 ;
 
+
+topSnippetsStringSnippetsConfig
+required_capability: top_snippets_function_string_config
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "num_snippets": "2", "num_words": 25 })
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsStringWordsConfig
+required_capability: top_snippets_function_string_config
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "num_snippets": 2, "num_words": "25" })
+| KEEP snippets
+| LIMIT 5
+;
+
+snippets:keyword
+[All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;

@@ -64,8 +64,7 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
     protected void testRandomTopN(boolean asc, DriverContext context) {
         int limit = randomIntBetween(1, 20);
         List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
-        Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
-        List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
+        List<Long> expectedValues = inputValues.stream().sorted(asc ? naturalOrder() : reverseOrder()).limit(limit).toList();
         List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
         assertThat(outputValues, equalTo(expectedValues));
     }

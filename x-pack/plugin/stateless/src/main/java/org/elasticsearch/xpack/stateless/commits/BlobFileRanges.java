@@ -163,6 +163,18 @@ public class BlobFileRanges {
         return true;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        BlobFileRanges that = (BlobFileRanges) o;
+        return Objects.equals(blobLocation, that.blobLocation) && Objects.equals(replicatedRanges, that.replicatedRanges);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(blobLocation, replicatedRanges);
+    }
+
     public String toString() {
         return blobLocation.toString();
     }

@@ -59,7 +59,6 @@ public class LagDetector {
     public static final Setting<TimeValue> CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.follower_lag.timeout",
         TimeValue.timeValueMillis(90000),
-        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
 
@@ -114,19 +113,23 @@ public class LagDetector {
         if (laggingTrackers.isEmpty()) {
             logger.trace("lag detection for version {} is unnecessary: {}", version, appliedStateTrackersByNode.values());
         } else {
-            logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
+            final var timeout = clusterStateApplicationTimeout; // single volatile read
+            if (timeout.millis() <= 0) {
+                logger.debug("lag detector for version {} skipped: {}", version, laggingTrackers);
+            } else {
+                logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
+                threadPool.scheduleUnlessShuttingDown(timeout, clusterCoordinationExecutor, new Runnable() {
+                    @Override
+                    public void run() {
+                        laggingTrackers.forEach(t -> t.checkForLag(version, timeout));
+                    }
 
-            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, clusterCoordinationExecutor, new Runnable() {
-                @Override
-                public void run() {
-                    laggingTrackers.forEach(t -> t.checkForLag(version));
-                }
-
-                @Override
-                public String toString() {
-                    return "lag detector for version " + version + " on " + laggingTrackers;
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return "lag detector for version " + version + " on " + laggingTrackers;
+                    }
+                });
+            }
         }
     }
 
@@ -167,7 +170,7 @@ public class LagDetector {
             return "NodeAppliedStateTracker{" + "discoveryNode=" + discoveryNode + ", appliedVersion=" + appliedVersion + '}';
         }
 
-        void checkForLag(final long version) {
+        void checkForLag(final long version, final TimeValue timeout) {
             if (appliedStateTrackersByNode.get(discoveryNode) != this) {
                 logger.trace("{} no longer active when checking version {}", this, version);
                 return;
@@ -184,7 +187,7 @@ public class LagDetector {
                 discoveryNode,
                 appliedVersion,
                 version,
-                clusterStateApplicationTimeout
+                timeout
             );
             lagListener.onLagDetected(discoveryNode, appliedVersion, version);
         }

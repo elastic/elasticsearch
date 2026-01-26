@@ -47,6 +47,13 @@ public class Similarities {
         Operation.BULK_OFFSETS
     );
 
+    static final MethodHandle DOT_PRODUCT_F32 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_F32_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_F32_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK_OFFSETS);
+    static final MethodHandle SQUARE_DISTANCE_F32 = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.SINGLE);
+    static final MethodHandle SQUARE_DISTANCE_F32_BULK = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.BULK);
+    static final MethodHandle SQUARE_DISTANCE_F32_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.BULK_OFFSETS);
+
     private static RuntimeException rethrow(Throwable t) {
         if (t instanceof Error err) {
             throw err;
@@ -145,6 +152,70 @@ public class Similarities {
     ) {
         try {
             SQUARE_DISTANCE_7U_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static float dotProductF32(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (float) DOT_PRODUCT_F32.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void dotProductF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_F32_BULK.invokeExact(a, b, length, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void dotProductF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_F32_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static float squareDistanceF32(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (float) SQUARE_DISTANCE_F32.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void squareDistanceF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+        try {
+            SQUARE_DISTANCE_F32_BULK.invokeExact(a, b, length, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void squareDistanceF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            SQUARE_DISTANCE_F32_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

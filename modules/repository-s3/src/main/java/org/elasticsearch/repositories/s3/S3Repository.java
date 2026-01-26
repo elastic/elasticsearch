@@ -141,10 +141,11 @@ class S3Repository extends MeteredBlobStoreRepository {
      * non-multipart copy size of 5 GiB. The default is to use the maximum allowable size in order to minimize request count.
      */
     static final Setting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART = Setting.byteSizeSetting(
-        "max_copy_size_before_multipart",
+        "s3.repository.max_copy_size_before_multipart",
         MAX_FILE_SIZE,
         MIN_PART_SIZE_USING_MULTIPART,
-        MAX_FILE_SIZE
+        MAX_FILE_SIZE,
+        Setting.Property.NodeScope
     );
 
     /**

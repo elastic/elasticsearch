@@ -123,6 +123,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     @SuppressWarnings("this-escape")
     public InternalClusterInfoService(
         Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
@@ -137,6 +138,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         this.clusterStateSupplier = clusterService::state;
+        this.writeLoadConstraintSettings = writeLoadConstraintSettings;
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
@@ -149,7 +151,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             this::setEstimatedHeapThresholdEnabled
         );
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
-        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
             this::setWriteLoadDeciderShardLevelWriteLoadType

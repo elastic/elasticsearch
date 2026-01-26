@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -59,23 +58,23 @@ public class WriteLoadConstraintMonitor {
     private final DoubleHistogram hotspotDurationHistogram;
 
     protected WriteLoadConstraintMonitor(
-        ClusterSettings clusterSettings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
         RerouteService rerouteService
     ) {
         // default of NOOP for tests
-        this(clusterSettings, currentTimeMillisSupplier, clusterStateSupplier, rerouteService, MeterRegistry.NOOP);
+        this(writeLoadConstraintSettings, currentTimeMillisSupplier, clusterStateSupplier, rerouteService, MeterRegistry.NOOP);
     }
 
     public WriteLoadConstraintMonitor(
-        ClusterSettings clusterSettings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
         RerouteService rerouteService,
         MeterRegistry meterRegistry
     ) {
-        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
+        this.writeLoadConstraintSettings = writeLoadConstraintSettings;
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;

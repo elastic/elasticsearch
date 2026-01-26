@@ -250,7 +250,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @Override
     public Expression forTransportVersion(TransportVersion minTransportVersion) {
-        if (minTransportVersion.supports(ESQL_SUM_LONG_OVERFLOW_FIX)) {
+        if (minTransportVersion.supports(ESQL_SUM_LONG_OVERFLOW_FIX) == false) {
             return new Sum(source(), field(), filter(), window(), summationMode, true);
         }
         return null;

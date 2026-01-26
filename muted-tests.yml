@@ -339,6 +339,12 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/141235
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/141270
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQBFloat16VectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/141271
 
 # Examples:
 #

@@ -7,15 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
-/**
- * Interface for providing additional fields to the slow log from a plugin.
- * Intended to be loaded through SPI.
- */
-public interface SlowLogFieldProvider {
-    /**
-     * Create a field provider
-     */
-    SlowLogFields create(SlowLogContext context);
+import org.apache.lucene.index.FieldInfo;
+
+import java.io.IOException;
+
+public interface VectorPreconditioner {
+    Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException;
 }

@@ -356,6 +356,11 @@ public class EsqlCapabilities {
         CASE_MV,
 
         /**
+         * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
+         */
+        CASE_FOLD_TEMPORAL_AMOUNT,
+
+        /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
          * the unit test CsvTests.
          */
@@ -1828,6 +1833,11 @@ public class EsqlCapabilities {
          * Bundle flag for PromQL math functions.
          */
         PROMQL_MATH_V0(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support for PromQL time() function.
+         */
+        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * KNN function adds support for k and visit_percentage options

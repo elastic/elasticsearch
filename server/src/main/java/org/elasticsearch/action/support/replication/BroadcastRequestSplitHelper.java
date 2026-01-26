@@ -22,8 +22,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public final class ReplicationRequestSplitHelper {
-    private ReplicationRequestSplitHelper() {}
+/**
+ * This class implements the logic to "split", rather forward, Broadcast requests like refresh and flush
+ * to the target nodes after a Resharding operation. It also implements the logic to combine responses from
+ * source and target shards.
+ *
+ * The logic to split indexing requests is different because each document id has to be inspected to route it
+ * to the correct shard post Resharding. That logic is implemented in
+ * {@link org.elasticsearch.action.bulk.ShardBulkSplitHelper}
+ */
+public final class BroadcastRequestSplitHelper {
+    private BroadcastRequestSplitHelper() {}
 
     /**
      * Given a stale Replication Request, like flush or refresh, split it into multiple requests,

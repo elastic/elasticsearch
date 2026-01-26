@@ -903,9 +903,9 @@ public class BlockHashTests extends BlockHashTestCase {
     }
 
     public void testIntLongHash() {
-        int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
+        int[] values1 = new int[] { 0, 1, 0, -1, 0, -1 };
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
-        Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { 1, 1L }, new Object[] { 0, 1L } };
+        Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { -1, 1L }, new Object[] { 0, 1L } };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
                 assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:INT, 1:LONG], entries=4, size="));
@@ -935,20 +935,20 @@ public class BlockHashTests extends BlockHashTestCase {
             longsBuilder.appendLong(1);
             longsBuilder.appendLong(3);
 
-            intsBuilder.appendInt(1);
+            intsBuilder.appendInt(-1);
             intsBuilder.appendInt(1);
             intsBuilder.appendInt(5);
             intsBuilder.appendNull();
             intsBuilder.appendNull();
-            intsBuilder.appendInt(10);
+            intsBuilder.appendInt(-10);
             intsBuilder.appendInt(5);
             Object[][] expectedKeys = {
-                new Object[] { 2L, 1 },
+                new Object[] { 2L, -1 },
                 new Object[] { null, 1 },
                 new Object[] { 3L, 5 },
                 new Object[] { 2L, null },
                 new Object[] { null, null },
-                new Object[] { 1L, 10 } };
+                new Object[] { 1L, -10 } };
             hash(ordsAndKeys -> {
                 if (forcePackedHash) {
                     assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:INT], entries=6, size="));

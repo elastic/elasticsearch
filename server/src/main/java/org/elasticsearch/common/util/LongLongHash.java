@@ -11,7 +11,6 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 
@@ -23,7 +22,7 @@ import org.elasticsearch.core.Releasables;
  * This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
-public final class LongLongHash extends AbstractHash implements LongLongHashTable, Accountable {
+public final class LongLongHash extends AbstractHash implements LongLongHashTable {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongLongHash.class);
     /**
      * The keys of the hash, stored one after another. So the keys for an id

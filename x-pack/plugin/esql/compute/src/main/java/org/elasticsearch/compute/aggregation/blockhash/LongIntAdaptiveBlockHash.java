@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -75,20 +76,12 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
         return intBlock.asVector();
     }
 
-    static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
-    static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
-
     final class LongIntVectorOnlyBlockHash extends BlockHash {
-        private final BytesRefHashTable longLongHash;
-        private final int intPosition = reverseOutput ? 0 : Long.BYTES;
-        private final int longPosition = reverseOutput ? Integer.BYTES : 0;
-        private final byte[] keyBuffer = new byte[Long.BYTES + Integer.BYTES];
-        private final BytesRef keyBytes = new BytesRef(keyBuffer);
+        private final LongLongHashTable longLongHash;
 
         LongIntVectorOnlyBlockHash(BlockFactory blockFactory) {
             super(blockFactory);
-            // TODO: change to long-long
-            this.longLongHash = HashImplFactory.newBytesRefHash(blockFactory);
+            this.longLongHash = HashImplFactory.newLongLongHash(blockFactory);
         }
 
         @Override
@@ -104,9 +97,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
                     for (int i = 0; i < batchSize; i++) {
                         long longKey = longVector.getLong(offset + i);
                         int intValue = intVector.getInt(offset + i);
-                        LONG_HANDLE.set(keyBuffer, longPosition, longKey);
-                        INT_HANDLE.set(keyBuffer, intPosition, intValue);
-                        long ord = hashOrdToGroup(longLongHash.add(keyBytes));
+                        long ord = hashOrdToGroup(longLongHash.add(longKey, intValue));
                         groupIdsBuilder.appendInt(i, Math.toIntExact(ord));
                     }
                     try (var groupIds = groupIdsBuilder.build()) {
@@ -143,10 +134,8 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
                     try (var groupIdsBuilder = blockFactory.newIntBlockBuilder(batchSize)) {
                         for (int i = 0; i < batchSize; i++) {
                             long longKey = longVector.getLong(offset + i);
-                            int intValue = intVector.getInt(offset + i);
-                            LONG_HANDLE.set(keyBuffer, longPosition, longKey);
-                            INT_HANDLE.set(keyBuffer, intPosition, intValue);
-                            long ord = longLongHash.find(keyBytes);
+                            int intKey = intVector.getInt(offset + i);
+                            long ord = longLongHash.find(longKey, intKey);
                             if (ord < 0) {
                                 groupIdsBuilder.appendNull();
                             } else {
@@ -165,19 +154,25 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             };
         }
 
+        static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+        static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+
         PackedValuesBlockHash migrateToPackedHash() {
             // TODO: allow specifying the initial size to avoid re-hashing
-            int entries = numEntries();
+            final int entries = numEntries();
             boolean success = false;
-            PackedValuesBlockHash packed = new PackedValuesBlockHash(specs, blockFactory, emitBatchSize);
-            BytesRefHashTable packedHash = packed.bytesRefHash;
+            final PackedValuesBlockHash packed = new PackedValuesBlockHash(specs, blockFactory, emitBatchSize);
+            final BytesRefHashTable packedHash = packed.bytesRefHash;
+            final int intPosition = reverseOutput ? 0 : Long.BYTES;
+            final int longPosition = reverseOutput ? Integer.BYTES : 0;
             try {
-                BytesRef sourceKey = new BytesRef();
-                BytesRef dstKey = new BytesRef(new byte[Long.BYTES + Integer.BYTES + 1]);
+                BytesRef packedKey = new BytesRef(new byte[Long.BYTES + Integer.BYTES + 1]);
                 for (int i = 0; i < entries; i++) {
-                    sourceKey = longLongHash.get(i, sourceKey);
-                    System.arraycopy(sourceKey.bytes, sourceKey.offset, dstKey.bytes, 1, Long.BYTES + Integer.BYTES);
-                    long ord = packedHash.add(dstKey);
+                    long longKey = longLongHash.getKey1(i);
+                    int intKey = (int) longLongHash.getKey2(i);
+                    LONG_HANDLE.set(packedKey.bytes, longPosition, longKey);
+                    INT_HANDLE.set(packedKey.bytes, intPosition, intKey);
+                    long ord = packedHash.add(packedKey);
                     assert ord >= 0 : "duplicate keys found when migrating to packed hash";
                 }
                 success = true;
@@ -199,11 +194,11 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
                 var longsBuilder = blockFactory.newLongVectorFixedBuilder(positionCount);
                 var intsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)
             ) {
-                BytesRef key = new BytesRef();
                 for (int i = 0; i < positionCount; i++) {
-                    key = longLongHash.get(i, key);
-                    longsBuilder.appendLong(i, (long) LONG_HANDLE.get(key.bytes, key.offset + longPosition));
-                    intsBuilder.appendInt(i, (int) INT_HANDLE.get(key.bytes, key.offset + intPosition));
+                    long longKey = longLongHash.getKey1(i);
+                    int intKey = (int) longLongHash.getKey2(i);
+                    longsBuilder.appendLong(longKey);
+                    intsBuilder.appendInt(intKey);
                 }
                 longKeys = longsBuilder.build().asBlock();
                 intKeys = intsBuilder.build().asBlock();

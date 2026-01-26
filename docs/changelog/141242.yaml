@@ -2,4 +2,7 @@ pr: 141242
 summary: Deep copy `BytesRef` when creating a constant vector block
 area: ES|QL
 type: bug
-issues: []
+issues:
+ - 140615
+ - 140809
+ - 140621

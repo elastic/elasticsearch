@@ -665,12 +665,21 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testBinaryArithmeticInstantSelectorAndScalarFunction() {
-        var plan = planPromql("PROMQL index=k8s step=1m bits=(pi() - network.bytes_in)");
+        boolean piFirst = randomBoolean();
+        LogicalPlan plan;
+        if (piFirst) {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(pi() - network.bytes_in)");
+        } else {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in - pi())");
+        }
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
 
         Sub sub = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Sub.class);
-        assertThat((double) as(sub.left(), Literal.class).fold(null), closeTo(Math.PI, 1e-9));
-        assertThat(as(as(sub.right(), ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
+        Expression piExpression = piFirst ? sub.left() : sub.right();
+        assertThat((double) as(piExpression, Literal.class).fold(null), closeTo(Math.PI, 1e-9));
+
+        Expression bytesInExpression = piFirst ? sub.right() : sub.left();
+        assertThat(as(as(bytesInExpression, ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
 
         TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
         LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);

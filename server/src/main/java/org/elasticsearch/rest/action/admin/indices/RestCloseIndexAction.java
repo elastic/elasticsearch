@@ -65,7 +65,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
      * - In 9.x we throw an error that informs the user about the parameter value removal; unless we are running in rest-compatibility mode
      * with 8.x when we log a deprecation warning and handle the value as a noop.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     private void handleIndexSettingWaitForActiveShards(final RestRequest request, final CloseIndexRequest closeIndexRequest) {
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards == null) {

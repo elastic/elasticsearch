@@ -184,7 +184,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        final var remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var remoteVersion = TransportVersionUtils.randomCompatibleVersion();
         handler.handleResponse(new TransportHandshaker.HandshakeResponse(remoteVersion, randomIdentifier()));
 
         assertTrue(versionFuture.isDone());
@@ -333,7 +333,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV8HandshakeRequest() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         final var requestPayloadStreamOutput = new BytesStreamOutput();
         requestPayloadStreamOutput.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
@@ -353,7 +353,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV8HandshakeResponse() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         final var responseBytesStreamOutput = new BytesStreamOutput();
         responseBytesStreamOutput.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
@@ -368,7 +368,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV9HandshakeRequest() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
         final var releaseVersion = randomIdentifier();
 
         final var requestPayloadStreamOutput = new BytesStreamOutput();
@@ -390,7 +390,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV9HandshakeResponse() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
         final var releaseVersion = randomIdentifier();
 
         final var responseBytesStreamOutput = new BytesStreamOutput();

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenera
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
 import java.util.List;
 import java.util.Set;
@@ -571,12 +572,12 @@ public class EsqlQueryGenerator {
     }
 
     public static String quote(String rawName) {
-        return "`" + rawName.replace("`", "``") + "`";
+        return ParserUtils.quoteIdString(rawName);
     }
 
     public static String unquote(String colName) {
         if (colName.length() >= 2 && colName.startsWith("`") && colName.endsWith("`")) {
-            return colName.substring(1, colName.length() - 1).replace("``", "`");
+            return ParserUtils.unquoteIdString(colName);
         }
         return colName;
     }

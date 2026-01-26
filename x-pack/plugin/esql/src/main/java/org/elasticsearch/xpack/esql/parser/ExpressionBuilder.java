@@ -408,7 +408,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();
-                    String quotedIdentifier = quoteIdString(unquotedIdentifier);
+                    String quotedIdentifier = ParserUtils.quoteIdString(unquotedIdentifier);
                     patternString.append(quotedIdentifier);
                     objects.add(unquotedIdentifier);
                     nameString.append(unquotedIdentifier);
@@ -472,7 +472,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 // quoted - definitely no pattern
                 else {
                     patternString.append(fragment);
-                    var unquotedString = unquoteIdString(fragment);
+                    var unquotedString = ParserUtils.unquoteIdString(fragment);
                     objects.add(unquotedString);
                     nameString.append(unquotedString);
                 }

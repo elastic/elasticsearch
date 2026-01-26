@@ -592,7 +592,6 @@ public final class EsqlTestUtils {
     public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
         DataPartitioning.AUTO,
         ByteSizeValue.ofMb(1),
-        ByteSizeValue.ofMb(2),
         10_000,
         ByteSizeValue.ofMb(1)
     );

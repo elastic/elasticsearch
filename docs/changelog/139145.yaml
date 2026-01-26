@@ -1,0 +1,6 @@
+pr: 139145
+summary: "Fix AcceptDocs iteration for flat vector indices"
+area: Search
+type: enhancement
+issues:
+ - 137042

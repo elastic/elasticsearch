@@ -42,7 +42,6 @@ import org.gradle.language.jvm.tasks.ProcessResources;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -94,19 +93,23 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST);
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.YAML_REST_TEST, SOURCE_SET_NAME);
 
-        // determine the previous rest compatibility version and BWC project path
-        int currentMajor = buildParams.getBwcVersions().getCurrentVersion().getMajor();
-        Version lastMinor = buildParams.getBwcVersions()
-            .getUnreleased()
-            .stream()
-            .filter(v -> v.getMajor() == currentMajor - 1)
-            .min(Comparator.reverseOrder())
-            .get();
-        String lastMinorProjectPath = buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
+        // determine the previous rest compatibility version (released or unreleased)
+        Version compatVersion = buildParams.getBwcVersions().getLatestVersionFromPreviousMajor();
+        final boolean isReleasedVersion = buildParams.getBwcVersions().isReleased(compatVersion);
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies().project(Map.of("path", lastMinorProjectPath, "configuration", "checkout"));
+        Dependency bwcMinor;
+        if (isReleasedVersion) {
+            // For released versions, use Maven artifact from Maven Central
+            // The rest-api-spec module contains REST API specs and tests
+            String notation = "org.elasticsearch:rest-api-spec:" + compatVersion.toString();
+            bwcMinor = project.getDependencies().create(notation);
+        } else {
+            // For unreleased versions, use project dependency (existing behavior)
+            String projectPath = buildParams.getBwcVersions().unreleasedInfo(compatVersion).gradleProjectPath();
+            bwcMinor = project.getDependencies().project(Map.of("path", projectPath, "configuration", "checkout"));
+        }
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         String projectPath = project.getPath();
@@ -127,17 +130,31 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                         .orElse(null)
                 );
                 task.setSkipHasRestTestCheck(true);
-                task.setConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
-                    )
-                );
-                task.setAdditionalConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_API_PATH)
-                    )
-                );
+                task.setConfigToFileTree(config -> {
+                    if (isReleasedVersion) {
+                        // Released artifact is a JAR: rest-api-spec/api/*.json
+                        return fileOperations.zipTree(config.getSingleFile())
+                            .matching(pattern -> { pattern.include("rest-api-spec/api/**/*.json"); });
+                    } else {
+                        // Unreleased checkout directory (existing behavior)
+                        return fileOperations.fileTree(
+                            config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
+                        );
+                    }
+                });
+                task.setAdditionalConfigToFileTree(config -> {
+                    if (isReleasedVersion) {
+                        // Released artifact doesn't contain project-specific API specs
+                        return fileOperations.fileTree(config.getSingleFile())
+                            .matching(pattern -> { pattern.include("this-pattern-matches-nothing"); });
+                    } else {
+                        // Unreleased checkout directory (existing behavior)
+                        return fileOperations.fileTree(
+                            getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_API_PATH)
+                        );
+                    }
+                });
                 onlyIfBwcEnabled(task, extraProperties);
                 // task.onlyIf(t -> isEnabled(extraProperties));
             });
@@ -152,30 +169,51 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                 task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
                 task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
-                task.setCoreConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        config.getSingleFile()
-                            .toPath()
-                            .resolve(RELATIVE_REST_CORE)
-                            .resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_TEST_PATH)
-                    )
-                );
-                task.setXpackConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        config.getSingleFile()
-                            .toPath()
-                            .resolve(RELATIVE_REST_XPACK)
-                            .resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_TEST_PATH)
-                    )
-                );
-                task.setAdditionalConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_TEST_PATH)
-                    )
-                );
+                task.setCoreConfigToFileTree(config -> {
+                    if (isReleasedVersion) {
+                        // Released artifact is a JAR: rest-api-spec/test/*.yml
+                        return fileOperations.zipTree(config.getSingleFile())
+                            .matching(pattern -> { pattern.include("rest-api-spec/test/**/*.yml"); });
+                    } else {
+                        // Unreleased checkout directory (existing behavior)
+                        return fileOperations.fileTree(
+                            config.getSingleFile()
+                                .toPath()
+                                .resolve(RELATIVE_REST_CORE)
+                                .resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_TEST_PATH)
+                        );
+                    }
+                });
+                task.setXpackConfigToFileTree(config -> {
+                    if (isReleasedVersion) {
+                        // Released artifact doesn't contain xpack tests
+                        return fileOperations.fileTree(config.getSingleFile())
+                            .matching(pattern -> { pattern.include("this-pattern-matches-nothing"); });
+                    } else {
+                        // Unreleased checkout directory (existing behavior)
+                        return fileOperations.fileTree(
+                            config.getSingleFile()
+                                .toPath()
+                                .resolve(RELATIVE_REST_XPACK)
+                                .resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_TEST_PATH)
+                        );
+                    }
+                });
+                task.setAdditionalConfigToFileTree(config -> {
+                    if (isReleasedVersion) {
+                        // Released artifact doesn't contain project-specific tests
+                        return fileOperations.fileTree(config.getSingleFile())
+                            .matching(pattern -> { pattern.include("this-pattern-matches-nothing"); });
+                    } else {
+                        // Unreleased checkout directory (existing behavior)
+                        return fileOperations.fileTree(
+                            getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_TEST_PATH)
+                        );
+                    }
+                });
                 task.dependsOn(copyCompatYamlSpecTask);
                 onlyIfBwcEnabled(task, extraProperties);
             });

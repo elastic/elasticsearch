@@ -248,6 +248,31 @@ public class BwcVersions implements Serializable {
             .orElseThrow(() -> new IllegalStateException("Unable to determine minimum wire compatible version."));
     }
 
+    /**
+     * Returns the latest version from the previous major, regardless of release status.
+     * This includes both released and unreleased versions.
+     *
+     * @return the latest version from the previous major
+     * @throws IllegalStateException if no previous major version exists
+     */
+    public Version getLatestVersionFromPreviousMajor() {
+        int currentMajor = currentVersion.getMajor();
+        return versions.stream()
+            .filter(v -> v.getMajor() == currentMajor - 1)
+            .max(Comparator.naturalOrder())
+            .orElseThrow(() -> new IllegalStateException("No versions found for previous major " + (currentMajor - 1)));
+    }
+
+    /**
+     * Returns whether the given version is released (not in the unreleased map).
+     *
+     * @param version the version to check
+     * @return true if the version is released, false if unreleased
+     */
+    public boolean isReleased(Version version) {
+        return unreleased.containsKey(version) == false;
+    }
+
     public Version getCurrentVersion() {
         return currentVersion;
     }

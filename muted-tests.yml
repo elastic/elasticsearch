@@ -345,6 +345,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQBFloat16VectorsFormatTests
   method: testSparseVectors
   issue: https://github.com/elastic/elasticsearch/issues/141271
+- class: org.elasticsearch.snapshots.SnapshotStatusApisIT
+  method: testFailedSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/141279
 
 # Examples:
 #

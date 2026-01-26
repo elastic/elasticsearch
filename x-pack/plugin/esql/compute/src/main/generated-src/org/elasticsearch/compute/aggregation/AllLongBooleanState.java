@@ -10,18 +10,18 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * Aggregator state for a single {@code long} and a single {@code double}, with support for null v2 values.
+ * Aggregator state for a single {@code long} and a single {@code boolean}, with support for null v2 values.
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
-final class AllLongDoubleState implements AggregatorState {
+final class AllLongBooleanState implements AggregatorState {
 
     private BigArrays bigArrays;
 
@@ -43,9 +43,9 @@ final class AllLongDoubleState implements AggregatorState {
     /**
      * The value can be null, single valued of multivalued.
      */
-    private DoubleArray v2;
+    private ByteArray v2;
 
-    public AllLongDoubleState(BigArrays bigArrays) {
+    public AllLongBooleanState(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
     }
 
@@ -77,11 +77,11 @@ final class AllLongDoubleState implements AggregatorState {
         this.v1Seen = v1Seen;
     }
 
-    DoubleArray v2() {
+    ByteArray v2() {
         return v2;
     }
 
-    void v2(DoubleArray v2) {
+    void v2(ByteArray v2) {
         this.v2 = v2;
     }
 
@@ -101,11 +101,11 @@ final class AllLongDoubleState implements AggregatorState {
         }
 
         int size = (int) v2.size();
-        double[] values = new double[size];
+        boolean[] values = new boolean[size];
         for (int i = 0; i < size; ++i) {
-            values[i] = v2.get(i);
+            values[i] = v2.get(i) == 1;
         }
-        return driverContext.blockFactory().newDoubleArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
+        return driverContext.blockFactory().newBooleanArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
     }
 
     @Override

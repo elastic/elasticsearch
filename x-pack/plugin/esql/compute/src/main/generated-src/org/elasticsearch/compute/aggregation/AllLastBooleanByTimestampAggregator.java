@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -21,7 +20,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -31,7 +30,7 @@ import java.util.BitSet;
 // end generated imports
 
 /**
- * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
+ * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
  */
 @Aggregator(
@@ -39,25 +38,31 @@ import java.util.BitSet;
         @IntermediateState(name = "observed", type = "BOOLEAN"),
         @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
         @IntermediateState(name = "timestamp", type = "LONG"),
-        @IntermediateState(name = "values", type = "INT_BLOCK") }
+        @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
 )
 @GroupingAggregator(
     {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "INT_BLOCK") }
+        @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
 )
-public class AllFirstIntByTimestampAggregator {
+public class AllLastBooleanByTimestampAggregator {
     public static String describe() {
-        return "all_first_int_by_timestamp";
+        return "all_last_boolean_by_timestamp";
     }
 
-    public static AllLongIntState initSingle(DriverContext driverContext) {
-        return new AllLongIntState(driverContext.bigArrays());
+    public static AllLongBooleanState initSingle(DriverContext driverContext) {
+        return new AllLongBooleanState(driverContext.bigArrays());
     }
 
-    private static void overrideState(AllLongIntState current, boolean timestampPresent, long timestamp, IntBlock values, int position) {
+    private static void overrideState(
+        AllLongBooleanState current,
+        boolean timestampPresent,
+        long timestamp,
+        BooleanBlock values,
+        int position
+    ) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);
@@ -67,12 +72,12 @@ public class AllFirstIntByTimestampAggregator {
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            IntArray a = null;
+            ByteArray a = null;
             boolean success = false;
             try {
-                a = current.bigArrays().newIntArray(count);
+                a = current.bigArrays().newByteArray(count);
                 for (int i = 0; i < count; ++i) {
-                    a.set(i, values.getInt(offset + i));
+                    a.set(i, (byte) (values.getBoolean(offset + i) ? 1 : 0));
                 }
                 success = true;
                 Releasables.close(current.v2());
@@ -92,31 +97,31 @@ public class AllFirstIntByTimestampAggregator {
         long result = timestamps.getLong(lo++);
 
         for (int i = lo; i < hi; i++) {
-            result = Math.min(result, timestamps.getLong(i));
+            result = Math.max(result, timestamps.getLong(i));
         }
 
         return result;
     }
 
-    public static void combine(AllLongIntState current, @Position int position, IntBlock values, LongBlock timestamps) {
+    public static void combine(AllLongBooleanState current, @Position int position, BooleanBlock values, LongBlock timestamps) {
         long timestamp = timestamps.isNull(position) ? -1 : dominantTimestampAtPosition(position, timestamps);
         boolean timestampPresent = timestamps.isNull(position) == false;
 
         if (current.observed() == false) {
             // We never saw a timestamp before, regardless of nullability.
             overrideState(current, timestampPresent, timestamp, values, position);
-        } else if (timestampPresent && (current.v1Seen() == false || timestamp < current.v1())) {
+        } else if (timestampPresent && (current.v1Seen() == false || timestamp > current.v1())) {
             // The incoming timestamp wins against the current one because the latter was either null or older/newer.
             overrideState(current, true, timestamp, values, position);
         }
     }
 
     public static void combineIntermediate(
-        AllLongIntState current,
+        AllLongBooleanState current,
         boolean observed,
         boolean timestampPresent,
         long timestamp,
-        IntBlock values
+        BooleanBlock values
     ) {
         if (observed == false) {
             // The incoming state hasn't observed anything. No work is needed.
@@ -129,7 +134,7 @@ public class AllFirstIntByTimestampAggregator {
                 // Both observations have null timestamps. No work is needed.
                 return;
             }
-            if ((current.v1Seen() == false && timestampPresent) || timestamp < current.v1()) {
+            if ((current.v1Seen() == false && timestampPresent) || timestamp > current.v1()) {
                 overrideState(current, timestampPresent, timestamp, values, 0);
             }
         } else {
@@ -138,7 +143,7 @@ public class AllFirstIntByTimestampAggregator {
         }
     }
 
-    public static Block evaluateFinal(AllLongIntState current, DriverContext ctx) {
+    public static Block evaluateFinal(AllLongBooleanState current, DriverContext ctx) {
         return current.intermediateValuesBlockBuilder(ctx);
     }
 
@@ -146,7 +151,7 @@ public class AllFirstIntByTimestampAggregator {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    public static void combine(GroupingState current, int group, @Position int position, IntBlock values, LongBlock timestamps) {
+    public static void combine(GroupingState current, int group, @Position int position, BooleanBlock values, LongBlock timestamps) {
         long timestamp = timestamps.isNull(position) ? 0L : dominantTimestampAtPosition(position, timestamps);
         current.collectValue(group, timestamps.isNull(position) == false, timestamp, position, values);
     }
@@ -157,7 +162,7 @@ public class AllFirstIntByTimestampAggregator {
         BooleanBlock observed,
         BooleanBlock timestampPresent,
         LongBlock timestamps,
-        IntBlock values,
+        BooleanBlock values,
         int otherPosition
     ) {
         if (group < observed.getPositionCount() && observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
@@ -194,7 +199,7 @@ public class AllFirstIntByTimestampAggregator {
         /**
          * The group-indexed values
          */
-        private ObjectArray<IntArray> values;
+        private ObjectArray<ByteArray> values;
 
         private int maxGroupId = -1;
 
@@ -241,12 +246,12 @@ public class AllFirstIntByTimestampAggregator {
             }
         }
 
-        void collectValue(int group, boolean timestampPresent, long timestamp, int position, IntBlock valuesBlock) {
+        void collectValue(int group, boolean timestampPresent, long timestamp, int position, BooleanBlock valuesBlock) {
             boolean updated = false;
             if (withinBounds(group)) {
                 if (hasValue(group) == false
                     || (hasTimestamp.get(group) == 0 && timestampPresent)
-                    || (timestampPresent && timestamp < timestamps.get(group))) {
+                    || (timestampPresent && timestamp > timestamps.get(group))) {
                     // We never saw this group before, even if it's within bounds.
                     // Or, the incoming non-null timestamp wins against the null one in the state.
                     // Or, we found a better timestamp for this group.
@@ -265,14 +270,14 @@ public class AllFirstIntByTimestampAggregator {
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
                 boolean success = false;
-                IntArray groupValues = null;
+                ByteArray groupValues = null;
                 try {
                     if (valuesBlock.isNull(position) == false) {
                         int count = valuesBlock.getValueCount(position);
                         int offset = valuesBlock.getFirstValueIndex(position);
-                        groupValues = bigArrays.newIntArray(count);
+                        groupValues = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
                         for (int i = 0; i < count; ++i) {
-                            groupValues.set(i, valuesBlock.getInt(i + offset));
+                            groupValues.set(i, (byte) (valuesBlock.getBoolean(i + offset) ? 1 : 0));
                         }
                     }
                     success = true;
@@ -335,7 +340,7 @@ public class AllFirstIntByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            try (var valuesBuilder = blockFactory.newIntBlockBuilder(groups.getPositionCount())) {
+            try (var valuesBuilder = blockFactory.newBooleanBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
                     int count = 0;
@@ -344,11 +349,11 @@ public class AllFirstIntByTimestampAggregator {
                     }
                     switch (count) {
                         case 0 -> valuesBuilder.appendNull();
-                        case 1 -> valuesBuilder.appendInt(values.get(group).get(0));
+                        case 1 -> valuesBuilder.appendBoolean(values.get(group).get(0) == 1);
                         default -> {
                             valuesBuilder.beginPositionEntry();
                             for (int i = 0; i < count; ++i) {
-                                valuesBuilder.appendInt(values.get(group).get(i));
+                                valuesBuilder.appendBoolean(values.get(group).get(i) == 1);
                             }
                             valuesBuilder.endPositionEntry();
                         }

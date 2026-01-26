@@ -18,32 +18,32 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link AllFirstLongByTimestampAggregator}.
+ * {@link AggregatorFunction} implementation for {@link AllLastBooleanByTimestampAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class AllFirstLongByTimestampAggregatorFunction implements AggregatorFunction {
+public final class AllLastBooleanByTimestampAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("observed", ElementType.BOOLEAN),
       new IntermediateStateDesc("timestampPresent", ElementType.BOOLEAN),
       new IntermediateStateDesc("timestamp", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.LONG)  );
+      new IntermediateStateDesc("values", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
 
-  private final AllLongLongState state;
+  private final AllLongBooleanState state;
 
   private final List<Integer> channels;
 
-  public AllFirstLongByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, AllLongLongState state) {
+  public AllLastBooleanByTimestampAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels, AllLongBooleanState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static AllFirstLongByTimestampAggregatorFunction create(DriverContext driverContext,
+  public static AllLastBooleanByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllFirstLongByTimestampAggregatorFunction(driverContext, channels, AllFirstLongByTimestampAggregator.initSingle(driverContext));
+    return new AllLastBooleanByTimestampAggregatorFunction(driverContext, channels, AllLastBooleanByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -67,29 +67,30 @@ public final class AllFirstLongByTimestampAggregatorFunction implements Aggregat
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    LongBlock valuesBlock = page.getBlock(channels.get(0));
+    BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     LongBlock timestampsBlock = page.getBlock(channels.get(1));
     addRawBlock(valuesBlock, timestampsBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    LongBlock valuesBlock = page.getBlock(channels.get(0));
+    BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     LongBlock timestampsBlock = page.getBlock(channels.get(1));
     addRawBlock(valuesBlock, timestampsBlock);
   }
 
-  private void addRawBlock(LongBlock valuesBlock, LongBlock timestampsBlock) {
+  private void addRawBlock(BooleanBlock valuesBlock, LongBlock timestampsBlock) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
-      AllFirstLongByTimestampAggregator.combine(state, p, valuesBlock, timestampsBlock);
+      AllLastBooleanByTimestampAggregator.combine(state, p, valuesBlock, timestampsBlock);
     }
   }
 
-  private void addRawBlock(LongBlock valuesBlock, LongBlock timestampsBlock, BooleanVector mask) {
+  private void addRawBlock(BooleanBlock valuesBlock, LongBlock timestampsBlock,
+      BooleanVector mask) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      AllFirstLongByTimestampAggregator.combine(state, p, valuesBlock, timestampsBlock);
+      AllLastBooleanByTimestampAggregator.combine(state, p, valuesBlock, timestampsBlock);
     }
   }
 
@@ -107,9 +108,9 @@ public final class AllFirstLongByTimestampAggregatorFunction implements Aggregat
     LongBlock timestamp = (LongBlock) timestampUncast;
     assert timestamp.getPositionCount() == 1;
     Block valuesUncast = page.getBlock(channels.get(3));
-    LongBlock values = (LongBlock) valuesUncast;
+    BooleanBlock values = (BooleanBlock) valuesUncast;
     assert values.getPositionCount() == 1;
-    AllFirstLongByTimestampAggregator.combineIntermediate(state, observed.getBoolean(0), timestampPresent.getBoolean(0), timestamp.getLong(0), values);
+    AllLastBooleanByTimestampAggregator.combineIntermediate(state, observed.getBoolean(0), timestampPresent.getBoolean(0), timestamp.getLong(0), values);
   }
 
   @Override
@@ -119,7 +120,7 @@ public final class AllFirstLongByTimestampAggregatorFunction implements Aggregat
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = AllFirstLongByTimestampAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = AllLastBooleanByTimestampAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

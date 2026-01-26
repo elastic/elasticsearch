@@ -30,9 +30,7 @@ You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
 You can update the {{infer}} endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
 
-::::{important}
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
-::::
 
 :::
 

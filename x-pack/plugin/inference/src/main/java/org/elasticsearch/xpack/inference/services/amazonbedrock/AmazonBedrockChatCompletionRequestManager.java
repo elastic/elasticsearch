@@ -17,8 +17,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionEntityFactory;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
@@ -46,8 +46,8 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
-        var inputs = chatCompletionInput.getInputs();
+        var chatCompletionInput = inferenceInputs.castTo(UnifiedChatInput.class);
+        var inputs = chatCompletionInput.getRequest();
         var stream = chatCompletionInput.stream();
         var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, inputs);
         var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout, stream);
@@ -57,7 +57,7 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
             requestSender.send(logger, request, hasRequestCompletedFunction, responseHandler, listener);
         } catch (Exception e) {
             var errorMessage = Strings.format(
-                "Failed to send [completion] request from inference entity id [%s]",
+                "Failed to send [chat completion] request from inference entity id [%s]",
                 request.getInferenceEntityId()
             );
             logger.warn(errorMessage, e);

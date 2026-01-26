@@ -142,7 +142,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), true)
             .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
             .build();
-        ClusterSettings enabledServiceDisabledLoggingClusterSettings = new ClusterSettings(enabledSummariesServiceDisabledLoggingSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings enabledServiceDisabledLoggingClusterSettings = new ClusterSettings(
+            enabledSummariesServiceDisabledLoggingSettings,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
         var service = new AllocationBalancingRoundSummaryService(
             testThreadPool,
             enabledServiceDisabledLoggingClusterSettings,

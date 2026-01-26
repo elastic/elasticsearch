@@ -27,14 +27,13 @@ import java.util.List;
  */
 abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer<HistogramValues> {
 
-    static final String TYPE = "histogram";
-    public static final int COMPRESSION = 100;
-    static final String HISTOGRAM = "histogram";
     static final String HISTOGRAM_TYPE = "histogram";
+    static final String TDIGEST_TYPE = "tdigest";
     static final double DEFAULT_COMPRESSION = 100;
     // MergingDigest is the best fit because we have pre-constructed histograms
     static final TDigestState.Type DEFAULT_TYPE = TDigestState.Type.MERGING;
     static final String VALUES_FIELD = "values";
+    static final String CENTROIDS_FIELD = "centroids";
     protected final String valueLabel;
 
     TDigestHistogramFieldProducer(String name, String valueLabel) {
@@ -47,16 +46,29 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
      */
     public static TDigestHistogramFieldProducer createForLegacyHistogram(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new Aggregate(name);
-            case LAST_VALUE -> new LastValue(name);
             case AGGREGATE -> new Aggregate(name, VALUES_FIELD);
             case LAST_VALUE -> new LastValue(name, VALUES_FIELD);
         };
     }
 
-    private static class Aggregate extends TDigestHistogramFieldProducer {
+    /**
+     * @return the requested produces based on the sampling method for metric of type tdigest histogram
+     */
+    public static TDigestHistogramFieldProducer createForTDigest(
+        String name,
+        DownsampleConfig.SamplingMethod samplingMethod,
+        TDigestState.Type type,
+        double compression
+    ) {
+        return switch (samplingMethod) {
+            case AGGREGATE -> new Aggregate(name, CENTROIDS_FIELD, type, compression);
+            case LAST_VALUE -> new LastValue(name, CENTROIDS_FIELD);
+        };
+    }
 
+    private static class Aggregate extends TDigestHistogramFieldProducer {
         private final TDigestState.Type type;
+        private final double compression;
         private TDigestState tDigestState = null;
 
         Aggregate(String name, String valueLabel) {

@@ -561,7 +561,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     private DatabaseReaderLazyLoader loader(final String databaseName) {
         Path path = tmpDir.resolve(databaseName);
         copyDatabase("ipinfo/" + databaseName, path); // the ipinfo databases are prefixed on the test classpath
-        final GeoIpCache cache = new GeoIpCache(1000);
+        final GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000);
         return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null);
     }
 }

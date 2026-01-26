@@ -1,0 +1,6 @@
+pr: 138270
+summary: Drop `PropagateInlineEvals` optimizer rule
+area: ES|QL
+type: enhancement
+issues:
+ - 124754

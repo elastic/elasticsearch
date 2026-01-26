@@ -5702,6 +5702,57 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_InlineJoin[LEFT,[emo{r}#15, gender{f}#20, languages{f}#21],[emo{r}#15, gender{r}#20, languages{r}#21]]
+     *   |_EsqlProject[[emp_no{f}#18, gender{f}#20, languages{f}#21, salary{f}#23, emo{r}#15]]
+     *   | \_Eval[[emp_no{f}#18 % 2[INTEGER] AS emo#15]]
+     *   |   \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_Project[[avg{r}#12, emo{r}#15, gender{f}#20, languages{f}#21]]
+     *     \_Eval[[$$SUM$$$AVG$AVG(salary)_+_2$0$0{r$}#30 / $$COUNT$$$AVG$AVG(salary)_+_2$0$1{r$}#31 AS $$AVG$AVG(salary)_+_2$0#29,
+     *              $$AVG$AVG(salary)_+_2$0{r$}#29 + 2[INTEGER] AS avg#12]]
+     *       \_Aggregate[[emo{r}#15, gender{f}#20, languages{f}#21],[SUM(salary{f}#23,true[BOOLEAN],PT0S[TIME_DURATION],
+     *              compensated[KEYWORD]) AS $$SUM$$$AVG$AVG(salary)_+_2$0$0#30, COUNT(salary{f}#23,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *              $$COUNT$$$AVG$AVG(salary)_+_2$0$1#31, emo{r}#15, gender{f}#20, languages{f}#21]]
+     *         \_StubRelation[[emp_no{f}#18, gender{f}#20, languages{f}#21, salary{f}#23, emo{r}#15]]
+     */
+    public void testInlineStatsNestedAndShaddowingExpressions() {
+        var query = """
+            FROM test
+            | KEEP emp_no, gender, languages, salary
+            | INLINE STATS languages = MV_AVG(languages + 1), avg = AVG(salary) + 2 BY emo = emp_no % 2, gender, languages
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var inline = as(limit.child(), InlineJoin.class);
+
+        // Left side of the join
+        var leftProj = as(inline.left(), EsqlProject.class);
+        assertThat(Expressions.names(leftProj.projections()), containsInAnyOrder("emp_no", "gender", "languages", "salary", "emo"));
+        var evalLeft = as(leftProj.child(), Eval.class);
+        assertThat(Expressions.names(evalLeft.fields()), is(List.of("emo")));
+        var mod = as(evalLeft.fields().get(0).child(), Mod.class);
+        assertThat(Expressions.name(mod.left()), is("emp_no"));
+        assertThat(mod.right().toString(), is("2"));
+        as(evalLeft.child(), EsRelation.class);
+
+        // Right side of the join
+        var rightProj = as(inline.right(), Project.class);
+        assertThat(Expressions.names(rightProj.projections()), containsInAnyOrder("avg", "emo", "gender", "languages"));
+        var evalRight = as(rightProj.child(), Eval.class);
+        assertThat(evalRight.fields(), hasSize(2)); // one for AVG surrogate, one for `+ 2`
+        var agg = as(evalRight.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(3));
+        assertThat(Expressions.names(agg.aggregates()), hasSize(5)); // 2 for avg, 1 for mv_avg, plus 2 groupings
+        var stub = as(agg.child(), StubRelation.class);
+        assertThat(Expressions.names(stub.output()), contains("emp_no", "gender", "languages", "salary", "emo"));
+
+        assertWarnings("No limit defined, adding default limit of [1000]", "Line 3:16: Field 'languages' shadowed by field at line 3:102");
+    }
+
     // if non-null, the `query` must have "INLINE STATS" capitalized
     public static boolean releaseBuildForInlineStats(@Nullable String query) {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {

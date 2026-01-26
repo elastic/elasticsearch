@@ -313,7 +313,7 @@ public class Approximation {
      * aggregation as count, this still leads to acceptable confidence
      * intervals. This will never be marked as "certified reliable".
      */
-    private static final int MIN_ROW_COUNT_FOR_INCLUSION = 10;
+    private static final int MIN_ROW_COUNT_FOR_RESULT_INCLUSION = 10;
 
     private static final Logger logger = LogManager.getLogger(Approximation.class);
 
@@ -750,11 +750,15 @@ public class Approximation {
         }
 
         logger.debug("generating approximate plan (p=[{}])", sampleProbability);
+
+        // Whether of not the first STATS command has been encountered yet.
         Holder<Boolean> encounteredStats = new Holder<>(false);
-        // The keys are the IDs of the fields that have buckets. Confidence interval are computed
+
+        // The keys are the IDs of the fields that have buckets. Confidence intervals are computed
         // for these fields at the end of the computation. They map to the list of buckets for
         // that field.
         Map<NameId, List<Alias>> fieldBuckets = new HashMap<>();
+
         // For each sample-corrected expression, also keep track of the uncorrected expression.
         // These are used when a division between two sample-corrected expressions is encountered.
         // This results in the same value (because (expr1/prob) / (expr2/prob) == expr1/expr2),
@@ -766,228 +770,328 @@ public class Approximation {
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
                 // The leaf plan should be appended by a SAMPLE.
-                plan = new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
-
-            } else if (encounteredStats.get() == false && plan instanceof Aggregate aggregate) {
-                // The STATS function should be replaced by a sample-corrected STATS and buckets
-                // to compute confidence intervals.
-                encounteredStats.set(true);
-
-                Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
-                Expression bucketIds = randomBucketId;
-                for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
-                    bucketIds = new MvAppend(Source.EMPTY, bucketIds, randomBucketId);
+                return new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
+            } else if (encounteredStats.get() == false) {
+                if (plan instanceof Aggregate == false) {
+                    // Commands before the first STATS function should be left unchanged.
+                    return plan;
+                } else {
+                    // The first STATS function should be replaced by a sample-corrected STATS
+                    // and buckets (for computing confidence intervals).
+                    encounteredStats.set(true);
+                    return sampleCorrectedAggregateAndBuckets((Aggregate) plan, sampleProbability, fieldBuckets, uncorrectedExpressions);
                 }
-                // TODO: use theoretically non-conflicting names.
-                Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
-
-                List<NamedExpression> aggregates = new ArrayList<>();
-                Alias sampleSize = new Alias(Source.EMPTY, "$sample_size", COUNT_ALL_ROWS);
-                aggregates.add(sampleSize);
-
-                for (NamedExpression aggOrKey : aggregate.aggregates()) {
-                    if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
-                        // This is a grouping key, not an aggregate function.
-                        aggregates.add(aggOrKey);
-                        continue;
-                    }
-
-                    Alias aggAlias = (Alias) aggOrKey;
-                    AggregateFunction aggFn = (AggregateFunction) aggAlias.child();
-
-                    // If the query is preserving all rows, and the aggregation function is
-                    // counting all rows, we know the exact result without sampling.
-                    // TODO: COUNT("foobar"), which counts all rows, should also be detected.
-                    // Note that this inserts a constant as an aggreaation function. This
-                    // works fine (empirically) even though it isn't an aggregation function.
-                    if (aggFn.equals(COUNT_ALL_ROWS)
-                        && aggregate.groupings().isEmpty()
-                        && queryProperties.canDecreaseRowCount == false
-                        && queryProperties.canIncreaseRowCount == false) {
-                        aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount.get())));
-                        continue;
-                    }
-
-                    // Replace the original aggregation by a sample-corrected one if needed.
-                    if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
-                        aggregates.add(aggAlias);
-                    } else {
-                        Expression correctedAgg = correctForSampling(aggFn, sampleProbability);
-                        aggregates.add(aggAlias.replaceChild(correctedAgg));
-                        Alias uncorrectedAggAlias = new Alias(aggAlias.source(), aggAlias.name() + "$uncorrected", aggFn);
-                        aggregates.add(uncorrectedAggAlias);
-                        uncorrectedExpressions.put(aggAlias.id(), uncorrectedAggAlias);
-                    }
-
-                    if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
-                        // For the supported single-valued aggregations, add buckets with sampled
-                        // values, that will be used to compute a confidence interval.
-                        // For multivalued aggregations, confidence intervals do not make sense.
-                        List<Alias> buckets = new ArrayList<>();
-                        for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
-                            for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
-                                Expression bucket = aggFn.withFilter(
-                                    new Equals(
-                                        Source.EMPTY,
-                                        new MvSlice(
-                                            Source.EMPTY,
-                                            bucketIdField.toAttribute(),
-                                            Literal.integer(Source.EMPTY, trialId),
-                                            Literal.integer(Source.EMPTY, trialId)
-                                        ),
-                                        Literal.integer(Source.EMPTY, bucketId)
-                                    )
-                                );
-                                if (aggFn instanceof Count) {
-                                    // For COUNT, no data should result in NULL, like in other aggregations.
-                                    // Otherwise, the confidence interval computation breaks.
-                                    bucket = new Case(
-                                        Source.EMPTY,
-                                        new Equals(Source.EMPTY, bucket, Literal.fromLong(Source.EMPTY, 0L)),
-                                        List.of(Literal.NULL, bucket)
-                                    );
-                                }
-                                Alias bucketAlias = new Alias(
-                                    Source.EMPTY,
-                                    aggOrKey.name() + "$" + (trialId * BUCKET_COUNT + bucketId),
-                                    bucket
-                                );
-                                if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
-                                    buckets.add(bucketAlias);
-                                    aggregates.add(bucketAlias);
-                                } else {
-                                    Expression correctedBucket = correctForSampling(bucket, sampleProbability / BUCKET_COUNT);
-                                    bucketAlias = bucketAlias.replaceChild(correctedBucket);
-                                    buckets.add(bucketAlias);
-                                    aggregates.add(bucketAlias);
-                                    Alias uncorrectedBucketAlias = new Alias(Source.EMPTY, bucketAlias.name() + "$uncorrected", bucket);
-                                    uncorrectedExpressions.put(bucketAlias.id(), uncorrectedBucketAlias);
-                                    aggregates.add(uncorrectedBucketAlias);
-                                }
-                            }
-                        }
-                        fieldBuckets.put(aggOrKey.id(), buckets);
-                    }
-                }
-
-                // Add the bucket ID, do the aggregations (sampled corrected, including the buckets),
-                // and filter out rows with too few sampled values.
-                plan = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
-                plan = aggregate.with(plan, aggregate.groupings(), aggregates);
-                plan = new Filter(
-                    Source.EMPTY,
-                    plan,
-                    new GreaterThanOrEqual(
-                        Source.EMPTY,
-                        sampleSize.toAttribute(),
-                        Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_INCLUSION)
-                    )
-                );
-
-                List<Attribute> keepAttributes = new ArrayList<>(plan.output());
-                keepAttributes.remove(sampleSize.toAttribute());
-                plan = new Project(Source.EMPTY, plan, keepAttributes);
-            } else if (encounteredStats.get()) {
+            } else {
                 // After the STATS function, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
-                // can be computed. Luckily, there are not many commands that produce numeric
-                // fields that depend on other numeric fields, that can have a confidence interval.
-                switch (plan) {
-                    case Eval eval:
-                        // For EVAL, if any of the evaluated expressions depends on a field with buckets,
-                        // create corresponding expressions for the buckets as well.
-                        // If the results are non-numeric or multivalued, though, confidence intervals don't
-                        // apply anymore, and the buckets not computed.
-                        List<Alias> fields = new ArrayList<>(eval.fields());
-                        for (Alias field : eval.fields()) {
-                            // Don't create buckets for non-numeric or multivalued fields.
-                            if (field.dataType().isNumeric() == false
-                                || field.child().anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
-                                continue;
-                            }
-                            // If any of the field's dependencies has buckets, create buckets for this field as well.
-                            if (field.child().anyMatch(e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id()))) {
-                                List<Alias> buckets = new ArrayList<>();
-                                for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
-                                    final int finalBucketId = bucketId;
-                                    Expression bucket = field.child()
-                                        .transformDown(
-                                            e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
-                                                ? fieldBuckets.get(ne.id()).get(finalBucketId).toAttribute()
-                                                : e
-                                        );
-                                    buckets.add(new Alias(Source.EMPTY, field.name() + "$" + bucketId, bucket));
-                                }
-                                fields.addAll(buckets);
-                                fieldBuckets.put(field.id(), buckets);
-                            }
-                        }
-                        // For each division of two sample-corrected expressions, replace it by
-                        // a division of the corresponding uncorrected expressions.
-                        for (int i = 0; i < fields.size(); i++) {
-                            Alias field = fields.get(i);
-                            fields.set(i, field.replaceChild(field.child().transformUp(e -> {
-                                if (e instanceof Div div
-                                    && div.left() instanceof NamedExpression left
-                                    && uncorrectedExpressions.containsKey(left.id())
-                                    && div.right() instanceof NamedExpression right
-                                    && uncorrectedExpressions.containsKey(right.id())) {
-                                    return new Div(
-                                        e.source(),
-                                        uncorrectedExpressions.get(left.id()).toAttribute(),
-                                        uncorrectedExpressions.get(right.id()).toAttribute(),
-                                        div.dataType()
-                                    );
-                                }
-                                return e;
-                            })));
-                        }
-                        plan = new Eval(Source.EMPTY, eval.child(), fields);
-                        break;
-
-                    case Project project:
-                        // For PROJECT, if it renames a field with buckets, add the renamed field
-                        // to the map of fields with buckets.
-                        for (NamedExpression projection : project.projections()) {
-                            if (projection instanceof Alias alias
-                                && alias.child() instanceof NamedExpression named
-                                && fieldBuckets.containsKey(named.id())) {
-                                fieldBuckets.put(alias.id(), fieldBuckets.get(named.id()));
-                            }
-                        }
-
-                        // When PROJECT keeps a field with buckets, also keep the buckets.
-                        List<NamedExpression> projections = null;
-                        for (NamedExpression projection : project.projections()) {
-                            if (fieldBuckets.containsKey(projection.id())) {
-                                if (projections == null) {
-                                    projections = new ArrayList<>(project.projections());
-                                }
-                                for (Alias bucket : fieldBuckets.get(projection.id())) {
-                                    projections.add(bucket.toAttribute());
-                                }
-                            }
-                        }
-                        if (projections != null) {
-                            plan = project.withProjections(projections);
-                        }
-                        break;
-
-                    case MvExpand mvExpand:
-                        // Fields with buckets are always single-valued, so expanding them doesn't
-                        // do anything and the buckets of the expanded field are the same as those
-                        // of the target field.
-                        if (fieldBuckets.containsKey(mvExpand.target().id())) {
-                            fieldBuckets.put(mvExpand.expanded().id(), fieldBuckets.get(mvExpand.target().id()));
-                        }
-                        break;
-
-                    default:
-                }
+                // can be computed.
+                return planIncludingBuckets(plan, fieldBuckets, uncorrectedExpressions);
             }
-            return plan;
         });
 
+        // Add the confidence intervals for all fields with buckets.
+        approximatePlan = new Eval(Source.EMPTY, approximatePlan, getConfidenceIntervals(fieldBuckets));
+
+        // Drop all bucket fields and uncorrected fields from the output.
+        Set<Attribute> dropAttributes = Stream.concat(
+            fieldBuckets.values().stream().flatMap(List::stream),
+            uncorrectedExpressions.values().stream()
+        ).map(NamedExpression::toAttribute).collect(Collectors.toSet());
+
+        List<Attribute> keepAttributes = new ArrayList<>(approximatePlan.output());
+        keepAttributes.removeAll(dropAttributes);
+        approximatePlan = new Project(Source.EMPTY, approximatePlan, keepAttributes);
+
+        approximatePlan.setPreOptimized();
+        approximatePlan = logicalPlanOptimizer.optimize(approximatePlan);
+        logger.debug("approximate plan:\n{}", approximatePlan);
+        return approximatePlan;
+    }
+
+    /**
+     * Replaces the aggregate by a sample-corrected aggregate and buckets, and
+     * filters out groups with a too small sample size. This means that:
+     * <pre>
+     *     {@code
+     *          STATS s = SUM(x) BY group
+     *     }
+     * </pre>
+     * is replaced by:
+     * <pre>
+     *     {@code
+     *          STATS sampleSize = COUNT(*),
+     *                s = SUM(x) / prob,
+     *                `s$0` = SUM(x) / (prob/B)) WHERE MV_SLICE(bucketId, 0, 0) == 0
+     *                ...,
+     *                `s$T*B-1` = SUM(x) / (prob/B) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
+     *          BY group
+     *          | WHERE sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION
+     *          | DROP sampleSize
+     *      }
+     * </pre>
+     */
+    private LogicalPlan sampleCorrectedAggregateAndBuckets(
+        Aggregate aggregate,
+        double sampleProbability,
+        Map<NameId, List<Alias>> fieldBuckets,
+        Map<NameId, NamedExpression> uncorrectedExpressions
+    ) {
+        Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
+        Expression bucketIds = randomBucketId;
+        for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
+            bucketIds = new MvAppend(Source.EMPTY, bucketIds, randomBucketId);
+        }
+        // TODO: use theoretically non-conflicting names.
+        Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
+
+        List<NamedExpression> aggregates = new ArrayList<>();
+        Alias sampleSize = new Alias(Source.EMPTY, "$sample_size", COUNT_ALL_ROWS);
+        aggregates.add(sampleSize);
+
+        for (NamedExpression aggOrKey : aggregate.aggregates()) {
+            if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+                // This is a grouping key, not an aggregate function.
+                aggregates.add(aggOrKey);
+                continue;
+            }
+
+            Alias aggAlias = (Alias) aggOrKey;
+            AggregateFunction aggFn = (AggregateFunction) aggAlias.child();
+
+            // If the query is preserving all rows, and the aggregation function is
+            // counting all rows, we know the exact result without sampling.
+            // TODO: COUNT("foobar"), which counts all rows, should also be detected.
+            // Note that this inserts a constant as an aggreaation function. This
+            // works fine (empirically) even though it isn't an aggregation function.
+            if (aggFn.equals(COUNT_ALL_ROWS)
+                && aggregate.groupings().isEmpty()
+                && queryProperties.canDecreaseRowCount == false
+                && queryProperties.canIncreaseRowCount == false) {
+                aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount.get())));
+                continue;
+            }
+
+            // Replace the original aggregation by a sample-corrected one if needed.
+            if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
+                aggregates.add(aggAlias);
+            } else {
+                Expression correctedAgg = correctForSampling(aggFn, sampleProbability);
+                aggregates.add(aggAlias.replaceChild(correctedAgg));
+                Alias uncorrectedAggAlias = new Alias(aggAlias.source(), aggAlias.name() + "$uncorrected", aggFn);
+                aggregates.add(uncorrectedAggAlias);
+                uncorrectedExpressions.put(aggAlias.id(), uncorrectedAggAlias);
+            }
+
+            if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
+                // For the supported single-valued aggregations, add buckets with sampled
+                // values, that will be used to compute a confidence interval.
+                // For multivalued aggregations, confidence intervals do not make sense.
+                List<Alias> buckets = new ArrayList<>();
+                for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
+                    for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
+                        Expression bucket = aggFn.withFilter(
+                            new Equals(
+                                Source.EMPTY,
+                                new MvSlice(
+                                    Source.EMPTY,
+                                    bucketIdField.toAttribute(),
+                                    Literal.integer(Source.EMPTY, trialId),
+                                    Literal.integer(Source.EMPTY, trialId)
+                                ),
+                                Literal.integer(Source.EMPTY, bucketId)
+                            )
+                        );
+                        if (aggFn instanceof Count) {
+                            // For COUNT, no data should result in NULL, like in other aggregations.
+                            // Otherwise, the confidence interval computation breaks.
+                            bucket = new Case(
+                                Source.EMPTY,
+                                new Equals(Source.EMPTY, bucket, Literal.fromLong(Source.EMPTY, 0L)),
+                                List.of(Literal.NULL, bucket)
+                            );
+                        }
+                        Alias bucketAlias = new Alias(Source.EMPTY, aggOrKey.name() + "$" + (trialId * BUCKET_COUNT + bucketId), bucket);
+                        if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
+                            buckets.add(bucketAlias);
+                            aggregates.add(bucketAlias);
+                        } else {
+                            Expression correctedBucket = correctForSampling(bucket, sampleProbability / BUCKET_COUNT);
+                            bucketAlias = bucketAlias.replaceChild(correctedBucket);
+                            buckets.add(bucketAlias);
+                            aggregates.add(bucketAlias);
+                            Alias uncorrectedBucketAlias = new Alias(Source.EMPTY, bucketAlias.name() + "$uncorrected", bucket);
+                            uncorrectedExpressions.put(bucketAlias.id(), uncorrectedBucketAlias);
+                            aggregates.add(uncorrectedBucketAlias);
+                        }
+                    }
+                }
+                fieldBuckets.put(aggOrKey.id(), buckets);
+            }
+        }
+
+        // Add the bucket ID, do the aggregations (sampled corrected, including the buckets),
+        // and filter out rows with too few sampled values.
+        LogicalPlan plan = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
+        plan = aggregate.with(plan, aggregate.groupings(), aggregates);
+        plan = new Filter(
+            Source.EMPTY,
+            plan,
+            new GreaterThanOrEqual(
+                Source.EMPTY,
+                sampleSize.toAttribute(),
+                Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
+            )
+        );
+        List<Attribute> keepAttributes = new ArrayList<>(plan.output());
+        keepAttributes.remove(sampleSize.toAttribute());
+        return new Project(Source.EMPTY, plan, keepAttributes);
+    }
+
+    /**
+     * Corrects an aggregation function for random sampling.
+     * Some functions (like COUNT and SUM) need to be scaled up by the inverse of
+     * the sampling probability, while others (like AVG and MEDIAN) do not.
+     */
+    private static Expression correctForSampling(Expression expr, double sampleProbability) {
+        Expression correctedAgg = new Div(expr.source(), expr, Literal.fromDouble(Source.EMPTY, sampleProbability));
+        return switch (expr.dataType()) {
+            case DOUBLE -> correctedAgg;
+            case LONG -> new ToLong(expr.source(), correctedAgg);
+            default -> throw new IllegalStateException("unexpected data type [" + expr.dataType() + "]");
+        };
+    }
+
+    /**
+     * Returns a plan that also processes the buckets for fields that have them.
+     * Luckily, there's only a limited set of commands that have to do something
+     * with the buckets: EVAL, PROJECT and MV_EXPAND.
+     */
+    private LogicalPlan planIncludingBuckets(
+        LogicalPlan plan,
+        Map<NameId, List<Alias>> fieldBuckets,
+        Map<NameId, NamedExpression> uncorrectedExpressions
+    ) {
+        return switch (plan) {
+            case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, uncorrectedExpressions);
+            case Project project -> projectIncludingBuckets(project, fieldBuckets);
+            case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets);
+            default -> plan;
+        };
+    }
+
+    /**
+     * For EVAL, if any of the evaluated expressions depends on a field with buckets,
+     * create corresponding expressions for the buckets as well. If the results are
+     * non-numeric or multivalued, though, confidence intervals don't apply anymore,
+     * and the buckets not computed.
+     */
+    private LogicalPlan evalIncludingBuckets(
+        Eval eval,
+        Map<NameId, List<Alias>> fieldBuckets,
+        Map<NameId, NamedExpression> uncorrectedExpressions
+    ) {
+        List<Alias> fields = new ArrayList<>(eval.fields());
+        for (Alias field : eval.fields()) {
+            // Don't create buckets for non-numeric or multivalued fields.
+            if (field.dataType().isNumeric() == false
+                || field.child().anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
+                continue;
+            }
+            // If any of the field's dependencies has buckets, create buckets for this field as well.
+            if (field.child().anyMatch(e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id()))) {
+                List<Alias> buckets = new ArrayList<>();
+                for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
+                    final int finalBucketId = bucketId;
+                    Expression bucket = field.child()
+                        .transformDown(
+                            e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
+                                ? fieldBuckets.get(ne.id()).get(finalBucketId).toAttribute()
+                                : e
+                        );
+                    buckets.add(new Alias(Source.EMPTY, field.name() + "$" + bucketId, bucket));
+                }
+                fields.addAll(buckets);
+                fieldBuckets.put(field.id(), buckets);
+            }
+        }
+        // For each division of two sample-corrected expressions, replace it by
+        // a division of the corresponding uncorrected expressions.
+        for (int i = 0; i < fields.size(); i++) {
+            Alias field = fields.get(i);
+            fields.set(i, field.replaceChild(field.child().transformUp(e -> {
+                if (e instanceof Div div
+                    && div.left() instanceof NamedExpression left
+                    && uncorrectedExpressions.containsKey(left.id())
+                    && div.right() instanceof NamedExpression right
+                    && uncorrectedExpressions.containsKey(right.id())) {
+                    return new Div(
+                        e.source(),
+                        uncorrectedExpressions.get(left.id()).toAttribute(),
+                        uncorrectedExpressions.get(right.id()).toAttribute(),
+                        div.dataType()
+                    );
+                }
+                return e;
+            })));
+        }
+        return new Eval(Source.EMPTY, eval.child(), fields);
+    }
+
+    /**
+     * For PROJECT, if it renames a field with buckets, add the renamed field
+     * to the map of fields with buckets.
+     */
+    private LogicalPlan projectIncludingBuckets(Project project, Map<NameId, List<Alias>> fieldBuckets) {
+        for (NamedExpression projection : project.projections()) {
+            if (projection instanceof Alias alias
+                && alias.child() instanceof NamedExpression named
+                && fieldBuckets.containsKey(named.id())) {
+                fieldBuckets.put(alias.id(), fieldBuckets.get(named.id()));
+            }
+        }
+
+        // When PROJECT keeps a field with buckets, also keep the buckets.
+        List<NamedExpression> projections = null;
+        for (NamedExpression projection : project.projections()) {
+            if (fieldBuckets.containsKey(projection.id())) {
+                if (projections == null) {
+                    projections = new ArrayList<>(project.projections());
+                }
+                for (Alias bucket : fieldBuckets.get(projection.id())) {
+                    projections.add(bucket.toAttribute());
+                }
+            }
+        }
+        if (projections != null) {
+            project = project.withProjections(projections);
+        }
+        return project;
+    }
+
+    /**
+     * Fields with buckets are always single-valued, so expanding them doesn't
+     * do anything and the buckets of the expanded field are the same as those
+     * of the target field.
+     */
+    private LogicalPlan mvExpandIncludingBuckets(MvExpand mvExpand, Map<NameId, List<Alias>> fieldBuckets) {
+        if (fieldBuckets.containsKey(mvExpand.target().id())) {
+            fieldBuckets.put(mvExpand.expanded().id(), fieldBuckets.get(mvExpand.target().id()));
+        }
+        return mvExpand;
+    }
+
+    /**
+     * Returns the confidence interval and reliable fields for the fields.
+     * This is the expression:
+     * <pre>
+     *     {@code
+     *         CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.90)
+     *     }
+     * </pre>
+     * for each field {@code s} that has buckets. The output of {@code CONFIDENCE_INTERVAL}
+     * is separated into two fields: the confidence interval itself, and a reliable field.
+     */
+    private List<Alias> getConfidenceIntervals(Map<NameId, List<Alias>> fieldBuckets) {
         Expression constNaN = new Literal(Source.EMPTY, Double.NaN, DataType.DOUBLE);
         Expression trialCount = Literal.integer(Source.EMPTY, TRIAL_COUNT);
         Expression bucketCount = Literal.integer(Source.EMPTY, BUCKET_COUNT);
@@ -1054,35 +1158,6 @@ public class Approximation {
                 );
             }
         }
-        approximatePlan = new Eval(Source.EMPTY, approximatePlan, confidenceIntervalsAndReliable);
-
-        // Finally, drop all bucket fields and uncorrected fields from the output.
-        Set<Attribute> dropAttributes = Stream.concat(
-            fieldBuckets.values().stream().flatMap(List::stream),
-            uncorrectedExpressions.values().stream()
-        ).map(NamedExpression::toAttribute).collect(Collectors.toSet());
-
-        List<Attribute> keepAttributes = new ArrayList<>(approximatePlan.output());
-        keepAttributes.removeAll(dropAttributes);
-        approximatePlan = new Project(Source.EMPTY, approximatePlan, keepAttributes);
-
-        approximatePlan.setPreOptimized();
-        approximatePlan = logicalPlanOptimizer.optimize(approximatePlan);
-        logger.debug("approximate plan:\n{}", approximatePlan);
-        return approximatePlan;
-    }
-
-    /**
-     * Corrects an aggregation function for random sampling.
-     * Some functions (like COUNT and SUM) need to be scaled up by the inverse of
-     * the sampling probability, while others (like AVG and MEDIAN) do not.
-     */
-    private static Expression correctForSampling(Expression expr, double sampleProbability) {
-        Expression correctedAgg = new Div(expr.source(), expr, Literal.fromDouble(Source.EMPTY, sampleProbability));
-        return switch (expr.dataType()) {
-            case DOUBLE -> correctedAgg;
-            case LONG -> new ToLong(expr.source(), correctedAgg);
-            default -> throw new IllegalStateException("unexpected data type [" + expr.dataType() + "]");
-        };
+        return confidenceIntervalsAndReliable;
     }
 }

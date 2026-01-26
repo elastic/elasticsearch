@@ -299,7 +299,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
         comparator = nullsFirst ? Comparator.nullsFirst(comparator) : Comparator.nullsLast(comparator);
 
-
         for (int i = 1; i < list.size(); i++) {
             if (comparator.compare(list.get(i - 1), list.get(i)) > 0) {
                 return false;
@@ -493,7 +492,12 @@ public class TopNOperatorTests extends OperatorTestCase {
             false
         );
 
-        testTopNSortedInput(0, Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)), Arrays.asList(), false);
+        testTopNSortedInput(
+            0,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            Arrays.asList(),
+            false
+        );
     }
 
     public void testTopNWithSortedInputAscAndTwoColumns() {
@@ -543,7 +547,12 @@ public class TopNOperatorTests extends OperatorTestCase {
             true
         );
 
-        testTopNSortedInput(20, Arrays.asList(Arrays.asList(), Arrays.asList(4, 20, 100), Arrays.asList()), Arrays.asList(Arrays.asList(4, 20, 100)), true);
+        testTopNSortedInput(
+            20,
+            Arrays.asList(Arrays.asList(), Arrays.asList(4, 20, 100), Arrays.asList()),
+            Arrays.asList(Arrays.asList(4, 20, 100)),
+            true
+        );
 
         testTopNSortedInput(
             3,
@@ -552,7 +561,12 @@ public class TopNOperatorTests extends OperatorTestCase {
             false
         );
 
-        testTopNSortedInput(20, Arrays.asList(Arrays.asList(), Arrays.asList(100, 20, 4), Arrays.asList()), Arrays.asList(Arrays.asList(100, 20, 4)), false);
+        testTopNSortedInput(
+            20,
+            Arrays.asList(Arrays.asList(), Arrays.asList(100, 20, 4), Arrays.asList()),
+            Arrays.asList(Arrays.asList(100, 20, 4)),
+            false
+        );
     }
 
     public void testTopNWithSortedInputAscWithNulls() {

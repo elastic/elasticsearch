@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         ST_X_Y,
 
         /**
+         * Quantize results of {@code ST_X} and {@code ST_Y} and related functions
+         */
+        ST_X_Y_QUANTIZED,
+
+        /**
          * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
          */
         SPATIAL_POINTS_FROM_SOURCE,
@@ -349,6 +354,11 @@ public class EsqlCapabilities {
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
+
+        /**
+         * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
+         */
+        CASE_FOLD_TEMPORAL_AMOUNT,
 
         /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
@@ -1671,6 +1681,12 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
+         * Adds the ability for the {@link org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case}
+         * to return values of type TDIGEST, type HISTOGRAM, and type AGGREGATE_METRIC_DOUBLE.
+         */
+        CASE_SUPPORT_FOR_SUMMARY_FIELDS,
+
+        /**
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
@@ -1816,7 +1832,18 @@ public class EsqlCapabilities {
         /**
          * Bundle flag for PromQL math functions.
          */
-        PROMQL_MATH_V0(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_MATH_V0(),
+
+        /**
+         * Initial support for simple binary comparisons in PromQL.
+         * Only top-level comparisons are supported where the right-hand side is a scalar.
+         */
+        PROMQL_BINARY_COMPARISON_V0(),
+
+        /**
+         * Support for PromQL time() function.
+         */
+        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1840,6 +1867,12 @@ public class EsqlCapabilities {
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,
+
+        /**
+         * A fix allowing the {@code TOP_SNIPPETS} function to process string config
+         * parameters like the other functions.
+         */
+        TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.

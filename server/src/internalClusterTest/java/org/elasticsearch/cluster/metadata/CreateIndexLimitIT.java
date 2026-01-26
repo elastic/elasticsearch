@@ -9,14 +9,29 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -24,8 +39,10 @@ import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -34,15 +51,33 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class CreateIndexLimitIT extends ESIntegTestCase {
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(DataStreamsPlugin.class);
+        plugins.add(TestPlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
+            .build();
     }
 
     public static class TestPlugin extends Plugin implements SystemIndexPlugin {
@@ -69,17 +104,39 @@ public class CreateIndexLimitIT extends ESIntegTestCase {
                 CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"name\":{\"type\":\"keyword\"}}}");
                 return List.of(
                     new SystemDataStreamDescriptor(
-                        ".test-data-stream",
+                        ".my-elasticsearch-data-stream",
                         "system data stream test",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
-                            .indexPatterns(
-                                List.of(
-                                    ".my-elasticsearch-system-data-stream",
-                                    ".test-index-limit-data-stream",
-                                    ".test-system-index-exempted"
-                                )
-                            )
+                            .indexPatterns(List.of(".my-test-limit-data-stream"))
+                            .template(new Template(Settings.EMPTY, mappings, null))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        List.of("product"),
+                        "product",
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    ),
+                    new SystemDataStreamDescriptor(
+                        ".test-limit-index-data-stream",
+                        "system data stream test limit",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".test-limit-index-data-stream"))
+                            .template(new Template(Settings.EMPTY, mappings, null))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        List.of("product"),
+                        "product",
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    ),
+                    new SystemDataStreamDescriptor(
+                        ".test-system-index-exempted",
+                        "system data stream test exempted",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".test-system-index-exempted"))
                             .template(new Template(Settings.EMPTY, mappings, null))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
@@ -102,6 +159,65 @@ public class CreateIndexLimitIT extends ESIntegTestCase {
         @Override
         public String getFeatureDescription() {
             return "Test User Indices Limit";
+        }
+
+        @Override
+        public void cleanUpFeature(
+            ClusterService clusterService,
+            ProjectResolver projectResolver,
+            Client client,
+            TimeValue masterNodeTimeout,
+            ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
+        ) {
+            Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
+            final DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                dataStreamDescriptors.stream()
+                    .map(SystemDataStreamDescriptor::getDataStreamName)
+                    .collect(Collectors.toList())
+                    .toArray(Strings.EMPTY_ARRAY)
+            );
+            request.indicesOptions(
+                IndicesOptions.builder(request.indicesOptions())
+                    .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                    .build()
+            );
+            try {
+                client.execute(
+                    DeleteDataStreamAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(
+                        response -> SystemIndexPlugin.super.cleanUpFeature(
+                            clusterService,
+                            projectResolver,
+                            client,
+                            masterNodeTimeout,
+                            listener
+                        ),
+                        e -> {
+                            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                            if (unwrapped instanceof ResourceNotFoundException) {
+                                SystemIndexPlugin.super.cleanUpFeature(
+                                    clusterService,
+                                    projectResolver,
+                                    client,
+                                    masterNodeTimeout,
+                                    listener
+                                );
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    )
+                );
+            } catch (Exception e) {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                if (unwrapped instanceof ResourceNotFoundException) {
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         }
     }
 
@@ -164,16 +280,29 @@ public class CreateIndexLimitIT extends ESIntegTestCase {
             }
         };
 
-    public void testCreateIndexLimit() throws InterruptedException {
+    private void verifySystemIndicesBackingDataStreams(String dataStream) throws Exception {
+        try (RestClient restClient = createRestClient()) {
+            Request putRequest = new Request("PUT", "/_data_stream/" + dataStream);
+            putRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "product").build());
+            Response putResponse = restClient.performRequest(putRequest);
+            assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
+
+            Request index = new Request("POST", "/" + dataStream + "/_doc");
+            index.setJsonEntity("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }");
+            index.addParameter("refresh", "true");
+            index.setOptions(putRequest.getOptions());
+            Response response = restClient.performRequest(index);
+            assertEquals(201, response.getStatusLine().getStatusCode());
+        }
+    }
+
+    public void testCreateIndexLimit() throws Exception {
         final String indexName = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         int userIndicesLimit = 3;
         final Set<String> systemIndexAndDataStreamsPatterns = Set.of(
             ".my-elasticsearch-system-",
             ".test-index-limit-",
             ".system-index-exempted-"
-            // ".ds-.my-elasticsearch-system-data-stream-2026.01.26-00000",
-            // ".ds-.test-index-limit-data-stream-2026.01.26-00000",
-            // ".ds-.test-system-index-exempted-2026.01.26-00000"
         );
 
         final var metadataCreateIndexService = internalCluster().getCurrentMasterNodeInstance(MetadataCreateIndexService.class);
@@ -193,6 +322,9 @@ public class CreateIndexLimitIT extends ESIntegTestCase {
         if (pass == false) {
             fail("Case 1 System indices are exempted from index count limit constraint");
         }
+
+        // Verify system indices backing data streams creation proceed unimpeded.
+        verifySystemIndicesBackingDataStreams(".my-elasticsearch-data-stream");
 
         // Case 2: Within index limit, all user index creations should succeed.
         countDownLatch = new CountDownLatch(userIndicesLimit);
@@ -241,6 +373,10 @@ public class CreateIndexLimitIT extends ESIntegTestCase {
         if (pass == false) {
             fail("Case 4: all subsequent attempts should fail.");
         }
+
+        // Verify system data stream is unaffected.
+        verifySystemIndicesBackingDataStreams(".test-limit-index-data-stream");
+        verifySystemIndicesBackingDataStreams(".test-system-index-exempted");
 
         var increase = randomIntBetween(5, 10);
         updateClusterSettings(

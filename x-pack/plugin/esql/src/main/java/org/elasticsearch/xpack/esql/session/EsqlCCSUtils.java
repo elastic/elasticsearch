@@ -28,7 +28,6 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -300,15 +299,14 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
-        PlanningProfile.TimeSpanMarker planningProfile = execInfo.planningProfile().planning();
-        planningProfile.stop();
+        execInfo.queryProfile().planning().stop();
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                     execInfo.swapCluster(
                         clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(planningProfile.timeTook())
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.queryProfile().planning().timeTook())
                             .setTotalShards(0)
                             .setSuccessfulShards(0)
                             .setSkippedShards(0)
@@ -402,7 +400,7 @@ public class EsqlCCSUtils {
         assert status != Cluster.Status.RUNNING : "status must be a final state, not RUNNING";
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
-                .setTook(executionInfo.tookSoFar())
+                .setTook(executionInfo.queryProfile().total().timeSinceStarted())
                 .setTotalShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
                 .setSuccessfulShards(Objects.requireNonNullElse(v.getSuccessfulShards(), 0))
                 .setSkippedShards(Objects.requireNonNullElse(v.getSkippedShards(), 0))

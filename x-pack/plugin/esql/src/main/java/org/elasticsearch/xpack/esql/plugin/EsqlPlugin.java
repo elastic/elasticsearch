@@ -207,7 +207,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
+                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                 extraCheckers
             ),
             new ExchangeService(
@@ -255,7 +255,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_QUERYLOG_INCLUDE_USER_SETTING,
                 PlannerSettings.DEFAULT_DATA_PARTITIONING,
                 PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
-                PlannerSettings.RATE_BUFFER_SIZE,
                 PlannerSettings.LUCENE_TOPN_LIMIT,
                 PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
                 PlannerSettings.REDUCTION_LATE_MATERIALIZATION,

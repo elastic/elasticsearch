@@ -9,7 +9,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Map;
 
 public abstract class LongSortScript extends AbstractSortScript {
@@ -34,7 +33,7 @@ public abstract class LongSortScript extends AbstractSortScript {
      * A factory to construct {@link LongSortScript} instances.
      */
     public interface LeafFactory {
-        LongSortScript newInstance(DocReader reader) throws IOException;
+        LongSortScript newInstance(DocReader reader);
 
         /**
          * Return {@code true} if the script needs {@code _score} calculated, or {@code false} otherwise.

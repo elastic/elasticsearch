@@ -11,8 +11,9 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -23,12 +24,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
-import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
@@ -375,31 +377,21 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     LongSortScript leafScript;
 
                     @Override
-                    protected SortedNumericDocValues getValues(LeafReaderContext context) throws IOException {
+                    protected SortedNumericLongValues getValues(LeafReaderContext context) {
                         leafScript = longSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                        final SortedNumericDocValues values = new AbstractSortedNumericDocValues() {
-                            @Override
-                            public long nextValue() throws IOException {
-                                return leafScript.execute();
-                            }
-
-                            @Override
-                            public int docValueCount() {
-                                return 1;
-                            }
-
+                        final LongValues values = new LongValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
-                        };
-                        return values;
-                    }
 
-                    @Override
-                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                            @Override
+                            public long longValue() throws IOException {
+                                return leafScript.execute();
+                            }
+                        };
+                        return FieldData.singleton(values);
                     }
                 };
             }

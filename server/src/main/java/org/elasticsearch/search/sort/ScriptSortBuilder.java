@@ -398,7 +398,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
                         leafScript.setScorer(scorer);
                     }
                 };

@@ -632,8 +632,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         // Randomly executes a flush, refresh or nothing. If no flush is executed, the peer-recovery that follows will recover operations
         // from the source shard index, which load the `_id` field from stored fields (see LuceneSyntheticSourceChangesSnapshot).
-        final var operation = Operation.NONE;
-        randomFrom(Operation.values());
+        final var operation = randomFrom(Operation.values());
         switch (operation) {
             case FLUSH:
                 flush(dataStreamName);

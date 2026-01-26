@@ -55,9 +55,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     private static final String INDEX = "test_idx";
     private static final String SORT_FIELD = "sort_field";
 
-    /**
-     * Test that circuit breaker bytes are properly released after a simple fetch phase.
-     */
     public void testSimpleFetchReleasesCircuitBreaker() throws Exception {
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -86,9 +83,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test that circuit breaker releases memory with multi-shard search.
-     */
     public void testMultiShardSearchReleasesCircuitBreaker() throws Exception {
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -116,10 +110,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test that circuit breaker bytes are released across multiple consecutive searches.
-     * This verifies there are no memory leaks.
-     */
     public void testMultipleSearchesNoMemoryLeak() throws Exception {
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -151,9 +141,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test circuit breaker release with scroll search (scroll fetch path).
-     */
     public void testScrollSearchReleasesCircuitBreaker() throws Exception {
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -205,9 +192,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test circuit breaker release with Point-in-Time search.
-     */
     public void testPointInTimeSearchReleasesCircuitBreaker() throws Exception {
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -256,9 +240,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test circuit breaker release when search fails with an exception.
-     */
     public void testCircuitBreakerReleasedOnException() throws Exception {
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -294,9 +275,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test circuit breaker with search_after pagination.
-     */
     public void testSearchAfterReleasesCircuitBreaker() throws Exception {
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -346,9 +324,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test that circuit breaker trips when fetch phase exceeds the limit and releases memory.
-     */
     public void testCircuitBreakerTripsOnLargeFetch() throws Exception {
         // Use a very small circuit breaker limit to trigger trip
         String dataNode = startDataNode("50kb");
@@ -391,9 +366,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Test that circuit breaker trips during scroll and releases memory.
-     */
     public void testCircuitBreakerTripsOnScrollFetch() throws Exception {
         String dataNode = startDataNode("50kb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);

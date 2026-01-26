@@ -102,7 +102,7 @@ public final class FetchPhase {
         SearchHits hits = null;
         long searchHitsBytesSize = 0L;
         try {
-            SearchHitsWithBreakerBytes result = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            SearchHitsWithSizeBytes result = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
             hits = result.hits;
             searchHitsBytesSize = result.searchHitsBytesSize;
         } finally {
@@ -136,7 +136,7 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHitsWithBreakerBytes buildSearchHits(
+    private SearchHitsWithSizeBytes buildSearchHits(
         SearchContext context,
         int[] docIdsToLoad,
         Profiler profiler,
@@ -296,7 +296,7 @@ public final class FetchPhase {
 
             TotalHits totalHits = context.getTotalHits();
             SearchHits searchHits = new SearchHits(hits, totalHits, context.getMaxScore());
-            return new SearchHitsWithBreakerBytes(searchHits, docsIterator.getRequestBreakerBytes());
+            return new SearchHitsWithSizeBytes(searchHits, docsIterator.getRequestBreakerBytes());
         } catch (Exception e) {
             // On exception, release the breaker bytes immediately since the hits won't make it to the result
             long bytes = docsIterator.getRequestBreakerBytes();
@@ -517,7 +517,7 @@ public final class FetchPhase {
         final SearchHits hits;
         final long searchHitsBytesSize;
 
-        SearchHitsWithBreakerBytes(SearchHits hits, long searchHitsBytesSize) {
+        SearchHitsWithSizeBytes(SearchHits hits, long searchHitsBytesSize) {
             this.hits = hits;
             this.searchHitsBytesSize = searchHitsBytesSize;
         }

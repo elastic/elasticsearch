@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -19,24 +20,28 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMax}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMin}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StYMaxFromDocValuesGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMaxFromDocValuesGeoEvaluator.class);
+public final class StYMinFromGeoDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMinFromGeoDocValuesEvaluator.class);
 
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator encodedBlock;
 
+  private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StYMaxFromDocValuesGeoEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
+  public StYMinFromGeoDocValuesEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator encodedBlock,
+      SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +71,7 @@ public final class StYMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
           continue position;
         }
         try {
-          StYMax.fromDocValuesGeo(result, p, encodedBlockBlock);
+          StYMin.fromGeoDocValues(result, p, encodedBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,7 +83,7 @@ public final class StYMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "StYMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+    return "StYMinFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
@@ -103,19 +108,23 @@ public final class StYMaxFromDocValuesGeoEvaluator implements EvalOperator.Expre
 
     private final EvalOperator.ExpressionEvaluator.Factory encodedBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock,
+        Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.encodedBlock = encodedBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
-    public StYMaxFromDocValuesGeoEvaluator get(DriverContext context) {
-      return new StYMaxFromDocValuesGeoEvaluator(source, encodedBlock.get(context), context);
+    public StYMinFromGeoDocValuesEvaluator get(DriverContext context) {
+      return new StYMinFromGeoDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StYMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
+      return "StYMinFromGeoDocValuesEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

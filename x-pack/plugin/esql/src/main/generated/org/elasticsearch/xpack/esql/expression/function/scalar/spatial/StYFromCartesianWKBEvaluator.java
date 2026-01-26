@@ -21,15 +21,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StX}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StY}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
-public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXFromWKBEvaluator.class);
+public final class StYFromCartesianWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYFromCartesianWKBEvaluator.class);
 
   private final EvalOperator.ExpressionEvaluator in;
 
-  public StXFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
+  public StYFromCartesianWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
       DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
@@ -68,7 +68,7 @@ public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractE
 
   private double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return StX.fromWellKnownBinary(value);
+    return StY.fromCartesianWellKnownBinary(value);
   }
 
   @Override
@@ -108,12 +108,12 @@ public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractE
 
   private double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return StX.fromWellKnownBinary(value);
+    return StY.fromCartesianWellKnownBinary(value);
   }
 
   @Override
   public String toString() {
-    return "StXFromWKBEvaluator[" + "in=" + in + "]";
+    return "StYFromCartesianWKBEvaluator[" + "in=" + in + "]";
   }
 
   @Override
@@ -139,13 +139,13 @@ public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractE
     }
 
     @Override
-    public StXFromWKBEvaluator get(DriverContext context) {
-      return new StXFromWKBEvaluator(source, in.get(context), context);
+    public StYFromCartesianWKBEvaluator get(DriverContext context) {
+      return new StYFromCartesianWKBEvaluator(source, in.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXFromWKBEvaluator[" + "in=" + in + "]";
+      return "StYFromCartesianWKBEvaluator[" + "in=" + in + "]";
     }
   }
 }

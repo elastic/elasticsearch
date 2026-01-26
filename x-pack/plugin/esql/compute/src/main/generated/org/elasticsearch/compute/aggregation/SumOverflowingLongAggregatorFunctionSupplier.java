@@ -11,37 +11,37 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SumLongOverflowingAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SumOverflowingLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class SumLongOverflowingAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public SumLongOverflowingAggregatorFunctionSupplier() {
+public final class SumOverflowingLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public SumOverflowingLongAggregatorFunctionSupplier() {
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return SumLongOverflowingAggregatorFunction.intermediateStateDesc();
+    return SumOverflowingLongAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return SumLongOverflowingGroupingAggregatorFunction.intermediateStateDesc();
+    return SumOverflowingLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public SumLongOverflowingAggregatorFunction aggregator(DriverContext driverContext,
+  public SumOverflowingLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumLongOverflowingAggregatorFunction.create(driverContext, channels);
+    return SumOverflowingLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SumLongOverflowingGroupingAggregatorFunction groupingAggregator(
+  public SumOverflowingLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SumLongOverflowingGroupingAggregatorFunction.create(channels, driverContext);
+    return SumOverflowingLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "sum_long of overflowings";
+    return "sum_overflowing of longs";
   }
 }

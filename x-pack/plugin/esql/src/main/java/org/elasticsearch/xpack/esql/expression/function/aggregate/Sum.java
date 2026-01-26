@@ -15,7 +15,7 @@ import org.elasticsearch.compute.aggregation.LossySumDoubleAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.SumLongOverflowingAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumOverflowingLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
@@ -162,7 +162,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
         if (useOverflowingLongSupplier) {
-            return new SumLongOverflowingAggregatorFunctionSupplier();
+            return new SumOverflowingLongAggregatorFunctionSupplier();
         }
         return new SumLongAggregatorFunctionSupplier(
             source().source().getLineNumber(),

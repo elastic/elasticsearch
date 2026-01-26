@@ -19,10 +19,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SumLongOverflowingAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SumOverflowingLongAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class SumLongOverflowingAggregatorFunction implements AggregatorFunction {
+public final class SumOverflowingLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("sum", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
@@ -33,16 +33,16 @@ public final class SumLongOverflowingAggregatorFunction implements AggregatorFun
 
   private final List<Integer> channels;
 
-  public SumLongOverflowingAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+  public SumOverflowingLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
       LongState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SumLongOverflowingAggregatorFunction create(DriverContext driverContext,
+  public static SumOverflowingLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new SumLongOverflowingAggregatorFunction(driverContext, channels, new LongState(SumLongOverflowingAggregator.init()));
+    return new SumOverflowingLongAggregatorFunction(driverContext, channels, new LongState(SumOverflowingLongAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -89,7 +89,7 @@ public final class SumLongOverflowingAggregatorFunction implements AggregatorFun
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
-      state.longValue(SumLongOverflowingAggregator.combine(state.longValue(), vValue));
+      state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
@@ -100,7 +100,7 @@ public final class SumLongOverflowingAggregatorFunction implements AggregatorFun
         continue;
       }
       long vValue = vVector.getLong(valuesPosition);
-      state.longValue(SumLongOverflowingAggregator.combine(state.longValue(), vValue));
+      state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
@@ -115,7 +115,7 @@ public final class SumLongOverflowingAggregatorFunction implements AggregatorFun
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        state.longValue(SumLongOverflowingAggregator.combine(state.longValue(), vValue));
+        state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
@@ -134,7 +134,7 @@ public final class SumLongOverflowingAggregatorFunction implements AggregatorFun
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        state.longValue(SumLongOverflowingAggregator.combine(state.longValue(), vValue));
+        state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
@@ -156,7 +156,7 @@ public final class SumLongOverflowingAggregatorFunction implements AggregatorFun
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
-      state.longValue(SumLongOverflowingAggregator.combine(state.longValue(), sum.getLong(0)));
+      state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), sum.getLong(0)));
       state.seen(true);
     }
   }

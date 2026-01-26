@@ -22,15 +22,15 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SumLongOverflowingGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class SumOverflowingLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new SumLongOverflowingAggregatorFunctionSupplier();
+        return new SumOverflowingLongAggregatorFunctionSupplier();
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "overflowing_sum of longs";
+        return "sum_overflowing of longs";
     }
 
     @Override

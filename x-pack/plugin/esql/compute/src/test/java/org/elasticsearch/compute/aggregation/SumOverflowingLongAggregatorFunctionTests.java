@@ -26,7 +26,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SumLongOverflowingAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class SumOverflowingLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
@@ -38,12 +38,12 @@ public class SumLongOverflowingAggregatorFunctionTests extends AggregatorFunctio
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new SumLongOverflowingAggregatorFunctionSupplier();
+        return new SumOverflowingLongAggregatorFunctionSupplier();
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "overflowing_sum of longs";
+        return "sum_overflowing of longs";
     }
 
     @Override

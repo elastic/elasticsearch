@@ -67,11 +67,11 @@ public interface PromqlPlan {
         return getType(plan) == PromqlDataType.SCALAR;
     }
 
+    @Nullable
     static PromqlDataType getType(@Nullable LogicalPlan plan) {
-        return switch (plan) {
-            case PromqlPlan promqlPlan -> promqlPlan.returnType();
-            case null -> null;
-            default -> throw new IllegalArgumentException("Logical plan " + plan.getClass().getSimpleName() + " is not a PromqlPlan");
-        };
+        if (plan instanceof PromqlPlan promqlPlan) {
+            return promqlPlan.returnType();
+        }
+        return null;
     }
 }

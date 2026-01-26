@@ -1,4 +1,4 @@
-## 9.3.0 [elasticsearch-9.3.0-breaking-changes]
+﻿## 9.3.0 [elasticsearch-9.3.0-breaking-changes]
 
 ::::{dropdown} Disable cross-cluster functionality for `_fleet/_fleet_msearch`.
 % Describe the functionality that changed

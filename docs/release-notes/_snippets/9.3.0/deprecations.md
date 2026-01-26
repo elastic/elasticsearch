@@ -1,4 +1,4 @@
-## 9.3.0 [elasticsearch-9.3.0-deprecations]
+﻿## 9.3.0 [elasticsearch-9.3.0-deprecations]
 
 **Indices APIs**
 

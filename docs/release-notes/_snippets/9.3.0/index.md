@@ -1,4 +1,4 @@
-## 9.3.0 [elasticsearch-release-notes-9.3.0]
+﻿## 9.3.0 [elasticsearch-release-notes-9.3.0]
 _[Breaking changes](/release-notes/breaking-changes.md#elasticsearch-9.3.0-breaking-changes) and [Deprecations](/release-notes/deprecations.md#elasticsearch-9.3.0-deprecations)._
 
 ### Features and enhancements [elasticsearch-9.3.0-features-enhancements]

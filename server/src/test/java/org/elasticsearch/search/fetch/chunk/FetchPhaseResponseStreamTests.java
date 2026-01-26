@@ -480,26 +480,31 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
     public void testChunkMetadata() throws IOException {
         long timestamp = System.currentTimeMillis();
-        FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
-            timestamp,
-            FetchPhaseResponseChunk.Type.HITS,
-            TEST_SHARD_ID,
-            serializeHits(createHit(0)),
-            1,
-            0,
-            10,
-            0
-        );
+        SearchHit hit = createHit(0);
+        try {
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
+                timestamp,
+                FetchPhaseResponseChunk.Type.HITS,
+                TEST_SHARD_ID,
+                serializeHits(hit),
+                1,
+                0,
+                10,
+                0
+            );
 
-        assertThat(chunk.type(), equalTo(FetchPhaseResponseChunk.Type.HITS));
-        assertThat(chunk.shardId(), equalTo(TEST_SHARD_ID));
-        assertThat(chunk.hitCount(), equalTo(1));
-        assertThat(chunk.from(), equalTo(0));
-        assertThat(chunk.expectedDocs(), equalTo(10));
-        assertThat(chunk.sequenceStart(), equalTo(0L));
-        assertThat(chunk.getBytesLength(), greaterThan(0L));
+            assertThat(chunk.type(), equalTo(FetchPhaseResponseChunk.Type.HITS));
+            assertThat(chunk.shardId(), equalTo(TEST_SHARD_ID));
+            assertThat(chunk.hitCount(), equalTo(1));
+            assertThat(chunk.from(), equalTo(0));
+            assertThat(chunk.expectedDocs(), equalTo(10));
+            assertThat(chunk.sequenceStart(), equalTo(0L));
+            assertThat(chunk.getBytesLength(), greaterThan(0L));
 
-        chunk.close();
+            chunk.close();
+        } finally {
+            hit.decRef();
+        }
     }
 
     public void testChunkInvalidShardId() {
@@ -542,16 +547,22 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         for (int i = 0; i < hitCount; i++) {
             hits[i] = createHit(startId + i);
         }
-        return new FetchPhaseResponseChunk(
-            System.currentTimeMillis(),
-            FetchPhaseResponseChunk.Type.HITS,
-            TEST_SHARD_ID,
-            serializeHits(hits),
-            hitCount,
-            startId,
-            100,
-            sequenceStart
-        );
+        try {
+            return new FetchPhaseResponseChunk(
+                System.currentTimeMillis(),
+                FetchPhaseResponseChunk.Type.HITS,
+                TEST_SHARD_ID,
+                serializeHits(hits),
+                hitCount,
+                startId,
+                100,
+                sequenceStart
+            );
+        } finally {
+            for (SearchHit hit : hits) {
+                hit.decRef();
+            }
+        }
     }
 
     private FetchPhaseResponseChunk createChunkWithSequence(int startId, int hitCount, long sequenceStart) throws IOException {
@@ -559,16 +570,22 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         for (int i = 0; i < hitCount; i++) {
             hits[i] = createHit(startId + i);
         }
-        return new FetchPhaseResponseChunk(
-            System.currentTimeMillis(),
-            FetchPhaseResponseChunk.Type.HITS,
-            TEST_SHARD_ID,
-            serializeHits(hits),
-            hitCount,
-            startId,
-            100,
-            sequenceStart
-        );
+        try {
+            return new FetchPhaseResponseChunk(
+                System.currentTimeMillis(),
+                FetchPhaseResponseChunk.Type.HITS,
+                TEST_SHARD_ID,
+                serializeHits(hits),
+                hitCount,
+                startId,
+                100,
+                sequenceStart
+            );
+        } finally {
+            for (SearchHit hit : hits) {
+                hit.decRef();
+            }
+        }
     }
 
     private FetchPhaseResponseChunk createChunkWithSourceSize(int startId, int hitCount, long sequenceStart, int sourceSize)
@@ -577,16 +594,22 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         for (int i = 0; i < hitCount; i++) {
             hits[i] = createHitWithSourceSize(startId + i, sourceSize);
         }
-        return new FetchPhaseResponseChunk(
-            System.currentTimeMillis(),
-            FetchPhaseResponseChunk.Type.HITS,
-            TEST_SHARD_ID,
-            serializeHits(hits),
-            hitCount,
-            startId,
-            100,
-            sequenceStart
-        );
+        try {
+            return new FetchPhaseResponseChunk(
+                System.currentTimeMillis(),
+                FetchPhaseResponseChunk.Type.HITS,
+                TEST_SHARD_ID,
+                serializeHits(hits),
+                hitCount,
+                startId,
+                100,
+                sequenceStart
+            );
+        } finally {
+            for (SearchHit hit : hits) {
+                hit.decRef();
+            }
+        }
     }
 
     private FetchPhaseResponseChunk createChunkWithScores(int startId, float[] scores, long sequenceStart) throws IOException {
@@ -594,16 +617,22 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         for (int i = 0; i < scores.length; i++) {
             hits[i] = createHitWithScore(startId + i, scores[i]);
         }
-        return new FetchPhaseResponseChunk(
-            System.currentTimeMillis(),
-            FetchPhaseResponseChunk.Type.HITS,
-            TEST_SHARD_ID,
-            serializeHits(hits),
-            scores.length,
-            startId,
-            100,
-            sequenceStart
-        );
+        try {
+            return new FetchPhaseResponseChunk(
+                System.currentTimeMillis(),
+                FetchPhaseResponseChunk.Type.HITS,
+                TEST_SHARD_ID,
+                serializeHits(hits),
+                scores.length,
+                startId,
+                100,
+                sequenceStart
+            );
+        } finally {
+            for (SearchHit hit : hits) {
+                hit.decRef();
+            }
+        }
     }
 
     private SearchHit createHit(int id) {

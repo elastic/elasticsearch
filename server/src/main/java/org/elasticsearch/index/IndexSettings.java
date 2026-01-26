@@ -681,8 +681,7 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final String TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME = "tsdb_synthetic_id";
-    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag(TSDB_SYNTHETIC_ID_FEATURE_FLAG_NAME).isEnabled();
+    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
         "index.mapping.use_synthetic_id",
         false,

@@ -417,7 +417,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
                         writeChunk(stream, chunk);
                     } catch (Exception e) {
                         error.set(true);
-                        e.printStackTrace();
                     } finally {
                         done.countDown();
                     }

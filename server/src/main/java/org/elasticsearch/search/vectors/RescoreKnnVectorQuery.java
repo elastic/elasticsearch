@@ -95,7 +95,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
             || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
             || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)
-        || (innerQuery instanceof KnnScoreDocQuery)) {
+            || (innerQuery instanceof KnnScoreDocQuery)) {
             // Queries that return only the top `k` results and do not require reduction before re-scoring.
             return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
         }

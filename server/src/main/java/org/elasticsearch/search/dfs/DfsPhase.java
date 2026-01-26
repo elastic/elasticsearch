@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.dfs;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
@@ -233,14 +232,20 @@ public class DfsPhase {
             ? ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getIndexOptions()
             : null;
         var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
-            ? ((DenseVectorFieldMapper.QuantizedIndexOptions)indexOptions).getRescoreVector()
+            ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
             : null;
         return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : DEFAULT_OVERSAMPLE;
 
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, float oversample, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
-        throws IOException {
+    static DfsKnnResults singleKnnSearch(
+        Query knnQuery,
+        int k,
+        float oversample,
+        Profilers profilers,
+        ContextIndexSearcher searcher,
+        String nestedPath
+    ) throws IOException {
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
             Math.round(k * oversample),
             null,

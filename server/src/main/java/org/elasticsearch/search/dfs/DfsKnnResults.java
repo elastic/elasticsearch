@@ -56,7 +56,7 @@ public class DfsKnnResults implements Writeable {
         return oversample;
     }
 
-    public int k(){
+    public int k() {
         return k;
     }
 

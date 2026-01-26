@@ -40,8 +40,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
-
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
  * search terms used in the actual search query. This phase is very similar to the default query-then-fetch search phase, but it doesn't
@@ -178,9 +176,8 @@ class DfsQueryPhase extends SearchPhase {
                 source.knnSearch().get(i).getSimilarity(),
                 source.knnSearch().get(i).getFilterQueries(),
                 dfsKnnResults.oversample(),
-                dfsKnnResults.k())
-                .boost(source.knnSearch().get(i).boost())
-                .queryName(source.knnSearch().get(i).queryName());
+                dfsKnnResults.k()
+            ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
             }

@@ -119,7 +119,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return vectorSimilarity;
     }
 
-    public Integer k(){
+    public Integer k() {
         return k;
     }
 
@@ -137,7 +137,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         if (out.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
         }
-        if(out.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
+        if (out.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
             out.writeOptionalFloat(oversample);
             out.writeOptionalVInt(k);
         }
@@ -183,7 +183,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         if (queryVector.asFloatVector() != null && oversample != null && oversample > 0) {
             int localK = k == null ? scoreDocs.length : k;
             var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) context.getFieldType(fieldName);
-            var similarityFunction = fieldType.getSimilarity().vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
+            var similarityFunction = fieldType.getSimilarity()
+                .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
             var adjustedK = Math.min((int) Math.ceil(localK * oversample), OVERSAMPLE_LIMIT);
             return RescoreKnnVectorQuery.fromInnerQuery(
                 fieldName,
@@ -191,7 +192,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 similarityFunction,
                 localK,
                 adjustedK,
-                query);
+                query
+            );
         } else {
             return query;
         }

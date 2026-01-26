@@ -475,10 +475,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, VECTOR_RESCORING_DISABLED, similarity)
-            .boost(boost)
-            .queryName(queryName)
-            .addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, VECTOR_RESCORING_DISABLED, similarity).boost(
+            boost
+        ).queryName(queryName).addFilterQueries(filterQueries);
     }
 
     public Float getSimilarity() {
@@ -673,7 +672,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             int adjustedNumCandidates = numCandidates == null
                 ? Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK))
                 : numCandidates;
-            rescoreVectorBuilder = rescoreVectorBuilder != null ? rescoreVectorBuilder : RescoreVectorBuilder.DEFAULT_RESCORE_VECTOR_BUILDER;
+            rescoreVectorBuilder = rescoreVectorBuilder != null
+                ? rescoreVectorBuilder
+                : RescoreVectorBuilder.DEFAULT_RESCORE_VECTOR_BUILDER;
             return new KnnSearchBuilder(
                 field,
                 queryVectorBuilder,

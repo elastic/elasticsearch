@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.search.dfs.DfsPhase.executeKnnVectorQuery;
 
 public class DfsPhaseTests extends IndexShardTestCase {

@@ -72,7 +72,46 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
 
     @Override
     protected List<List<Object>> expectedTop(List<List<Object>> input, List<TopNOperator.SortOrder> sortOrders, int topCount) {
-        throw new AssertionError("TODO(gal) NOCOMMIT");
+        // input is channel-oriented, transpose to row-oriented for sorting
+        List<List<Object>> rowOriented = transpose(input);
+
+        // Sort all rows by sort orders and take top N (no grouping)
+        Comparator<List<Object>> comparator = (row1, row2) -> {
+            for (TopNOperator.SortOrder order : sortOrders) {
+                Object v1 = row1.get(order.channel());
+                Object v2 = row2.get(order.channel());
+                boolean firstIsNull = v1 == null;
+                boolean secondIsNull = v2 == null;
+
+                if (firstIsNull || secondIsNull) {
+                    int nullCompare = Boolean.compare(firstIsNull, secondIsNull) * (order.nullsFirst() ? -1 : 1);
+                    if (nullCompare != 0) {
+                        return nullCompare;
+                    }
+                    continue;
+                }
+
+                @SuppressWarnings("unchecked")
+                int cmp = ((Comparable<Object>) v1).compareTo(v2);
+                if (cmp != 0) {
+                    return order.asc() ? cmp : -cmp;
+                }
+            }
+            return 0;
+        };
+
+        List<List<Object>> resultRowOriented = rowOriented.stream().sorted(comparator).limit(topCount).toList();
+
+        // Transpose back to channel-oriented format
+        return transpose(resultRowOriented);
+    }
+
+    private static List<List<Object>> transpose(List<List<Object>> input) {
+        if (input.isEmpty()) {
+            return new ArrayList<>();
+        }
+        int numRows = input.getFirst().size();
+        return IntStream.range(0, numRows).mapToObj(row -> input.stream().map(channel -> channel.get(row)).toList()).toList();
     }
 
     @Override

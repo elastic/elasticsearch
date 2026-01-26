@@ -430,13 +430,11 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         int topCount = 3;
         int blocksCount = 20;
         List<Block> blocks = new ArrayList<>();
-        List<List<?>> expectedTop = new ArrayList<>();
+        List<List<Object>> rawValues = new ArrayList<>();
 
         IntBlock keys = blockFactory.newIntArrayVector(IntStream.range(0, rows).toArray(), rows).asBlock();
-        List<Integer> topKeys = new ArrayList<>(IntStream.range(rows - topCount, rows).boxed().toList());
-        Collections.reverse(topKeys);
-        expectedTop.add(topKeys);
         blocks.add(keys);
+        rawValues.add(IntStream.range(0, rows).<Object>mapToObj(Integer::valueOf).toList());
 
         List<ElementType> elementTypes = new ArrayList<>(blocksCount);
         List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
@@ -457,40 +455,34 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             }
             elementTypes.add(e);
             encoders.add(nonKeyEncoder(e));
-            List<Object> eTop = new ArrayList<>();
+            List<Object> channelValues = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
                 for (int i = 0; i < rows; i++) {
                     if (e != ElementType.DOC && e != ElementType.NULL && randomBoolean()) {
                         // generate a multi-value block
                         int mvCount = randomIntBetween(5, 10);
-                        List<Object> eTopList = new ArrayList<>(mvCount);
+                        List<Object> mvValues = new ArrayList<>(mvCount);
                         builder.beginPositionEntry();
                         for (int j = 0; j < mvCount; j++) {
                             Object value = randomValue(e);
                             append(builder, value);
-                            if (i >= rows - topCount) {
-                                eTopList.add(value);
-                            }
+                            mvValues.add(value);
                         }
                         builder.endPositionEntry();
-                        if (i >= rows - topCount) {
-                            eTop.add(eTopList);
-                        }
+                        channelValues.add(mvValues);
                     } else {
                         Object value = randomValue(e);
                         append(builder, value);
-                        if (i >= rows - topCount) {
-                            eTop.add(value);
-                        }
+                        channelValues.add(value);
                     }
                 }
-                Collections.reverse(eTop);
                 blocks.add(builder.build());
-                expectedTop.add(eTop);
+                rawValues.add(channelValues);
             }
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, false, false));
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -502,7 +494,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                         topCount,
                         elementTypes,
                         encoders,
-                        List.of(new TopNOperator.SortOrder(0, false, false)),
+                        sortOrders,
                         groupKeys(),
                         randomPageSize()
                     )
@@ -513,7 +505,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             runDriver(driver);
         }
 
-        assertMap(actualTop, matchesList(expectedTop));
+        assertMap(actualTop, matchesList(expectedTop(rawValues, sortOrders, topCount)));
         assertDriverContext(driverContext);
     }
 

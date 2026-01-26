@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class GroupedTopNOperatorTests extends TopNOperatorTests {
-    private static final int TOP_COUNT = 3;
+    private static final int TOP_COUNT = 4;
 
     @Override
     protected List<Integer> groupKeys() {

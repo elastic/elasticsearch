@@ -755,6 +755,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new PreAnalyzer(),
             functionRegistry,
             mapper,
             TEST_VERIFIER,

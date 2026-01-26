@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -81,6 +82,11 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
+        // Create ExternalSourceResolver for Iceberg/Parquet resolution
+        // Use the same executor as for searches to avoid blocking
+        final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
+            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH)
+        );
         final var session = new EsqlSession(
             sessionId,
             localClusterMinimumVersion,
@@ -88,6 +94,7 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             viewResolver,
+            externalSourceResolver,
             preAnalyzer,
             functionRegistry,
             mapper,

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.IcebergSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -115,6 +116,7 @@ public class PlanWritables {
             FragmentExec.ENTRY,
             GrokExec.ENTRY,
             HashJoinExec.ENTRY,
+            IcebergSourceExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,

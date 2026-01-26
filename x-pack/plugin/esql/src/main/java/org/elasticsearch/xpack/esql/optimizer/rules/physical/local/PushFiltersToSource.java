@@ -24,11 +24,13 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.datasources.datalake.iceberg.IcebergPushdownFilters;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.IcebergSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.ArrayList;
@@ -48,6 +50,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             plan = planFilterExec(filterExec, queryExec, ctx);
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
             plan = planFilterExec(filterExec, evalExec, queryExec, ctx);
+        } else if (filterExec.child() instanceof IcebergSourceExec icebergExec) {
+            plan = planFilterExecForIceberg(filterExec, icebergExec);
         }
         return plan;
     }
@@ -214,5 +218,59 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
         return changed ? CollectionUtils.combine(others, bcs, ranges) : pushable;
+    }
+
+    /**
+     * Push filters to Iceberg source.
+     * Convert ESQL expressions to Iceberg filter expressions.
+     */
+    private static PhysicalPlan planFilterExecForIceberg(FilterExec filterExec, IcebergSourceExec icebergExec) {
+        List<Expression> pushable = new ArrayList<>();
+        List<Expression> nonPushable = new ArrayList<>();
+
+        // Split filter condition by AND and classify each part
+        for (Expression exp : splitAnd(filterExec.condition())) {
+            // Try to convert to Iceberg filter
+            org.apache.iceberg.expressions.Expression icebergFilter = IcebergPushdownFilters.convert(exp);
+            if (icebergFilter != null) {
+                // Successfully converted - can push down
+                pushable.add(exp);
+            } else {
+                // Cannot convert - must remain in FilterExec
+                nonPushable.add(exp);
+            }
+        }
+
+        // If we have pushable filters, update IcebergSourceExec
+        if (pushable.isEmpty() == false) {
+            // Combine all pushable filters with AND
+            List<org.apache.iceberg.expressions.Expression> icebergFilters = new ArrayList<>();
+            for (Expression exp : pushable) {
+                org.apache.iceberg.expressions.Expression icebergFilter = IcebergPushdownFilters.convert(exp);
+                if (icebergFilter != null) {
+                    icebergFilters.add(icebergFilter);
+                }
+            }
+
+            // Combine with existing filter if present
+            org.apache.iceberg.expressions.Expression combinedFilter = icebergExec.filter();
+            for (org.apache.iceberg.expressions.Expression filter : icebergFilters) {
+                combinedFilter = combinedFilter != null ? org.apache.iceberg.expressions.Expressions.and(combinedFilter, filter) : filter;
+            }
+
+            // Create new IcebergSourceExec with combined filter
+            IcebergSourceExec newIcebergExec = icebergExec.withFilter(combinedFilter);
+
+            // If there are non-pushable filters, keep FilterExec
+            if (nonPushable.isEmpty() == false) {
+                return new FilterExec(filterExec.source(), newIcebergExec, Predicates.combineAnd(nonPushable));
+            } else {
+                // All filters pushed down - remove FilterExec
+                return newIcebergExec;
+            }
+        }
+
+        // No pushable filters - return original plan
+        return filterExec;
     }
 }

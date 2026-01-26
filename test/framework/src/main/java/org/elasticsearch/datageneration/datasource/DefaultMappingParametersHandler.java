@@ -53,6 +53,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case WILDCARD -> wildcardMapping();
             case MATCH_ONLY_TEXT -> matchOnlyTextMapping();
             case PASSTHROUGH -> throw new IllegalArgumentException("Unsupported field type: " + fieldType);
+            case FLATTENED -> flattenedFieldMapping();
         });
     }
 
@@ -278,6 +279,36 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         return map;
+    }
+
+    private Supplier<Map<String, Object>> flattenedFieldMapping() {
+        return () -> {
+            var mapping = new HashMap<String, Object>();
+            mapping.put("index", ESTestCase.randomBoolean());
+            mapping.put("doc_values", ESTestCase.randomBoolean());
+
+            if (ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("eager_global_ordinals", ESTestCase.randomBoolean());
+            }
+
+            if (ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("index_options", ESTestCase.randomFrom("docs", "freqs"));
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("split_queries_on_whitespace", ESTestCase.randomBoolean());
+            }
+
+            return mapping;
+        };
     }
 
     protected Object extendedDocValuesParams() {

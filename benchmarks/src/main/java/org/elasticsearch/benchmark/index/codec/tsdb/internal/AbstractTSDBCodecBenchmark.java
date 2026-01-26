@@ -56,8 +56,7 @@ public abstract class AbstractTSDBCodecBenchmark {
     }
 
     /**
-     * Executes the core encode or decode operation. An encoder would normally implement the
-     * encoding logic while a decoder would implement the decoding logic.
+     * Executes the core encode or decode operation.
      *
      * @throws IOException if encoding or decoding fails
      */
@@ -72,7 +71,7 @@ public abstract class AbstractTSDBCodecBenchmark {
 
     /**
      * Template method that runs the operation and consumes the result (encode or decode).
-     * This is the method called by JMH during benchmark iterations.
+     * This is the method called by JMH during benchmark invocations.
      *
      * @param bh the JMH blackhole for consuming results
      * @throws IOException if the operation fails
@@ -92,24 +91,6 @@ public abstract class AbstractTSDBCodecBenchmark {
     public abstract void setupTrial(Supplier<long[]> arraySupplier) throws IOException;
 
     /**
-     * Sets up state for a new benchmark iteration.
-     * Called once per iteration. Default implementation does nothing.
-     *
-     * @throws IOException if setup fails
-     */
-    public void setupIteration() throws IOException {
-        // Default: no per-iteration setup needed
-    }
-
-    /**
-     * Resets state before each benchmark invocation.
-     * Called before every single operation to reset buffers and initialize state.
-     *
-     * @throws IOException if reset fails
-     */
-    public abstract void setupInvocation() throws IOException;
-
-    /**
      * Returns the number of values per encoded block.
      *
      * @return the block size.
@@ -124,4 +105,12 @@ public abstract class AbstractTSDBCodecBenchmark {
      * @return encoded size in bytes
      */
     public abstract int getEncodedSize();
+
+    /**
+     * Configures how many blocks are processed in each measured benchmark invocation.
+     * Implementations that support batching should override this method.
+     *
+     * @param blocksPerInvocation the number of blocks to process per invocation
+     */
+    public void setBlocksPerInvocation(int blocksPerInvocation) {}
 }

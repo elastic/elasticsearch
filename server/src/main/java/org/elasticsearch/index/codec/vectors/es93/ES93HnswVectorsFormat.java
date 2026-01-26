@@ -22,24 +22,31 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
+
 public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
     static final String NAME = "ES93HnswVectorsFormat";
+    /**
+     * For k=100, we ask by default to search a graph of 100*1.5=150 results.
+     * So the threshold is set to 150 to match this expected search cost.
+     */
+    public static final int DEFAULT_HNSW_GRAPH_THRESHOLD = 150;
 
     private final FlatVectorsFormat flatVectorsFormat;
 
     public ES93HnswVectorsFormat() {
-        super(NAME);
+        super(NAME, DEFAULT_HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93GenericFlatVectorsFormat();
     }
 
     public ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        super(NAME);
+        super(NAME, DEFAULT_HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
     public ES93HnswVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType) {
-        super(NAME, maxConn, beamWidth);
+        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, DEFAULT_HNSW_GRAPH_THRESHOLD);
         flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
@@ -50,7 +57,26 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+    }
+
+    public ES93HnswVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        DenseVectorFieldMapper.ElementType elementType,
+        int numMergeWorkers,
+        ExecutorService mergeExec,
+        int hnswGraphThreshold
+    ) {
+        super(
+            NAME,
+            maxConn,
+            beamWidth,
+            numMergeWorkers,
+            mergeExec,
+            hnswGraphThreshold >= 0 ? hnswGraphThreshold : DEFAULT_HNSW_GRAPH_THRESHOLD
+        );
         flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
@@ -68,7 +94,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
             flatVectorsFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,
-            0
+            hnswGraphThreshold
         );
     }
 

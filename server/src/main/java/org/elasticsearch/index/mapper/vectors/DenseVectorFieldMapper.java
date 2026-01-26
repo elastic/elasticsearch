@@ -196,6 +196,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Index setting to control the HNSW graph build threshold. This is the minimum expected search cost
+     * before building an HNSW graph becomes worthwhile. Below this threshold, brute-force search is
+     * efficient enough that graph construction overhead isn't worthwhile.
+     * A value of -1 (default) means defer to the format's default threshold.
+     * A non-negative value overrides the format's default.
+     */
+    public static final Setting<Integer> HNSW_GRAPH_THRESHOLD = Setting.intSetting(
+        "index.dense_vector.hnsw_graph_threshold",
+        -1,
+        -1,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
     private static boolean hasRescoreIndexVersion(IndexVersion version) {
         return version.onOrAfter(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
             || version.between(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
@@ -1399,7 +1414,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.type = type;
         }
 
-        abstract KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers);
+        abstract KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        );
 
         public boolean validate(ElementType elementType, int dim, boolean throwOnError) {
             return validateElementType(elementType, throwOnError) && validateDimension(dim, throwOnError);
@@ -1844,7 +1864,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 7, false, false);
         }
@@ -1892,7 +1917,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             return new ES93FlatVectorFormat(elementType);
         }
 
@@ -1940,7 +1970,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswScalarQuantizedVectorsFormat(
                 m,
@@ -1951,7 +1986,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 true,
                 onDiskRescore,
                 numMergeWorkers,
-                mergingExecutorService
+                mergingExecutorService,
+                hnswGraphThreshold
             );
         }
 
@@ -2035,7 +2071,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, 4, true, false);
         }
@@ -2108,7 +2149,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2119,7 +2165,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 false,
                 onDiskRescore,
                 numMergeWorkers,
-                mergingExecutorService
+                mergingExecutorService,
+                hnswGraphThreshold
             );
         }
 
@@ -2223,8 +2270,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            return new ES93HnswVectorsFormat(m, efConstruction, elementType, numMergeWorkers, mergingExecutorService);
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
+            return new ES93HnswVectorsFormat(m, efConstruction, elementType, numMergeWorkers, mergingExecutorService, hnswGraphThreshold);
         }
 
         @Override
@@ -2296,7 +2348,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswBinaryQuantizedVectorsFormat(
                 m,
@@ -2304,7 +2361,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 elementType,
                 onDiskRescore,
                 numMergeWorkers,
-                mergingExecutorService
+                mergingExecutorService,
+                hnswGraphThreshold
             );
         }
 
@@ -2368,7 +2426,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93BinaryQuantizedVectorsFormat(elementType, false);
         }
@@ -2441,7 +2504,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            int hnswGraphThreshold
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)) {
                 // if we got here, this means we didn't get the plugin installed, so we should throw an exception
@@ -3352,6 +3420,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
             }
         }
+        int hnswGraphThreshold = indexSettings.getHnswGraphThreshold();
         final KnnVectorsFormat format;
         ElementType elementType = fieldType().element.elementType();
         if (indexOptions == null) {
@@ -3362,7 +3431,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     DEFAULT_MAX_CONN,
                     elementType,
                     maxMergingWorkers,
-                    mergingExecutorService
+                    mergingExecutorService,
+                    hnswGraphThreshold
                 );
             };
         } else {
@@ -3383,7 +3453,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             format = extraKnnFormat != null
                 ? extraKnnFormat
-                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers);
+                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers, hnswGraphThreshold);
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

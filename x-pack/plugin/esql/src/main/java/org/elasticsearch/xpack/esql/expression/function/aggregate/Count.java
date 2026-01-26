@@ -50,26 +50,26 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         examples = {
             @Example(file = "stats", tag = "count"),
             @Example(description = "To count the number of rows, use `COUNT()` or `COUNT(*)`", file = "docs", tag = "countAll"),
+            @Example(description = """
+                The expression can use inline functions. This example splits a string into multiple values
+                using the `SPLIT` function and counts the values.""", file = "stats", tag = "docsCountWithExpression"),
+            @Example(description = """
+                To count the number of times an expression returns `TRUE` use a
+                [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that
+                shouldn’t be included.""", file = "stats", tag = "count-where"),
             @Example(
-                description = "The expression can use inline functions. This example splits a string into "
-                    + "multiple values using the `SPLIT` function and counts the values",
+                description = "To count the number of times *many* expression return `TRUE` use a WHERE inside the STATS.",
                 file = "stats",
-                tag = "docsCountWithExpression"
+                tag = "count-where-many"
             ),
-            @Example(
-                description = "To count the number of times an expression returns `TRUE` use "
-                    + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
-                file = "stats",
-                tag = "count-where"
-            ),
-            @Example(
-                description = "To count the same stream of data based on two different expressions "
-                    + "use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic "
-                    + "({wikipedia}/Three-valued_logic[3VL]) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, "
-                    + "plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.",
-                file = "stats",
-                tag = "count-or-null"
-            ) }
+            @Example(description = """
+                `COUNT`ing a multivalued field returns the number of values. `COUNT`ing `NULL` returns 0.
+                `COUNT`ing `true` returns 1. `COUNT`ing `false` returns 1.""", file = "stats", tag = "count-mv"),
+            @Example(description = """
+                You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
+                `COUNT() WHERE <expression>` supported before the `WHERE` inside `STATS`. This relies on `COUNT(NULL)`
+                to return `0` and builds on the three-valued logic ({wikipedia}/Three-valued_logic[3VL]):
+                `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`.""", file = "stats", tag = "count-or-null") }
     )
     public Count(
         Source source,

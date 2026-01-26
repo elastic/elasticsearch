@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         ST_X_Y,
 
         /**
+         * Quantize results of {@code ST_X} and {@code ST_Y} and related functions
+         */
+        ST_X_Y_QUANTIZED,
+
+        /**
          * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
          */
         SPATIAL_POINTS_FROM_SOURCE,
@@ -1671,6 +1676,12 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
+         * Adds the ability for the {@link org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case}
+         * to return values of type TDIGEST, type HISTOGRAM, and type AGGREGATE_METRIC_DOUBLE.
+         */
+        CASE_SUPPORT_FOR_SUMMARY_FIELDS,
+
+        /**
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
@@ -1809,20 +1820,19 @@ public class EsqlCapabilities {
         LIKE_PARAMETER_SUPPORT,
 
         /**
-         * PromQL support in ESQL, before it is released into tech preview.
-         * When implementing new functionality or breaking changes,
-         * we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "PROMQL_TECH_PREVIEW" one.
-         * At this point, we need to add new capabilities for any further changes.
+         * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
          */
-        PROMQL_PRE_TECH_PREVIEW_V14(Build.current().isSnapshot()),
-
-        PROMQL_MULTIPLE_FILTERS_FOR_SAME_LABEL(PROMQL_PRE_TECH_PREVIEW_V14.isEnabled()),
+        PROMQL_COMMAND_V0,
 
         /**
-         * PromQL clamp, clamp_min, and clamp_max functions support.
+         * Bundle flag for PromQL math functions.
          */
-        PROMQL_CLAMP(Build.current().isSnapshot()),
+        PROMQL_MATH_V0(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support for PromQL time() function.
+         */
+        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1897,7 +1907,7 @@ public class EsqlCapabilities {
         METADATA_TIER_FIELD(Build.current().isSnapshot()),
         /**
          * Fix folding of coalesce function
-         * https://github.com/elastic/elasticsearch/issues/139887
+         * https://github.com/elastic/elasticsearch/issues/139344
          */
         FIX_FOLD_COALESCE,
 
@@ -1931,6 +1941,16 @@ public class EsqlCapabilities {
         TS_STATS_BINARY_OPS,
 
         /**
+         * Fix for INLINE STATS GROUP BY null being incorrectly pruned by PruneLeftJoinOnNullMatchingField.
+         * For INLINE STATS, the right side of the join can be Aggregate or LocalRelation (when optimized).
+         * The join key is always the grouping, and since STATS supports GROUP BY null, pruning the join when
+         * the join key (grouping) is null would incorrectly change the query results. This fix ensures
+         * PruneLeftJoinOnNullMatchingField only applies to LOOKUP JOIN (where right side is EsRelation).
+         * https://github.com/elastic/elasticsearch/issues/139887
+         */
+        FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
+
+        /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
@@ -1944,6 +1964,11 @@ public class EsqlCapabilities {
          * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
          */
         METADATA_WILDCARDS,
+
+        /**
+         * Fixes reset calculation in rates where partitioning data into multiple slices can lead to incorrect results.
+         */
+        RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

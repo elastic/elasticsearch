@@ -12,7 +12,6 @@ package org.elasticsearch.search.fetch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.misc.util.fst.ListOfOutputs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -353,7 +352,7 @@ public final class FetchPhase {
                         processor.process(hit);
                     }
 
-                    if(writer == null) {
+                    if (writer == null) {
                         BytesReference sourceRef = hit.hit().getSourceRef();
                         if (sourceRef != null) {
                             // This is an empirical value that seems to work well.
@@ -420,7 +419,7 @@ public final class FetchPhase {
                 long bytes = docsIterator.getRequestBreakerBytes();
                 if (bytes > 0L) {
                     context.circuitBreaker().addWithoutBreaking(-bytes);
-                    if(LOGGER.isDebugEnabled()) {
+                    if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug(
                             "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
                             bytes,
@@ -461,8 +460,7 @@ public final class FetchPhase {
                         lastChunkBytes = null;
                     }
 
-                    l.onResponse(new SearchHitsWithSizeBytes(
-                        SearchHits.empty(context.getTotalHits(), context.getMaxScore()), 0));
+                    l.onResponse(new SearchHitsWithSizeBytes(SearchHits.empty(context.getTotalHits(), context.getMaxScore()), 0));
                 } finally {
                     Releasables.closeWhileHandlingException(lastChunkBytes);
                 }

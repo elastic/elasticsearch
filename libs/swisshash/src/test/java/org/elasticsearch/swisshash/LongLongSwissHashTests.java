@@ -1,0 +1,391 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.swisshash;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
+
+public class LongLongSwissHashTests extends ESTestCase {
+    @ParametersFactory
+    public static List<Object[]> params() {
+        List<Object[]> params = new ArrayList<>();
+        for (AddType addType : AddType.values()) {
+            params.add(new Object[] { addType, "tiny", 5, 0, 1, 1 });
+            params.add(new Object[] { addType, "small", LongLongSwissHash.INITIAL_CAPACITY / 2, 0, 1, 1 });
+            params.add(new Object[] { addType, "two key pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / (Long.BYTES * 2), 1, 2, 1 });
+            params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 3, 8, 2 });
+            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 5, 32, 8 });
+            params.add(new Object[] { addType, "huge", 100_000, 7, 128, 32 });
+        }
+        return params;
+    }
+
+    private enum AddType {
+        SINGLE_VALUE,
+    }
+
+    private final AddType addType;
+    private final String name;
+    private final int count;
+    private final int expectedGrowCount;
+    private final int expectedKeyPageCount;
+    private final int expectedIdPageCount;
+
+    public LongLongSwissHashTests(
+        @Name("addType") AddType addType,
+        @Name("name") String name,
+        @Name("count") int count,
+        @Name("expectedGrowCount") int expectedGrowCount,
+        @Name("expectedKeyPageCount") int expectedKeyPageCount,
+        @Name("expectedIdPageCount") int expectedIdPageCount
+    ) {
+        this.addType = addType;
+        this.name = name;
+        this.count = count;
+        this.expectedGrowCount = expectedGrowCount;
+        this.expectedKeyPageCount = expectedKeyPageCount;
+        this.expectedIdPageCount = expectedIdPageCount;
+    }
+
+    public void testValues() {
+        Set<Long> values1 = randomValues(count);
+        Set<Long> values2 = randomValues(count);
+        assert values1.size() == values2.size();
+        long[] v1 = values1.stream().mapToLong(Long::longValue).toArray();
+        long[] v2 = values1.stream().mapToLong(Long::longValue).toArray();
+
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongLongSwissHash hash = new LongLongSwissHash(recycler, breaker)) {
+            assertThat(hash.size(), equalTo(0L));
+
+            switch (addType) {
+                case SINGLE_VALUE -> {
+                    for (int i = 0; i < v1.length; i++) {
+                        assertThat(hash.add(v1[i], v2[i]), equalTo((long) i));
+                        assertThat(hash.size(), equalTo(i + 1L));
+                        assertThat(hash.getKey1(i), equalTo(v1[i]));
+                        assertThat(hash.getKey2(i), equalTo(v2[i]));
+                        assertThat(hash.add(v1[i], v2[i]), equalTo(-1L - i));
+                        assertThat(hash.size(), equalTo(i + 1L));
+                    }
+                    for (int i = 0; i < v1.length; i++) {
+                        assertThat(hash.add(v1[i], v2[i]), equalTo(-1L - i));
+                    }
+                    assertThat(hash.size(), equalTo((long) v1.length));
+                }
+                default -> throw new IllegalArgumentException();
+            }
+            for (int i = 0; i < v1.length; i++) {
+                assertThat(hash.find(v1[i], v2[i]), equalTo((long) i));
+            }
+            assertThat(hash.size(), equalTo((long) v1.length));
+            // TODOassertThat(hash.find(randomValueOtherThanMany(values::contains, ESTestCase::randomLong)), equalTo(-1L));
+
+            assertStatus(hash);
+            assertThat("Only currently used pages are open", recycler.open, hasSize(expectedKeyPageCount + expectedIdPageCount));
+
+            Long[] iterated1 = new Long[count];
+            Long[] iterated2 = new Long[count];
+            for (LongLongSwissHash.Itr itr = hash.iterator(); itr.next();) {
+                assertThat(iterated1[itr.id()], nullValue());
+                assertThat(iterated2[itr.id()], nullValue());
+                iterated1[itr.id()] = itr.key1();
+                iterated2[itr.id()] = itr.key2();
+            }
+            for (int i = 0; i < v1.length; i++) {
+                assertThat(iterated1[i], equalTo(v1[i]));
+                assertThat(iterated2[i], equalTo(v2[i]));
+            }
+            // values densely pack into the keys array will be store in insertion order
+            for (int i = 0; i < v1.length; i++) {
+                assertThat(hash.getKey1(i), equalTo(v1[i]));
+                assertThat(hash.getKey2(i), equalTo(v2[i]));
+            }
+        }
+        assertThat(recycler.open, hasSize(0));
+    }
+
+    public void testBreaker() {
+        Set<Long> values = randomValues(count);
+        long[] v = values.stream().mapToLong(Long::longValue).toArray();
+
+        TestRecycler recycler = new TestRecycler();
+        long breakAt = (expectedIdPageCount + expectedKeyPageCount) * PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        if (expectedGrowCount == 0) {
+            breakAt -= 10;
+        }
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
+        Exception e = expectThrows(CircuitBreakingException.class, () -> {
+            try (LongLongSwissHash hash = new LongLongSwissHash(recycler, breaker)) {
+                switch (addType) {
+                    case SINGLE_VALUE -> {
+                        for (int i = 0; i < v.length; i++) {
+                            assertThat(hash.add(v[i], v[i]), equalTo((long) i));
+                        }
+                    }
+                    default -> throw new IllegalArgumentException();
+                }
+            }
+        });
+        assertThat(e.getMessage(), equalTo("over test limit"));
+        assertThat(recycler.open, hasSize(0));
+    }
+
+    // High-probability bucket collisions. You just need structural patterns that
+    // tend to collide in the bucket selection logic.
+
+    public void testSameBucketCollisionsSmall() {
+        testSameBucketCollisionsImpl(1000);
+    }
+
+    public void testSameBucketCollisionsBig() {
+        testSameBucketCollisionsImpl(10000);
+    }
+
+    private void testSameBucketCollisionsImpl(int count) {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongLongSwissHash hash = new LongLongSwissHash(recycler, breaker)) {
+            // mask must match the table mask used by LongLongSwissHash
+            int mask = 0xFFFF; // oversized; we only need lower bits locked
+            long base = randomLong();
+
+            long[] keys = makeSameBucketKeys(base, mask, count);
+
+            Map<Long, Long> expected = new HashMap<>();
+            long key2Delta = randomIntBetween(1, 100); // use a different value for k2
+            for (long k : keys) {
+                long id = hash.add(k, k + key2Delta);
+                expected.put(k, id);
+            }
+
+            // Verify lookups
+            for (long k : keys) {
+                assertThat(hash.find(k, k + key2Delta), equalTo(expected.get(k)));
+            }
+        }
+    }
+
+    public void testSameControlDataCollisionsSmall() {
+        testSameControlDataCollisionsImpl(800);
+        testSameControlDataCollisionsImpl(1000);
+        testSameControlDataCollisionsImpl(1200);
+    }
+
+    public void testSameControlDataCollisionsBig() {
+        testSameControlDataCollisionsImpl(3000);
+        testSameControlDataCollisionsImpl(10000);
+        testSameControlDataCollisionsImpl(20000);
+    }
+
+    private void testSameControlDataCollisionsImpl(int count) {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongLongSwissHash hash = new LongLongSwissHash(recycler, breaker)) {
+            int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
+            long[] keys = makeSameControlDataKeys(control, count);
+            Map<Long, Long> expected = new HashMap<>();
+            long key2Delta = randomIntBetween(1, 100); // use a different value for k2
+            for (long k : keys) {
+                long id = hash.add(k, k + key2Delta);
+                expected.put(k, id);
+            }
+
+            // All must be findable despite metadata aliasing
+            for (long k : keys) {
+                assertThat(hash.find(k, k + key2Delta), equalTo(expected.get(k)));
+            }
+
+            // Check iteration completeness
+            int seen = 0;
+            var itr = hash.iterator();
+            while (itr.next()) {
+                assertTrue(expected.containsKey(itr.key1()));
+                seen++;
+            }
+            assertThat(seen, equalTo(expected.size()));
+        }
+    }
+
+    public void testEmpty() {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongLongSwissHash hash = new LongLongSwissHash(recycler, breaker)) {
+            assertThat(hash.size(), equalTo(0L));
+            assertFalse(hash.iterator().next());
+        }
+    }
+
+    public void testWorstCaseCollisionClusterSmall() {
+        testWorstCaseCollisionClusterImpl(1000);  // small core
+    }
+
+    public void testWorstCaseCollisionClusterBig() {
+        testWorstCaseCollisionClusterImpl(3000);  // big core
+        testWorstCaseCollisionClusterImpl(5000);
+        testWorstCaseCollisionClusterImpl(10000);
+    }
+
+    private void testWorstCaseCollisionClusterImpl(int count) {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongLongSwissHash hash = new LongLongSwissHash(recycler, breaker)) {
+            // Pick a fixed 7-bit metadata and fixed low bits.
+            int control = randomIntBetween(1, 120);
+            long fixedBucketBits = randomLong() & 0xFFFF; // lock bucket range
+
+            long[] keys = new long[count];
+            for (int i = 0; i < count; i++) {
+                long upper = ((long) control) << (64 - 7);
+                long mid = ((long) i) << 16;       // differing mid bits
+                long lower = fixedBucketBits;
+                keys[i] = upper | mid | lower;
+            }
+
+            Map<Long, Long> expected = new HashMap<>();
+            for (long k : keys) {
+                long id = hash.add(k, k);
+                expected.put(k, id);
+            }
+
+            // Validate correctness
+            for (long k : keys) {
+                assertThat(hash.find(k, k), equalTo(expected.get(k)));
+            }
+
+            // Validate iteration covers all keys
+            int total = 0;
+            var itr = hash.iterator();
+            while (itr.next()) {
+                long key = itr.key1();
+                assertTrue("Iteration returned unexpected key " + key, expected.containsKey(key));
+                total++;
+            }
+            assertThat(total, equalTo(count));
+        }
+    }
+
+    private long[] makeSameBucketKeys(long base, int mask, int count) {
+        long[] result = new long[count];
+        for (int i = 0; i < count; i++) {
+            // Force same bucket: (hash(x) & mask) = fixed value.
+            // Here we simply mutate upper bits while leaving lower bits constant.
+            result[i] = (base & mask) | ((long) i << 32);
+        }
+        return result;
+    }
+
+    private long[] makeSameControlDataKeys(int controlValue, int count) {
+        long[] result = new long[count];
+        for (int i = 0; i < count; i++) {
+            long upper = (long) controlValue << (64 - 7);
+            long lower = randomLong() & ((1L << (64 - 7)) - 1);
+            result[i] = upper | lower;
+        }
+        return result;
+    }
+
+    private void assertStatus(LongLongSwissHash hash) {
+        SwissHash.Status status = hash.status();
+        assertThat(status.size(), equalTo(count));
+        if (expectedGrowCount == 0) {
+            assertThat(status.growCount(), equalTo(0));
+            assertThat(status.capacity(), equalTo(LongLongSwissHash.INITIAL_CAPACITY));
+            assertThat(
+                status.nextGrowSize(),
+                equalTo((int) (LongLongSwissHash.INITIAL_CAPACITY * LongLongSwissHash.SmallCore.FILL_FACTOR))
+            );
+        } else {
+            assertThat(status.growCount(), equalTo(expectedGrowCount));
+            assertThat(status.capacity(), equalTo(LongLongSwissHash.INITIAL_CAPACITY << expectedGrowCount));
+            assertThat(
+                status.nextGrowSize(),
+                equalTo((int) ((LongLongSwissHash.INITIAL_CAPACITY << expectedGrowCount) * LongLongSwissHash.BigCore.FILL_FACTOR))
+            );
+
+            SwissHash.BigCoreStatus s = (SwissHash.BigCoreStatus) status;
+            assertThat(s.keyPages(), equalTo(expectedKeyPageCount));
+            assertThat(s.idPages(), equalTo(expectedIdPageCount));
+        }
+    }
+
+    private Set<Long> randomValues(int count) {
+        Set<Long> values = new HashSet<>();
+        while (values.size() < count) {
+            values.add(randomLong());
+        }
+        return values;
+    }
+
+    static class TestRecycler extends PageCacheRecycler {
+        private final List<MyV<?>> open = new ArrayList<>();
+
+        TestRecycler() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public Recycler.V<byte[]> bytePage(boolean clear) {
+            return new MyV<>(super.bytePage(clear));
+        }
+
+        @Override
+        public Recycler.V<Object[]> objectPage() {
+            return new MyV<>(super.objectPage());
+        }
+
+        class MyV<T> implements Recycler.V<T> {
+            private final Recycler.V<T> delegate;
+
+            MyV(Recycler.V<T> delegate) {
+                this.delegate = delegate;
+                open.add(this);
+            }
+
+            @Override
+            public T v() {
+                return delegate.v();
+            }
+
+            @Override
+            public boolean isRecycled() {
+                return delegate.isRecycled();
+            }
+
+            @Override
+            public void close() {
+                open.remove(this);
+                delegate.close();
+            }
+        }
+    }
+}

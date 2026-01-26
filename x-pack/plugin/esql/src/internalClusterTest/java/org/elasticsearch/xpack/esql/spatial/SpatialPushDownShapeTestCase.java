@@ -7,7 +7,17 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
@@ -29,13 +39,15 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase {
+public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase<Geometry> {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
@@ -529,6 +541,171 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
 
         Rectangle toRectangle() {
             return new Rectangle(xMin, xMax, yMax, yMin);
+        }
+    }
+
+    @Override
+    protected Geometry quantize(Geometry shape) {
+        TestQuantizedGeometryVisitor visitor = new TestQuantizedGeometryVisitor();
+        return shape.visit(visitor);
+    }
+
+    private List<Double> getExtentBoundSorted(List<Rectangle> extents, Function<Rectangle, Double> extractor) {
+        return extents.stream().map(extractor).sorted().toList();
+    }
+
+    private List<Double> getResponseSorted(TestQueryResponseCollection responses, int index, int column) {
+        return responses.getResponses(index, column).stream().map(o -> (Double) o).sorted().toList();
+    }
+
+    @Override
+    protected void assertQuantizedXY() {
+        List<String> queries = getQueries("""
+            FROM index
+            | EVAL envelope = ST_ENVELOPE(location)
+            | EVAL xmin = ST_XMIN(location)
+            | EVAL xmax = ST_XMAX(location)
+            | EVAL ymin = ST_YMIN(location)
+            | EVAL ymax = ST_YMAX(location)
+            | SORT xmin ASC, ymin ASC
+            """);
+        boolean isCartesian = fieldType().equals("shape");
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            List<Geometry> quantizedShapes = getQuantizedResponsesAsType(responses, 0, 0, Geometry.class);
+            List<Rectangle> quantizedExtents = quantizedShapes.stream().map(s -> getExtent(s, isCartesian)).toList();
+            List<Double> xMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinX);
+            List<Double> xMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxX);
+            List<Double> yMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinY);
+            List<Double> yMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxY);
+            for (int index = 0; index < ALL_INDEXES.length; index++) {
+                List<Geometry> resultShapes = getResponsesAsType(responses, index, 0, Geometry.class);
+                int countDifferent = 0;
+                for (int i = 0; i < quantizedShapes.size(); i++) {
+                    if (quantizedShapes.get(i).equals(resultShapes.get(i)) == false) {
+                        countDifferent++;
+                    }
+                }
+                assertThat(
+                    "Expected some different results in set of " + resultShapes.size() + " shapes for " + ALL_INDEXES[index],
+                    countDifferent,
+                    greaterThan(0)
+                );
+                for (int column = 1; column < 6; column++) {
+                    if (index > 0) {
+                        if (column == 1) {
+                            // Envelope
+                            List<Geometry> result = responses.getResponses(index, column).stream().map(o -> parse(o.toString())).toList();
+                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
+                        } else {
+                            List<Double> result = getResponseSorted(responses, index, column);
+                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
+                            if (column == 2) {
+                                // xmin
+                                assertEquals("Same xmin values " + ALL_INDEXES[index], xMinQuantized, result);
+                            } else if (column == 3) {
+                                // xmax
+                                assertEquals("Same xmax values " + ALL_INDEXES[index], xMaxQuantized, result);
+                            } else if (column == 4) {
+                                // ymin
+                                assertEquals("Same ymin values " + ALL_INDEXES[index], yMinQuantized, result);
+                            } else {
+                                // ymax
+                                assertEquals("Same ymax values " + ALL_INDEXES[index], yMaxQuantized, result);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    protected class TestQuantizedGeometryVisitor implements GeometryVisitor<Geometry, RuntimeException> {
+        @Override
+        public Geometry visit(Circle circle) throws RuntimeException {
+            Point center = quantizePoint(new Point(circle.getX(), circle.getY()));
+            return new Circle(center.getX(), center.getY(), circle.getRadiusMeters());
+        }
+
+        @Override
+        public Geometry visit(GeometryCollection<?> collection) throws RuntimeException {
+            List<Geometry> quantizedGeometries = new ArrayList<>();
+            for (Geometry geometry : collection) {
+                quantizedGeometries.add(geometry.visit(this));
+            }
+            return new GeometryCollection<>(quantizedGeometries);
+        }
+
+        @Override
+        public Geometry visit(Line line) throws RuntimeException {
+            double[] x = new double[line.length()];
+            double[] y = new double[line.length()];
+            for (int i = 0; i < line.length(); i++) {
+                Point quantizedPoint = quantizePoint(new Point(line.getX(i), line.getY(i)));
+                x[i] = quantizedPoint.getX();
+                y[i] = quantizedPoint.getY();
+            }
+            return new Line(x, y);
+        }
+
+        @Override
+        public Geometry visit(LinearRing ring) throws RuntimeException {
+            double[] x = new double[ring.length()];
+            double[] y = new double[ring.length()];
+            for (int i = 0; i < ring.length(); i++) {
+                Point quantizedPoint = quantizePoint(new Point(ring.getX(i), ring.getY(i)));
+                x[i] = quantizedPoint.getX();
+                y[i] = quantizedPoint.getY();
+            }
+            return new LinearRing(x, y);
+        }
+
+        @Override
+        public Geometry visit(MultiLine multiLine) throws RuntimeException {
+            List<Line> lines = new ArrayList<>();
+            for (Line line : multiLine) {
+                lines.add((Line) line.visit(this));
+            }
+            return new MultiLine(lines);
+        }
+
+        @Override
+        public Geometry visit(MultiPoint multiPoint) throws RuntimeException {
+            List<Point> points = new ArrayList<>();
+            for (Point point : multiPoint) {
+                points.add((Point) point.visit(this));
+            }
+            return new MultiPoint(points);
+        }
+
+        @Override
+        public Geometry visit(MultiPolygon multiPolygon) throws RuntimeException {
+            List<Polygon> polygons = new ArrayList<>();
+            for (Polygon polygon : multiPolygon) {
+                polygons.add((Polygon) polygon.visit(this));
+            }
+            return new MultiPolygon(polygons);
+        }
+
+        @Override
+        public Geometry visit(Point point) throws RuntimeException {
+            return quantizePoint(point);
+        }
+
+        @Override
+        public Geometry visit(Polygon polygon) throws RuntimeException {
+            LinearRing shell = (LinearRing) polygon.getPolygon().visit(this);
+            List<LinearRing> holes = new ArrayList<>();
+            for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                holes.add((LinearRing) polygon.getHole(i).visit(this));
+            }
+            return new Polygon(shell, holes);
+        }
+
+        @Override
+        public Geometry visit(Rectangle rectangle) throws RuntimeException {
+            Point minPoint = quantizePoint(new Point(rectangle.getMinX(), rectangle.getMinY()));
+            Point maxPoint = quantizePoint(new Point(rectangle.getMaxX(), rectangle.getMaxY()));
+            return new Rectangle(minPoint.getX(), maxPoint.getX(), maxPoint.getY(), minPoint.getY());
         }
     }
 }

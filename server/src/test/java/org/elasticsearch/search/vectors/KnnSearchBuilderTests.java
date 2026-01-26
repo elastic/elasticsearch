@@ -256,7 +256,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         if(rescoreVectorBuilder != null) {
             adjustedK = Math.min((int) Math.ceil(k * rescoreVectorBuilder.oversample()), OVERSAMPLE_LIMIT);
         }
-        QueryBuilder expected = new LateRescoringKnnVectorQueryBuilder(field, VectorData.fromFloats(vector), adjustedK, numCands, visitPercentage, rescoreVectorBuilder, similarity)
+        QueryBuilder expected = new DFSKnnVectorQueryBuilder(field, VectorData.fromFloats(vector), adjustedK, numCands, visitPercentage, rescoreVectorBuilder, similarity)
             .addFilterQueries(filterQueries)
             .boost(boost);
         assertEquals(expected, builder.toQueryBuilder());

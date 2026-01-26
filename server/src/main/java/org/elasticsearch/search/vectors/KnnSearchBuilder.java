@@ -14,14 +14,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -47,6 +44,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
     public static final int NUM_CANDS_LIMIT = 10_000;
     public static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
+    public static final RescoreVectorBuilder VECTOR_RESCORING_DISABLED = new RescoreVectorBuilder(1f);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
@@ -136,11 +134,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     /**
      * Defines a kNN search.
      *
-     * @param field       the name of the vector field to search against
-     * @param queryVector the query vector
-     * @param k           the final number of nearest neighbors to return as top hits
-     * @param numCands    the number of nearest neighbor candidates to consider per shard
-     * @param visitPercentage percentage of the total number of vectors to visit per shard
+     * @param field                the name of the vector field to search against
+     * @param queryVector          the query vector
+     * @param k                    the final number of nearest neighbors to return as top hits
+     * @param numCands             the number of nearest neighbor candidates to consider per shard
+     * @param visitPercentage      percentage of the total number of vectors to visit per shard
      * @param rescoreVectorBuilder rescore vector information
      */
     public KnnSearchBuilder(
@@ -167,10 +165,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     /**
      * Defines a kNN search.
      *
-     * @param field       the name of the vector field to search against
-     * @param queryVector the query vector
-     * @param k           the final number of nearest neighbors to return as top hits
-     * @param numCands    the number of nearest neighbor candidates to consider per shard
+     * @param field           the name of the vector field to search against
+     * @param queryVector     the query vector
+     * @param k               the final number of nearest neighbors to return as top hits
+     * @param numCands        the number of nearest neighbor candidates to consider per shard
      * @param visitPercentage percentage of the total number of vectors to visit per shard
      */
     public KnnSearchBuilder(
@@ -473,17 +471,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
-    public VectorQueryBuilder toQueryBuilder() {
+    public KnnVectorQueryBuilder toQueryBuilder() {
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        if (rescoreVectorBuilder == null || rescoreVectorBuilder.oversample() > 0) {
-            return new LateRescoringKnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
-                .boost(boost)
-                .queryName(queryName)
-                .addFilterQueries(filterQueries);
-        }
-        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
+        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, VECTOR_RESCORING_DISABLED, similarity)
             .boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);

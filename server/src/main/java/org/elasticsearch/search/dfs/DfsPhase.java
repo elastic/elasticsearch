@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.dfs;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
@@ -19,7 +20,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -34,9 +35,9 @@ import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
-import org.elasticsearch.search.vectors.LateRescoringKnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
-import org.elasticsearch.search.vectors.VectorQueryBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -45,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
 /**
@@ -187,12 +189,13 @@ public class DfsPhase {
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
-        List<VectorQueryBuilder> knnQueries = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        // KnnSearchBuilder::toQueryBuilder will disable rescoring for the underlying KnnVectorQueryBuilder
+        List<KnnVectorQueryBuilder> knnQueries = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
         knnQueries.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
-            for (VectorQueryBuilder queryBuilder : knnQueries) {
+            for (KnnVectorQueryBuilder queryBuilder : knnQueries) {
                 queryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
             }
         }
@@ -207,7 +210,11 @@ public class DfsPhase {
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
                 Query knnQuery = searchExecutionContext.toQuery(knnQueries.get(i)).query();
                 int k = knnQueries.get(i).k();
-                knnResults.add(singleKnnSearch(knnQuery, k, knnQueries.get(i).rescoreVectorBuilder().oversample(), context.getProfilers(), context.searcher(), knnNestedPath));
+                RescoreVectorBuilder rescoreVectorBuilder = knnSearch.get(i).getRescoreVectorBuilder();
+                float oversample = rescoreVectorBuilder != null
+                    ? rescoreVectorBuilder.oversample()
+                    : getDefaultOversampleForField(knnField, searchExecutionContext);
+                knnResults.add(singleKnnSearch(knnQuery, k, oversample, context.getProfilers(), context.searcher(), knnNestedPath));
             }
             afterQueryTime = System.nanoTime();
             opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
@@ -218,6 +225,18 @@ public class DfsPhase {
             }
         }
         context.dfsResult().knnResults(knnResults);
+    }
+
+    private static float getDefaultOversampleForField(String fieldName, SearchExecutionContext searchExecutionContext) {
+        var fieldType = searchExecutionContext.getFieldType(fieldName);
+        var indexOptions = fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType
+            ? ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getIndexOptions()
+            : null;
+        var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
+            ? ((DenseVectorFieldMapper.QuantizedIndexOptions)indexOptions).getRescoreVector()
+            : null;
+        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : DEFAULT_OVERSAMPLE;
+
     }
 
     static DfsKnnResults singleKnnSearch(Query knnQuery, int k, float oversample, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
@@ -250,6 +269,6 @@ public class DfsPhase {
         if (profilers != null) {
             searcher.setProfiler(profilers.getCurrentQueryProfiler());
         }
-        return new DfsKnnResults(nestedPath, topDocs.scoreDocs, oversample);
+        return new DfsKnnResults(nestedPath, topDocs.scoreDocs, oversample, k);
     }
 }

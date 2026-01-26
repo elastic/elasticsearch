@@ -177,9 +177,8 @@ class DfsQueryPhase extends SearchPhase {
                 source.knnSearch().get(i).getQueryVector(),
                 source.knnSearch().get(i).getSimilarity(),
                 source.knnSearch().get(i).getFilterQueries(),
-                // todo: check if we need to remove oversample from the DfsKnnResults
-                source.knnSearch().get(i).getRescoreVectorBuilder(),
-                source.knnSearch().get(i).k())
+                dfsKnnResults.oversample(),
+                dfsKnnResults.k())
                 .boost(source.knnSearch().get(i).boost())
                 .queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
@@ -207,7 +206,7 @@ class DfsQueryPhase extends SearchPhase {
             topDocsLists.add(new ArrayList<>());
             nestedPath.add(new SetOnce<>());
         }
-
+        Float[] oversampling = new Float[source.knnSearch().size()];
         for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
             if (dfsSearchResult.knnResults() != null) {
                 for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
@@ -218,19 +217,16 @@ class DfsQueryPhase extends SearchPhase {
                     SearchPhaseController.setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
                     nestedPath.get(i).trySet(knnResults.getNestedPath());
+                    oversampling[i] = knnResults.oversample();
                 }
             }
         }
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            var rescoreVectorBuilder = source.knnSearch().get(i).getRescoreVectorBuilder();
             int k = source.knnSearch().get(i).k();
-            if (rescoreVectorBuilder != null) {
-                k = Math.min((int) Math.ceil(k * rescoreVectorBuilder.oversample()), OVERSAMPLE_LIMIT);
-            }
             TopDocs mergedTopDocs = TopDocs.merge(k, topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, source.knnSearch().get(i).getRescoreVectorBuilder().oversample()));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], k));
         }
         return mergedResults;
     }

@@ -40,14 +40,15 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     public static final String NAME = "knn_score_doc";
 
     private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");
+    public static final TransportVersion KNN_DFS_RESCORING_TOP_K_ON_SHARDS = TransportVersion.fromName("knn_dfs_rescoring_top_k_on_shards");
 
     private final ScoreDoc[] scoreDocs;
     private final String fieldName;
     private final VectorData queryVector;
     private final Float vectorSimilarity;
     private final List<QueryBuilder> filterQueries;
-    private final RescoreVectorBuilder rescoreVectorBuilder;
-    private final int k;
+    private final Float oversample;
+    private final Integer k;
 
     /**
      * Creates a query builder.
@@ -61,16 +62,15 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         VectorData queryVector,
         Float vectorSimilarity,
         List<QueryBuilder> filterQueries,
-        RescoreVectorBuilder rescoreVectorBuilder,
-        int k
+        Float oversample,
+        Integer k
     ) {
-        assert rescoreVectorBuilder != null;
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.vectorSimilarity = vectorSimilarity;
         this.filterQueries = filterQueries;
-        this.rescoreVectorBuilder = rescoreVectorBuilder;
+        this.oversample = oversample;
         this.k = k;
     }
 
@@ -89,8 +89,13 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         } else {
             this.filterQueries = List.of();
         }
-        this.rescoreVectorBuilder = null;
-        this.k = 42;
+        if (in.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
+            this.oversample = in.readOptionalFloat();
+            this.k = in.readOptionalVInt();
+        } else {
+            this.oversample = null;
+            this.k = null;
+        }
     }
 
     @Override
@@ -114,7 +119,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return vectorSimilarity;
     }
 
-    public int k(){
+    public Integer k(){
         return k;
     }
 
@@ -131,6 +136,10 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
+        }
+        if(out.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
+            out.writeOptionalFloat(oversample);
+            out.writeOptionalVInt(k);
         }
     }
 
@@ -158,6 +167,12 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             }
             builder.endArray();
         }
+        if (oversample != null) {
+            builder.field("oversample", oversample);
+        }
+        if (k != null) {
+            builder.field("k", k);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -165,19 +180,19 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         var query = new KnnScoreDocQuery(scoreDocs, context.getIndexReader());
-        if(rescoreVectorBuilder.oversample() > 0){
-            assert queryVector.asFloatVector() != null;
-            var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType)context.getFieldType(fieldName);
+        if (queryVector.asFloatVector() != null && oversample != null && oversample > 0) {
+            int localK = k == null ? scoreDocs.length : k;
+            var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) context.getFieldType(fieldName);
             var similarityFunction = fieldType.getSimilarity().vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
-            var adjustedK = Math.min((int) Math.ceil(k * rescoreVectorBuilder.oversample()), OVERSAMPLE_LIMIT);
+            var adjustedK = Math.min((int) Math.ceil(localK * oversample), OVERSAMPLE_LIMIT);
             return RescoreKnnVectorQuery.fromInnerQuery(
                 fieldName,
                 queryVector.asFloatVector(),
                 similarityFunction,
-                k,
+                localK,
                 adjustedK,
                 query);
-        }else{
+        } else {
             return query;
         }
     }
@@ -225,7 +240,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(queryVector, other.queryVector)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
-            && Objects.equals(filterQueries, other.filterQueries);
+            && Objects.equals(filterQueries, other.filterQueries)
+            && Objects.equals(oversample, other.oversample)
+            && Objects.equals(k, other.k);
     }
 
     @Override
@@ -235,7 +252,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             int hashCode = Objects.hash(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
             result = 31 * result + hashCode;
         }
-        return Objects.hash(result, fieldName, vectorSimilarity, Objects.hashCode(queryVector), filterQueries);
+        return Objects.hash(result, fieldName, vectorSimilarity, Objects.hashCode(queryVector), filterQueries, oversample, k);
     }
 
     @Override

@@ -27,14 +27,15 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVER
  * A query that performs kNN search using Lucene's {@link org.apache.lucene.search.KnnFloatVectorQuery} or
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
-public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<LateRescoringKnnVectorQueryBuilder>
-    implements VectorQueryBuilder {
+public class DFSKnnVectorQueryBuilder extends AbstractQueryBuilder<DFSKnnVectorQueryBuilder> {
 
     private final KnnVectorQueryBuilder knnVectorQueryBuilder;
     private final RescoreVectorBuilder rescoreVectorBuilder;
-    private final int k;
+    private final Integer k;
 
-    public LateRescoringKnnVectorQueryBuilder(String field, VectorData vector, int k, int numCands, Float visitPercentage, RescoreVectorBuilder rescoreVectorBuilder, Float similarity) {
+    private static final String NAME = "dfs_knn";
+
+    public DFSKnnVectorQueryBuilder(String field, VectorData vector, Integer k, Integer numCands, Float visitPercentage, RescoreVectorBuilder rescoreVectorBuilder, Float similarity) {
         this.knnVectorQueryBuilder = new KnnVectorQueryBuilder(
             field,
             vector,
@@ -47,7 +48,7 @@ public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<Lat
         this.rescoreVectorBuilder = rescoreVectorBuilder;
     }
 
-    private LateRescoringKnnVectorQueryBuilder(KnnVectorQueryBuilder knnVectorQueryBuilder, int k, RescoreVectorBuilder rescoreVectorBuilder) {
+    private DFSKnnVectorQueryBuilder(KnnVectorQueryBuilder knnVectorQueryBuilder, int k, RescoreVectorBuilder rescoreVectorBuilder) {
         this.knnVectorQueryBuilder = knnVectorQueryBuilder;
         this.k = k;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
@@ -60,7 +61,15 @@ public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<Lat
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-
+        builder.startObject(NAME);
+        knnVectorQueryBuilder.doXContent(builder, params);
+        if (k != null) {
+            builder.field("k", k);
+        }
+        if (rescoreVectorBuilder != null) {
+            builder.field("rescore", rescoreVectorBuilder);
+        }
+        builder.endObject();
     }
 
     public RescoreVectorBuilder rescoreVectorBuilder() {
@@ -69,16 +78,11 @@ public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<Lat
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        var query = knnVectorQueryBuilder.toQuery(context);
-        if(query instanceof RescoreKnnVectorQuery){
-            throw new IllegalArgumentException("shouldn't reach this point");
-//            return ((RescoreKnnVectorQuery) query).innerQuery;
-        }
-        return query;
+        return knnVectorQueryBuilder.toQuery(context);
     }
 
     @Override
-    protected boolean doEquals(LateRescoringKnnVectorQueryBuilder other) {
+    protected boolean doEquals(DFSKnnVectorQueryBuilder other) {
         return false;
     }
 
@@ -97,13 +101,14 @@ public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<Lat
         return null;
     }
 
-    public LateRescoringKnnVectorQueryBuilder addFilterQueries(List<QueryBuilder> filterQueries) {
+    public DFSKnnVectorQueryBuilder addFilterQueries(List<QueryBuilder> filterQueries) {
         knnVectorQueryBuilder.addFilterQueries(filterQueries);
         return this;
     }
 
-    public void addFilterQuery(QueryBuilder queryBuilder) {
+    public DFSKnnVectorQueryBuilder addFilterQuery(QueryBuilder queryBuilder) {
         knnVectorQueryBuilder.addFilterQuery(queryBuilder);
+        return this;
     }
 
     public String getFieldName() {
@@ -120,7 +125,7 @@ public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<Lat
         if (inner.equals(knnVectorQueryBuilder)) {
             return this;
         }
-        return new LateRescoringKnnVectorQueryBuilder((KnnVectorQueryBuilder) inner, k, rescoreVectorBuilder);
+        return new DFSKnnVectorQueryBuilder((KnnVectorQueryBuilder) inner, k, rescoreVectorBuilder);
     }
 
     private static int applyRescoringOversample(RescoreVectorBuilder rescoreVectorBuilder, int k) {

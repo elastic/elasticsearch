@@ -17,21 +17,31 @@ import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder.KNN_DFS_RESCORING_TOP_K_ON_SHARDS;
+
 public class DfsKnnResults implements Writeable {
     private final String nestedPath;
     private final ScoreDoc[] scoreDocs;
-    private final float oversample;
+    private final Float oversample;
+    private final Integer k;
 
-    public DfsKnnResults(String nestedPath, ScoreDoc[] scoreDocs, float oversample) {
+    public DfsKnnResults(String nestedPath, ScoreDoc[] scoreDocs, Float oversample, Integer k) {
         this.nestedPath = nestedPath;
         this.scoreDocs = scoreDocs;
         this.oversample = oversample;
+        this.k = k;
     }
 
     public DfsKnnResults(StreamInput in) throws IOException {
         scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
         nestedPath = in.readOptionalString();
-        oversample = in.readFloat();
+        if (in.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
+            oversample = in.readOptionalFloat();
+            k = in.readOptionalVInt();
+        } else {
+            oversample = null;
+            k = null;
+        }
     }
 
     public String getNestedPath() {
@@ -46,9 +56,16 @@ public class DfsKnnResults implements Writeable {
         return oversample;
     }
 
+    public int k(){
+        return k;
+    }
+
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
         out.writeOptionalString(nestedPath);
-        out.writeFloat(oversample);
+        if (out.getTransportVersion().supports(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
+            out.writeOptionalFloat(oversample);
+            out.writeOptionalVInt(k);
+        }
     }
 }

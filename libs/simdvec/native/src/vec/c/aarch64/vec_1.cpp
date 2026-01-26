@@ -47,6 +47,13 @@ EXPORT int vec_caps() {
 #elif __linux__
     int hwcap = getauxval(AT_HWCAP);
     int neon = (hwcap & HWCAP_ASIMD) != 0;
+    // https://docs.kernel.org/arch/arm64/sve.html
+    int sve = (hwcap & HWCAP_SVE) != 0;
+    int hwcap2 = getauxval(AT_HWCAP2);
+    int sve2 = (hwcap2 & HWCAP2_SVE2) != 0;
+    if (neon && sve) {
+        return 2;
+    }
     return neon;
 #else
     #error "Unsupported aarch64 platform"

@@ -67,12 +67,37 @@ if "%SMART_RETRIES%"=="true" (
                   if not defined DEVELOCITY_BASE_URL set DEVELOCITY_BASE_URL=https://gradle-enterprise.elastic.co
                   set DEVELOCITY_FAILED_TEST_API_URL=!DEVELOCITY_BASE_URL!/api/tests/build/!BUILD_SCAN_ID!?testOutcomes=failed
 
+                  REM Fetch test seed from build scan custom values
+                  set DEVELOCITY_BUILD_SCAN_API_URL=!DEVELOCITY_BASE_URL!/api/builds/!BUILD_SCAN_ID!
+                  set TEST_SEED=
+
+                  REM Fetch build scan data
+                  curl --compressed --request GET --url "!DEVELOCITY_BUILD_SCAN_API_URL!" --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq "." > .build-scan-data.json 2>nul
+
+                  if exist .build-scan-data.json (
+                    REM Extract test seed from custom values
+                    for /f "delims=" %%i in ('jq -r ".customValues[]? | select(.name == \"tests.seed\") | .value" .build-scan-data.json 2^>nul') do set TEST_SEED=%%i
+
+                    if defined TEST_SEED (
+                      if not "!TEST_SEED!"=="null" (
+                        echo ✓ Retrieved test seed: !TEST_SEED!
+                      ) else (
+                        echo ⚠ Could not retrieve test seed from build scan
+                        set TEST_SEED=
+                      )
+                    ) else (
+                      echo ⚠ Could not retrieve test seed from build scan
+                    )
+
+                    del .build-scan-data.json 2>nul
+                  )
+
                   REM Add random delay to prevent API rate limiting (0-4 seconds)
                   set /a "delay=%RANDOM% %% 5"
                   timeout /t !delay! /nobreak >nul 2>&1
 
                   REM Fetch failed tests from Develocity API (curl will auto-decompress gzip with --compressed)
-                  curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq "." > .failed-test-history.json 2>nul
+                  curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq --arg testseed "!TEST_SEED!" ". + {testseed: $testseed}" > .failed-test-history.json 2>nul
 
                   if exist .failed-test-history.json (
                     REM Set restrictive file permissions (owner only)

@@ -77,6 +77,15 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
+        // Apply test seed from previous build if available
+        String testSeed = failureReport.testseed();
+        if (testSeed != null && !testSeed.isEmpty()) {
+            test.getLogger().lifecycle("Smart retry: applying test seed from previous run: {}", testSeed);
+            test.systemProperty("tests.seed", testSeed);
+        } else {
+            test.getLogger().info("Smart retry: no test seed available from previous run, using default");
+        }
+
         WorkUnit workUnit = testsBuildServiceProvider.get().getWorkUnitForTask(test.getPath());
         if (workUnit != null) {
             List<TestCase> tests = workUnit.tests();

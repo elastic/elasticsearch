@@ -199,7 +199,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
             for (int i = 0; i < numNodes; ++i) {
                 float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, 1 / (1f + squareDistance));
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeDistanceToUnitInterval(squareDistance));
             }
         }
 
@@ -236,9 +236,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                int secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
-                long secondByteOffset = (long) secondOrd * vectorPitch;
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, Math.max((1 + dotProduct) / 2, 0f));
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeToUnitInterval(dotProduct));
             }
         }
 
@@ -275,10 +273,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                int secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
-                long secondByteOffset = (long) secondOrd * vectorPitch;
-                float adjustedDistance = dotProduct < 0 ? 1 / (1 + -1 * dotProduct) : dotProduct + 1;
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedDistance);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.scaleMaxInnerProductScore(dotProduct));
             }
         }
 

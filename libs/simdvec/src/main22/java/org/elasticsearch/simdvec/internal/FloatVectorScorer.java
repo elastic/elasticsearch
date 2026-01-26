@@ -15,6 +15,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
@@ -97,7 +98,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         public float score(int node) throws IOException {
             checkOrdinal(node);
             float dotProduct = dotProductF32(query, getSegment(node), dimensions);
-            return Math.max((1 + dotProduct) / 2, 0f);
+            return VectorUtil.normalizeToUnitInterval(dotProduct);
         }
 
         @Override
@@ -112,7 +113,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
                 dotProductF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
 
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = Math.max((1 + scores[i]) / 2, 0f);
+                    scores[i] = VectorUtil.normalizeToUnitInterval(scores[i]);
                 }
             }
         }
@@ -127,7 +128,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         public float score(int node) throws IOException {
             checkOrdinal(node);
             float sqDist = squareDistanceF32(query, getSegment(node), dimensions);
-            return 1 / (1f + sqDist);
+            return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
         }
 
         @Override
@@ -142,7 +143,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
                 squareDistanceF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
 
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = 1 / (1f + scores[i]);
+                    scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
                 }
             }
         }
@@ -157,10 +158,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         public float score(int node) throws IOException {
             checkOrdinal(node);
             float dotProduct = dotProductF32(query, getSegment(node), dimensions);
-            if (dotProduct < 0) {
-                return 1 / (1 + -1 * dotProduct);
-            }
-            return dotProduct + 1;
+            return VectorUtil.scaleMaxInnerProductScore(dotProduct);
         }
 
         @Override
@@ -175,9 +173,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
                 dotProductF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
 
                 for (int i = 0; i < numNodes; ++i) {
-                    float dotProduct = scores[i];
-                    float adjustedDistance = dotProduct < 0 ? 1 / (1 + -1 * dotProduct) : dotProduct + 1;
-                    scores[i] = adjustedDistance;
+                    scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);
                 }
             }
         }

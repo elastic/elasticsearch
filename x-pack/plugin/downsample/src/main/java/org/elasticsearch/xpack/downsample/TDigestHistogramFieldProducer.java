@@ -61,7 +61,12 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 isEmpty = false;
                 if (tDigestState == null) {
                     // TODO: figure out what circuit breaker to use here and in the other histogram
-                    tDigestState = TDigestState.create(new NoopCircuitBreaker("downsampling-histograms"), COMPRESSION);
+                    // MergingDigest is the best fit because we have pre-constructed histograms
+                    tDigestState = TDigestState.createOfType(
+                        new NoopCircuitBreaker("downsampling-histograms"),
+                        TDigestState.Type.MERGING,
+                        COMPRESSION
+                    );
                 }
                 final HistogramValue sketch = docValues.histogram();
                 while (sketch.next()) {
@@ -80,17 +85,12 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 Iterator<Centroid> centroids = tDigestState.uniqueCentroids();
-                List<Centroid> sortedCentroids = new ArrayList<>(tDigestState.centroidCount());
+                final List<Double> values = new ArrayList<>();
+                final List<Long> counts = new ArrayList<>();
                 while (centroids.hasNext()) {
-                    sortedCentroids.add(centroids.next());
-                }
-                sortedCentroids.sort(Centroid::compareTo);
-                double[] values = new double[sortedCentroids.size()];
-                long[] counts = new long[sortedCentroids.size()];
-                for (int i = 0; i < sortedCentroids.size(); i++) {
-                    Centroid centroid = sortedCentroids.get(i);
-                    values[i] = centroid.mean();
-                    counts[i] = centroid.count();
+                    Centroid centroid = centroids.next();
+                    values.add(centroid.mean());
+                    counts.add(centroid.count());
                 }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
                 tDigestState.close();

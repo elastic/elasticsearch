@@ -1,0 +1,80 @@
+---
+"Test cat circuit_breaker help":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cat/circuit_breaker
+      test_runner_features: capabilities
+      reason: Capability required to run test
+  - do:
+      cat.circuit_breaker:
+        help: true
+
+  - match:
+      $body: |
+               /^   node_id     .+   \n
+                    node_name   .+   \n
+                    breaker     .+   \n
+                    limit       .+   \n
+                    limit_bytes .+   \n
+                    estimated   .+   \n
+                    estimated_bytes .+   \n
+                    tripped     .+   \n
+                    overhead    .+   \n  $/
+
+---
+"Test cat circuit_breaker output":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cat/circuit_breaker
+      test_runner_features: capabilities
+      reason: Capability required to run test
+  - do:
+      cat.circuit_breaker: {}
+
+  - match:
+      $body: |
+               /  #node_id     breaker \s+ limit      \s+ estimated  \s+ tripped  \n
+               ^  (\S+     \s+ \S+     \s+ \S+        \s+ \S+        \s+ \d+     \n)+  $/
+
+  - do:
+      cat.circuit_breaker:
+          v: true
+
+  - match:
+        $body: |
+                 /^   node_id \s+ breaker \s+ limit  \s+ estimated \s+ tripped \n
+                     (\S+   \s+ \S+      \s+ \S+    \s+ \S+      \s+ \d+     \n)+  $/
+
+  - do:
+      cat.circuit_breaker:
+          circuit_breaker_patterns: request,fielddata
+          h: node_id,breaker,limit,estimated,tripped
+          v: true
+
+  - match:
+      $body: |
+               /^  node_id \s+ breaker   \s+ limit \s+ estimated \s+ tripped \n
+                  (\S+   \s+ (request|fielddata) \s+ \S+ \s+ \S+    \s+ \d+  \n){2,}  $/
+
+  - do:
+      cat.circuit_breaker:
+          circuit_breaker_patterns: request
+          h: node_id,breaker,limit,limit_bytes,estimated,estimated_bytes,tripped,overhead
+          v: true
+
+  - match:
+      $body: |
+               /^  node_id \s+ breaker  \s+ limit   \s+ limit_bytes \s+ estimated \s+ estimated_bytes \s+ tripped \s+ overhead \n
+                  (\S+   \s+ request    \s+ \S+     \s+ \d+         \s+ \S+        \s+ \d+             \s+ \d+    \s+ \d+\.\d+ \n)+  $/
+
+  - do:
+      cat.circuit_breaker:
+          circuit_breaker_patterns: "*"
+          h: node_id,breaker,tripped
+
+  - match:
+      $body: |
+               /  #node_id     breaker   \s+ tripped  \n
+               ^  (\S+     \s+ \S+     \s+ \d+     \n)+  $/

@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
@@ -84,9 +85,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (buildParams.snapshotBuild == false) {
-      requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
-    }
   }
 
   // debug ccr test failures:
@@ -125,7 +123,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
 
   // TODO Rene: clean up this kind of cross project file references
   extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
@@ -2058,4 +2055,30 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
     setups['atomic_red_regsvr32'] =
     setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
   }
+}
+
+tasks.register('verifyDocsLuceneVersion') {
+  doFirst {
+    File docsVersionsFile = file('Versions.asciidoc')
+    List<String> versionLines = docsVersionsFile.readLines('UTF-8')
+    String docsLuceneVersion = null
+    for (String line : versionLines) {
+      if (line.startsWith(':lucene_version:')) {
+        docsLuceneVersion = line.split()[1]
+      }
+    }
+    if (docsLuceneVersion == null) {
+      throw new GradleException('Could not find lucene version in docs version file')
+    }
+    String expectedLuceneVersion = VersionProperties.lucene
+    // remove potential -snapshot-{gitrev} suffix
+    expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
+    if (docsLuceneVersion != expectedLuceneVersion) {
+      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
+    }
+  }
+}
+
+tasks.named('check') {
+  dependsOn 'verifyDocsLuceneVersion'
 }

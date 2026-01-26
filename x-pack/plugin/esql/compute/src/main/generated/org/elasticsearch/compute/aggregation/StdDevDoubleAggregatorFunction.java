@@ -31,20 +31,23 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   private final DriverContext driverContext;
 
-  private final StdDevStates.SingleState state;
+  private final VarianceStates.SingleState state;
 
   private final List<Integer> channels;
 
+  private final boolean stdDev;
+
   public StdDevDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDevStates.SingleState state) {
+      VarianceStates.SingleState state, boolean stdDev) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.stdDev = stdDev;
   }
 
   public static StdDevDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle());
+      List<Integer> channels, boolean stdDev) {
+    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle(stdDev), stdDev);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,69 +63,79 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      DoubleBlock block = page.getBlock(channels.get(0));
-      DoubleVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    DoubleBlock block = page.getBlock(channels.get(0));
-    DoubleVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(DoubleVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    DoubleBlock valueBlock = page.getBlock(channels.get(0));
+    DoubleVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock, mask);
+      return;
+    }
+    addRawVector(valueVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    DoubleBlock valueBlock = page.getBlock(channels.get(0));
+    DoubleVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock);
+      return;
+    }
+    addRawVector(valueVector);
+  }
+
+  private void addRawVector(DoubleVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      double valueValue = valueVector.getDouble(valuesPosition);
+      StdDevDoubleAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawVector(DoubleVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(DoubleVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
+      double valueValue = valueVector.getDouble(valuesPosition);
+      StdDevDoubleAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawBlock(DoubleBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(DoubleBlock valueBlock) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        StdDevDoubleAggregator.combine(state, block.getDouble(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueValueCount;
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        double valueValue = valueBlock.getDouble(valueOffset);
+        StdDevDoubleAggregator.combine(state, valueValue);
       }
     }
   }
 
-  private void addRawBlock(DoubleBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(DoubleBlock valueBlock, BooleanVector mask) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        StdDevDoubleAggregator.combine(state, block.getDouble(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueValueCount;
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        double valueValue = valueBlock.getDouble(valueOffset);
+        StdDevDoubleAggregator.combine(state, valueValue);
       }
     }
   }

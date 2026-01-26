@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -55,7 +54,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         segmentGeneration = in.readVLong();
-        primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+        primaryTerm = in.readVLong();
         // The timeout is only used by the request sender, therefore we don't write it over the wire
         timeout = null;
     }
@@ -63,7 +62,9 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
+        if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION && primaryTerm == Engine.UNKNOWN_PRIMARY_TERM) {
+            // read-only primary shards (like searchable snapshot shard) return Engine.RefreshResult.NO_REFRESH during refresh
+        } else if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
             validationException = addValidationError("segment generation is unknown", validationException);
         }
         return validationException;
@@ -73,9 +74,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(segmentGeneration);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeVLong(primaryTerm);
-        }
+        out.writeVLong(primaryTerm);
     }
 
     public long getSegmentGeneration() {

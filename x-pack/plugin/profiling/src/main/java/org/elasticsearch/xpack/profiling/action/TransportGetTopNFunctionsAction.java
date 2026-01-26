@@ -25,7 +25,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTracesRequest, GetTopNFunctionsResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetTopNFunctionsAction.class);
@@ -57,11 +59,20 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
             return builder.build();
         }
 
-        for (StackTrace stackTrace : response.getStackTraces().values()) {
+        Map<String, StackTrace> stackTraces = response.getStackTraces();
+        AtomicInteger lostStackTraces = new AtomicInteger();
+
+        response.getStackTraceEvents().forEach((eventId, event) -> {
             Set<String> frameGroupsPerStackTrace = new HashSet<>();
-            long samples = stackTrace.count;
-            double annualCO2Tons = stackTrace.annualCO2Tons;
-            double annualCostsUSD = stackTrace.annualCostsUSD;
+            long samples = event.count;
+            double annualCO2Tons = event.annualCO2Tons;
+            double annualCostsUSD = event.annualCostsUSD;
+
+            StackTrace stackTrace = stackTraces.get(eventId.stacktraceID());
+            if (stackTrace == null) {
+                lostStackTraces.getAndIncrement();
+                return;
+            }
 
             int frameCount = stackTrace.frameIds.length;
             for (int i = 0; i < frameCount; i++) {
@@ -97,8 +108,8 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
                         );
                     }
                     TopNFunction current = builder.getTopNFunction(frameGroupId);
-                    if (stackTrace.subGroups != null) {
-                        current.addSubGroups(stackTrace.subGroups);
+                    if (event.subGroups != null) {
+                        current.addSubGroups(event.subGroups);
                     }
                     if (frameGroupsPerStackTrace.contains(frameGroupId) == false) {
                         frameGroupsPerStackTrace.add(frameGroupId);
@@ -116,8 +127,7 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
                     }
                 });
             }
-        }
-
+        });
         return builder.build();
     }
 

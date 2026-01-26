@@ -46,7 +46,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         protected String requestName;
 
         public NodeRequest(StreamInput in) throws IOException {
@@ -142,11 +142,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     }
 
-    static class TestTaskResponse implements Writeable {
+    public static class TestTaskResponse implements Writeable {
 
         private final String status;
 
-        TestTaskResponse(StreamInput in) throws IOException {
+        public TestTaskResponse(StreamInput in) throws IOException {
             status = in.readString();
         }
 
@@ -155,7 +155,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             out.writeString(status);
         }
 
-        TestTaskResponse(String status) {
+        public TestTaskResponse(String status) {
             this.status = status;
         }
 
@@ -164,19 +164,19 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
+    public static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
         private final RefCounted refCounted;
 
-        TestTasksRequest(StreamInput in) throws IOException {
+        public TestTasksRequest(StreamInput in) throws IOException {
             super(in);
             refCounted = AbstractRefCounted.of(() -> {});
         }
 
-        TestTasksRequest() {
+        public TestTasksRequest() {
             this(() -> {});
         }
 
-        TestTasksRequest(Runnable onClose) {
+        public TestTasksRequest(Runnable onClose) {
             refCounted = AbstractRefCounted.of(onClose);
         }
 
@@ -206,11 +206,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    static class TestTasksResponse extends BaseTasksResponse {
+    public static class TestTasksResponse extends BaseTasksResponse {
 
         private final List<TestTaskResponse> tasks;
 
-        TestTasksResponse(
+        public TestTasksResponse(
             List<TestTaskResponse> tasks,
             List<TaskOperationFailure> taskFailures,
             List<? extends FailedNodeException> nodeFailures
@@ -219,7 +219,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
-        TestTasksResponse(StreamInput in) throws IOException {
+        public TestTasksResponse(StreamInput in) throws IOException {
             super(in);
             int taskCount = in.readVInt();
             List<TestTaskResponse> builder = new ArrayList<>();

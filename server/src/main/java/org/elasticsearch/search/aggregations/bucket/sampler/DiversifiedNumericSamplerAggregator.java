@@ -11,11 +11,11 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
@@ -82,7 +82,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
         // a lookup from elasticsearch's ValuesSource
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
-            private SortedNumericDocValues values;
+            private SortedNumericLongValues values;
 
             ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);
@@ -111,7 +111,8 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
                     @Override
                     public int docID() {
-                        return values.docID();
+                        // TODO this can actually be a LongValues in the lucene class
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override

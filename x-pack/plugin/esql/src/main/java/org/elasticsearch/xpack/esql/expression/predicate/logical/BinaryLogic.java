@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
@@ -45,12 +45,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     protected BinaryLogic(StreamInput in, BinaryLogicOperation op) throws IOException {
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            op
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class), op);
     }
 
     @Override
@@ -82,16 +77,18 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return left() instanceof TranslationAware leftAware
-            && leftAware.translatable(pushdownPredicates)
-            && right() instanceof TranslationAware rightAware
-            && rightAware.translatable(pushdownPredicates);
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return TranslationAware.translatable(left(), pushdownPredicates).merge(TranslationAware.translatable(right(), pushdownPredicates));
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return boolQuery(source(), handler.asQuery(left()), handler.asQuery(right()), this instanceof And);
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return boolQuery(
+            source(),
+            handler.asQuery(pushdownPredicates, left()),
+            handler.asQuery(pushdownPredicates, right()),
+            this instanceof And
+        );
     }
 
     public static Query boolQuery(Source source, Query left, Query right, boolean isAnd) {

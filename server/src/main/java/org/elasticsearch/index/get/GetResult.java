@@ -10,7 +10,6 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -61,9 +59,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     public GetResult(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalString();
-        }
         id = in.readString();
         seqNo = in.readZLong();
         primaryTerm = in.readVLong();
@@ -74,8 +69,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             if (source.length() == 0) {
                 source = null;
             }
-            documentFields = in.readMapValues(DocumentField::new, DocumentField::getName);
-            metaFields = in.readMapValues(DocumentField::new, DocumentField::getName);
+            documentFields = DocumentField.readFieldsFromMapValues(in);
+            metaFields = DocumentField.readFieldsFromMapValues(in);
         } else {
             metaFields = Collections.emptyMap();
             documentFields = Collections.emptyMap();
@@ -287,9 +282,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeZLong(seqNo);
         out.writeVLong(primaryTerm);

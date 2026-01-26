@@ -51,8 +51,8 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     }
 
     public static SearchSortValues readFrom(StreamInput in) throws IOException {
-        Object[] formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        Object[] rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        Object[] formattedSortValues = Lucene.readSortValues(in);
+        Object[] rawSortValues = Lucene.readSortValues(in);
         if (formattedSortValues.length == 0 && rawSortValues.length == 0) {
             return EMPTY;
         }

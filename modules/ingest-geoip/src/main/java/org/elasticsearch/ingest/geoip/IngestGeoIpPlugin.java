@@ -10,8 +10,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -128,7 +126,9 @@ public class IngestGeoIpPlugin extends Plugin
             parameters.client,
             geoIpCache,
             parameters.genericExecutor,
-            parameters.ingestService.getClusterService()
+            parameters.ingestService.getClusterService(),
+            parameters.ingestService,
+            parameters.client.projectResolver()
         );
         databaseRegistry.set(registry);
         return Map.ofEntries(
@@ -141,7 +141,7 @@ public class IngestGeoIpPlugin extends Plugin
     public Collection<?> createComponents(PluginServices services) {
         try {
             String nodeId = services.nodeEnvironment().nodeId();
-            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get());
+            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -182,12 +182,12 @@ public class IngestGeoIpPlugin extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class),
-            new ActionHandler<>(GetDatabaseConfigurationAction.INSTANCE, TransportGetDatabaseConfigurationAction.class),
-            new ActionHandler<>(DeleteDatabaseConfigurationAction.INSTANCE, TransportDeleteDatabaseConfigurationAction.class),
-            new ActionHandler<>(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class)
+            new ActionHandler(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class),
+            new ActionHandler(GetDatabaseConfigurationAction.INSTANCE, TransportGetDatabaseConfigurationAction.class),
+            new ActionHandler(DeleteDatabaseConfigurationAction.INSTANCE, TransportDeleteDatabaseConfigurationAction.class),
+            new ActionHandler(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class)
         );
     }
 

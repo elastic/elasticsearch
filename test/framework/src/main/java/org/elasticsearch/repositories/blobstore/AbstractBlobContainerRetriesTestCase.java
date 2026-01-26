@@ -15,7 +15,9 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,7 +37,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -72,19 +77,23 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         super.tearDown();
     }
 
+    protected void restartHttpServer() throws IOException {
+        InetSocketAddress currentAddress = httpServer.getAddress();
+        httpServer.stop(0);
+        httpServer = MockHttpServer.createHttp(currentAddress, 0);
+        httpServer.start();
+    }
+
+    /**
+     * Override to add any headers you expect on a successful download
+     */
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange) {}
+
     protected abstract String downloadStorageEndpoint(BlobContainer container, String blob);
 
     protected abstract String bytesContentType();
 
     protected abstract Class<? extends Exception> unresponsiveExceptionType();
-
-    protected abstract BlobContainer createBlobContainer(
-        @Nullable Integer maxRetries,
-        @Nullable TimeValue readTimeout,
-        @Nullable Boolean disableChunkedEncoding,
-        @Nullable ByteSizeValue bufferSize,
-        @Nullable Integer maxBulkDeletes
-    );
 
     protected org.hamcrest.Matcher<Object> readTimeoutExceptionMatcher() {
         return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
@@ -92,7 +101,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
-        final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null, null);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(between(1, 5)).build();
         final long position = randomLongBetween(0, MAX_RANGE_VAL);
         final int length = randomIntBetween(1, Math.toIntExact(Math.min(Integer.MAX_VALUE, MAX_RANGE_VAL - position)));
         final Exception exception = expectThrows(NoSuchFileException.class, () -> {
@@ -119,12 +128,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         final byte[] bytes = randomBlobContent();
         final TimeValue readTimeout = TimeValue.timeValueSeconds(between(1, 3));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).readTimeout(readTimeout).build();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             if (countDown.countDown()) {
                 final int rangeStart = getRangeStart(exchange);
                 assertThat(rangeStart, lessThan(bytes.length));
+                addSuccessfulDownloadHeaders(exchange);
                 exchange.getResponseHeaders().add("Content-Type", bytesContentType());
                 exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
                 exchange.getResponseBody().write(bytes, rangeStart, bytes.length - rangeStart);
@@ -176,7 +186,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final CountDown countDown = new CountDown(maxRetries + 1);
 
         final TimeValue readTimeout = TimeValue.timeValueSeconds(between(5, 10));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).readTimeout(readTimeout).build();
         final byte[] bytes = randomBlobContent();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_range_blob_max_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
@@ -190,6 +200,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 final int effectiveRangeEnd = Math.min(bytes.length - 1, rangeEnd);
                 final int length = (effectiveRangeEnd - rangeStart) + 1;
                 exchange.getResponseHeaders().add("Content-Type", bytesContentType());
+                addSuccessfulDownloadHeaders(exchange);
                 exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
                 exchange.getResponseBody().write(bytes, rangeStart, length);
                 exchange.close();
@@ -248,7 +259,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     public void testReadBlobWithReadTimeouts() {
         final int maxRetries = randomInt(5);
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null, null);
+        final ByteSizeValue bufferSize = ByteSizeValue.ofMb(between(10, 20));
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries)
+            .bufferSize(bufferSize)
+            .readTimeout(readTimeout)
+            .build();
 
         // HTTP server does not send a response
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_unresponsive"), exchange -> {});
@@ -260,21 +275,34 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
         assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
 
+        // A list to track response sizes, some streams (i.e. RetryingInputStream) allow more retries when meaningful amount of bytes
+        // is transferred in a single try. See below.
+        final List<Long> retryContentSizes = Collections.synchronizedList(new ArrayList<>());
+
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent();
         httpServer.createContext(
             downloadStorageEndpoint(blobContainer, "read_blob_incomplete"),
-            exchange -> sendIncompleteContent(exchange, bytes)
+            exchange -> retryContentSizes.add((long) sendIncompleteContent(exchange, bytes))
         );
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
+        final AtomicLong meaningfulProgressSize = new AtomicLong(Long.MAX_VALUE);
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
                     ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
                     : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
+                if (stream instanceof RetryingInputStream<?> ris) {
+                    meaningfulProgressSize.set(ris.meaningfulProgressSize());
+                } else if (stream instanceof RetryingInputStreamUnwrappable rius) {
+                    final var wrapped = rius.unwrap();
+                    if (wrapped != null) {
+                        meaningfulProgressSize.set(wrapped.meaningfulProgressSize());
+                    }
+                }
                 Streams.readFully(stream);
             }
         });
@@ -288,7 +316,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("unexpected end of file from server")
             )
         );
-        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
+        int meaningfulProgressRetries = Math.toIntExact(
+            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
+        );
+        assertEquals(maxRetries + meaningfulProgressRetries, exception.getSuppressed().length);
     }
 
     protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
@@ -305,7 +336,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
     public void testReadBlobWithNoHttpResponse() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final BlobContainer blobContainer = createBlobContainer(randomInt(5), readTimeout, null, null, null);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(randomInt(5)).readTimeout(readTimeout).build();
 
         // HTTP server closes connection immediately
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_no_response"), HttpExchange::close);
@@ -325,7 +356,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
     public void testReadBlobWithPrematureConnectionClose() {
         final int maxRetries = randomInt(20);
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
 
         final boolean alwaysFlushBody = randomBoolean();
 
@@ -408,6 +439,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             length = bytes.length - rangeStart;
         }
         exchange.getResponseHeaders().add("Content-Type", bytesContentType());
+        addSuccessfulDownloadHeaders(exchange);
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
         int minSend = Math.min(0, length - 1);
         final int bytesToSend = randomIntBetween(minSend, length - 1);
@@ -501,5 +533,99 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 throw new IOException("Stream closed");
             }
         }
+    }
+
+    /**
+     * Method for subclasses to define how to create a {@link BlobContainer} with the given (optional) parameters. Callers should use
+     * {@link #blobContainerBuilder} to obtain a builder to construct the arguments to this method rather than calling it directly.
+     */
+    protected abstract BlobContainer createBlobContainer(
+        @Nullable Integer maxRetries,
+        @Nullable TimeValue readTimeout,
+        @Nullable Boolean disableChunkedEncoding,
+        @Nullable Integer maxConnections,
+        @Nullable ByteSizeValue bufferSize,
+        @Nullable Integer maxBulkDeletes,
+        @Nullable BlobPath blobContainerPath
+    );
+
+    protected final class TestBlobContainerBuilder {
+        @Nullable
+        private Integer maxRetries;
+        @Nullable
+        private TimeValue readTimeout;
+        @Nullable
+        private Boolean disableChunkedEncoding;
+        @Nullable
+        private Integer maxConnections;
+        @Nullable
+        private ByteSizeValue bufferSize;
+        @Nullable
+        private Integer maxBulkDeletes;
+        @Nullable
+        private BlobPath blobContainerPath;
+
+        public TestBlobContainerBuilder maxRetries(@Nullable Integer maxRetries) {
+            this.maxRetries = maxRetries;
+            return this;
+        }
+
+        public TestBlobContainerBuilder readTimeout(@Nullable TimeValue readTimeout) {
+            this.readTimeout = readTimeout;
+            return this;
+        }
+
+        public TestBlobContainerBuilder disableChunkedEncoding(@Nullable Boolean disableChunkedEncoding) {
+            this.disableChunkedEncoding = disableChunkedEncoding;
+            return this;
+        }
+
+        public TestBlobContainerBuilder maxConnections(@Nullable Integer maxConnections) {
+            this.maxConnections = maxConnections;
+            return this;
+        }
+
+        public TestBlobContainerBuilder bufferSize(@Nullable ByteSizeValue bufferSize) {
+            this.bufferSize = bufferSize;
+            return this;
+        }
+
+        public TestBlobContainerBuilder maxBulkDeletes(@Nullable Integer maxBulkDeletes) {
+            this.maxBulkDeletes = maxBulkDeletes;
+            return this;
+        }
+
+        public TestBlobContainerBuilder blobContainerPath(@Nullable BlobPath blobContainerPath) {
+            this.blobContainerPath = blobContainerPath;
+            return this;
+        }
+
+        public BlobContainer build() {
+            return createBlobContainer(
+                maxRetries,
+                readTimeout,
+                disableChunkedEncoding,
+                maxConnections,
+                bufferSize,
+                maxBulkDeletes,
+                blobContainerPath
+            );
+        }
+    }
+
+    /**
+     * @return a {@link TestBlobContainerBuilder} to construct the arguments with which to call {@link #createBlobContainer}.
+     */
+    protected final TestBlobContainerBuilder blobContainerBuilder() {
+        return new TestBlobContainerBuilder();
+    }
+
+    /**
+     * If we wrap the {@link RetryingInputStream} in tests we can expose it using this interface
+     * so that {@link #testReadBlobWithReadTimeouts()} can determine the meaninful progress size
+     */
+    protected interface RetryingInputStreamUnwrappable {
+        @Nullable
+        RetryingInputStream<?> unwrap();
     }
 }

@@ -62,7 +62,7 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexTemplateRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

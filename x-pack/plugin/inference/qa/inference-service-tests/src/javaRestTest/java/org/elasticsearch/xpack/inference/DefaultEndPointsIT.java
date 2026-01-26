@@ -13,6 +13,8 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -62,6 +64,25 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         assertDefaultRerankConfig(rerankModel);
     }
 
+    public void testDefaultModels() throws IOException {
+        var elserModel = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
+        assertDefaultElserConfig(elserModel);
+
+        var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
+        assertDefaultE5Config(e5Model);
+
+        var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(rerankModel);
+
+        putModel("my-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+        var registeredModels = getMinimalConfigs();
+        assertThat(registeredModels.size(), is(1));
+        assertTrue(registeredModels.containsKey("my-model"));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_E5_ID));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_ELSER_ID));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_RERANK_ID));
+    }
+
     @SuppressWarnings("unchecked")
     public void testInferDeploysDefaultElser() throws IOException {
         var model = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
@@ -70,7 +91,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         var inputs = List.of("Hello World", "Goodnight moon");
         var queryParams = Map.of("timeout", "120s");
         var results = infer(ElasticsearchInternalService.DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, inputs, queryParams);
-        var embeddings = (List<Map<String, Object>>) results.get("sparse_embedding");
+        var embeddings = (List<Map<String, Object>>) results.get(SparseEmbeddingResults.SPARSE_EMBEDDING);
         assertThat(results.toString(), embeddings, hasSize(2));
     }
 
@@ -101,7 +122,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         var inputs = List.of("Hello World", "Goodnight moon");
         var queryParams = Map.of("timeout", "120s");
         var results = infer(ElasticsearchInternalService.DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, inputs, queryParams);
-        var embeddings = (List<Map<String, Object>>) results.get("text_embedding");
+        var embeddings = (List<Map<String, Object>>) results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING);
         assertThat(results.toString(), embeddings, hasSize(2));
     }
 
@@ -174,7 +195,14 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         );
     }
 
-    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException {
+    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException, IOException {
+        var initialEndpointId = "initial-model";
+        // Creating an inference endpoint to force the backing indices to be created to reduce the likelihood of the test failing
+        // because it's trying to interact with the indices while they're being created.
+        putModel(initialEndpointId, mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+        // delete model so it doesn't affect other tests
+        deleteModel(initialEndpointId);
+
         int numParallelRequests = 4;
         var latch = new CountDownLatch(numParallelRequests);
         var errors = new ArrayList<Exception>();

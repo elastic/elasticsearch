@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
@@ -300,7 +301,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
-                    if (fieldContext.fieldType().isIndexed()) {
+                    if (fieldContext.fieldType().indexType().hasPoints()) {
                         log.trace("Attempting to apply index bound date rounding");
                         /*
                          * We can't look up the min and max date without both the
@@ -314,12 +315,18 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             range[0] = dft.resolution().parsePointAsMillis(min);
                             range[1] = dft.resolution().parsePointAsMillis(max);
                         }
+                    } else if (dft.hasDocValuesSkipper()) {
+                        log.trace("Attempting to apply skipper-based data rounding");
+                        range[0] = dft.resolution()
+                            .roundDownToMillis(DocValuesSkipper.globalMinValue(context.searcher(), fieldContext.field()));
+                        range[1] = dft.resolution()
+                            .roundDownToMillis(DocValuesSkipper.globalMaxValue(context.searcher(), fieldContext.field()));
                     }
                     log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
-                        if (fieldContext.fieldType().isIndexed()) {
+                        if (fieldContext.fieldType().indexType().hasPoints()) {
                             PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
                             if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
                                 isMultiValue = true;

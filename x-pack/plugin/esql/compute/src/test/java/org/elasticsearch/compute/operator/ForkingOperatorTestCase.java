@@ -54,11 +54,18 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
-    protected abstract Operator.OperatorFactory simpleWithMode(AggregatorMode mode);
+    protected abstract Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode);
+
+    /**
+     * Calls {@link #simpleWithMode(SimpleOptions, AggregatorMode)} with the default options.
+     */
+    protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+        return simpleWithMode(SimpleOptions.DEFAULT, mode);
+    }
 
     @Override
-    protected final Operator.OperatorFactory simple() {
-        return simpleWithMode(AggregatorMode.SINGLE);
+    protected final Operator.OperatorFactory simple(SimpleOptions options) {
+        return simpleWithMode(options, AggregatorMode.SINGLE);
     }
 
     public final void testInitialFinal() {

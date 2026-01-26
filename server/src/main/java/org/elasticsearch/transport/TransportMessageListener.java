@@ -27,9 +27,8 @@ public interface TransportMessageListener {
      * Called for every action response sent after the response has been passed to the underlying network implementation.
      * @param requestId the request ID (unique per client)
      * @param action the request action
-     * @param response the response send
      */
-    default void onResponseSent(long requestId, String action, TransportResponse response) {}
+    default void onResponseSent(long requestId, String action) {}
 
     /***
      * Called for every failed action response after the response has been passed to the underlying network implementation.

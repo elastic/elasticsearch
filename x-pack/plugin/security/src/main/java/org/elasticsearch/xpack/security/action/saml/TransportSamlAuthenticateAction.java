@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,11 +24,9 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticateResponseHandler;
 import org.elasticsearch.xpack.security.authc.saml.SamlToken;
 
-import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
@@ -39,7 +36,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
 
     private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
-    private final TokenService tokenService;
+    private final SamlAuthenticateResponseHandler tokenHandler;
     private final SecurityContext securityContext;
     private final Executor genericExecutor;
 
@@ -49,7 +46,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         TransportService transportService,
         ActionFilters actionFilters,
         AuthenticationService authenticationService,
-        TokenService tokenService,
+        SamlAuthenticateResponseHandler tokenHandler,
         SecurityContext securityContext
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -62,7 +59,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         );
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
-        this.tokenService = tokenService;
+        this.tokenHandler = tokenHandler;
         this.securityContext = securityContext;
         this.genericExecutor = threadPool.generic();
     }
@@ -81,32 +78,16 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         Authentication originatingAuthentication = securityContext.getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml, ActionListener.wrap(authentication -> {
-                AuthenticationResult<User> result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
+                AuthenticationResult<User> result = AuthenticationResult.get(threadContext);
                 if (result == null) {
                     listener.onFailure(new IllegalStateException("Cannot find User AuthenticationResult on thread context"));
                     return;
                 }
                 assert authentication != null : "authentication should never be null at this point";
                 assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
-                @SuppressWarnings("unchecked")
-                final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
-                tokenService.createOAuth2Tokens(
-                    authentication,
-                    originatingAuthentication,
-                    tokenMeta,
-                    true,
-                    ActionListener.wrap(tokenResult -> {
-                        final TimeValue expiresIn = tokenService.getExpirationDelay();
-                        listener.onResponse(
-                            new SamlAuthenticateResponse(
-                                authentication,
-                                tokenResult.getAccessToken(),
-                                tokenResult.getRefreshToken(),
-                                expiresIn
-                            )
-                        );
-                    }, listener::onFailure)
-                );
+                assert result.isAuthenticated();
+                tokenHandler.handleTokenResponse(authentication, originatingAuthentication, result, listener);
+
             }, e -> {
                 logger.debug(() -> "SamlToken [" + saml + "] could not be authenticated", e);
                 listener.onFailure(e);

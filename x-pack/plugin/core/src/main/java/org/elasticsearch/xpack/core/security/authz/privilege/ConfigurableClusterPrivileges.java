@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,16 +81,7 @@ public final class ConfigurableClusterPrivileges {
      * Utility method to write an array of {@link ConfigurableClusterPrivilege} objects to a {@link StreamOutput}
      */
     public static void writeArray(StreamOutput out, ConfigurableClusterPrivilege[] privileges) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeArray(WRITER, privileges);
-        } else {
-            out.writeArray(
-                WRITER,
-                Arrays.stream(privileges)
-                    .filter(privilege -> privilege instanceof ManageRolesPrivilege == false)
-                    .toArray(ConfigurableClusterPrivilege[]::new)
-            );
-        }
+        out.writeArray(WRITER, privileges);
     }
 
     /**
@@ -562,6 +552,11 @@ public final class ConfigurableClusterPrivileges {
                 }
                 for (String privilege : indexPrivilege.privileges) {
                     IndexPrivilege namedPrivilege = IndexPrivilege.getNamedOrNull(privilege);
+
+                    // Use resolveBySelectorAccess to determine whether the passed privilege is valid.
+                    // IllegalArgumentException is thrown here when an invalid permission is encountered.
+                    IndexPrivilege.resolveBySelectorAccess(Set.of(privilege));
+
                     if (namedPrivilege != null && namedPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
                         throw new IllegalArgumentException(
                             "Failure store related privileges are not supported as targets of manage roles but found [" + privilege + "]"

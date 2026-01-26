@@ -35,7 +35,7 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
             transportService,
             mock(ActionFilters.class),
             null,
-            TestProjectResolvers.singleProjectOnly(),
+            TestProjectResolvers.alwaysThrow(),
             null
         );
     }

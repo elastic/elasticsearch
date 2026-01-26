@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 import java.util.Collection;
 
 /**
- * Autoscaling provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface
+ * Autoscaling provider implementation for the {@link ReservedStateHandlerProvider} service interface
  */
-public class ReservedAutoscalingStateHandlerProvider implements ReservedClusterStateHandlerProvider {
+public class ReservedAutoscalingStateHandlerProvider implements ReservedStateHandlerProvider {
     private final Autoscaling plugin;
 
     public ReservedAutoscalingStateHandlerProvider() {
@@ -28,7 +27,7 @@ public class ReservedAutoscalingStateHandlerProvider implements ReservedClusterS
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<ClusterState, ?>> clusterHandlers() {
+    public Collection<ReservedClusterStateHandler<?>> clusterHandlers() {
         return plugin.reservedClusterStateHandlers();
     }
 }

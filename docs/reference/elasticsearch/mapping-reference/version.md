@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Version"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/version.html
@@ -43,11 +46,6 @@ This field type isn’t optimized for heavy wildcard, regex, or fuzzy searches. 
 
 ## Synthetic `_source` [version-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices, synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 `version` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration..
 
 Synthetic source may sort `version` field values and remove duplicates. For example:
@@ -77,6 +75,7 @@ PUT idx/_doc/1
   "versions": ["8.0.0-beta1", "8.5.0", "0.90.12", "2.6.1", "1.3.4", "1.3.4"]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -85,5 +84,5 @@ Will become:
   "versions": ["0.90.12", "1.3.4", "2.6.1", "8.0.0-beta1", "8.5.0"]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

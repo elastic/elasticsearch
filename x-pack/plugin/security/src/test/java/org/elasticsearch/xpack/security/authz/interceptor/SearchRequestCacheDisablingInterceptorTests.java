@@ -76,7 +76,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
     }
 
     public void testRequestCacheWillBeDisabledWhenSearchRemoteIndices() {
-        configureMinMondeVersion(VersionUtils.randomVersion(random()));
+        configureMinMondeVersion(VersionUtils.randomVersion());
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         RequestInfo requestInfo = new RequestInfo(
@@ -100,7 +100,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
 
         IndicesAccessControl indicesAccessControl = Mockito.mock(IndicesAccessControl.class);
         when(indicesAccessControl.getFieldAndDocumentLevelSecurityUsage()).thenReturn(IndicesAccessControl.DlsFlsUsage.BOTH);
-        threadPool.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.setIfEmpty(threadPool.getThreadContext(), indicesAccessControl);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), mock(AuthorizationInfo.class)).addListener(future);

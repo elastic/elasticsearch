@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +24,9 @@ import java.io.IOException;
 
 public class ToUpper extends ChangeCase {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToUpper", ToUpper::new);
+    private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
+        "esql_serialize_source_functions_warnings"
+    );
 
     @FunctionInfo(
         returnType = { "keyword" },
@@ -31,14 +34,15 @@ public class ToUpper extends ChangeCase {
         examples = @Example(file = "string", tag = "to_upper")
     )
     public ToUpper(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
-        String expression. If `null`, the function returns `null`.
-        The input can be a single- or multi-valued column or an expression.""") Expression field, Configuration configuration) {
+        String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression,
+        or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`.
+        """) Expression field, Configuration configuration) {
         super(source, field, configuration, Case.UPPER);
     }
 
     private ToUpper(StreamInput in) throws IOException {
         this(
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+            in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
                 ? Source.readFrom((PlanStreamInput) in)
                 : Source.EMPTY,
             in.readNamedWriteable(Expression.class),
@@ -48,7 +52,7 @@ public class ToUpper extends ChangeCase {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
             source().writeTo(out);
         }
         out.writeNamedWriteable(field());

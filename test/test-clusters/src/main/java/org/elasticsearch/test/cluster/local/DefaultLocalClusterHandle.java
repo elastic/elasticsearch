@@ -118,8 +118,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getHttpAddresses() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
+        if (started.get()) {
+            return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
+        } else {
+            throw new IllegalStateException("Elasticsearch cluster [" + name + "] has not been started.");
+        }
     }
 
     @Override
@@ -129,8 +132,12 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getTransportEndpoints() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
+        if (started.get()) {
+            return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
+        } else {
+            throw new IllegalStateException("Elasticsearch cluster [" + name + "] has not been started.");
+        }
+
     }
 
     @Override
@@ -153,8 +160,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getRemoteClusterServerEndpoints() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
+        if (started.get()) {
+            return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
+        } else {
+            throw new IllegalStateException("Elasticsearch cluster [" + name + "] has not been started.");
+        }
     }
 
     @Override
@@ -200,6 +210,10 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return nodes.get(index).getLog(logType);
     }
 
+    public Path getNodeConfigPath(int index) {
+        return nodes.get(index).getConfigDir();
+    }
+
     @Override
     public void updateStoredSecureSettings() {
         execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
@@ -237,15 +251,15 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
         String caFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate_authorities", null);
         if (caFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(caFile).toFile());
+            wait.setCertificateAuthorities(node.getConfigDir().resolve(caFile).toFile());
         }
         String sslCertFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate", null);
         if (sslCertFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(sslCertFile).toFile());
+            wait.setCertificateAuthorities(node.getConfigDir().resolve(sslCertFile).toFile());
         }
         String sslKeystoreFile = node.getSpec().getSetting("xpack.security.http.ssl.keystore.path", null);
         if (sslKeystoreFile != null && caFile == null) { // Can not set both trust stores and CA
-            wait.setTrustStoreFile(node.getWorkingDir().resolve("config").resolve(sslKeystoreFile).toFile());
+            wait.setTrustStoreFile(node.getConfigDir().resolve(sslKeystoreFile).toFile());
         }
         String keystorePassword = node.getSpec().getSetting("xpack.security.http.ssl.keystore.secure_password", null);
         if (keystorePassword != null) {
@@ -254,7 +268,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     private boolean isSecurityAutoConfigured(Node node) {
-        Path configFile = node.getWorkingDir().resolve("config").resolve("elasticsearch.yml");
+        Path configFile = node.getConfigDir().resolve("elasticsearch.yml");
         try (Stream<String> lines = Files.lines(configFile)) {
             return lines.anyMatch(l -> l.contains("BEGIN SECURITY AUTO CONFIGURATION"));
         } catch (IOException e) {
@@ -273,7 +287,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
                     LOGGER.info("Skipping writing unicast hosts file for node {}", node.getName());
                     return;
                 }
-                Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
+                Path hostsFile = node.getConfigDir().resolve("unicast_hosts.txt");
                 LOGGER.info("Writing unicast hosts file {} for node {}", hostsFile, node.getName());
                 Files.writeString(hostsFile, transportUris);
             } catch (IOException e) {

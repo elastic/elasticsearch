@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
-import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorServiceTests;
+import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
@@ -436,16 +436,14 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
         // run it once, verify getHealth is called
-        {
-            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-            logHealthThread.start();
-            // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
-            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
-            // We try to log again while it's in progress, we expect this run to be skipped
-            assertFalse(testHealthPeriodicLogger.tryToLogHealth());
-            // Unblock the first execution
-            waitForSecondRun.countDown();
-        }
+        Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+        logHealthThread.start();
+        // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
+        assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+        // We try to log again while it's in progress, we expect this run to be skipped
+        assertFalse(testHealthPeriodicLogger.tryToLogHealth());
+        // Unblock the first execution
+        waitForSecondRun.countDown();
 
         // run it again, verify getHealth is called, because we are calling the results listener
         {
@@ -453,6 +451,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
+
+        // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
+        logHealthThread.join();
     }
 
     public void testTryToLogHealthConcurrencyControl() throws Exception {
@@ -485,11 +486,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
         // call it and verify that getHealth is called
-        {
-            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-            logHealthThread.start();
-            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
-        }
+        Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+        logHealthThread.start();
+        assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
 
         // run it again, verify that it's skipped because the other one is in progress
         {
@@ -504,6 +503,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
+
+        // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
+        logHealthThread.join();
     }
 
     public void testTryToLogHealthConcurrencyControlWithException() throws Exception {
@@ -609,11 +611,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
             // call it and verify that getHealth is called
-            {
-                Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-                logHealthThread.start();
-                assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
-            }
+            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
+            assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
 
             // stop and close it
             {
@@ -626,6 +626,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 waitForCloseToBeTriggered.countDown();
                 assertBusy(() -> assertEquals(Lifecycle.State.CLOSED, testHealthPeriodicLogger.lifecycleState()));
             }
+
+            // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
+            logHealthThread.join();
         }
     }
 
@@ -824,7 +827,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             YELLOW,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            new SimpleHealthIndicatorDetails(StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
             List.of(
                 new HealthIndicatorImpact(
                     ShardsAvailabilityHealthIndicatorService.NAME,
@@ -854,7 +857,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             GREEN,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
+            new SimpleHealthIndicatorDetails(StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
             null,
             null
         );
@@ -869,7 +872,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             "shards_availability",
             RED,
             null,
-            new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of("unassigned_primaries", 1))),
+            new SimpleHealthIndicatorDetails(
+                StatefulShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of("unassigned_primaries", 1))
+            ),
             null,
             null
         );

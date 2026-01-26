@@ -11,20 +11,28 @@ lexer grammar From;
 //
 FROM : 'from'                 -> pushMode(FROM_MODE);
 
+// TS command
+TS : 'ts' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
-FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
-FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COLON : COLON -> type(COLON);
+FROM_SELECTOR : CAST_OP -> type(CAST_OP);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
 
+// we need this for EXPLAIN
+// change to double popMode to accommodate subquerys in FROM, when see ')' pop out of subquery(default) mode and from mode
+FROM_RP : RP -> type(RP), popMode, popMode;
+
+// accommodate subQuery inside FROM
+FROM_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
+
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
 fragment UNQUOTED_SOURCE_PART
-    : ~[:"=|,[\]/ \t\r\n]
+    : ~[:"=|,[\]/() \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 

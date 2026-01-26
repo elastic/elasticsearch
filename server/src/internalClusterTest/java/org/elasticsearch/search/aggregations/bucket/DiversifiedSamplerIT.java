@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
@@ -107,7 +106,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
                 assertThat(genreBuckets.size(), greaterThan(1));
                 double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
                 for (Terms.Bucket genreBucket : genres.getBuckets()) {
-                    Sampler sample = genreBucket.getAggregations().get("sample");
+                    SingleBucketAggregation sample = genreBucket.getAggregations().get("sample");
                     Max maxPriceInGenre = sample.getAggregations().get("max_price");
                     double price = maxPriceInGenre.value();
                     if (asc) {
@@ -133,7 +132,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
                 .setSize(60)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 Terms authors = sample.getAggregations().get("authors");
                 List<? extends Bucket> testBuckets = authors.getBuckets();
 
@@ -160,7 +159,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
                 Terms genres = response.getAggregations().get("genres");
                 List<? extends Bucket> genreBuckets = genres.getBuckets();
                 for (Terms.Bucket genreBucket : genreBuckets) {
-                    Sampler sample = genreBucket.getAggregations().get("sample");
+                    SingleBucketAggregation sample = genreBucket.getAggregations().get("sample");
                     Terms authors = sample.getAggregations().get("authors");
                     List<? extends Bucket> testBuckets = authors.getBuckets();
 
@@ -189,8 +188,8 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(rootSample),
             response -> {
-                Sampler genreSample = response.getAggregations().get("genreSample");
-                Sampler sample = genreSample.getAggregations().get("sample");
+                SingleBucketAggregation genreSample = response.getAggregations().get("genreSample");
+                SingleBucketAggregation sample = genreSample.getAggregations().get("sample");
 
                 Terms genres = sample.getAggregations().get("genres");
                 List<? extends Bucket> testBuckets = genres.getBuckets();
@@ -221,7 +220,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
                 .setSize(60)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 assertThat(sample.getDocCount(), greaterThan(0L));
                 Terms authors = sample.getAggregations().get("authors");
                 assertThat(authors.getBuckets().size(), greaterThan(0));
@@ -242,7 +241,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
                 .setSize(60)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 assertThat(sample.getDocCount(), equalTo(0L));
                 Terms authors = sample.getAggregations().get("authors");
                 assertNull(authors);

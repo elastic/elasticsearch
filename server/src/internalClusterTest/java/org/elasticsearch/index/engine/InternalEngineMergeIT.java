@@ -8,23 +8,39 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, scope = Scope.SUITE)
+@ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0, scope = Scope.TEST)
 public class InternalEngineMergeIT extends ESIntegTestCase {
+
+    private boolean useThreadPoolMerging;
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        useThreadPoolMerging = randomBoolean();
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        settings.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), useThreadPoolMerging);
+        return settings.build();
+    }
 
     public void testMergesHappening() throws Exception {
         final int numOfShards = randomIntBetween(1, 5);
@@ -83,4 +99,60 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
         assertThat(count, lessThanOrEqualTo(upperNumberSegments));
     }
 
+    public void testMergesUseTheMergeThreadPool() throws Exception {
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(randomIntBetween(1, 3), 0).build());
+        long id = 0;
+        final int minMerges = randomIntBetween(1, 5);
+        long totalDocs = 0;
+
+        while (true) {
+            int docs = randomIntBetween(100, 200);
+            totalDocs += docs;
+
+            BulkRequestBuilder request = client().prepareBulk();
+            for (int j = 0; j < docs; ++j) {
+                request.add(
+                    new IndexRequest(indexName).id(Long.toString(id++))
+                        .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
+                );
+            }
+            BulkResponse response = request.get();
+            assertNoFailures(response);
+            refresh(indexName);
+
+            var mergesResponse = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get();
+            var primaries = mergesResponse.getIndices().get(indexName).getPrimaries();
+            if (primaries.merge.getTotal() >= minMerges) {
+                break;
+            }
+        }
+
+        forceMerge();
+        refresh(indexName);
+
+        // after a force merge there should only be 1 segment per shard
+        var shardsWithMultipleSegments = getShardSegments().stream()
+            .filter(shardSegments -> shardSegments.getSegments().size() > 1)
+            .toList();
+        assertTrue("there are shards with multiple segments " + shardsWithMultipleSegments, shardsWithMultipleSegments.isEmpty());
+
+        final long expectedTotalDocs = totalDocs;
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), expectedTotalDocs);
+
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(indexName).setMerge(true).get();
+        long mergeCount = indicesStats.getIndices().get(indexName).getPrimaries().merge.getTotal();
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setThreadPool(true).get();
+        assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
+
+        NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
+        if (useThreadPoolMerging) {
+            assertThat(
+                nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().get().completed(),
+                equalTo(mergeCount)
+            );
+        } else {
+            assertTrue(nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().isEmpty());
+        }
+    }
 }

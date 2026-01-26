@@ -12,7 +12,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -40,6 +39,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -139,6 +139,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "local",
                 nowInMillis,
                 randomBoolean()
@@ -158,6 +159,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 nowInMillis,
                 randomBoolean()
@@ -205,6 +207,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -216,6 +219,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -231,6 +235,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -279,7 +284,15 @@ public class TransportSearchIT extends ESIntegTestCase {
         {
             SearchRequest searchRequest = randomBoolean()
                 ? originalRequest
-                : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
+                : SearchRequest.subSearchRequest(
+                    taskId,
+                    originalRequest,
+                    Strings.EMPTY_ARRAY,
+                    originalRequest.indicesOptions(),
+                    "remote",
+                    nowInMillis,
+                    true
+                );
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value());
                 InternalAggregations aggregations = searchResponse.getAggregations();
@@ -292,6 +305,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 taskId,
                 originalRequest,
                 Strings.EMPTY_ARRAY,
+                originalRequest.indicesOptions(),
                 "remote",
                 nowInMillis,
                 false
@@ -446,6 +460,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         int numShards = randomIntBetween(1, 10);
         indexSomeDocs("test", numShards, numShards * 3);
 
@@ -519,7 +534,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
+            updateClusterSettings(
+                Settings.builder().putNull("indices.breaker.request.limit").putNull(SearchService.BATCHED_QUERY_PHASE.getKey())
+            );
         }
     }
 
@@ -644,7 +661,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 

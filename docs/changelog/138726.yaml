@@ -1,0 +1,5 @@
+pr: 136624
+summary: Added Azure OpenAI chat_completion support to the Inference Plugin
+area: Machine Learning
+type: enhancement
+issues: []

@@ -8,9 +8,12 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -23,6 +26,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChangeCaseEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final Locale locale;
@@ -45,6 +50,10 @@ public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractE
   @Override
   public Block evalVector(Vector v) {
     BytesRefVector vector = (BytesRefVector) v;
+    OrdinalBytesRefVector ordinals = vector.asOrdinals();
+    if (ordinals != null) {
+      return evalOrdinals(ordinals);
+    }
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
@@ -99,6 +108,19 @@ public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractE
     return ChangeCase.process(value, this.locale, this.caseType);
   }
 
+  private Block evalOrdinals(OrdinalBytesRefVector v) {
+    int positionCount = v.getDictionaryVector().getPositionCount();
+    BytesRef scratchPad = new BytesRef();
+    try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        builder.appendBytesRef(evalValue(v.getDictionaryVector(), p, scratchPad));
+      }
+      IntVector ordinals = v.getOrdinalsVector();
+      ordinals.incRef();
+      return new OrdinalBytesRefVector(ordinals, builder.build()).asBlock();
+    }
+  }
+
   @Override
   public String toString() {
     return "ChangeCaseEvaluator[" + "val=" + val + ", locale=" + locale + ", caseType=" + caseType + "]";
@@ -107,6 +129,13 @@ public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractE
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

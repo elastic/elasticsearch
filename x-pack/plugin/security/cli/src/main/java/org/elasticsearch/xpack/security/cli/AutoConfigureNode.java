@@ -102,6 +102,9 @@ import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
+import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
+import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE;
 
 /**
  * Configures a new cluster node, by appending to the elasticsearch.yml, so that it forms a single node cluster with
@@ -411,7 +414,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     null,
                     true,
                     TRANSPORT_CA_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    null,
+                    Set.of()
                 );
                 // transport key/certificate
                 final KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
@@ -424,7 +429,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     transportCaKey,
                     false,
                     TRANSPORT_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    null,
+                    Set.of()
                 );
 
                 final KeyPair httpCaKeyPair = CertGenUtils.generateKeyPair(HTTP_CA_KEY_SIZE);
@@ -438,7 +445,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     null,
                     true,
                     HTTP_CA_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    buildKeyUsage(DEFAULT_CA_KEY_USAGE),
+                    Set.of()
                 );
             } catch (Throwable t) {
                 try {
@@ -464,6 +473,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 HTTP_CERTIFICATE_DAYS,
                 SIGNATURE_ALGORITHM,
+                buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
                 Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
             );
 

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Nested"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html
@@ -16,6 +19,10 @@ When ingesting key-value pairs with a large, arbitrary set of keys, you might co
 
 ::::{warning}
 Nested fields have incomplete support in Kibana. While they are visible and searchable in Discover, they cannot be used to build visualizations in Lens.
+::::
+
+::::{warning}
+If a parent object field mapping has `subobject` set to `false` or the root object `subobject` set to `false`, then nested field mappings are also auto flattened and only leaf field mappings are retained. This means that the nested field mapping's functionality is disabled.
 ::::
 
 
@@ -52,6 +59,7 @@ The previous document would be transformed internally into a document that looks
   "user.last" :  [ "smith", "white" ]
 }
 ```
+% NOTCONSOLE
 
 The `user.first` and `user.last` fields are flattened into multi-value fields, and the association between `alice` and `white` is lost. This document would incorrectly match a query for `alice AND smith`:
 
@@ -68,13 +76,14 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 
 ## Using `nested` fields for arrays of objects [nested-fields-array-objects]
 
 If you need to index arrays of objects and to maintain the independence of each object in the array, use the `nested` data type instead of the [`object`](/reference/elasticsearch/mapping-reference/object.md) data type.
 
-Internally, nested objects index each object in the array as a separate hidden document, meaning that each nested object can be queried independently of the others with the [`nested` query](/reference/query-languages/query-dsl-nested-query.md):
+Internally, nested objects index each object in the array as a separate hidden document, meaning that each nested object can be queried independently of the others with the [`nested` query](/reference/query-languages/query-dsl/query-dsl-nested-query.md):
 
 ```console
 PUT my-index-000001
@@ -156,8 +165,8 @@ GET my-index-000001/_search
 
 Nested documents can be:
 
-* queried with the [`nested`](/reference/query-languages/query-dsl-nested-query.md) query.
-* analyzed with the [`nested`](/reference/data-analysis/aggregations/search-aggregations-bucket-nested-aggregation.md) and [`reverse_nested`](/reference/data-analysis/aggregations/search-aggregations-bucket-reverse-nested-aggregation.md) aggregations.
+* queried with the [`nested`](/reference/query-languages/query-dsl/query-dsl-nested-query.md) query.
+* analyzed with the [`nested`](/reference/aggregations/search-aggregations-bucket-nested-aggregation.md) and [`reverse_nested`](/reference/aggregations/search-aggregations-bucket-reverse-nested-aggregation.md) aggregations.
 * sorted with [nested sorting](/reference/elasticsearch/rest-apis/sort-search-results.md#nested-sorting).
 * retrieved and highlighted with [nested inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md#nested-inner-hits).
 
@@ -192,9 +201,12 @@ The following parameters are accepted by `nested` fields:
 As described earlier, each nested object is indexed as a separate Lucene document. Continuing with the previous example, if we indexed a single document containing 100 `user` objects, then 101 Lucene documents would be created: one for the parent document, and one for each nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts settings in place to guard against performance problems:
 
 `index.mapping.nested_fields.limit`
-:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `50`.
+:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `100`.
 
 In the previous example, the `user` mapping would count as only 1 towards this limit.
+
+`index.mapping.nested_parents.limit`
+:   The maximum number of nested fields that act as parents of other nested fields. Each nested parent requires its own in-memory parent bitset. Root-level nested fields share a parent bitset, but nested fields under other nested fields require additional bitsets. This setting limits the number of unique nested parents to prevent excessive memory usage. Default is `50`.
 
 `index.mapping.nested_objects.limit`
 :   The maximum number of nested JSON objects that a single document can contain across all `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested objects. Default is `10000`.

@@ -17,13 +17,14 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -34,16 +35,16 @@ public class TextFormatterTests extends ESTestCase {
     static BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     private final List<ColumnInfoImpl> columns = Arrays.asList(
-        new ColumnInfoImpl("foo", "keyword"),
-        new ColumnInfoImpl("bar", "long"),
-        new ColumnInfoImpl("15charwidename!", "double"),
-        new ColumnInfoImpl("null_field1", "integer"),
-        new ColumnInfoImpl("superduperwidename!!!", "double"),
-        new ColumnInfoImpl("baz", "keyword"),
-        new ColumnInfoImpl("date", "date"),
-        new ColumnInfoImpl("location", "geo_point"),
-        new ColumnInfoImpl("location2", "cartesian_point"),
-        new ColumnInfoImpl("null_field2", "keyword")
+        new ColumnInfoImpl("foo", "keyword", null),
+        new ColumnInfoImpl("bar", "long", null),
+        new ColumnInfoImpl("15charwidename!", "double", null),
+        new ColumnInfoImpl("null_field1", "integer", null),
+        new ColumnInfoImpl("superduperwidename!!!", "double", null),
+        new ColumnInfoImpl("baz", "keyword", null),
+        new ColumnInfoImpl("date", "date", null),
+        new ColumnInfoImpl("location", "geo_point", null),
+        new ColumnInfoImpl("location2", "cartesian_point", null),
+        new ColumnInfoImpl("null_field2", "keyword", null)
     );
 
     private static final BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -79,10 +80,15 @@ public class TextFormatterTests extends ESTestCase {
                 blockFactory.newConstantNullBlock(2)
             )
         ),
+        0,
+        0,
         null,
         randomBoolean(),
         randomBoolean(),
-        new EsqlExecutionInfo(randomBoolean())
+        ZoneOffset.UTC,
+        0L,
+        0L,
+        createEsqlExecutionInfo(randomBoolean())
     );
 
     /**
@@ -181,10 +187,15 @@ public class TextFormatterTests extends ESTestCase {
                     blockFactory.newConstantNullBlock(2)
                 )
             ),
+            0,
+            0,
             null,
             randomBoolean(),
             randomBoolean(),
-            new EsqlExecutionInfo(randomBoolean())
+            ZoneOffset.UTC,
+            0L,
+            0L,
+            createEsqlExecutionInfo(randomBoolean())
         );
 
         String[] result = getTextBodyContent(new TextFormatter(response, false, false).format()).split("\n");
@@ -213,7 +224,7 @@ public class TextFormatterTests extends ESTestCase {
             getTextBodyContent(
                 new TextFormatter(
                     new EsqlQueryResponse(
-                        List.of(new ColumnInfoImpl("foo", "keyword")),
+                        List.of(new ColumnInfoImpl("foo", "keyword", null)),
                         List.of(
                             new Page(
                                 blockFactory.newBytesRefBlockBuilder(2)
@@ -222,10 +233,15 @@ public class TextFormatterTests extends ESTestCase {
                                     .build()
                             )
                         ),
+                        0,
+                        0,
                         null,
                         randomBoolean(),
                         randomBoolean(),
-                        new EsqlExecutionInfo(randomBoolean())
+                        randomZone(),
+                        0L,
+                        0L,
+                        createEsqlExecutionInfo(randomBoolean())
                     ),
                     false,
                     false

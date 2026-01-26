@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -26,9 +25,9 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -393,12 +392,12 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
 
         @Override
         public TermValues getValues(LeafReaderContext ctx) throws IOException {
-            final SortedNumericDocValues values = source.longValues(ctx);
-            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            final SortedNumericLongValues values = source.longValues(ctx);
+            final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
             return singleton != null ? getValues(singleton) : getValues(values);
         }
 
-        public TermValues getValues(SortedNumericDocValues values) {
+        public TermValues getValues(SortedNumericLongValues values) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     final List<Object> objects = new ArrayList<>();
@@ -418,7 +417,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             };
         }
 
-        public TermValues getValues(NumericDocValues values) {
+        public TermValues getValues(LongValues values) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     return List.of(values.longValue());
@@ -447,7 +446,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         @Override
         public TermValues getValues(LeafReaderContext ctx) throws IOException {
             final SortedNumericDoubleValues values = source.doubleValues(ctx);
-            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = FieldData.unwrapSingleton(values);
             return singleton != null ? getValues(singleton) : getValues(values);
         }
 
@@ -471,7 +470,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             };
         }
 
-        public TermValues getValues(NumericDoubleValues values) {
+        public TermValues getValues(DoubleValues values) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     return List.of(values.doubleValue());

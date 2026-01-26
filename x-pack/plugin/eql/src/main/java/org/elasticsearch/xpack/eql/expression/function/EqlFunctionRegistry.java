@@ -93,7 +93,7 @@ public final class EqlFunctionRegistry extends FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static FunctionDefinition def(Class<? extends Function> function, EqlFunctionBuilder builder, String... names) {
-        Check.isTrue(names.length > 0, "At least one name must be provided for the function");
+        Check.isTrueInternal(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {

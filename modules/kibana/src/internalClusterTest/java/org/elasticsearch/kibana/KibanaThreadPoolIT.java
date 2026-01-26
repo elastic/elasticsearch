@@ -233,7 +233,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     private static void fillThreadPoolQueues(String threadPoolName, ThreadPool threadPool) {
         ThreadPool.Info info = threadPool.info(threadPoolName);
 
-        for (int i = 0; i < info.getQueueSize().singles(); i++) {
+        for (int i = 0; i < info.getQueueSize(); i++) {
             try {
                 threadPool.executor(threadPoolName).execute(() -> {});
             } catch (EsRejectedExecutionException e) {

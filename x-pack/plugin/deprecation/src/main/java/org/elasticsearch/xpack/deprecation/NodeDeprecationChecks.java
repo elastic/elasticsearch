@@ -139,22 +139,30 @@ public class NodeDeprecationChecks {
         String additionalDetailMessage,
         DeprecationIssue.Level deprecationLevel
     ) {
-        if (removedSetting.exists(clusterSettings) == false && removedSetting.exists(nodeSettings) == false) {
+        boolean existsInClusterSettings = removedSetting.exists(clusterSettings);
+        boolean existsInNodeSettings = removedSetting.exists(nodeSettings);
+        if (existsInClusterSettings == false && existsInNodeSettings == false) {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
         // read setting to force the deprecation warning
-        if (removedSetting.exists(clusterSettings)) {
-            removedSetting.get(clusterSettings);
+        Settings settings;
+        if (existsInClusterSettings) {
+            settings = clusterSettings;
         } else {
-            removedSetting.get(nodeSettings);
+            settings = nodeSettings;
+        }
+        if (removedSetting instanceof Setting.AffixSetting<?> affixSetting) {
+            affixSetting.getAsMap(settings);
+        } else {
+            removedSetting.get(settings);
         }
 
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
         final String details = additionalDetailMessage == null
             ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
             : String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
-        boolean canAutoRemoveSetting = removedSetting.exists(clusterSettings) && removedSetting.exists(nodeSettings) == false;
+        boolean canAutoRemoveSetting = existsInClusterSettings && existsInNodeSettings == false;
         Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, removedSettingKey);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }
@@ -211,7 +219,7 @@ public class NodeDeprecationChecks {
                 "Specifying multiple data paths is deprecated",
                 "https://ela.st/es-deprecation-7-multiple-paths",
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0.",
                 false,
                 null
             );
@@ -231,7 +239,7 @@ public class NodeDeprecationChecks {
                 "Multiple data paths are not supported",
                 "https://ela.st/es-deprecation-7-multiple-paths",
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0.",
                 false,
                 null
             );
@@ -251,8 +259,7 @@ public class NodeDeprecationChecks {
                 "setting [%s] is deprecated and will be removed in a future version",
                 Environment.PATH_SHARED_DATA_SETTING.getKey()
             );
-            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/"
-                + "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String url = "https://ela.st/es-deprecation-7-shared-data-path";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
@@ -281,7 +288,7 @@ public class NodeDeprecationChecks {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Realm that start with [" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "] will not be permitted in a future major release.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
+                "https://ela.st/es-deprecation-7-realm-prefix",
                 String.format(
                     Locale.ROOT,
                     "Found realm "
@@ -972,7 +979,7 @@ public class NodeDeprecationChecks {
             Setting.Property.NodeScope,
             Setting.Property.DeprecatedWarning
         );
-        String url = "https://ela.st/es-deprecation-8-eql-enabled-setting";
+        String url = "https://ela.st/es-deprecation-7-eql-enabled-setting";
         return checkRemovedSetting(
             clusterState.metadata().settings(),
             settings,
@@ -1019,7 +1026,7 @@ public class NodeDeprecationChecks {
             Setting.Property.NodeScope,
             Setting.Property.Deprecated
         );
-        String url = "https://ela.st/es-deprecation-8-watcher-bulk-concurrency-setting";
+        String url = "https://ela.st/es-deprecation-8-watcher-settings";
         return checkRemovedSetting(
             clusterState.metadata().settings(),
             settings,

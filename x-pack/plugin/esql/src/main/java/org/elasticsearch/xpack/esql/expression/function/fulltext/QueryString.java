@@ -7,32 +7,35 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ALLOW_LEADING_WILDCARD_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZE_WILDCARD_FIELD;
@@ -63,22 +65,20 @@ import static org.elasticsearch.index.query.QueryStringQueryBuilder.REWRITE_FIEL
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.TIME_ZONE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class QueryString extends FullTextFunction implements OptionalArgument {
+public class QueryString extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
@@ -109,15 +109,23 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         QueryString::readFrom
     );
 
+    private final Configuration configuration;
+
+    // Options for QueryString. They don't need to be serialized as the data nodes will retrieve them from the query builder.
+    private final transient Expression options;
+
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = "Performs a <<query-dsl-query-string-query,query string query>>. "
             + "Returns true if the provided query string matches the row.",
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
-            @Example(file = "qstr-function", tag = "qstr-with-options") }
+            @Example(file = "qstr-function", tag = "qstr-with-options", applies_to = "stack: ga 9.1.0") }
     )
+
     public QueryString(
         Source source,
         @Param(
@@ -145,7 +153,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
                     name = "allow_wildcard",
                     type = "boolean",
                     valueHint = { "false", "true" },
-                    description = "If true, the query attempts to analyze wildcard terms in the query string. Defaults to false. "
+                    description = "If true, the query attempts to analyze wildcard terms in the query string. Defaults to false."
                 ),
                 @MapParam.MapParamEntry(
                     name = "analyzer",
@@ -264,36 +272,30 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
             description = "(Optional) Additional options for Query String as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-query-string-query,query string query>> for more information.",
             optional = true
-        ) Expression options
+        ) Expression options,
+        Configuration configuration
     ) {
-        this(source, queryString, options, null);
+        this(source, queryString, options, null, configuration);
     }
 
-    // Options for QueryString. They don't need to be serialized as the data nodes will retrieve them from the query builder.
-    private final transient Expression options;
-
-    public QueryString(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder) {
+    public QueryString(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder, Configuration configuration) {
         super(source, queryString, options == null ? List.of(queryString) : List.of(queryString, options), queryBuilder);
+        this.configuration = configuration;
         this.options = options;
     }
 
     private static QueryString readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
-        return new QueryString(source, query, null, queryBuilder);
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        return new QueryString(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+        out.writeOptionalNamedWriteable(queryBuilder());
     }
 
     @Override
@@ -310,94 +312,64 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         return options;
     }
 
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT, SEMANTIC_TEXT);
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text, semantic_text").and(
-            isNotNullAndFoldable(query(), sourceText(), FIRST)
+        TypeResolution result = isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(
+            isNotNull(query(), sourceText(), FIRST)
         );
-    }
-
-    private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return null;
+        if (result.unresolved()) {
+            return result;
         }
-
-        Map<String, Object> matchOptions = new HashMap<>();
-        for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
-            Expression optionExpr = entry.key();
-            Expression valueExpr = entry.value();
-            TypeResolution resolution = isFoldable(optionExpr, sourceText(), SECOND).and(isFoldable(valueExpr, sourceText(), SECOND));
-            if (resolution.unresolved()) {
-                throw new InvalidArgumentException(resolution.message());
-            }
-            Object optionExprLiteral = ((Literal) optionExpr).value();
-            Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
-            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
-            // validate the optionExpr is supported
-            DataType dataType = ALLOWED_OPTIONS.get(optionName);
-            if (dataType == null) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText(), ALLOWED_OPTIONS.keySet())
-                );
-            }
-            try {
-                matchOptions.put(optionName, DataTypeConverter.convert(optionValue, dataType));
-            } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText(), e.getMessage())
-                );
-            }
-        }
-
-        return matchOptions;
-    }
-
-    private TypeResolution resolveOptions() {
-        if (options() != null) {
-            TypeResolution resolution = isNotNull(options(), sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-
-            try {
-                queryStringOptions();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
+    private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
+        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+            return null;
+        }
+
+        Map<String, Object> queryStringOptions = new HashMap<>();
+        if (options() != null) {
+            Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
+        }
+        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        return queryStringOptions;
+    }
+
     @Override
     protected TypeResolution resolveParams() {
-        return resolveQuery().and(resolveOptions());
+        return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS));
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryString(source(), newChildren.getFirst(), newChildren.size() == 1 ? null : newChildren.get(1), queryBuilder());
+        return new QueryString(
+            source(),
+            newChildren.getFirst(),
+            newChildren.size() == 1 ? null : newChildren.get(1),
+            queryBuilder(),
+            configuration
+        );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, QueryString::new, query(), options(), queryBuilder());
+        return NodeInfo.create(this, QueryString::new, query(), options(), queryBuilder(), configuration);
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), queryStringOptions());
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), Map.of(), queryStringOptions());
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new QueryString(source(), query(), options(), queryBuilder);
+        return new QueryString(source(), query(), options(), queryBuilder, configuration);
     }
 
     @Override
@@ -406,11 +378,13 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         // ignore options when comparing.
         if (o == null || getClass() != o.getClass()) return false;
         var qstr = (QueryString) o;
-        return Objects.equals(query(), qstr.query()) && Objects.equals(queryBuilder(), qstr.queryBuilder());
+        return Objects.equals(query(), qstr.query())
+            && Objects.equals(queryBuilder(), qstr.queryBuilder())
+            && Objects.equals(configuration, qstr.configuration);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder());
+        return Objects.hash(query(), queryBuilder(), configuration);
     }
 }

@@ -61,67 +61,35 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      IntBlock block = page.getBlock(channels.get(0));
-      IntVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(IntVector vector) {
-    // This type does not support vectors because all values are multi-valued
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
+    addRawBlock(valuesBlock, mask);
   }
 
-  private void addRawVector(IntVector vector, BooleanVector mask) {
-    // This type does not support vectors because all values are multi-valued
+  private void addRawInputNotMasked(Page page) {
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
+    addRawBlock(valuesBlock);
   }
 
-  private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
-        continue;
-      }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      int[] valuesArray = new int[end - start];
-      for (int i = start; i < end; i++) {
-        valuesArray[i-start] = block.getInt(i);
-      }
-      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, valuesArray);
+  private void addRawBlock(IntBlock valuesBlock) {
+    for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
+      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
 
-  private void addRawBlock(IntBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(IntBlock valuesBlock, BooleanVector mask) {
+    for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
-        continue;
-      }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      int[] valuesArray = new int[end - start];
-      for (int i = start; i < end; i++) {
-        valuesArray[i-start] = block.getInt(i);
-      }
-      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, valuesArray);
+      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
 

@@ -12,6 +12,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -205,10 +207,59 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         return new IndexReshardingMetadata(IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
     }
 
+    public static boolean isSplitSource(ShardId shardId, @Nullable IndexReshardingMetadata reshardingMetadata) {
+        return reshardingMetadata != null && reshardingMetadata.isSplit() && reshardingMetadata.getSplit().isSourceShard(shardId.id());
+    }
+
+    public static boolean isSplitTarget(ShardId shardId, @Nullable IndexReshardingMetadata reshardingMetadata) {
+        return reshardingMetadata != null && reshardingMetadata.isSplit() && reshardingMetadata.getSplit().isTargetShard(shardId.id());
+    }
+
+    public IndexReshardingMetadata transitionSplitTargetToNewState(
+        ShardId shardId,
+        IndexReshardingState.Split.TargetShardState newTargetState
+    ) {
+        assert state instanceof IndexReshardingState.Split;
+        IndexReshardingState.Split.Builder builder = new IndexReshardingState.Split.Builder((IndexReshardingState.Split) state);
+        builder.setTargetShardState(shardId.getId(), newTargetState);
+        return new IndexReshardingMetadata(builder.build());
+    }
+
+    public IndexReshardingMetadata transitionSplitSourceToNewState(
+        ShardId shardId,
+        IndexReshardingState.Split.SourceShardState newSourceState
+    ) {
+        assert state instanceof IndexReshardingState.Split;
+        IndexReshardingState.Split.Builder builder = new IndexReshardingState.Split.Builder((IndexReshardingState.Split) state);
+        builder.setSourceShardState(shardId.getId(), newSourceState);
+        return new IndexReshardingMetadata(builder.build());
+    }
+
+    /**
+     * @return the split state of this metadata block, or throw IllegalArgumentException if this metadata doesn't represent a split
+     */
     public IndexReshardingState.Split getSplit() {
         return switch (state) {
             case IndexReshardingState.Noop ignored -> throw new IllegalArgumentException("resharding metadata is not a split");
             case IndexReshardingState.Split s -> s;
         };
+    }
+
+    public boolean isSplit() {
+        return state instanceof IndexReshardingState.Split;
+    }
+
+    /**
+     * @return the number of shards the index has at the start of this operation
+     */
+    public int shardCountBefore() {
+        return state.shardCountBefore();
+    }
+
+    /**
+     * @return the number of shards that the index will have when resharding completes
+     */
+    public int shardCountAfter() {
+        return state.shardCountAfter();
     }
 }

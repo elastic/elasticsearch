@@ -36,7 +36,7 @@ public final class LegacyReaderContext extends ReaderContext {
         super(id, indexService, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
-        assert id.getSearcherId() == null : "Legacy reader context must not have searcher id";
+        assert id.isRetryable() == false : "Legacy reader context is not retryable";
         this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest, "ShardSearchRequest must be provided");
         if (shardSearchRequest.scroll() != null) {
             // Search scroll requests are special, they don't hold indices names so we have
@@ -72,6 +72,11 @@ public final class LegacyReaderContext extends ReaderContext {
 
     @Override
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
+        if (other != null) {
+            // The top level knn search modifies the source after the DFS phase.
+            // so we need to update the source stored in the context.
+            shardSearchRequest.source(other.source());
+        }
         return shardSearchRequest;
     }
 

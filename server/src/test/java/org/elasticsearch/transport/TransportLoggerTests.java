@@ -66,20 +66,43 @@ public class TransportLoggerTests extends ESTestCase {
         }
     }
 
+    public void testLoggingHandlerWithExceptionMessage() {
+        final String readPattern = ".*\\[length: \\d+" + ", request id: \\d+" + ", type: request" + ", version: .*" + " READ: \\d+B";
+
+        final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
+            "spatial stats request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            readPattern
+        );
+
+        InboundMessage inboundMessage = new InboundMessage(
+            new Header(0, 0, TransportStatus.setRequest((byte) 0), TransportVersion.current()),
+            new ActionNotFoundTransportException("cluster:monitor/xpack/spatial/stats")
+        );
+
+        try (var mockLog = MockLog.capture(TransportLogger.class)) {
+            mockLog.addExpectation(readExpectation);
+            TransportLogger.logInboundMessage(mock(TcpChannel.class), inboundMessage);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     private BytesReference buildRequest() throws IOException {
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         Compression.Scheme compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
         try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
-            OutboundMessage.Request request = new OutboundMessage.Request(
-                new ThreadContext(Settings.EMPTY),
-                new EmptyRequest(),
-                TransportVersion.current(),
+            return OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 "internal:test",
                 randomInt(30),
                 false,
-                compress
+                TransportVersion.current(),
+                compress,
+                new EmptyRequest(),
+                new ThreadContext(Settings.EMPTY),
+                bytesStreamOutput
             );
-            return request.serialize(bytesStreamOutput);
         }
     }
 }

@@ -11,18 +11,19 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -99,6 +100,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
+        if (name.equals("double")) {
+            return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
+        }
         return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
@@ -474,7 +478,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
 
         sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0).setNestedSort(new NestedSortBuilder("path"));
         sortField = sortBuilder.build(searchExecutionContext).field();
@@ -492,7 +496,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
     }
 
     /**
@@ -530,6 +534,12 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 () -> sortBuilder.build(searchExecutionContext)
             );
             assertEquals("illegal longitude value [-360.0] for [GeoDistanceSort] for field [fieldName].", ex.getMessage());
+        }
+        {
+            GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("double", 0.0, 180.0);
+            sortBuilder.validation(GeoValidationMethod.STRICT);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> sortBuilder.build(searchExecutionContext));
+            assertEquals("unable to apply geo distance sort to field [double] of type [double]", ex.getMessage());
         }
     }
 

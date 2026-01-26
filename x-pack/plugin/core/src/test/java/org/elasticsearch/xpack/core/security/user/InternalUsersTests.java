@@ -39,15 +39,22 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
@@ -57,11 +64,13 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_TOKENS_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
+import static org.elasticsearch.xpack.core.security.user.UsernamesField.CROSS_PROJECT_SEARCH_USER_NAME;
 import static org.elasticsearch.xpack.core.security.user.UsernamesField.REINDEX_DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -244,7 +253,11 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
-        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*");
+        final List<String> allowedSystemDataStreams = Arrays.asList(
+            ".fleet-actions-results",
+            ".fleet-fileds*",
+            ".workflows-execution-data-stream-logs"
+        );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
                 assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));
@@ -271,6 +284,7 @@ public class InternalUsersTests extends ESTestCase {
             TransportAddIndexBlockAction.TYPE.name()
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
+
         checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
         // Also check backing index access
         checkIndexAccess(
@@ -280,12 +294,29 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
+        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream + "::failures", true);
+        // Also check failure index access
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            DataStream.FAILURE_STORE_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
+            true
+        );
+
         allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
             checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true);
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
                 DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+                true
+            );
+
+            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream + "::failures", true);
+            checkIndexAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                DataStream.FAILURE_STORE_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
                 true
             );
         });
@@ -340,6 +371,47 @@ public class InternalUsersTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> InternalUsers.getUser(username));
     }
 
+    public void testCrossProjectSearchUser() {
+        final InternalUser crossProjectSearchUser = InternalUsers.CROSS_PROJECT_SEARCH_USER;
+        assertThat(InternalUsers.getUser(CROSS_PROJECT_SEARCH_USER_NAME), is(crossProjectSearchUser));
+
+        assertThat(crossProjectSearchUser.getRemoteAccessRoleDescriptor().isPresent(), equalTo(false));
+
+        Optional<RoleDescriptor> localClusterRoleDescriptor = crossProjectSearchUser.getLocalClusterRoleDescriptor();
+        assertThat(localClusterRoleDescriptor.isPresent(), equalTo(true));
+        assertThat(localClusterRoleDescriptor.get().getMetadata(), equalTo(MetadataUtils.DEFAULT_RESERVED_METADATA));
+
+        final SimpleRole role = getLocalClusterRole(crossProjectSearchUser);
+
+        assertThat(role.indices(), is(IndicesPermission.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.NONE));
+        assertThat(role.application(), is(ApplicationPermission.NONE));
+        assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+        assertThat(role.remoteCluster(), is(RemoteClusterPermissions.NONE));
+        assertThat(role.hasFieldOrDocumentLevelSecurity(), is(false));
+        assertThat(role.hasWorkflowsRestriction(), is(false));
+
+        final List<String> allowedClusterActions = List.of(
+            RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+            TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+            TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
+            "cluster:internal:data/read/esql/open_exchange",
+            "cluster:internal:data/read/esql/exchange"
+        );
+
+        for (String clusterAction : allowedClusterActions) {
+            checkClusterAccess(crossProjectSearchUser, role, clusterAction, true);
+        }
+
+        checkClusterAccess(
+            crossProjectSearchUser,
+            role,
+            randomFrom(ClusterStateAction.NAME, XPackInfoAction.NAME, TransportService.HANDSHAKE_ACTION_NAME),
+            false
+        );
+
+    }
+
     private static SimpleRole getLocalClusterRole(InternalUser internalUser) {
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         return Role.buildFromRoleDescriptor(
@@ -376,7 +448,7 @@ public class InternalUsersTests extends ESTestCase {
         final IndexAbstraction.ConcreteIndex index = new IndexAbstraction.ConcreteIndex(metadata);
         assertThat(
             "Role " + role + ", action " + action + " access to " + indexName,
-            role.allowedIndicesMatcher(action).test(index),
+            role.allowedIndicesMatcher(action).test(index, null),
             is(expectedValue)
         );
     }

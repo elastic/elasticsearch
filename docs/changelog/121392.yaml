@@ -1,5 +1,0 @@
-pr: 121392
-summary: Include data streams when converting an existing resource to a system resource
-area: Infra/Core
-type: bug
-issues: []

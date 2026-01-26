@@ -9,6 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -24,18 +25,22 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -106,7 +111,6 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 assertEquals(9, counter.get());
                 counter.incrementAndGet();
             }
-
         };
         indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
         try {
@@ -136,4 +140,48 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         assertEquals(10, counter.get());
     }
 
+    public void testAfterRecoveryCallbackTriggeredWhileStillInRecoveryState() throws Throwable {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
+        ensureGreen();
+        Index idx = resolveIndex("test");
+        IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
+        ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
+        PlainActionFuture<Void> recoveryTriggered = new PlainActionFuture<>();
+        IndexEventListener recoveryListener = new IndexEventListener() {
+
+            @Override
+            public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+                // Pause to ensure we do not transition to post recovery until after the recovery is complete
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(30));
+                assertThat(indexShard.recoveryState().getStage(), equalTo(RecoveryState.Stage.DONE));
+                assertThat(indexShard.state(), equalTo(IndexShardState.RECOVERING));
+                recoveryTriggered.onResponse(null);
+                listener.onResponse(null);
+            }
+        };
+        indicesService.removeIndex(idx, DELETED, "delete", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        try {
+            IndexService index = indicesService.createIndex(metadata, Arrays.asList(recoveryListener), false);
+            idx = index.index();
+            ShardRouting newRouting = shardRouting;
+            String nodeId = newRouting.currentNodeId();
+            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
+            newRouting = newRouting.moveToUnassigned(unassignedInfo)
+                .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+            newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
+            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+            shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
+            IndexShardTestCase.recoverFromStore(shard);
+            assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.POST_RECOVERY)));
+            newRouting = ShardRoutingHelper.moveToStarted(newRouting);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            recoveryTriggered.actionGet();
+            assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.STARTED)));
+        } finally {
+            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        }
+    }
 }

@@ -10,31 +10,36 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SimpleFeatureFactory;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         boolean ignoreMalformed = randomBoolean();
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder(
-            "field",
-            ScriptCompiler.NONE,
-            ignoreMalformed,
-            IndexVersion.current(),
-            null
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).ignoreMalformed(
+            ignoreMalformed
         ).build(MapperBuilderContext.root(false, false)).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
@@ -116,7 +121,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchVectorTile() throws IOException {
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).build(
             MapperBuilderContext.root(false, false)
         ).fieldType();
         final int z = randomIntBetween(1, 10);
@@ -147,4 +152,142 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         assertThat(sourceValue.size(), equalTo(1));
         assertThat(sourceValue.get(0), equalTo(featureFactory.points(geoPoints)));
     }
+
+    public void testBlockLoaderWhenDocValuesAreEnabledAndThePreferenceIsToUseDocValues() {
+        // given
+        GeoPointFieldMapper.GeoPointFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("potato");
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.DOC_VALUES);
+
+        // when
+        BlockLoader loader = fieldType.blockLoader(blContextMock);
+
+        // then
+        // verify that we use the correct block value reader
+        assertThat(loader, instanceOf(LongsBlockLoader.class));
+    }
+
+    public void testBlockLoaderWhenDocValuesAreEnabledAndThereIsNoPreference() {
+        // given
+        GeoPointFieldMapper.GeoPointFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("potato");
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.NONE);
+
+        // when
+        BlockLoader loader = fieldType.blockLoader(blContextMock);
+
+        // then
+        // verify that we use the correct block value reader
+        assertThat(loader, instanceOf(BlockSourceReader.GeometriesBlockLoader.class));
+    }
+
+    public void testBlockLoaderWhenFieldIsStoredAndThePreferenceIsToUseStoredFields() {
+        // given
+        GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(true, false, false);
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.STORED);
+
+        // when
+        BlockLoader loader = fieldType.blockLoader(blContextMock);
+
+        // then
+        // verify that we use the correct block value reader
+        assertThat(loader, instanceOf(BlockSourceReader.GeometriesBlockLoader.class));
+    }
+
+    public void testBlockLoaderWhenFieldIsStoredAndThereIsNoPreference() {
+        // given
+        GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(true, false, false);
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.NONE);
+
+        // when
+        BlockLoader loader = fieldType.blockLoader(blContextMock);
+
+        // then
+        // verify that we use the correct block value reader
+        assertThat(loader, instanceOf(BlockSourceReader.GeometriesBlockLoader.class));
+    }
+
+    public void testBlockLoaderWhenSyntheticSourceIsEnabledAndFieldIsStoredInIgnoredSource() {
+        // given
+        GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(false, false, true);
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(true, MappedFieldType.FieldExtractPreference.NONE);
+
+        // when
+        BlockLoader loader = fieldType.blockLoader(blContextMock);
+
+        // then
+        // verify that we use the correct block value reader
+        assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+    }
+
+    public void testBlockLoaderWhenSyntheticSourceAndDocValuesAreEnabled() {
+        // given
+        GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(false, true, true);
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(true, MappedFieldType.FieldExtractPreference.NONE);
+
+        // when
+        BlockLoader loader = fieldType.blockLoader(blContextMock);
+
+        // then
+        // verify that we use the correct block value reader
+        assertThat(loader, instanceOf(GeoPointFieldMapper.BytesRefFromLongsBlockLoader.class));
+    }
+
+    public void testBlockLoaderFallsBackToSource() {
+        // given
+        GeoPointFieldMapper.GeoPointFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("potato");
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(
+            false,
+            MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS
+        );
+
+        // when
+        BlockLoader loader = fieldType.blockLoader(blContextMock);
+
+        // then
+        // verify that we use the correct block value reader
+        assertThat(loader, instanceOf(BlockSourceReader.GeometriesBlockLoader.class));
+    }
+
+    private MappedFieldType.BlockLoaderContext mockBlockLoaderContext(
+        boolean enableSyntheticSource,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference
+    ) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+
+        if (enableSyntheticSource) {
+            builder.put("index.mapping.source.mode", "synthetic");
+        }
+
+        Settings settings = builder.build();
+
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(builder).build(), settings);
+
+        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(fieldExtractPreference).when(blContextMock).fieldExtractPreference();
+        doReturn(indexSettings).when(blContextMock).indexSettings();
+
+        return blContextMock;
+    }
+
+    private GeoPointFieldMapper.GeoPointFieldType createFieldType(
+        boolean isStored,
+        boolean hasDocValues,
+        boolean isSyntheticSourceEnabled
+    ) {
+        return new GeoPointFieldMapper.GeoPointFieldType(
+            "potato",
+            hasDocValues ? IndexType.docValuesOnly() : IndexType.NONE,
+            isStored,
+            null,
+            null,
+            null,
+            Collections.emptyMap(),
+            TimeSeriesParams.MetricType.COUNTER,
+            IndexMode.LOGSDB,
+            isSyntheticSourceEnabled
+        );
+    }
+
 }

@@ -1,11 +1,12 @@
 ---
+applies_to:
+  serverless: unavailable
 navigation_title: "Join"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/parent-join.html
 ---
 
 # Join field type [parent-join]
-
 
 The `join` data type is a special field that creates parent/child relation within documents of the same index. The `relations` section defines a set of possible relations within the documents, each relation being a parent name and a child name.
 
@@ -60,6 +61,7 @@ PUT my-index-000001/_doc/2?refresh
   }
 }
 ```
+% TEST[continued]
 
 1. This document is a `question` document.
 
@@ -81,6 +83,7 @@ PUT my-index-000001/_doc/2?refresh
   "my_join_field": "question"
 }
 ```
+% TEST[continued]
 
 1. Simpler notation for a parent document just uses the relation name.
 
@@ -115,6 +118,7 @@ PUT my-index-000001/_doc/4?routing=1&refresh
   }
 }
 ```
+% TEST[continued]
 
 1. The routing value is mandatory because parent and child documents must be indexed on the same shard
 2. `answer` is the name of the join for this document
@@ -139,7 +143,7 @@ The only case where the join field makes sense is if your data contains a one-to
 
 ## Searching with parent-join [_searching_with_parent_join]
 
-The parent-join creates one field to index the name of the relation within the document (`my_parent`, `my_child`, …​).
+The parent-join creates one field to index the name of the relation within the document (`my_parent`, `my_child`, … ).
 
 It also creates one field per parent/child relation. The name of this field is the name of the `join` field followed by `#` and the name of the parent in the relation. So for instance for the `my_parent` → [`my_child`, `another_child`] relation, the `join` field creates an additional field named `my_join_field#my_parent`.
 
@@ -156,6 +160,7 @@ GET my-index-000001/_search
   "sort": ["my_id"]
 }
 ```
+% TEST[continued]
 
 Will return:
 
@@ -233,6 +238,7 @@ Will return:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 1. This document belongs to the `question` join
 2. This document belongs to the `question` join
@@ -243,9 +249,9 @@ Will return:
 
 ## Parent-join queries and aggregations [_parent_join_queries_and_aggregations]
 
-See the [`has_child`](/reference/query-languages/query-dsl-has-child-query.md) and [`has_parent`](/reference/query-languages/query-dsl-has-parent-query.md) queries, the [`children`](/reference/data-analysis/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation, and [inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md#parent-child-inner-hits) for more information.
+See the [`has_child`](/reference/query-languages/query-dsl/query-dsl-has-child-query.md) and [`has_parent`](/reference/query-languages/query-dsl/query-dsl-has-parent-query.md) queries, the [`children`](/reference/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation, and [inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md#parent-child-inner-hits) for more information.
 
-The value of the `join` field is accessible in aggregations and scripts, and may be queried with the [`parent_id` query](/reference/query-languages/query-dsl-parent-id-query.md):
+The value of the `join` field is accessible in aggregations and scripts, and may be queried with the [`parent_id` query](/reference/query-languages/query-dsl/query-dsl-parent-id-query.md):
 
 ```console
 GET my-index-000001/_search
@@ -277,9 +283,11 @@ GET my-index-000001/_search
   ]
 }
 ```
+% TEST[continued]
+% TEST[s/_search/_search?filter_path=aggregations,hits.hits&sort=my_id/]
 
-1. Querying the `parent id` field (also see the [`has_parent` query](/reference/query-languages/query-dsl-has-parent-query.md) and the [`has_child` query](/reference/query-languages/query-dsl-has-child-query.md))
-2. Aggregating on the `parent id` field (also see the [`children`](/reference/data-analysis/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation)
+1. Querying the `parent id` field (also see the [`has_parent` query](/reference/query-languages/query-dsl/query-dsl-has-parent-query.md) and the [`has_child` query](/reference/query-languages/query-dsl/query-dsl-has-child-query.md))
+2. Aggregating on the `parent id` field (also see the [`children`](/reference/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation)
 3. Accessing the `parent id` field in scripts.
 
 
@@ -318,7 +326,7 @@ GET _stats/fielddata?human&fields=my_join_field#question
 # Per-node per-index
 GET _nodes/stats/indices/fielddata?human&fields=my_join_field#question
 ```
-
+% TEST[continued]
 
 ## Multiple children per parent [_multiple_children_per_parent]
 
@@ -397,6 +405,7 @@ PUT my-index-000001/_doc/3?routing=1&refresh <1>
   }
 }
 ```
+% TEST[continued]
 
 1. This child document must be on the same shard than its grand-parent and parent
 2. The parent id of this document (must points to an `answer` document)

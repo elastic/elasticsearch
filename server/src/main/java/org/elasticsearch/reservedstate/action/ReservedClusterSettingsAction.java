@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * It is used by the ReservedClusterStateService to update the persistent cluster settings.
  * Since transient cluster settings are deprecated, this action doesn't support updating transient cluster settings.
  */
-public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<ClusterState, Map<String, Object>> {
+public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<Map<String, Object>> {
 
     private static final Logger logger = LogManager.getLogger(ReservedClusterSettingsAction.class);
 
@@ -69,7 +69,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @Override
-    public TransformState<ClusterState> transform(Map<String, Object> input, TransformState<ClusterState> prevState) {
+    public TransformState transform(Map<String, Object> input, TransformState prevState) {
         ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
 
         // allow empty requests, this is how we clean up settings
@@ -90,7 +90,12 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             .filter(k -> request.persistentSettings().hasValue(k))
             .collect(Collectors.toSet());
 
-        return new TransformState<>(state, currentKeys);
+        return new TransformState(state, currentKeys);
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(Map.of(), prevState).state();
     }
 
     @Override

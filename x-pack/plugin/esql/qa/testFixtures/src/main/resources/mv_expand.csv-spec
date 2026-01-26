@@ -419,3 +419,88 @@ emp_no:integer | job_positions:keyword
 10001          | Accountant
 10001          | Senior Python Developer          
 ;
+
+testMvExpandInconsistentColumnOrder1
+required_capability: fix_mv_expand_inconsistent_column_order
+from message_types
+| eval foo_1 = 1, foo_2 = 2 
+| sort message
+| mv_expand foo_1
+;
+
+message:keyword         | type:keyword | foo_1:integer | foo_2:integer
+Connected to 10.1.0.1   | Success      | 1             | 2
+Connected to 10.1.0.2   | Success      | 1             | 2
+Connected to 10.1.0.3   | Success      | 1             | 2
+Connection error        | Error        | 1             | 2
+Development environment | Development  | 1             | 2
+Disconnected            | Disconnected | 1             | 2
+Production environment  | Production   | 1             | 2
+;
+
+testMvExpandInconsistentColumnOrder2
+required_capability: fix_mv_expand_inconsistent_column_order
+from message_types
+| eval foo_1 = [1, 3], foo_2 = 2
+| sort message
+| mv_expand foo_1
+;
+
+message:keyword         | type:keyword | foo_1:integer | foo_2:integer
+Connected to 10.1.0.1   | Success      | 1             | 2
+Connected to 10.1.0.1   | Success      | 3             | 2
+Connected to 10.1.0.2   | Success      | 1             | 2
+Connected to 10.1.0.2   | Success      | 3             | 2
+Connected to 10.1.0.3   | Success      | 1             | 2
+Connected to 10.1.0.3   | Success      | 3             | 2
+Connection error        | Error        | 1             | 2
+Connection error        | Error        | 3             | 2
+Development environment | Development  | 1             | 2
+Development environment | Development  | 3             | 2
+Disconnected            | Disconnected | 1             | 2
+Disconnected            | Disconnected | 3             | 2
+Production environment  | Production   | 1             | 2
+Production environment  | Production   | 3             | 2
+;
+
+testMvExpandInconsistentColumnOrder3
+required_capability: fix_mv_expand_inconsistent_column_order
+from message_types
+| sort type
+| eval language_code = 1, `language_name` = false, message = true, foo_3 = 1, foo_2 = null
+| eval foo_3 = "1", `foo_3` = -1, foo_1 = 1, `language_code` = null, `foo_2` = "1"
+| mv_expand foo_1
+| limit 5
+;
+
+type:keyword | language_name:boolean | message:boolean | foo_3:integer | foo_1:integer | language_code:null | foo_2:keyword
+Development  | false                 | true            | -1            | 1             | null               | 1
+Disconnected | false                 | true            | -1            | 1             | null               | 1
+Error        | false                 | true            | -1            | 1             | null               | 1
+Production   | false                 | true            | -1            | 1             | null               | 1
+Success      | false                 | true            | -1            | 1             | null               | 1
+;
+
+returnMultiValueFieldsWithoutExpansion
+FROM employees
+| WHERE emp_no == 10008
+| KEEP emp_no, job_positions, is_rehired, salary_change
+;
+
+emp_no:integer | job_positions:keyword                                                     | is_rehired:boolean | salary_change:double
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer] | [false, true]      | [-2.92, 0.75, 3.54, 12.68]
+;
+
+returnMultiValueFieldsWithMultivalueTypeConversions
+FROM employees
+| WHERE emp_no == 10008
+| EVAL job_positions = TO_STRING(job_positions)
+| EVAL is_rehired = TO_STRING(is_rehired)
+| EVAL salary_change = TO_STRING(salary_change)
+| EVAL is_rehired_again = TO_BOOLEAN(is_rehired)
+| KEEP emp_no, job_positions, is_rehired, salary_change, is_rehired_again
+;
+
+emp_no:integer | job_positions:keyword                                                     | is_rehired:keyword | salary_change:keyword      | is_rehired_again:boolean
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer] | [false, true]      | [-2.92, 0.75, 3.54, 12.68] | [false, true]
+;

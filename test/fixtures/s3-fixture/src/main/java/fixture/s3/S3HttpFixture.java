@@ -13,38 +13,60 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.TestEsExecutors;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
 
 public class S3HttpFixture extends ExternalResource {
 
+    private static final Logger logger = LogManager.getLogger(S3HttpFixture.class);
+
     private HttpServer server;
+    private ExecutorService executorService;
 
     private final boolean enabled;
     private final String bucket;
     private final String basePath;
     private final BiPredicate<String, String> authorizationPredicate;
+    private final Supplier<S3ConsistencyModel> consistencyModel;
 
-    public S3HttpFixture(boolean enabled) {
-        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key"));
+    public S3HttpFixture(boolean enabled, Supplier<S3ConsistencyModel> consistencyModel) {
+        this(enabled, "bucket", "base_path_integration_tests", consistencyModel, fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
     }
 
-    public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {
+    public S3HttpFixture(
+        boolean enabled,
+        String bucket,
+        String basePath,
+        Supplier<S3ConsistencyModel> consistencyModel,
+        BiPredicate<String, String> authorizationPredicate
+    ) {
         this.enabled = enabled;
         this.bucket = bucket;
         this.basePath = basePath;
         this.authorizationPredicate = authorizationPredicate;
+        this.consistencyModel = consistencyModel;
     }
 
     protected HttpHandler createHandler() {
-        return new S3HttpHandler(bucket, basePath) {
+        return new S3HttpHandler(bucket, basePath, consistencyModel.get()) {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {
@@ -70,9 +92,22 @@ public class S3HttpFixture extends ExternalResource {
 
     protected void before() throws Throwable {
         if (enabled) {
+            this.executorService = EsExecutors.newScaling(
+                "s3-http-fixture",
+                1,
+                100,
+                30,
+                TimeUnit.SECONDS,
+                true,
+                TestEsExecutors.testOnlyDaemonThreadFactory("s3-http-fixture"),
+                new ThreadContext(Settings.EMPTY)
+            );
+
             this.server = HttpServer.create(getLocalFixtureAddress(), 0);
             this.server.createContext("/", Objects.requireNonNull(createHandler()));
+            this.server.setExecutor(executorService);
             server.start();
+            logger.info("running S3HttpFixture at " + getAddress());
         }
     }
 
@@ -80,6 +115,7 @@ public class S3HttpFixture extends ExternalResource {
     protected void after() {
         if (enabled) {
             stop(0);
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
     }
 }

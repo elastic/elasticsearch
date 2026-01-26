@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -319,10 +320,39 @@ public class DetectorTests extends AbstractXContentSerializingTestCase<Detector>
             DetectorFunction.HIGH_NON_ZERO_COUNT
         );
         for (DetectorFunction f : noOverFieldFunctions) {
-            Detector.Builder builder = new Detector.Builder(f, null);
+            Detector.Builder builder = new Detector.Builder(randomBoolean()).setFunction(f.getFullName());
             builder.setOverFieldName("over_field");
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
             assertThat(e.getMessage(), equalTo("over_field_name cannot be used with function '" + f + "'"));
+        }
+    }
+
+    public void testVerify_GivenFunctionsRequiringFieldNameNotSupportingOverField_strict() {
+        EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
+            DetectorFunction.NON_NULL_SUM,
+            DetectorFunction.LOW_NON_NULL_SUM,
+            DetectorFunction.HIGH_NON_NULL_SUM
+        );
+        for (DetectorFunction f : noOverFieldFunctions) {
+            Detector.Builder builder = new Detector.Builder(f, null);
+            builder.setFieldName("field");
+            builder.setOverFieldName("over_field");
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
+            assertThat(e.getMessage(), equalTo("over_field_name cannot be used with function '" + f + "'"));
+        }
+    }
+
+    public void testVerify_GivenFunctionsRequiringFieldNameNotSupportingOverField_lenient() {
+        EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
+            DetectorFunction.NON_NULL_SUM,
+            DetectorFunction.LOW_NON_NULL_SUM,
+            DetectorFunction.HIGH_NON_NULL_SUM
+        );
+        for (DetectorFunction f : noOverFieldFunctions) {
+            Detector.Builder builder = new Detector.Builder(true).setFunction(f.getFullName());
+            builder.setFieldName("field");
+            builder.setOverFieldName("over_field");
+            builder.build();
         }
     }
 
@@ -390,7 +420,7 @@ public class DetectorTests extends AbstractXContentSerializingTestCase<Detector>
 
     public void testVerify_GivenFieldNameFunctionsAndOverField() {
         // some functions require a fieldname
-        for (DetectorFunction f : Detector.FIELD_NAME_FUNCTIONS) {
+        for (DetectorFunction f : Sets.difference(Detector.FIELD_NAME_FUNCTIONS, Detector.NO_OVER_FIELD_NAME_FUNCTIONS)) {
             Detector.Builder builder = new Detector.Builder(f, "f");
             builder.setOverFieldName("some_over_field");
             builder.build();

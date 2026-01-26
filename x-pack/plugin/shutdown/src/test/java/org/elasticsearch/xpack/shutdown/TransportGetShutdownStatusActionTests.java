@@ -54,8 +54,8 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.ResizeIndexStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -694,7 +694,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     public void testIlmShrinkingIndexAvoidsStall() {
         LifecycleExecutionState executionState = LifecycleExecutionState.builder()
             .setAction(ShrinkAction.NAME)
-            .setStep(ShrinkStep.NAME)
+            .setStep(ResizeIndexStep.SHRINK)
             .setPhase(randomFrom("hot", "warm"))
             .build();
         checkStalledShardWithIlmState(executionState, OperationMode.RUNNING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
@@ -703,7 +703,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     public void testIlmShrinkingWithIlmStoppingIndexAvoidsStall() {
         LifecycleExecutionState executionState = LifecycleExecutionState.builder()
             .setAction(ShrinkAction.NAME)
-            .setStep(ShrinkStep.NAME)
+            .setStep(ResizeIndexStep.SHRINK)
             .build();
         checkStalledShardWithIlmState(executionState, OperationMode.STOPPING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
     }
@@ -711,7 +711,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     public void testIlmShrinkingButIlmStoppedDoesNotAvoidStall() {
         LifecycleExecutionState executionState = LifecycleExecutionState.builder()
             .setAction(ShrinkAction.NAME)
-            .setStep(ShrinkStep.NAME)
+            .setStep(ResizeIndexStep.SHRINK)
             .build();
         checkStalledShardWithIlmState(executionState, OperationMode.STOPPED, SingleNodeShutdownMetadata.Status.STALLED);
     }

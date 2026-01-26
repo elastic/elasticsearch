@@ -267,6 +267,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Indicate whether vectors should be excluded from the _source.
+     */
+    public SearchRequestBuilder setExcludeVectors(boolean excludeVectors) {
+        sourceBuilder().excludeVectors(excludeVectors);
+        return this;
+    }
+
+    /**
      * Adds a docvalue based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.
      *

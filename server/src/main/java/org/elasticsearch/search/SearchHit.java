@@ -11,7 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,7 +20,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -39,6 +38,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,6 +65,8 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
  * @see SearchHits
  */
 public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
+
+    private static final TransportVersion DOC_FIELDS_AS_LIST = TransportVersion.fromName("doc_fields_as_list");
 
     private final transient int docId;
 
@@ -195,15 +197,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            rank = in.readVInt();
-        } else {
-            rank = NO_RANK;
-        }
+        rank = in.readVInt();
         final Text id = in.readOptionalText();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalText();
-        }
         final NestedIdentity nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
         final long version = in.readLong();
         final long seqNo = in.readZLong();
@@ -216,23 +211,22 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        final Map<String, DocumentField> documentFields = in.readMap(DocumentField::new);
-        final Map<String, DocumentField> metaFields = in.readMap(DocumentField::new);
+        final Map<String, DocumentField> documentFields;
+        final Map<String, DocumentField> metaFields;
+        if (in.getTransportVersion().supports(DOC_FIELDS_AS_LIST)) {
+            documentFields = DocumentField.readFieldsFromMapValues(in);
+            metaFields = DocumentField.readFieldsFromMapValues(in);
+        } else {
+            documentFields = in.readMap(DocumentField::new);
+            metaFields = in.readMap(DocumentField::new);
+        }
         Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
         highlightFields = highlightFields.isEmpty() ? null : unmodifiableMap(highlightFields);
 
         final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
-        } else {
-            int size = in.readVInt();
-            matchedQueries = Maps.newLinkedHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                matchedQueries.put(in.readString(), Float.NaN);
-            }
-        }
+        matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
 
         final SearchShardTarget shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
         final String index;
@@ -302,15 +296,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeVInt(rank);
-        } else if (rank != NO_RANK) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
+        out.writeVInt(rank);
         out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
         out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeZLong(seqNo);
@@ -322,8 +309,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        out.writeMap(documentFields, StreamOutput::writeWriteable);
-        out.writeMap(metaFields, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().supports(DOC_FIELDS_AS_LIST)) {
+            out.writeMapValues(documentFields);
+            out.writeMapValues(metaFields);
+        } else {
+            out.writeMap(documentFields, StreamOutput::writeWriteable);
+            out.writeMap(metaFields, StreamOutput::writeWriteable);
+        }
         if (highlightFields == null) {
             out.writeVInt(0);
         } else {
@@ -331,11 +323,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         sortValues.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(matchedQueries, StreamOutput::writeFloat);
-        } else {
-            out.writeStringCollection(matchedQueries.keySet());
-        }
+        out.writeMap(matchedQueries, StreamOutput::writeFloat);
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
@@ -502,9 +490,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     /*
     * Adds a new DocumentField to the map in case both parameters are not null.
     * */
-    public void setDocumentField(String fieldName, DocumentField field) {
-        if (fieldName == null || field == null) return;
-        this.documentFields.put(fieldName, field);
+    public void setDocumentField(DocumentField field) {
+        if (field == null) return;
+        this.documentFields.put(field.getName(), field);
     }
 
     public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
@@ -520,6 +508,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * @return a map of metadata fields for this hit
      */
     public Map<String, DocumentField> getMetadataFields() {
+        assert hasReferences();
         return Collections.unmodifiableMap(metaFields);
     }
 
@@ -527,6 +516,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * @return a map of non-metadata fields requested for this hit
      */
     public Map<String, DocumentField> getDocumentFields() {
+        assert hasReferences();
         return Collections.unmodifiableMap(documentFields);
     }
 
@@ -535,6 +525,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * were required to be loaded. Includes both document and metadata fields.
      */
     public Map<String, DocumentField> getFields() {
+        assert hasReferences();
         if (metaFields.size() > 0 || documentFields.size() > 0) {
             final Map<String, DocumentField> fields = new HashMap<>();
             fields.putAll(metaFields);
@@ -556,6 +547,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * Resolve the lookup fields with the given results and merge them as regular fetch fields.
      */
     public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {
+        assert hasReferences();
         if (lookupResults.isEmpty()) {
             return;
         }
@@ -585,6 +577,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * A map of highlighted fields.
      */
     public Map<String, HighlightField> getHighlightFields() {
+        assert hasReferences();
         return highlightFields == null ? emptyMap() : highlightFields;
     }
 
@@ -724,6 +717,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             r.decRef();
         }
         SearchHit.this.source = null;
+        clearIfMutable(documentFields);
+        clearIfMutable(metaFields);
+        this.highlightFields = null;
+    }
+
+    private static void clearIfMutable(Map<String, DocumentField> fields) {
+        // check that we're dealing with a HashMap, instances read from the wire that are empty be of an immutable type
+        assert fields instanceof HashMap<?, ?> || fields.isEmpty() : fields;
+        if (fields instanceof HashMap<?, ?> hm) {
+            hm.clear();
+        }
     }
 
     @Override
@@ -756,10 +760,14 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             innerHits == null
                 ? null
                 : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
-            documentFields,
-            metaFields,
+            cloneIfHashMap(documentFields),
+            cloneIfHashMap(metaFields),
             ALWAYS_REFERENCED
         );
+    }
+
+    private Map<String, DocumentField> cloneIfHashMap(Map<String, DocumentField> map) {
+        return map instanceof HashMap<String, DocumentField> hashMap ? new HashMap<>(hashMap) : map;
     }
 
     public boolean isPooled() {
@@ -846,7 +854,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
-            if (IgnoredFieldMapper.NAME.equals(field.getName()) || IgnoredSourceFieldMapper.NAME.equals(field.getName())) {
+            if (IgnoredFieldMapper.NAME.equals(field.getName()) || field.getName().equals(IgnoredSourceFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());

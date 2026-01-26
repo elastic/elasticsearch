@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -46,13 +48,20 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities) {
-        var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING
-            ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 64)
-            : null;
+        // Use a max dimension count that has a reasonable probability of being compatible with BBQ
+        return createRandomInstance(taskType, excludedSimilarities, BBQ_MIN_DIMS * 2);
+    }
 
-        SimilarityMeasure similarity = null;
+    public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
+            // TODO: bfloat16
+            var elementType = randomFrom(
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                DenseVectorFieldMapper.ElementType.BYTE,
+                DenseVectorFieldMapper.ElementType.BIT
+            );
+            var dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions);
+
             List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(
                 DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType)
             );
@@ -69,17 +78,30 @@ public class TestModel extends Model {
                 );
             }
 
-            similarity = randomFrom(supportedSimilarities);
+            SimilarityMeasure similarity = randomFrom(supportedSimilarities);
+
+            return new TestModel(
+                randomAlphaOfLength(4),
+                TaskType.TEXT_EMBEDDING,
+                randomAlphaOfLength(10),
+                new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
+                new TestModel.TestTaskSettings(randomInt(3)),
+                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            );
         }
 
-        return new TestModel(
-            randomAlphaOfLength(4),
-            taskType,
-            randomAlphaOfLength(10),
-            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
-            new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-        );
+        if (taskType == TaskType.SPARSE_EMBEDDING) {
+            return new TestModel(
+                randomAlphaOfLength(4),
+                TaskType.SPARSE_EMBEDDING,
+                randomAlphaOfLength(10),
+                new TestModel.TestServiceSettings(randomAlphaOfLength(4), null, null, null),
+                new TestModel.TestTaskSettings(randomInt(3)),
+                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            );
+        }
+
+        throw new IllegalArgumentException("Unsupported task type [" + taskType + "]");
     }
 
     public TestModel(
@@ -126,7 +148,9 @@ public class TestModel extends Model {
             String model = ServiceUtils.removeAsType(map, "model", String.class);
 
             if (model == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS));
+                validationException.addValidationError(
+                    InferenceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS)
+                );
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
@@ -265,7 +289,7 @@ public class TestModel extends Model {
             String apiKey = ServiceUtils.removeAsType(map, "api_key", String.class);
 
             if (apiKey == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
+                validationException.addValidationError(InferenceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

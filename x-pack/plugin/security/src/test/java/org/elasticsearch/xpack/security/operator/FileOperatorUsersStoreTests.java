@@ -491,7 +491,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
     private Path writeOperatorUsers(String input) throws IOException {
         Path file = getOperatorUsersPath();
-        Files.write(file, input.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file, input);
         return file;
     }
 

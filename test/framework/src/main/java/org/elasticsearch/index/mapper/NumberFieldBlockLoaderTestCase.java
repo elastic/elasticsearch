@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;
@@ -17,12 +17,12 @@ import java.util.Objects;
 
 public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends BlockLoaderTestCase {
     public NumberFieldBlockLoaderTestCase(FieldType fieldType, Params params) {
-        super(fieldType, params);
+        super(fieldType.toString(), params);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value"), fieldMapping) : null;
 
         if (value instanceof List<?> == false) {
@@ -30,7 +30,9 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
 
         boolean hasDocValues = hasDocValues(fieldMapping, true);
-        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE || params.syntheticSource();
+        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
+            || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
+            || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Sorted
             var resultList = ((List<Object>) value).stream()

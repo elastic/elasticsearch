@@ -7,20 +7,19 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 
 /**
- * Mock Security Provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface. This is used
+ * Mock Security Provider implementation for the {@link ReservedStateHandlerProvider} service interface. This is used
  * for {@link org.elasticsearch.test.ESIntegTestCase} because the Security Plugin is really LocalStateSecurity in those tests.
  */
-public class LocalReservedSecurityStateHandlerProvider implements ReservedClusterStateHandlerProvider {
+public class LocalReservedSecurityStateHandlerProvider implements ReservedStateHandlerProvider {
     protected final LocalStateSecurity plugin;
 
     public LocalReservedSecurityStateHandlerProvider() {
@@ -45,7 +44,7 @@ public class LocalReservedSecurityStateHandlerProvider implements ReservedCluste
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<ProjectMetadata, ?>> projectHandlers() {
+    public Collection<ReservedProjectStateHandler<?>> projectHandlers() {
         for (Plugin subPlugin : plugin.plugins()) {
             if (subPlugin instanceof Security security) {
                 return security.reservedProjectStateHandlers();

@@ -1,5 +1,0 @@
-pr: 123743
-summary: Adjust exception thrown when unable to load hunspell dict
-area: Analysis
-type: bug
-issues: []

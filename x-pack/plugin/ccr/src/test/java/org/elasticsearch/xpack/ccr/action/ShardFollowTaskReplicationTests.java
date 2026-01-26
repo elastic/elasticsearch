@@ -529,7 +529,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
                 primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
+                primaryShard.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), index.getName()) {
                     @Override
                     public void restoreShard(
                         Store store,

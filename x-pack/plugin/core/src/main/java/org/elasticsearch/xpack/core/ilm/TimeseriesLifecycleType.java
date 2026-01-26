@@ -132,7 +132,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 if (actions.containsKey(UnfollowAction.NAME) == false
                     && (actions.containsKey(RolloverAction.NAME)
                         || actions.containsKey(ShrinkAction.NAME)
-                        || actions.containsKey(SearchableSnapshotAction.NAME))) {
+                        || actions.containsKey(SearchableSnapshotAction.NAME)
+                        || actions.containsKey(DownsampleAction.NAME))) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
                     actionMap.put(UnfollowAction.NAME, UnfollowAction.INSTANCE);
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
@@ -465,6 +466,22 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         + secondDownsample.v1()
                         + "] must be a multiple of the interval ["
                         + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            }
+            var firstSamplingMethod = firstDownsample.v2().samplingMethodOrDefault();
+            var secondSamplingMethod = secondDownsample.v2().samplingMethodOrDefault();
+            if (Objects.equals(firstSamplingMethod, secondSamplingMethod) == false) {
+                // All phases need to use the same downsampling method
+                throw new IllegalArgumentException(
+                    "Downsampling method ["
+                        + secondSamplingMethod
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be compatible with the method ["
+                        + firstSamplingMethod
                         + "] for phase ["
                         + firstDownsample.v1()
                         + "]"

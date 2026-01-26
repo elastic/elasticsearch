@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -49,11 +50,11 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testTransportVersion() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion();
         out.setTransportVersion(v1);
         PlanStreamOutput planOut = new PlanStreamOutput(out, randomBoolean() ? null : randomConfiguration());
         assertThat(planOut.getTransportVersion(), equalTo(v1));
-        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion();
         planOut.setTransportVersion(v2);
         assertThat(planOut.getTransportVersion(), equalTo(v2));
         assertThat(out.getTransportVersion(), equalTo(v2));
@@ -143,7 +144,14 @@ public class PlanStreamOutputTests extends ESTestCase {
                 }
             }
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 List<Attribute> readAttrs = new ArrayList<>();
                 for (int i = 0; i < occurrences; i++) {
                     readAttrs.add(in.readNamedWriteable(Attribute.class));
@@ -181,7 +189,14 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 
@@ -203,7 +218,14 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 

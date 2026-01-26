@@ -7,6 +7,7 @@ dependencies {
   javaRestTestImplementation project(path: ':modules:ingest-common')
   javaRestTestImplementation(project(':modules:lang-mustache'))
   javaRestTestImplementation project(path: ':modules:reindex')
+  javaRestTestImplementation project(path: ':modules:reindex-management')
   javaRestTestImplementation project(path: ':modules:transport-netty4')
   javaRestTestImplementation project(path: xpackModule('autoscaling'))
   javaRestTestImplementation project(':modules:data-streams')
@@ -19,6 +20,7 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('esql'))
   javaRestTestImplementation project(path: xpackModule('snapshot-repo-test-kit'))
   javaRestTestImplementation project(path: xpackModule('ent-search'))
+  javaRestTestImplementation project(path: xpackModule('inference'))
   javaRestTestImplementation project(':test:external-modules:test-multi-project')
 }
 

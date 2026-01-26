@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,11 +26,13 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -41,12 +44,13 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class Min extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Min extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MinBooleanAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, MinLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, MinLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, MinLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, MinLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.INTEGER, MinIntAggregatorFunctionSupplier::new),
@@ -54,12 +58,11 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.IP, MinIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, MinBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MinBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, MinBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, MinBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, MinBytesRefAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
         description = "The minimum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -87,15 +90,17 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 "ip",
                 "keyword",
                 "text",
-                "long",
-                "version" }
+                "unsigned_long",
+                "version",
+                "exponential_histogram",
+                "tdigest" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Min(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Min(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Min(StreamInput in) throws IOException {
@@ -109,33 +114,46 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     protected NodeInfo<Min> info() {
-        return NodeInfo.create(this, Min::new, field(), filter());
+        return NodeInfo.create(this, Min::new, field(), filter(), window());
     }
 
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
-        return new Min(source(), newChildren.get(0), newChildren.get(1));
+        return new Min(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public Min withFilter(Expression filter) {
-        return new Min(source(), field(), filter);
+        return new Min(source(), field(), filter, window());
     }
 
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            dt -> SUPPLIERS.containsKey(dt)
+                || dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
-            "representable except unsigned_long and spatial types"
+            "boolean",
+            "date",
+            "ip",
+            "string",
+            "version",
+            "aggregate_metric_double",
+            "exponential_histogram",
+            "tdigest",
+            "numeric except counter types"
         );
     }
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE
+            || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM
+            || field().dataType() == DataType.TDIGEST) {
             return DataType.DOUBLE;
         }
         return field().dataType().noText();
@@ -154,7 +172,15 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Min(source(), FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN));
+            return new Min(
+                source(),
+                FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN),
+                filter(),
+                window()
+            );
+        }
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return new Min(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MIN), filter(), window());
         }
         return field().foldable() ? new MvMin(source(), field()) : null;
     }

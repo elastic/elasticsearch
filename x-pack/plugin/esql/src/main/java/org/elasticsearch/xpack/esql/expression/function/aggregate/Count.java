@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DenseVectorCountAggregatorFunction;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -36,8 +38,9 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
-public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
 
     @FunctionInfo(
@@ -55,7 +58,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             ),
             @Example(
                 description = "To count the number of times an expression returns `TRUE` use "
-                    + "a <<esql-where>> command to remove rows that shouldn’t be included",
+                    + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
                 file = "stats",
                 tag = "count-where"
             ),
@@ -77,9 +80,16 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
+                "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -90,11 +100,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Count(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Count(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Count(StreamInput in) throws IOException {
@@ -108,17 +118,17 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected NodeInfo<Count> info() {
-        return NodeInfo.create(this, Count::new, field(), filter());
+        return NodeInfo.create(this, Count::new, field(), filter(), window());
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter);
+        return new Count(source(), field(), filter, window());
     }
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        return new Count(source(), newChildren.get(0), newChildren.get(1));
+        return new Count(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -128,6 +138,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        if (field().dataType() == DENSE_VECTOR) {
+            return DenseVectorCountAggregatorFunction.supplier();
+        }
         return CountAggregatorFunction.supplier();
     }
 
@@ -138,7 +151,17 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.TDIGEST
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.DATE_RANGE,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, tdigest, histogram, exponential_histogram, or date_range"
+        );
     }
 
     @Override
@@ -146,12 +169,18 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT));
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+                filter(),
+                window(),
+                SummationMode.COMPENSATED_LITERAL
+            );
         }
 
         if (field.foldable()) {
             if (field instanceof Literal l) {
-                if (l.value() != null && (l.value() instanceof List<?>) == false) {
+                if (l.value() != null && ((l.value() instanceof List<?>) == false || l.dataType() == DENSE_VECTOR)) {
                     // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
                     // Does not apply to COUNT([1,2,3])
                     // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD));
@@ -163,7 +192,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
-                new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
+                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window())
             );
         }
 

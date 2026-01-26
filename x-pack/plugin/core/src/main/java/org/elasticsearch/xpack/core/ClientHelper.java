@@ -158,7 +158,7 @@ public final class ClientHelper {
     ) {
         try {
             final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
-            if (authentication != null && authentication.getEffectiveSubject().getTransportVersion().after(minNodeVersion)) {
+            if (authentication != null && minNodeVersion.supports(authentication.getEffectiveSubject().getTransportVersion()) == false) {
                 return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
             }
         } catch (IOException e) {
@@ -196,6 +196,7 @@ public final class ClientHelper {
     public static final String APM_ORIGIN = "apm";
     public static final String OTEL_ORIGIN = "otel";
     public static final String REINDEX_DATA_STREAM_ORIGIN = "reindex_data_stream";
+    public static final String ESQL_ORIGIN = "esql";
 
     private ClientHelper() {}
 

@@ -112,13 +112,8 @@ public class InboundPipeline implements Releasable {
             messageHandler.accept(channel, PING_MESSAGE);
         } else if (fragment == InboundDecoder.END_CONTENT) {
             assert aggregator.isAggregating();
-            InboundMessage aggregated = aggregator.finishAggregation();
-            try {
-                statsTracker.markMessageReceived();
-                messageHandler.accept(channel, aggregated);
-            } finally {
-                aggregated.decRef();
-            }
+            statsTracker.markMessageReceived();
+            messageHandler.accept(channel, /* autocloses */ aggregator.finishAggregation());
         } else {
             assert aggregator.isAggregating();
             assert fragment instanceof ReleasableBytesReference;

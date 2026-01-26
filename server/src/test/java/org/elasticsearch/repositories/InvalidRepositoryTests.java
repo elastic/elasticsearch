@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -19,15 +20,19 @@ import static org.hamcrest.Matchers.isA;
 
 public class InvalidRepositoryTests extends ESTestCase {
 
+    private ProjectId projectId = randomProjectIdOrDefault();
+
     private InvalidRepository repository = new InvalidRepository(
+        projectId,
         new RepositoryMetadata("name", "type", Settings.EMPTY),
         new RepositoryException("name", "failed to create repository")
     );
 
     public void testShouldThrowWhenGettingMetadata() {
+        assertThat(repository.getProjectId(), equalTo(projectId));
         final var expectedException = expectThrows(
             RepositoryException.class,
-            () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid"))
+            () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid"), false)
         );
         assertThat(expectedException.getMessage(), equalTo("[name] repository type [type] failed to create on current node"));
         assertThat(expectedException.getCause(), isA(RepositoryException.class));

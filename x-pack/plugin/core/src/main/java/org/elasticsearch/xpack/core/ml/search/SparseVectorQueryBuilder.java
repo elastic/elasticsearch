@@ -11,24 +11,27 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -46,6 +49,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
+    private static final MatchNoDocsQuery EMPTY_QUERY_VECTORS = new MatchNoDocsQuery("Empty query vectors");
     public static final String NAME = "sparse_vector";
     public static final String ALLOWED_FIELD_TYPE = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -57,11 +61,15 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     private static final boolean DEFAULT_PRUNE = false;
 
+    private static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersion.fromName(
+        "sparse_vector_field_pruning_options"
+    );
+
     private final String fieldName;
     private final List<WeightedToken> queryVectors;
     private final String inferenceId;
     private final String query;
-    private final boolean shouldPruneTokens;
+    private final Boolean shouldPruneTokens;
 
     private final SetOnce<TextExpansionResults> weightedTokensSupplier;
 
@@ -81,13 +89,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a [" + FIELD_FIELD.getPreferredName() + "]");
-        this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
+        this.shouldPruneTokens = shouldPruneTokens;
         this.queryVectors = queryVectors;
         this.inferenceId = inferenceId;
         this.query = query;
-        this.tokenPruningConfig = (tokenPruningConfig != null
-            ? tokenPruningConfig
-            : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
+        this.tokenPruningConfig = tokenPruningConfig;
         this.weightedTokensSupplier = null;
 
         // Preserve BWC error messaging
@@ -124,7 +130,13 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.shouldPruneTokens = in.readBoolean();
+
+        if (in.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+            this.shouldPruneTokens = in.readOptionalBoolean();
+        } else {
+            this.shouldPruneTokens = in.readBoolean();
+        }
+
         this.queryVectors = in.readOptionalCollectionAsList(WeightedToken::new);
         this.inferenceId = in.readOptionalString();
         this.query = in.readOptionalString();
@@ -158,7 +170,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return query;
     }
 
-    public boolean shouldPruneTokens() {
+    public Boolean shouldPruneTokens() {
         return shouldPruneTokens;
     }
 
@@ -173,7 +185,13 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         out.writeString(fieldName);
-        out.writeBoolean(shouldPruneTokens);
+
+        if (out.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+            out.writeOptionalBoolean(shouldPruneTokens);
+        } else {
+            out.writeBoolean(shouldPruneTokens);
+        }
+
         out.writeOptionalCollection(queryVectors);
         out.writeOptionalString(inferenceId);
         out.writeOptionalString(query);
@@ -196,7 +214,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             }
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
-        builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
+        if (shouldPruneTokens != null) {
+            builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
+        }
         if (tokenPruningConfig != null) {
             builder.field(PRUNING_CONFIG_FIELD.getPreferredName(), tokenPruningConfig);
         }
@@ -207,7 +227,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (queryVectors == null) {
-            return new MatchNoDocsQuery("Empty query vectors");
+            return EMPTY_QUERY_VECTORS;
         }
 
         final MappedFieldType ft = context.getFieldType(fieldName);
@@ -215,23 +235,22 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against a field that does not exist");
         }
 
-        final String fieldTypeName = ft.typeName();
-        if (fieldTypeName.equals(ALLOWED_FIELD_TYPE) == false) {
-            throw new IllegalArgumentException(
-                "field [" + fieldName + "] must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + fieldTypeName + "]"
-            );
+        if (ft instanceof SparseVectorFieldMapper.SparseVectorFieldType svft) {
+            return svft.finalizeSparseVectorQuery(context, fieldName, queryVectors, shouldPruneTokens, tokenPruningConfig);
         }
 
-        return (shouldPruneTokens)
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
-            : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
+        throw new IllegalArgumentException(
+            "field [" + fieldName + "] must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + ft.typeName() + "]"
+        );
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (queryVectors != null) {
             return this;
-        } else if (weightedTokensSupplier != null) {
+        }
+
+        if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
             if (textExpansionResults == null) {
                 return this; // No results yet
@@ -245,33 +264,55 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 shouldPruneTokens,
                 tokenPruningConfig
             );
-        } else if (inferenceId == null) {
+        }
+
+        if (inferenceId == null) {
             // Edge case, where inference_id was not specified in the request,
             // but we did not intercept this and rewrite to a query o field with
             // pre-configured inference. So we trap here and output a nicer error message.
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        // TODO move this to xpack core and use inference APIs
-        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-            inferenceId,
-            List.of(query),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
-        );
-        inferRequest.setHighPriority(true);
-        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
+
+        queryRewriteContext.registerUniqueAsyncAction(
+            new SparseInferenceRewriteAction(inferenceId, query),
+            textExpansionResultsSupplier::set
+        );
+
+        return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+    }
+
+    private static class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<TextExpansionResults, SparseInferenceRewriteAction> {
+
+        private final String inferenceId;
+        private final String query;
+
+        SparseInferenceRewriteAction(String inferenceId, String query) {
+            this.inferenceId = inferenceId;
+            this.query = query;
+        }
+
+        @Override
+        protected void execute(Client client, ActionListener<TextExpansionResults> responseListener) {
+            // TODO: Move this class to `server` and update to use InferenceAction.Request
+            CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
+                inferenceId,
+                List.of(query),
+                TextExpansionConfigUpdate.EMPTY_UPDATE,
+                false,
+                null
+            );
+
+            inferRequest.setHighPriority(true);
+            inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+
+            executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 CoordinatedInferenceAction.INSTANCE,
                 inferRequest,
-                ActionListener.wrap(inferenceResponse -> {
-
+                responseListener.delegateFailureAndWrap((listener, inferenceResponse) -> {
                     List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
                     if (inferenceResults.isEmpty()) {
                         listener.onFailure(new IllegalStateException("inference response contain no results"));
@@ -282,10 +323,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                         return;
                     }
 
-                    if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
-                        textExpansionResultsSupplier.set(textExpansionResults);
-                        listener.onResponse(null);
-                    } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
+                    if (inferenceResults.getFirst() instanceof TextExpansionResults textExpansionResults) {
+                        listener.onResponse(textExpansionResults);
+                    } else if (inferenceResults.getFirst() instanceof WarningInferenceResults warning) {
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {
                         listener.onFailure(
@@ -293,18 +333,26 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                                 "expected a result of type ["
                                     + TextExpansionResults.NAME
                                     + "] received ["
-                                    + inferenceResults.get(0).getWriteableName()
+                                    + inferenceResults.getFirst().getWriteableName()
                                     + "]. Is ["
                                     + inferenceId
                                     + "] a compatible model?"
                             )
                         );
                     }
-                }, listener::onFailure)
-            )
-        );
+                })
+            );
+        }
 
-        return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+        @Override
+        public int doHashCode() {
+            return Objects.hash(inferenceId, query);
+        }
+
+        @Override
+        public boolean doEquals(SparseInferenceRewriteAction other) {
+            return Objects.equals(inferenceId, other.inferenceId) && Objects.equals(query, other.query);
+        }
     }
 
     @Override
@@ -329,7 +377,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

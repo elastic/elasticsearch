@@ -18,6 +18,7 @@ public class EntitlementCheckerHandle {
      * This is how the bytecodes injected by our instrumentation access the {@link EntitlementChecker}
      * so they can call the appropriate check method.
      */
+    @SuppressWarnings("unused")
     public static EntitlementChecker instance() {
         return Holder.instance;
     }

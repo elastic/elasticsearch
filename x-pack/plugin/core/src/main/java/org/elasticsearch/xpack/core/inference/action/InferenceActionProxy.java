@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +38,9 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
+
+        private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
         private final TaskType taskType;
         private final String inferenceEntityId;
@@ -77,8 +79,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             // streaming is not supported yet for transport traffic
             this.stream = false;
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+            if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
                 this.context = new InferenceContext(in);
             } else {
                 this.context = InferenceContext.EMPTY_INSTANCE;
@@ -127,8 +128,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             XContentHelper.writeTo(out, contentType);
             out.writeTimeValue(timeout);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+            if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
                 context.writeTo(out);
             }
         }

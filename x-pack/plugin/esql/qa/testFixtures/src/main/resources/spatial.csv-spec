@@ -84,6 +84,7 @@ POINT(39.58327988510707 20.619513023697994)
 
 centroidFromString4
 required_capability: st_x_y
+required_capability: st_x_y_quantized
 
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
 | MV_EXPAND wkt
@@ -92,7 +93,7 @@ ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555
 | EVAL x = ST_X(c), y = ST_Y(c);
 
 c:geo_point                                 | x:double          | y:double
-POINT(39.58327988510707 20.619513023697994) | 39.58327988510707 | 20.619513023697994
+POINT (39.58327988510707 20.619513023697994) | 39.58327981643379 | 20.619512982666492
 ;
 
 stXFromString
@@ -128,6 +129,20 @@ OZH             |  Zaporizhzhia    |  POINT(35.1175 47.85)    |  Ukraine        
 TRZ             |  Trichinopoly    |  POINT(78.7047 10.7903)  |  India            |  POINT(78.7089578747476 10.7603571306554)   |  Tiruchirappalli              |  9            |  mid 
 WIIT            |  Bandar Lampung  |  POINT(105.2667 -5.45)   |  Indonesia        |  POINT(105.176060419161 -5.242566777132)    |  Radin Inten II               |  9            |  mid 
 ZAH             |  Zāhedān         |  POINT(60.8628 29.4964)  |  Iran             |  POINT(60.900708564915 29.4752941956573)    |  Zahedan Int'l                |  9            |  mid 
+;
+
+stXFromCPHAirport
+required_capability: st_x_y
+required_capability: st_x_y_quantized
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP abbrev, x, y
+;
+
+abbrev:keyword | x:double           | y:double
+CPH            | 12.649350855499506 | 55.62850170303136
 ;
 
 stXFromAirportsSupportsNull
@@ -866,6 +881,17 @@ C              | 75         | BBOX (-107.51820000819862, 172.6055999379605, 55.7
 B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132) | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
 ;
 
+enrichPolicyWithGeoPoint
+required_capability: enrich_load
+
+ROW box = "POLYGON((11 55, 13 55, 13 56, 11 56, 11 55))"::geo_shape
+| ENRICH city_locations ON box WITH abbrev, airport, region, city
+;
+
+box:geo_shape                                                     | abbrev:keyword | airport:text | region:text        | city:keyword
+POLYGON ((11.0 55.0, 13.0 55.0, 13.0 56.0, 11.0 56.0, 11.0 55.0)) | CPH            | Copenhagen   | Københavns Kommune | Copenhagen
+;
+
 ###############################################
 # Tests for ST_INTERSECTS on GEO_POINT type
 
@@ -948,6 +974,7 @@ cityInCityBoundary
 required_capability: st_intersects
 
 FROM airport_city_boundaries
+| WHERE city_boundary IS NOT NULL
 | EVAL in_city = ST_INTERSECTS(city_location, city_boundary)
 | STATS count=COUNT(*) BY in_city
 | SORT count ASC
@@ -955,9 +982,9 @@ FROM airport_city_boundaries
 | KEEP cardinality, in_city
 ;
 
-cardinality:k  |  in_city:boolean
-"few"          |  false
-"many"         |  true
+cardinality:k | in_city:boolean
+"few"         | false
+"many"        | true
 ;
 
 cityNotInCityBoundaryBiggest
@@ -1788,6 +1815,78 @@ count:long
 12
 ;
 
+airportsDistanceLessThanInvalidPoint
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
+| KEEP distance, location, name, scalerank
+| WHERE distance < 500000 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:41: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:41: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceLessThanInvalidPoint2
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance < 500000 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceGreaterThanInvalidPoint
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:41: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:41: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceGreaterThanInvalidPoint2
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
 ###############################################
 # Tests for Equality and casting with GEO_POINT
 
@@ -1847,6 +1946,247 @@ wkt:keyword                               |pt:geo_point
 "POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
 "POINT(111)"                              |null
 // end::to_geopoint-str-parse-error-result[]
+;
+
+###############################################
+# Tests for GEO_POINT type with ST_ENVELOPE, ST_XMIN, etc.
+#
+
+stEnvelopeOnGeoPoint
+required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL envelope = ST_ENVELOPE(location)
+| KEEP abbrev, name, envelope
+;
+
+abbrev:keyword | name:text  | envelope:geo_shape
+CPH            | Copenhagen | BBOX (12.649350855499506, 12.649350855499506, 55.62850170303136, 55.62850170303136)
+;
+
+stEnvelopeOnGeoPointStats
+required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
+
+FROM airports
+| WHERE country == "United States"
+| STATS count=COUNT(*), points = VALUES(location)
+| EVAL envelope = ST_ENVELOPE(points)
+| KEEP count, envelope
+;
+
+count:long | envelope:geo_shape
+129        | BBOX (-159.34908430092037, -71.01640669628978, 64.81809809803963, 19.71479767933488)
+;
+
+stEnvelopeOnGeoPointStatsXYMinMax
+required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
+
+FROM airports
+| WHERE country == "United States"
+| STATS count=COUNT(*), points = VALUES(location)
+| EVAL envelope = ST_ENVELOPE(points)
+| EVAL xmin = ST_XMIN(envelope), xmax = ST_XMAX(envelope), ymin = ST_YMIN(envelope), ymax = ST_YMAX(envelope)
+| KEEP count, xmin, xmax, ymin, ymax
+;
+
+count:long | xmin:double         | xmax:double        | ymin:double       | ymax:double
+129        | -159.34908430092037 | -71.01640669628978 | 19.71479767933488 | 64.81809809803963
+;
+
+###############################################
+# Tests for GEO_POINT type with ST_NPOINTS
+#
+
+stNPointsOnGeoPoint
+required_capability: st_npoints
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(location)
+| KEEP abbrev, name, points
+;
+
+abbrev:keyword | name:text  | points:integer
+CPH            | Copenhagen | 1
+;
+
+stNPointsOnGeoPointStats
+required_capability: st_npoints
+
+FROM airports
+| WHERE country == "United States"
+| STATS count=COUNT(*), points = VALUES(location)
+| EVAL points = ST_NPOINTS(points)
+| KEEP count, points
+;
+
+count:long | points:integer
+129        | 129
+;
+
+###############################################
+# Tests for bug with literals that evaluate to null
+# (due to inner geometry parsing errors)
+# in ST_DISTANCE, ST_INTERSECTS, ST_DISJOINT, ST_CONTAINS, ST_WITHIN
+# Reported in https://github.com/elastic/elasticsearch/issues/138594
+#
+
+airportsDistanceGreaterThanInvalidPoint3
+required_capability: geo_null_literals_folding
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT(MV_SLICE(["POINT(-28.6359 153.5906)"], 0, 0)), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(MV_SLICE([\"POINT(-28.6359 153.5906)\"], 0, 0))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+distancePointsLiteralMvSlice
+required_capability: st_distance
+
+ROW point = MV_SLICE(["POINT(0 0)"], 0, 0)::geo_point
+| EVAL distance = ST_DISTANCE(point, point)
+;
+
+point:geo_point | distance:double
+POINT(0 0)      | 0.0
+;
+
+distancePointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL d1 = ST_DISTANCE(point, point)
+| EVAL d2 = ST_DISTANCE(point, "POINT(0 0)"::geo_point)
+| EVAL d3 = ST_DISTANCE("POINT(0 0)"::geo_point, point)
+| EVAL d4 = ST_DISTANCE("POINT(0 0)"::geo_point, "POINT(0 0)"::geo_point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | d1:double | d2:double | d3:double | d4:double
+null            | null      | null      | null      | 0.0
+;
+
+airportsIntersectsInvalidShapeLiteralMvSlice
+required_capability: geo_null_literals_folding
+
+FROM airports
+| WHERE ST_INTERSECTS(TO_GEOSHAPE(MV_SLICE(["POINT(-28.6359 153.5906)"], 0, 0)), location)
+| STATS count = COUNT()
+;
+
+warning:Line 2:23: evaluation of [TO_GEOSHAPE(MV_SLICE([\"POINT(-28.6359 153.5906)\"], 0, 0))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:23: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsEvalIntersectsInvalidShapeLiteralMvSlice
+required_capability: geo_null_literals_folding
+
+FROM airports
+| EVAL intersects = ST_INTERSECTS(TO_GEOSHAPE(MV_SLICE(["POINT(-28.6359 153.5906)"], 0, 0)), location)
+| STATS count = COUNT() BY intersects
+;
+
+warning:Line 2:35: evaluation of [TO_GEOSHAPE(MV_SLICE([\"POINT(-28.6359 153.5906)\"], 0, 0))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:35: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l | intersects:boolean
+891     | null
+;
+
+intersectsPointsLiteralMvSlice
+required_capability: st_intersects
+
+ROW point = MV_SLICE(["POINT(0 0)"], 0, 0)::geo_point
+| EVAL intersects = ST_INTERSECTS(point, point)
+;
+
+point:geo_point | intersects:boolean
+POINT(0 0)      | true
+;
+
+intersectsPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL a = ST_INTERSECTS(point, point)
+| EVAL b = ST_INTERSECTS(point, "POINT(0 0)"::geo_point)
+| EVAL c = ST_INTERSECTS("POINT(0 0)"::geo_point, point)
+| EVAL d = ST_INTERSECTS("POINT(0 0)"::geo_point, "POINT(0 0)"::geo_point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | a:boolean | b:boolean | c:boolean | d:boolean
+null            | null      | null      | null      | true
+;
+
+disjointPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL a = ST_DISJOINT(point, point)
+| EVAL b = ST_DISJOINT(point, "POINT(0 0)"::geo_point)
+| EVAL c = ST_DISJOINT("POINT(0 0)"::geo_point, point)
+| EVAL d = ST_DISJOINT("POINT(0 0)"::geo_point, "POINT(0 0)"::geo_point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | a:boolean | b:boolean | c:boolean | d:boolean
+null            | null      | null      | null      | false
+;
+
+containsPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL a = ST_CONTAINS(point, point)
+| EVAL b = ST_CONTAINS(point, "POINT(0 0)"::geo_point)
+| EVAL c = ST_CONTAINS("POINT(0 0)"::geo_point, point)
+| EVAL d = ST_CONTAINS("POINT(0 0)"::geo_point, "POINT(0 0)"::geo_point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | a:boolean | b:boolean | c:boolean | d:boolean
+null            | null      | null      | null      | true
+;
+
+withinPointsLiteralMvSliceInvalid
+required_capability: geo_null_literals_folding
+
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL a = ST_WITHIN(point, point)
+| EVAL b = ST_WITHIN(point, "POINT(0 0)"::geo_point)
+| EVAL c = ST_WITHIN("POINT(0 0)"::geo_point, point)
+| EVAL d = ST_WITHIN("POINT(0 0)"::geo_point, "POINT(0 0)"::geo_point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | a:boolean | b:boolean | c:boolean | d:boolean
+null            | null      | null      | null      | true
 ;
 
 ###############################################
@@ -1952,6 +2292,21 @@ TRZ            | POINT (8761841.111486122 1204941.537981898)   | Tiruchirappalli
 WIIT           | POINT (11708145.489503577 -584415.9142832769) | Radin Inten II              | 9           | mid
 ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l               | 9           | mid
 ;
+
+stXFromCartesianCPHAirport
+required_capability: st_x_y
+required_capability: st_x_y_quantized
+
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP abbrev, x, y
+;
+
+abbrev:keyword | x:double   | y:double
+CPH            | 1408119.25 | 7484813.5
+;
+
 
 ###############################################
 # Tests for ST_CENTROID_AGG on CARTESIAN_POINT type
@@ -2103,6 +2458,7 @@ stExtentCartesianShapesGrouping
 required_capability: st_extent_agg
 
 FROM cartesian_multipolygons
+| WHERE shape IS NOT NULL
 | EVAL key = SUBSTRING(name,1,3)
 | STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
 | KEEP count, key, extent
@@ -2128,6 +2484,7 @@ stExtentCartesianShapesGroupingNoDocValues
 required_capability: st_extent_agg
 
 FROM cartesian_multipolygons_no_doc_values
+| WHERE shape IS NOT NULL
 | EVAL key = SUBSTRING(name,1,3)
 | STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
 | KEEP count, key, extent
@@ -2951,4 +3308,171 @@ wkt:keyword                |pt:cartesian_point
 "POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
 "POINT(111)"               |null
 // end::to_cartesianpoint-str-parse-error-result[]
+;
+
+cityInCityBoundaryOnNulls
+required_capability: st_intersects
+
+FROM airport_city_boundaries
+| WHERE city_boundary IS NULL
+| EVAL in_city = ST_INTERSECTS(city_location, city_boundary)
+| STATS count=COUNT(*) BY in_city
+| SORT count ASC
+;
+
+count:long | in_city:boolean
+1          | null
+;
+
+stExtentCartesianShapesGroupingOnNulls
+# this test ensures that the non-grouping ST_EXTENT_AGG is able to gracefully handle missing cartesian shapes
+
+required_capability: st_extent_agg
+required_capability: st_extent_agg_null_support
+
+FROM cartesian_multipolygons
+| WHERE shape IS NULL
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+1          | Mis         | null
+;
+
+stExtentCartesianShapesGroupingNoDocValuesOnNulls
+# this test ensures that the non-grouping ST_EXTENT_AGG is able to gracefully handle missing cartesian shapes
+
+required_capability: st_extent_agg
+required_capability: st_extent_agg_null_support
+
+FROM cartesian_multipolygons_no_doc_values
+| WHERE shape IS NULL
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+1          | Mis         | null
+;
+
+stExtentCartesianShapesNonGroupingOnNulls
+# this test ensures that the non-grouping ST_EXTENT_AGG is able to gracefully handle missing cartesian shapes
+
+required_capability: st_extent_agg
+required_capability: st_extent_agg_null_support
+
+FROM cartesian_multipolygons
+| WHERE shape IS NULL
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT()
+| KEEP count, extent
+;
+
+count:long | extent:cartesian_shape
+1          | null
+;
+
+###############################################
+# Tests for CARTESIAN_POINT type with ST_ENVELOPE, ST_XMIN, etc.
+#
+
+stEnvelopeOnCartesianPoint
+required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
+
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL envelope = ST_ENVELOPE(location)
+| KEEP abbrev, name, envelope
+;
+
+abbrev:keyword | name:text  | envelope:cartesian_shape
+CPH            | Copenhagen | BBOX (1408119.25, 1408119.25, 7484813.5, 7484813.5)
+;
+
+stEnvelopeOnCartesianPointStats
+required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
+
+FROM airports_web
+| STATS count=COUNT(*), points = VALUES(location) BY scalerank
+| EVAL envelope = ST_ENVELOPE(points)
+| KEEP scalerank, count, envelope
+| SORT scalerank ASC, count DESC
+;
+
+scalerank:integer | count:long | envelope:cartesian_shape
+2                 | 63         | BBOX (-1.757955E7, 1.9457726E7, 8665631.0, -4532904.0)
+3                 | 24         | BBOX (-1.6460337E7, 1.187089E7, 9560620.0, 305969.03125)
+4                 | 191        | BBOX (-1.949601E7, 1.9877214E7, 1.1501923E7, -6983936.0)
+5                 | 46         | BBOX (-1.3815535E7, 1.9518338E7, 8257644.0, -4569996.0)
+6                 | 147        | BBOX (-1.9146654E7, 1.6225215E7, 1.0031698E7, -4159199.75)
+7                 | 124        | BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)
+8                 | 228        | BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25)
+9                 | 26         | BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)
+;
+
+stEnvelopeOnCartesianPointStatsXYMinMax
+required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
+
+FROM airports_web
+| STATS count=COUNT(*), points = VALUES(location) BY scalerank
+| EVAL envelope = ST_ENVELOPE(points)
+| EVAL xmin = ST_XMIN(envelope), xmax = ST_XMAX(envelope), ymin = ST_YMIN(envelope), ymax = ST_YMAX(envelope)
+| KEEP scalerank, count, xmin, xmax, ymin, ymax
+| SORT scalerank ASC, count DESC
+;
+
+scalerank:integer | count:long | xmin:double  | xmax:double | ymin:double  | ymax:double
+2                 | 63         | -1.757955E7  | 1.9457726E7 | -4532904.0   | 8665631.0
+3                 | 24         | -1.6460337E7 | 1.187089E7  | 305969.03125 | 9560620.0
+4                 | 191        | -1.949601E7  | 1.9877214E7 | -6983936.0   | 1.1501923E7
+5                 | 46         | -1.3815535E7 | 1.9518338E7 | -4569996.0   | 8257644.0
+6                 | 147        | -1.9146654E7 | 1.6225215E7 | -4159199.75  | 1.0031698E7
+7                 | 124        | -1.891609E7  | 1.9947946E7 | -7128878.5   | 8455470.0
+8                 | 228        | -1.936604E7  | 1.8695374E7 | -3943067.25  | 1.4502138E7
+9                 | 26         | 4783520.5    | 1.6168486E7 | -584415.9375 | 8704352.0
+;
+
+###############################################
+# Tests for CARTESIAN_POINT type with ST_NPOINTS
+#
+
+stNPointsOnCartesianPoint
+required_capability: st_npoints
+
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(location)
+| KEEP abbrev, name, points
+;
+
+abbrev:keyword | name:text  | points:integer
+CPH            | Copenhagen | 1
+;
+
+stNPointsOnCartesianPointStats
+required_capability: st_npoints
+
+FROM airports_web
+| STATS count=COUNT(*), points = VALUES(location) BY scalerank
+| EVAL points = ST_NPOINTS(points)
+| KEEP scalerank, count, points
+| SORT scalerank ASC, count DESC
+;
+
+scalerank:integer | count:long | points:integer
+2                 | 63         | 63
+3                 | 24         | 24
+4                 | 191        | 191
+5                 | 46         | 46
+6                 | 147        | 147
+7                 | 124        | 124
+8                 | 228        | 228
+9                 | 26         | 26
 ;

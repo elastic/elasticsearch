@@ -38,12 +38,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
@@ -66,7 +71,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ? System.getenv("BUILD_NUMBER")
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
-        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false && OS.current() != OS.WINDOWS) {
+        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
             File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
@@ -102,6 +107,23 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
     }
 
     private List<File> resolveProjectLogs(File projectDir) {
+        // HACK: Some tests leave behind symlinks, and gradle throws an exception if it encounters symlinks.
+        // Here we remove them before collecting logs to upload. We could instead build our own path matcher
+        // but that seemed more complex than just deleting the irrelevant files.
+        try {
+            Files.walkFileTree(projectDir.toPath(), new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (Files.isSymbolicLink(file)) {
+                        Files.delete(file);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
         projectDirFiles.include("**/build/reports/configuration-cache/**");
@@ -178,7 +200,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     try {
                         // we are very generious here, as the upload can take
                         // a long time depending on its size
-                        pb.start().waitFor(30, java.util.concurrent.TimeUnit.MINUTES);
+                        long timeoutSec = calculateUploadWaitTimeoutSeconds(uploadFile);
+                        boolean completedInTime = pb.start().waitFor(timeoutSec, TimeUnit.SECONDS);
+                        if (completedInTime == false) {
+                            System.out.println("Timed out waiting for buildkite artifact upload after " + timeoutSec + " seconds");
+                        }
                     } catch (InterruptedException e) {
                         System.out.println("Failed to upload buildkite artifact " + e.getMessage());
                     }
@@ -276,7 +302,21 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
 
         @NotNull
         private static String calculateArchivePath(Path path, Path projectPath) {
-            return path.startsWith(projectPath) ? projectPath.relativize(path).toString() : path.getFileName().toString();
+            String archivePath = path.startsWith(projectPath) ? projectPath.relativize(path).toString() : path.getFileName().toString();
+            if (OS.current() == OS.WINDOWS) {
+                // tar always uses forward slashes
+                archivePath = archivePath.replace("\\", "/");
+            }
+            return archivePath;
+        }
+
+        private static long calculateUploadWaitTimeoutSeconds(File file) {
+            long fileSizeBytes = file.length();
+            long fileSizeMB = fileSizeBytes / (1024 * 1024);
+
+            // Allocate 4 seconds per MB (assumes ~250 KB/s upload speed)
+            // with min 10 seconds and max 30 minutes
+            return Math.max(10, Math.min(1800, fileSizeMB * 4));
         }
     }
 }

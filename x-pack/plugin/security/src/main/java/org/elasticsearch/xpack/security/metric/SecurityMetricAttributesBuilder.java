@@ -12,10 +12,6 @@ import java.util.Map;
 @FunctionalInterface
 public interface SecurityMetricAttributesBuilder<C> {
 
-    Map<String, Object> build(C context, String failureReason);
-
-    default Map<String, Object> build(C context) {
-        return build(context, null);
-    }
+    Map<String, Object> build(C context);
 
 }

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -62,21 +62,21 @@ public class CopySettingsStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
+    public ProjectState performAction(Index index, ProjectState projectState) {
         String sourceIndexName = index.getName();
-        IndexMetadata sourceIndexMetadata = clusterState.metadata().getProject().index(sourceIndexName);
+        IndexMetadata sourceIndexMetadata = projectState.metadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), sourceIndexName);
-            return clusterState;
+            return projectState;
         }
 
         if (settingsKeys == null || settingsKeys.length == 0) {
-            return clusterState;
+            return projectState;
         }
 
         String targetIndexName = targetIndexNameSupplier.apply(sourceIndexName, sourceIndexMetadata.getLifecycleExecutionState());
-        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = projectState.metadata().index(targetIndexName);
         if (targetIndexMetadata == null) {
             String errorMessage = Strings.format(
                 "index [%s] is being referenced by ILM action [%s] on step [%s] but it doesn't exist",
@@ -94,11 +94,10 @@ public class CopySettingsStep extends ClusterStateActionStep {
             settings.put(key, value);
         }
 
-        Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata())
-            .put(
-                IndexMetadata.builder(targetIndexMetadata).settingsVersion(targetIndexMetadata.getSettingsVersion() + 1).settings(settings)
-            );
-        return ClusterState.builder(clusterState).metadata(newMetaData).build();
+        IndexMetadata.Builder updatedIndex = IndexMetadata.builder(targetIndexMetadata)
+            .settingsVersion(targetIndexMetadata.getSettingsVersion() + 1)
+            .settings(settings);
+        return projectState.updateProject(ProjectMetadata.builder(projectState.metadata()).put(updatedIndex).build());
     }
 
     @Override

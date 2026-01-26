@@ -521,7 +521,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     private void enable(boolean enabled) {
         this.enabled = enabled;
         // After the health logger is stopped we do not want to reschedule it
-        if (enabled & isStoppedOrClosed() == false) {
+        if (enabled && isStoppedOrClosed() == false) {
             clusterService.addListener(this);
             maybeScheduleJob();
         } else {

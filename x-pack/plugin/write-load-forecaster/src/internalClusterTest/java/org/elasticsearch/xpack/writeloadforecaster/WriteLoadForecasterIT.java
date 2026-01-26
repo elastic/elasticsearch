@@ -145,6 +145,8 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
     private void setUpDataStreamWriteDocsAndRollover(String dataStreamName, Settings extraIndexTemplateSettings) throws Exception {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 1);
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
+
         final Settings indexSettings = Settings.builder()
             .put(extraIndexTemplateSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
@@ -194,6 +196,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
             assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         }
+        ensureGreen();
     }
 
     static void indexDocs(String dataStream, int numDocs) {

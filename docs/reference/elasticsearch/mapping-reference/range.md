@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Range"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/range.html
@@ -7,18 +10,18 @@ mapped_pages:
 # Range field types [range]
 
 
-Range field types represent a continuous range of values between an upper and lower bound. For example, a range can represent *any date in October* or *any integer from 0 to 9*. They are defined using the operators `gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound. They can be used for querying, and have limited support for aggregations. The only supported aggregations are [histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md), [cardinality](/reference/data-analysis/aggregations/search-aggregations-metrics-cardinality-aggregation.md).
+Range field types represent a continuous range of values between an upper and lower bound. For example, a range can represent *any date in October* or *any integer from 0 to 9*. They are defined using the operators `gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound. They can be used for querying, and have limited support for aggregations. The only supported aggregations are [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md), [cardinality](/reference/aggregations/search-aggregations-metrics-cardinality-aggregation.md).
 
 The following range types are supported:
 
 `integer_range`
-:   A range of signed 32-bit integers with a minimum value of `-231` and maximum of `231-1`.
+:   A range of signed 32-bit integers with a minimum value of `-2^31` and maximum of `2^31 - 1`.
 
 `float_range`
 :   A range of single-precision 32-bit IEEE 754 floating point values.
 
 `long_range`
-:   A range of signed 64-bit integers with a minimum value of `-263` and maximum of `263-1`.
+:   A range of signed 64-bit integers with a minimum value of `-2^63` and maximum of `2^63 - 1`.
 
 `double_range`
 :   A range of double-precision 64-bit IEEE 754 floating point values.
@@ -62,13 +65,14 @@ PUT range_index/_doc/1?refresh
   }
 }
 ```
+% TESTSETUP
 
 1. `date_range` types accept the same field parameters defined by the [`date`](/reference/elasticsearch/mapping-reference/date.md) type.
 2. Example indexing a meeting with 10 to 20 attendees, not including 20.
 3. Example date range using date time stamp.
 
 
-The following is an example of a [term query](/reference/query-languages/query-dsl-term-query.md) on the `integer_range` field named "expected_attendees". 12 is a value inside the range, so it will match.
+The following is an example of a [term query](/reference/query-languages/query-dsl/query-dsl-term-query.md) on the `integer_range` field named "expected_attendees". 12 is a value inside the range, so it will match.
 
 ```console
 GET range_index/_search
@@ -119,6 +123,7 @@ The result produced by the above query.
   }
 }
 ```
+% TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 The following is an example of a `date_range` query over the `date_range` field named "time_frame".
 
@@ -137,7 +142,7 @@ GET range_index/_search
 }
 ```
 
-1. Range queries work the same as described in [range query](/reference/query-languages/query-dsl-range-query.md).
+1. Range queries work the same as described in [range query](/reference/query-languages/query-dsl/query-dsl-range-query.md).
 2. Range queries over range [fields](/reference/elasticsearch/mapping-reference/field-data-types.md) support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`, `INTERSECTS` (default).
 
 
@@ -177,6 +182,7 @@ This query produces a similar result:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 ## IP Range [ip-range]
 
@@ -215,13 +221,72 @@ The following parameters are accepted by range types:
 [`store`](/reference/elasticsearch/mapping-reference/mapping-store.md)
 :   Whether the field value should be stored and retrievable separately from the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field. Accepts `true` or `false` (default).
 
+## Sorting
+
+Sorting is not supported for any of the `range` field types. Attempting to sort by a field of type range_field will result in a `400 Bad Request` response.
+For example, executing a sort query on a field of type `integer_range`,
+```console
+PUT idx
+{
+  "mappings": {
+    "properties": {
+      "my_range": {
+        "type": "integer_range"
+      }
+    }
+  }
+}
+
+POST idx/_search
+{
+  "sort": [
+    {
+      "my_range": {
+        "order": "asc"
+      }
+    }
+  ]
+}
+```
+results in the following response:
+```console-result
+{
+    "error": {
+        "root_cause": [
+            {
+                "type": "illegal_argument_exception",
+                "reason": "Sorting by range field [my_range] is not supported"
+            }
+        ],
+        "type": "search_phase_execution_exception",
+        "reason": "all shards failed",
+        "phase": "query",
+        "grouped": true,
+        "failed_shards": [
+            {
+                "shard": 0,
+                "index": "idx",
+                "node": "7pzVSCf5TuSNZYj-N7u3tw",
+                "reason": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Sorting by range field [my_range] is not supported"
+                }
+            }
+        ],
+        "caused_by": {
+            "type": "illegal_argument_exception",
+            "reason": "Sorting by range field [my_range] is not supported",
+            "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Sorting by range field [my_range] is not supported"
+            }
+        }
+    },
+    "status": 400
+}
+```
 
 ## Synthetic `_source` [range-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `range` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 
@@ -270,6 +335,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -291,6 +357,7 @@ Will become:
   ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Values of `ip_range` fields are not sorted but original order is not preserved. Duplicate ranges are removed. If `ip_range` field value is provided as a CIDR, it will be represented as a range of IP addresses in synthetic source.
 
@@ -328,6 +395,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -340,6 +408,7 @@ Will become:
 
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 $$$range-synthetic-source-inclusive$$$
 Range field values are always represented as inclusive on both sides with bounds adjusted accordingly. Default values for range bounds are represented as `null`. This is true even if range bound was explicitly provided. For example:
@@ -373,6 +442,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -384,6 +454,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 $$$range-synthetic-source-default-bounds$$$
 Default values for range bounds are represented as `null` in synthetic source. This is true even if range bound was explicitly provided with default value. For example:
@@ -416,6 +487,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -427,6 +499,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 `date` ranges are formatted using provided `format` or by default using `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format. For example:
 
@@ -465,6 +538,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -482,5 +556,5 @@ Will become:
   ]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

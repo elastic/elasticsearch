@@ -48,7 +48,7 @@ public class CodecIntegrationTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultCodec() {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
 
         var indexService = createIndex("index1");
         var storedFieldsFormat = (Zstd814StoredFieldsFormat) indexService.getShard(0)

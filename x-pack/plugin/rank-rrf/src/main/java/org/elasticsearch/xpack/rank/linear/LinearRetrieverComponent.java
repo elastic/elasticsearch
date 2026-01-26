@@ -38,7 +38,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
         assert retrieverBuilder != null;
         this.retriever = retrieverBuilder;
         this.weight = weight == null ? DEFAULT_WEIGHT : weight;
-        this.normalizer = normalizer == null ? DEFAULT_NORMALIZER : normalizer;
+        this.normalizer = normalizer; // Don't default to identity, allow null for top-level fallback
         if (this.weight < 0) {
             throw new IllegalArgumentException("[weight] must be non-negative");
         }
@@ -67,7 +67,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
     static {
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
             RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
-            c.trackRetrieverUsage(innerRetriever.getName());
+            c.trackRetrieverUsage(innerRetriever);
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);

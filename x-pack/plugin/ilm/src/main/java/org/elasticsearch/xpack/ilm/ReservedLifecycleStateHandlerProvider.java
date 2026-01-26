@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 import java.util.Collection;
 
 /**
- * ILM Provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface
+ * ILM Provider implementation for the {@link ReservedStateHandlerProvider} service interface
  */
-public class ReservedLifecycleStateHandlerProvider implements ReservedClusterStateHandlerProvider {
+public class ReservedLifecycleStateHandlerProvider implements ReservedStateHandlerProvider {
     private final IndexLifecycle plugin;
 
     public ReservedLifecycleStateHandlerProvider() {
@@ -28,7 +27,7 @@ public class ReservedLifecycleStateHandlerProvider implements ReservedClusterSta
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<ClusterState, ?>> clusterHandlers() {
-        return plugin.reservedClusterStateHandlers();
+    public Collection<ReservedProjectStateHandler<?>> projectHandlers() {
+        return plugin.reservedProjectStateHandlers();
     }
 }

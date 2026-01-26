@@ -23,12 +23,23 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * IndexReshardingState is an abstract class holding the persistent state of a generic resharding operation. It contains
  * concrete subclasses for the operations that are currently defined (which is only split for now).
  */
 public abstract sealed class IndexReshardingState implements Writeable, ToXContentFragment {
+    /**
+     * @return the number of shards the index has at the start of this operation
+     */
+    public abstract int shardCountBefore();
+
+    /**
+     * @return the number of shards that the index will have when resharding completes
+     */
+    public abstract int shardCountAfter();
+
     // This class exists only so that tests can check that IndexReshardingMetadata can support more than one kind of operation.
     // When we have another real operation such as Shrink this can be removed.
     public static final class Noop extends IndexReshardingState {
@@ -63,6 +74,16 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         @Override
         public int hashCode() {
             return 0;
+        }
+
+        @Override
+        public int shardCountBefore() {
+            return 1;
+        }
+
+        @Override
+        public int shardCountAfter() {
+            return 1;
         }
     }
 
@@ -160,6 +181,9 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         private final TargetShardState[] targetShards;
 
         Split(SourceShardState[] sourceShards, TargetShardState[] targetShards) {
+            // The resharding metadata is deleted when the last source shard transitions to done
+            assert Arrays.stream(sourceShards).allMatch((state) -> state == SourceShardState.DONE) == false;
+
             this.sourceShards = sourceShards;
             this.targetShards = targetShards;
 
@@ -193,6 +217,20 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         }
 
         @Override
+        public String toString() {
+            return "Split{"
+                + "oldShardCount="
+                + oldShardCount
+                + ", newShardCount="
+                + newShardCount
+                + ", sourceShards="
+                + Arrays.toString(sourceShards)
+                + ", targetShards="
+                + Arrays.toString(targetShards)
+                + '}';
+        }
+
+        @Override
         public boolean equals(Object other) {
             if (this == other) {
                 return true;
@@ -210,13 +248,13 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return Objects.hash(Arrays.hashCode(sourceShards), Arrays.hashCode(targetShards));
         }
 
-        // visible for testing
-        int oldShardCount() {
+        @Override
+        public int shardCountBefore() {
             return oldShardCount;
         }
 
-        // visible for testing
-        int newShardCount() {
+        @Override
+        public int shardCountAfter() {
             return newShardCount;
         }
 
@@ -228,6 +266,24 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         // visible for testing
         TargetShardState[] targetShards() {
             return targetShards.clone();
+        }
+
+        /** Return the source shard from which this target shard was split
+         * @param targetShard    target shard id
+         * @return source shard id
+         */
+        public int sourceShard(int targetShard) {
+            return targetShard % shardCountBefore();
+        }
+
+        /** Return the new target shard that is split from the given source shard
+         * This calculation assumes we only always double the number of shards in
+         * a reshard split operation, so that only one target shard is created per source shard.
+         * @param sourceShard    source shard id
+         * @return target shard id
+         */
+        public int targetShard(int sourceShard) {
+            return (sourceShard + shardCountBefore());
         }
 
         /**
@@ -325,6 +381,14 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return sourceShards[shardNum];
         }
 
+        public boolean isSourceShard(int shardId) {
+            return shardId < shardCountBefore();
+        }
+
+        public boolean isTargetShard(int shardId) {
+            return isSourceShard(shardId) == false;
+        }
+
         /**
          * Get the current target state of a shard
          * @param shardNum an index into shards greater than or equal to the old shard count and less than the new shard count
@@ -338,18 +402,26 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return targetShards[targetShardNum];
         }
 
-        /**
-         * Check whether this metadata represents an incomplete split
-         * @return true if the split is incomplete (not all source shards are DONE)
-         */
-        public boolean inProgress() {
-            for (int i = 0; i < oldShardCount; i++) {
-                if (sourceShards[i] == SourceShardState.SOURCE) {
-                    return true;
+        public boolean targetStateAtLeast(int shardNum, TargetShardState targetShardState) {
+            return getTargetShardState(shardNum).ordinal() >= targetShardState.ordinal();
+        }
+
+        public boolean allTargetStatesAtLeast(int sourceShardId, TargetShardState targetShardState) {
+            var targets = getTargetStatesFor(sourceShardId);
+            for (TargetShardState state : targets) {
+                if (state.ordinal() < targetShardState.ordinal()) {
+                    return false;
                 }
             }
+            return true;
+        }
 
-            return false;
+        public Stream<TargetShardState> targetStates() {
+            return Arrays.stream(targetShards);
+        }
+
+        public Stream<SourceShardState> sourceStates() {
+            return Arrays.stream(sourceShards);
         }
 
         /**

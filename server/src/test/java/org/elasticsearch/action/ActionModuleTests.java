@@ -26,6 +26,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -42,11 +44,13 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,29 +66,34 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends ESTestCase {
+    Environment testEnv;
+
+    @Before
+    public void setupEnv() {
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        testEnv = TestEnvironment.newEnvironment(settings);
+    }
+
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
-            ActionModule.setupActions(emptyList()),
-            hasEntry(
-                TransportNodesInfoAction.TYPE.name(),
-                new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class)
-            )
+            ActionModule.setupActions(testEnv, emptyList()),
+            hasEntry(TransportNodesInfoAction.TYPE.name(), new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class))
         );
     }
 
     public void testPluginCantOverwriteBuiltinAction() {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
+            public List<ActionHandler> getActions() {
+                return singletonList(new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(testEnv, singletonList(dupsMainAction)));
         assertEquals("action for name [" + TransportNodesInfoAction.TYPE.name() + "] already registered", e.getMessage());
     }
 
     public void testPluginCanRegisterAction() {
-        class FakeRequest extends ActionRequest {
+        class FakeRequest extends LegacyActionRequest {
             @Override
             public ActionRequestValidationException validate() {
                 return null;
@@ -101,13 +110,13 @@ public class ActionModuleTests extends ESTestCase {
         final var action = new ActionType<>("fake");
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
+            public List<ActionHandler> getActions() {
+                return singletonList(new ActionHandler(action, FakeTransportAction.class));
             }
         };
         assertThat(
-            ActionModule.setupActions(singletonList(registersFakeAction)),
-            hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class))
+            ActionModule.setupActions(testEnv, singletonList(registersFakeAction)),
+            hasEntry("fake", new ActionHandler(action, FakeTransportAction.class))
         );
     }
 
@@ -115,7 +124,7 @@ public class ActionModuleTests extends ESTestCase {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(
-            settings.getSettings(),
+            testEnv,
             TestIndexNameExpressionResolver.newInstance(),
             null,
             settings.getIndexScopedSettings(),
@@ -133,8 +142,8 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null),
-            TestProjectResolvers.singleProjectOnly()
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            TestProjectResolvers.alwaysThrow()
         );
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -182,7 +191,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                settings.getSettings(),
+                testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settings.getIndexScopedSettings(),
@@ -200,8 +209,8 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null),
-                TestProjectResolvers.singleProjectOnly()
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                TestProjectResolvers.alwaysThrow()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -242,7 +251,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                settings.getSettings(),
+                testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settings.getIndexScopedSettings(),
@@ -260,8 +269,8 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null),
-                TestProjectResolvers.singleProjectOnly()
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -295,7 +304,7 @@ public class ActionModuleTests extends ESTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new ActionModule(
-                    settingsModule.getSettings(),
+                    testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                     null,
                     settingsModule.getIndexScopedSettings(),
@@ -313,8 +322,8 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null),
-                    TestProjectResolvers.singleProjectOnly()
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    TestProjectResolvers.alwaysThrow()
                 )
             );
             assertThat(
@@ -339,7 +348,7 @@ public class ActionModuleTests extends ESTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new ActionModule(
-                    settingsModule.getSettings(),
+                    testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                     null,
                     settingsModule.getIndexScopedSettings(),
@@ -357,8 +366,8 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null),
-                    TestProjectResolvers.singleProjectOnly()
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    TestProjectResolvers.alwaysThrow()
                 )
             );
             assertThat(

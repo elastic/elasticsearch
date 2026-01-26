@@ -702,102 +702,100 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     }
 
     public void testDataStreamAliases() {
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)),
             List.of()
         );
 
         ClusterState result = service.applyAliasActions(
-            state.projectState(projectId),
+            projectStateFromProject(project),
             List.of(
                 new AliasAction.AddDataStreamAlias("foobar", "logs-foobar", null, null),
                 new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null, null)
             )
         );
-        assertThat(result.metadata().getProject(projectId).dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().getProject(project.id()).dataStreamAliases().get("foobar"), notNullValue());
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("foobar").getDataStreams(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("foobar").getDataStreams(),
             containsInAnyOrder("logs-foobar", "metrics-foobar")
         );
 
         result = service.applyAliasActions(
-            result.projectState(projectId),
+            result.projectState(project.id()),
             List.of(new AliasAction.RemoveDataStreamAlias("foobar", "logs-foobar", null))
         );
-        assertThat(result.metadata().getProject(projectId).dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().getProject(project.id()).dataStreamAliases().get("foobar"), notNullValue());
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("foobar").getDataStreams(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("foobar").getDataStreams(),
             containsInAnyOrder("metrics-foobar")
         );
 
         result = service.applyAliasActions(
-            result.projectState(projectId),
+            result.projectState(project.id()),
             List.of(new AliasAction.RemoveDataStreamAlias("foobar", "metrics-foobar", null))
         );
-        assertThat(result.metadata().getProject(projectId).dataStreamAliases().get("foobar"), nullValue());
+        assertThat(result.metadata().getProject(project.id()).dataStreamAliases().get("foobar"), nullValue());
     }
 
     public void testDataStreamAliasesWithWriteFlag() {
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-http-emea", 1), new Tuple<>("logs-http-nasa", 1)),
             List.of()
         );
 
         ClusterState result = service.applyAliasActions(
-            state.projectState(projectId),
+            projectStateFromProject(project),
             List.of(
                 new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", true, null),
                 new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", null, null)
             )
         );
-        assertThat(result.metadata().getProject(projectId).dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http"), notNullValue());
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("logs-http").getDataStreams(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http").getDataStreams(),
             containsInAnyOrder("logs-http-nasa", "logs-http-emea")
         );
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("logs-http").getWriteDataStream(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http").getWriteDataStream(),
             equalTo("logs-http-emea")
         );
 
         result = service.applyAliasActions(
-            state.projectState(projectId),
+            projectStateFromProject(project),
             List.of(
                 new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", false, null),
                 new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", true, null)
             )
         );
-        assertThat(result.metadata().getProject(projectId).dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http"), notNullValue());
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("logs-http").getDataStreams(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http").getDataStreams(),
             containsInAnyOrder("logs-http-nasa", "logs-http-emea")
         );
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("logs-http").getWriteDataStream(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http").getWriteDataStream(),
             equalTo("logs-http-nasa")
         );
 
         result = service.applyAliasActions(
-            result.projectState(projectId),
+            result.projectState(project.id()),
             List.of(new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-emea", null))
         );
-        assertThat(result.metadata().getProject(projectId).dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http"), notNullValue());
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("logs-http").getDataStreams(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http").getDataStreams(),
             contains("logs-http-nasa")
         );
         assertThat(
-            result.metadata().getProject(projectId).dataStreamAliases().get("logs-http").getWriteDataStream(),
+            result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http").getWriteDataStream(),
             equalTo("logs-http-nasa")
         );
 
         result = service.applyAliasActions(
-            result.projectState(projectId),
+            result.projectState(project.id()),
             List.of(new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-nasa", null))
         );
-        assertThat(result.metadata().getProject(projectId).dataStreamAliases().get("logs-http"), nullValue());
+        assertThat(result.metadata().getProject(project.id()).dataStreamAliases().get("logs-http"), nullValue());
     }
 
     public void testAddAndRemoveAliasClusterStateUpdate() throws Exception {

@@ -101,6 +101,13 @@ public interface IndexAbstraction {
     }
 
     /**
+     * @return whether this index abstraction is a failure index of a data stream
+     */
+    default boolean isFailureIndexOfDataStream() {
+        return false;
+    }
+
+    /**
      * An index abstraction type.
      */
     enum Type {
@@ -123,7 +130,13 @@ public interface IndexAbstraction {
          * A data stream typically has multiple backing indices, the latest of which
          * is the target for index requests.
          */
-        DATA_STREAM("data_stream");
+        DATA_STREAM("data_stream"),
+
+        /**
+         * An index abstraction that refers to an ESQL query.
+         * The ESQL query can target multiple indices, aliases, or data streams.
+         */
+        VIEW("view");
 
         private final String displayName;
 
@@ -181,6 +194,11 @@ public interface IndexAbstraction {
         @Override
         public DataStream getParentDataStream() {
             return dataStream;
+        }
+
+        @Override
+        public boolean isFailureIndexOfDataStream() {
+            return getParentDataStream() != null && getParentDataStream().isFailureStoreIndex(getName());
         }
 
         @Override

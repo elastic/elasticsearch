@@ -11,7 +11,7 @@ package org.elasticsearch.example.customsuggester;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 

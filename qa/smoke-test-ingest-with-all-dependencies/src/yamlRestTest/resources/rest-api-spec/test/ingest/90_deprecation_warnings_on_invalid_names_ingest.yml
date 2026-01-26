@@ -1,7 +1,6 @@
 ---
 "Test invalid name warnings":
   - requires:
-      cluster_features: [ "ingest.pipeline_name_special_chars_warning" ]
       test_runner_features: [ "warnings" ]
       reason: verifying deprecation warnings from 9.0 onwards for invalid pipeline names
 
@@ -24,5 +23,5 @@
               }]
           }
       warnings:
-        - "Invalid pipeline id: Invalid*-pipeline:id"
+        - "Pipeline name [Invalid*-pipeline:id] will be disallowed in a future version for the following reason: must not contain the following characters [' ','\"','*',',','/','<','>','?','\\','|']"
   - match: { acknowledged: true }

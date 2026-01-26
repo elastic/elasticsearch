@@ -18,43 +18,43 @@ public class HandlingTimeTrackerTests extends ESTestCase {
     public void testHistogram() {
         final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
 
-        assertArrayEquals(new long[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        assertArrayEquals(new long[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(0L);
-        assertArrayEquals(new long[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(0L);
+        assertArrayEquals(new long[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(1L);
-        assertArrayEquals(new long[] { 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(1L);
+        assertArrayEquals(new long[] { 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(2L);
-        assertArrayEquals(new long[] { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(2L);
+        assertArrayEquals(new long[] { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(3L);
-        assertArrayEquals(new long[] { 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(3L);
+        assertArrayEquals(new long[] { 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(4L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(4L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(127L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(127L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(128L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(128L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(65535L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(65535L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(65536L);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(65536L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(Long.MAX_VALUE);
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(Long.MAX_VALUE);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(randomLongBetween(65536L, Long.MAX_VALUE));
-        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(randomLongBetween(65536L, Long.MAX_VALUE));
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getSnapshot());
 
-        handlingTimeTracker.addHandlingTime(randomLongBetween(Long.MIN_VALUE, 0L));
-        assertArrayEquals(new long[] { 2, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addObservation(randomLongBetween(Long.MIN_VALUE, 0L));
+        assertArrayEquals(new long[] { 2, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getSnapshot());
     }
 
     public void testHistogramRandom() {
@@ -67,10 +67,10 @@ public class HandlingTimeTrackerTests extends ESTestCase {
 
             final int lowerBound = bucket == 0 ? 0 : upperBounds[bucket - 1];
             final int upperBound = bucket == upperBounds.length ? randomBoolean() ? 100000 : Integer.MAX_VALUE : upperBounds[bucket] - 1;
-            handlingTimeTracker.addHandlingTime(between(lowerBound, upperBound));
+            handlingTimeTracker.addObservation(between(lowerBound, upperBound));
         }
 
-        assertArrayEquals(expectedCounts, handlingTimeTracker.getHistogram());
+        assertArrayEquals(expectedCounts, handlingTimeTracker.getSnapshot());
     }
 
     public void testBoundsConsistency() {

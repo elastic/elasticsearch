@@ -330,8 +330,8 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
         synchronizer.clusterChanged(event(currentClusterState, previousClusterState));
 
-        verify(previousClusterState, times(1)).metadata();
-        verify(currentClusterState, times(1)).metadata();
+        verify(previousClusterState, times(2)).metadata();
+        verify(currentClusterState, times(2)).metadata();
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
     }
 
@@ -590,9 +590,9 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
     private DiscoveryNodes mixedVersionNodes() {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion()),
+            VersionUtils.randomVersionBetween(null, VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
+            IndexVersionUtils.randomCompatibleVersion()
         );
         return nodes(randomIntBetween(1, 3), true).add(
             DiscoveryNodeUtils.builder("old-data-node")

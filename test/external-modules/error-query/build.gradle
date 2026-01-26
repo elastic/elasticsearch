@@ -7,17 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-
-tasks.named('javaRestTest') {
-  usesDefaultDistribution("to be triaged")
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
-}
-
-tasks.named('yamlRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
-}
 
 esplugin {
   description = 'A test module that exposes a way to simulate search shard failures and warnings'
@@ -28,4 +21,15 @@ restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'search'
   }
+}
+
+dependencies {
+  clusterModules project(':x-pack:plugin:esql')
+  clusterModules project(':x-pack:plugin:autoscaling')
+  clusterModules project(':x-pack:plugin:ilm')
+}
+
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  def isSnapshot = buildParams.snapshotBuild
+  onlyIf("snapshot build") { isSnapshot }
 }

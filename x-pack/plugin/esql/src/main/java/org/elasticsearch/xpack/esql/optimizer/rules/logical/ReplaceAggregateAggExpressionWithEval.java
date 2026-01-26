@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,26 +43,35 @@ import java.util.Map;
  * becomes
  * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
  */
-public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+    private final boolean replaceNestedExpressions;
+
+    public ReplaceAggregateAggExpressionWithEval(boolean replaceNestedExpressions) {
+        super(OptimizerRules.TransformDirection.UP);
+        this.replaceNestedExpressions = replaceNestedExpressions;
+    }
+
     public ReplaceAggregateAggExpressionWithEval() {
         super(OptimizerRules.TransformDirection.UP);
+        this.replaceNestedExpressions = true;
     }
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        // build alias map
-        AttributeMap<Expression> aliases = new AttributeMap<>();
-        aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
-
-        // Build Categorize grouping functions map.
-        // Functions like BUCKET() shouldn't reach this point,
-        // as they are moved to an early EVAL by ReplaceAggregateNestedExpressionWithEval
-        Map<Categorize, Attribute> groupingAttributes = new HashMap<>();
+        // an alias map for evaluatable grouping functions
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        // a function map for non-evaluatable grouping functions
+        Map<GroupingFunction.NonEvaluatableGroupingFunction, Attribute> nonEvalGroupingAttributes = new HashMap<>(
+            aggregate.groupings().size()
+        );
         aggregate.forEachExpressionUp(Alias.class, a -> {
-            if (a.child() instanceof Categorize groupingFunction) {
-                groupingAttributes.put(groupingFunction, a.toAttribute());
+            if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
+                nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
+            } else {
+                aliasesBuilder.put(a.toAttribute(), a.child());
             }
         });
+        var aliases = aliasesBuilder.build();
 
         // break down each aggregate into AggregateFunction and/or grouping key
         // preserve the projection at the end
@@ -87,7 +96,7 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                 // common case - handle duplicates
                 if (child instanceof AggregateFunction af) {
                     // canonical representation, with resolved aliases
-                    AggregateFunction canonical = (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
+                    AggregateFunction canonical = getCannonical(af, aliases);
 
                     Alias found = rootAggs.get(canonical);
                     // aggregate is new
@@ -105,14 +114,15 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                 }
                 // nested expression over aggregate function or groups
                 // replace them with reference and move the expression into a follow-up eval
-                else {
+                else if (replaceNestedExpressions) {
                     changed.set(true);
                     Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
-                        AggregateFunction canonical = (AggregateFunction) af.canonical();
+                        // canonical representation, with resolved aliases
+                        AggregateFunction canonical = getCannonical(af, aliases);
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
-                            // create synthetic alias ove the found agg function
-                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), canonical, null, true);
+                            // create synthetic alias over the found agg function
+                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), af.canonical(), null, true);
                             // and remember it to remove duplicates
                             rootAggs.put(canonical, alias);
                             // add it to the list of aggregates and continue
@@ -122,12 +132,18 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                         return alias.toAttribute();
                     });
 
-                    // replace grouping functions with their references
-                    aggExpression = aggExpression.transformUp(Categorize.class, groupingAttributes::get);
+                    // replace non-evaluatable grouping functions with their references
+                    aggExpression = aggExpression.transformUp(
+                        GroupingFunction.NonEvaluatableGroupingFunction.class,
+                        nonEvalGroupingAttributes::get
+                    );
 
                     Alias alias = as.replaceChild(aggExpression);
                     newEvals.add(alias);
                     newProjections.add(alias.toAttribute());
+                } else {
+                    newAggs.add(agg);
+                    newProjections.add(agg.toAttribute());
                 }
             }
             // not an alias (e.g. grouping field)
@@ -151,7 +167,11 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
         return plan;
     }
 
-    static String syntheticName(Expression expression, Expression af, int counter) {
+    private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {
+        return (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
+    }
+
+    private static String syntheticName(Expression expression, Expression af, int counter) {
         return TemporaryNameUtils.temporaryName(expression, af, counter);
     }
 }

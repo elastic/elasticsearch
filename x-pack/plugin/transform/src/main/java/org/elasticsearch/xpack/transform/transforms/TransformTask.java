@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.TransformTaskMatcher;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -50,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -57,7 +59,11 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM;
 
-public class TransformTask extends AllocatedPersistentTask implements TransformScheduler.Listener, TransformContext.Listener {
+public class TransformTask extends AllocatedPersistentTask
+    implements
+        TransformScheduler.Listener,
+        TransformContext.Listener,
+        TransformTaskMatcher {
 
     // Default interval the scheduler sends an event if the config does not specify a frequency
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
@@ -74,7 +80,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
     @SuppressWarnings("this-escape")
-    TransformTask(
+    public TransformTask(
         long id,
         String type,
         String action,
@@ -302,18 +308,13 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             // we could not read the previous state information from said index.
             persistStateToClusterState(state, ActionListener.wrap(task -> {
                 auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
-                transformScheduler.registerTransform(transform, this);
                 listener.onResponse(new StartTransformAction.Response(true));
             }, exc -> {
-                auditor.warning(
-                    transform.getId(),
-                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
-                );
-                logger.error(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
+                logger.warn(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(
                     new ElasticsearchException(
-                        "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
+                        "Error while updating state for transform [" + transform.getId() + "] to [" + TransformTaskState.STARTED + "].",
                         exc
                     )
                 );
@@ -426,6 +427,13 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         }
     }
 
+    public void applyNewFrequency(TransformConfig config) {
+        var frequency = config != null ? config.getFrequency() : null;
+        if (frequency != null) {
+            transformScheduler.updateFrequency(config.getId(), frequency);
+        }
+    }
+
     @Override
     protected void init(
         PersistentTasksService persistentTasksService,
@@ -503,7 +511,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);
         }, failure -> {
-            logger.error(() -> "[" + transform.getId() + "] failed to update cluster state for transform.", failure);
+            logger.warn(() -> "[" + transform.getId() + "] failed to update cluster state for transform.", failure);
             listener.onFailure(failure);
         }));
     }
@@ -557,7 +565,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            logger.atError().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
+            logger.atWarn().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
             auditor.error(transform.getId(), reason);
             // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
             // we should set this flag to false.
@@ -574,7 +582,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             persistStateToClusterState(newState, ActionListener.wrap(r -> listener.onResponse(null), e -> {
                 String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
                 auditor.warning(transform.getId(), msg + " Failure: " + e.getMessage());
-                logger.error(() -> format("[%s] %s", getTransformId(), msg), e);
+                logger.warn(() -> format("[%s] %s", getTransformId(), msg), e);
                 listener.onFailure(e);
             }));
         }
@@ -593,6 +601,10 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             // there is no background transform running, we can shutdown safely
             shutdown();
         }
+    }
+
+    public boolean isRetryingStartup() {
+        return getContext().getStartUpFailureCount() > 0;
     }
 
     TransformTask setNumFailureRetries(int numFailureRetries) {
@@ -665,5 +677,15 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             return Collections.emptyList();
         }
         return pTasksMeta.findTasks(TransformTaskParams.NAME, predicate);
+    }
+
+    @Override
+    public boolean match(String transformId) {
+        return Objects.equals(transform.getId(), transformId);
+    }
+
+    @Override
+    public boolean match(Collection<String> transformIds) {
+        return transformIds != null && transformIds.stream().anyMatch(this::match);
     }
 }

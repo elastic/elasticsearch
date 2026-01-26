@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceBytesRefBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -42,12 +43,9 @@ public class ValuesBytesRefAggregatorFunctionTests extends AggregatorFunctionTes
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
+    public void assertSimpleOutput(List<Page> input, Block result) {
         TreeSet<?> set = new TreeSet<>((List<?>) BlockUtils.toJavaObject(result, 0));
-        Object[] values = input.stream()
-            .flatMap(AggregatorFunctionTestCase::allBytesRefs)
-            .collect(Collectors.toSet())
-            .toArray(Object[]::new);
+        Object[] values = input.stream().flatMap(p -> allBytesRefs(p.getBlock(0))).collect(Collectors.toSet()).toArray(Object[]::new);
         if (false == set.containsAll(Arrays.asList(values))) {
             assertThat(set, containsInAnyOrder(values));
         }

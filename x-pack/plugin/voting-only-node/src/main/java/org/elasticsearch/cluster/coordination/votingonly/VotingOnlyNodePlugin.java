@@ -9,8 +9,6 @@ package org.elasticsearch.cluster.coordination.votingonly;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -82,10 +80,10 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, VotingOnlyUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, VotingOnlyInfoTransportAction.class)
+            new ActionHandler(XPackUsageFeatureAction.VOTING_ONLY, VotingOnlyUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.VOTING_ONLY, VotingOnlyInfoTransportAction.class)
         );
     }
 

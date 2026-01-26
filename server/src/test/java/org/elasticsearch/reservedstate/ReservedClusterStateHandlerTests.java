@@ -11,6 +11,7 @@ package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,15 +22,20 @@ import static org.hamcrest.Matchers.is;
 
 public class ReservedClusterStateHandlerTests extends ESTestCase {
     public void testValidation() {
-        ReservedClusterStateHandler<Object, ValidRequest> handler = new ReservedClusterStateHandler<>() {
+        ReservedClusterStateHandler<ValidRequest> handler = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "handler";
             }
 
             @Override
-            public TransformState<Object> transform(ValidRequest source, TransformState<Object> prevState) throws Exception {
+            public TransformState transform(ValidRequest source, TransformState prevState) throws Exception {
                 return prevState;
+            }
+
+            @Override
+            public ClusterState remove(TransformState prevState) throws Exception {
+                return prevState.state();
             }
 
             @Override

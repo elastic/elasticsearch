@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -39,8 +38,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
-
-    static final long MAX_REPEATED_LENGTH = MB.toBytes(1);
 
     private final Expression str;
     private final Expression number;
@@ -123,9 +120,9 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     static BytesRef processInner(BreakingBytesRefBuilder scratch, BytesRef str, int number) {
         int repeatedLen = str.length * number;
-        if (repeatedLen > MAX_REPEATED_LENGTH) {
+        if (repeatedLen > MAX_BYTES_REF_RESULT_SIZE) {
             throw new IllegalArgumentException(
-                "Creating repeated strings with more than [" + MAX_REPEATED_LENGTH + "] bytes is not supported"
+                "Creating repeated strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
             );
         }
         scratch.grow(repeatedLen);

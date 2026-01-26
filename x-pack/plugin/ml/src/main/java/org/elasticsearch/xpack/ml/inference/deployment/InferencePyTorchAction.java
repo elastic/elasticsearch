@@ -178,7 +178,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         NlpTask.ResultProcessor inferenceResultsProcessor
     ) {
         if (pyTorchResult.isError()) {
-            onFailure(pyTorchResult.errorResult().error());
+            onFailure(pyTorchResult.errorResult());
             return;
         }
 

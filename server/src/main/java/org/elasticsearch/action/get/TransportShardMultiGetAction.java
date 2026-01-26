@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.index.shard.ShardId;
@@ -156,12 +157,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected Executor getExecutor(MultiGetShardRequest request, ShardId shardId) {
+    protected Executor getExecutor(ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         if (projectResolver.getProjectMetadata(clusterState).index(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else {
-            return super.getExecutor(request, shardId);
+            return super.getExecutor(shardId);
         }
     }
 
@@ -173,6 +174,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
+            // TODO: Do we need to pass in shardCountSummary here ?
             var refreshRequest = new BasicReplicationRequest(shardId);
             refreshRequest.setParentTask(request.getParentTask());
             client.executeLocally(
@@ -216,10 +218,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("mget_from_translog[shard] failed", cause);
+            // All of the following exceptions can be thrown if the shard is relocated
             if (cause instanceof ShardNotFoundException
                 || cause instanceof IndexNotFoundException
+                || cause instanceof IllegalIndexShardStateException
                 || cause instanceof AlreadyClosedException) {
-                // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                 logger.debug("retrying mget_from_translog[shard]");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -234,13 +237,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
-                        if (cause instanceof AlreadyClosedException) {
-                            // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
-                            tryShardMultiGetFromTranslog(request, indexShard, node, l);
-                        } else {
-                            l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
-                        }
+                        l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
                     }
                 });
             } else {
@@ -290,7 +287,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
                         final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
                             listener.delegateFailureAndWrap(
-                                (ll, aLong) -> getExecutor(request, shardId).execute(
+                                (ll, aLong) -> getExecutor(shardId).execute(
                                     ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
                                 )
                             ),
@@ -299,7 +296,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
                     }
                 }
-            }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(request, shardId))
+            }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(shardId))
         );
     }
 
@@ -353,7 +350,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
         throws IOException {
         if (request.refresh() && request.realtime() == false) {
-            getExecutor(request, shardId).execute(ActionRunnable.wrap(listener, l -> {
+            getExecutor(shardId).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
                 indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
             }));

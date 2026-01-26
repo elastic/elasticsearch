@@ -37,6 +37,7 @@ import org.elasticsearch.compute.data.LongVector;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 public class BlockBenchmark {
     /**
@@ -112,7 +113,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = blockFactory.newBooleanArrayBlock(
                                 values,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
                             );
@@ -120,7 +121,7 @@ public class BlockBenchmark {
                         case "array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
 
                             blocks[blockIndex] = blockFactory.newBooleanArrayBlock(
                                 values,
@@ -141,7 +142,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = new BooleanBigArrayBlock(
                                 valuesBigArray,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
                                 blockFactory
@@ -150,7 +151,7 @@ public class BlockBenchmark {
                         case "big-array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
                             BitArray valuesBigArray = new BitArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
                             for (int i = 0; i < values.length; i++) {
                                 if (values[i]) {
@@ -211,7 +212,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = blockFactory.newBytesRefArrayBlock(
                                 values,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
                             );
@@ -219,7 +220,7 @@ public class BlockBenchmark {
                         case "array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
 
                             blocks[blockIndex] = blockFactory.newBytesRefArrayBlock(
                                 values,
@@ -257,7 +258,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = blockFactory.newDoubleArrayBlock(
                                 values,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
                             );
@@ -265,7 +266,7 @@ public class BlockBenchmark {
                         case "array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
 
                             blocks[blockIndex] = blockFactory.newDoubleArrayBlock(
                                 values,
@@ -284,7 +285,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = new DoubleBigArrayBlock(
                                 valuesBigArray,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
                                 blockFactory
@@ -293,7 +294,7 @@ public class BlockBenchmark {
                         case "big-array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
                             DoubleArray valuesBigArray = blockFactory.bigArrays().newDoubleArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
@@ -344,7 +345,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = blockFactory.newIntArrayBlock(
                                 values,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
                             );
@@ -352,7 +353,7 @@ public class BlockBenchmark {
                         case "array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
 
                             blocks[blockIndex] = blockFactory.newIntArrayBlock(
                                 values,
@@ -371,7 +372,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = new IntBigArrayBlock(
                                 valuesBigArray,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
                                 blockFactory
@@ -380,7 +381,7 @@ public class BlockBenchmark {
                         case "big-array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
                             IntArray valuesBigArray = blockFactory.bigArrays().newIntArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
@@ -431,7 +432,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = blockFactory.newLongArrayBlock(
                                 values,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
                             );
@@ -439,7 +440,7 @@ public class BlockBenchmark {
                         case "array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
 
                             blocks[blockIndex] = blockFactory.newLongArrayBlock(
                                 values,
@@ -458,7 +459,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = new LongBigArrayBlock(
                                 valuesBigArray,
                                 totalPositions,
-                                null,
+                                IntStream.rangeClosed(0, totalPositions).toArray(),
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
                                 blockFactory
@@ -467,7 +468,7 @@ public class BlockBenchmark {
                         case "big-array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
-                            BitSet nulls = randomNulls(positionCount);
+                            BitSet nulls = nullsFromFirstValues(firstValueIndexes);
                             LongArray valuesBigArray = blockFactory.bigArrays().newLongArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
@@ -526,10 +527,10 @@ public class BlockBenchmark {
         return firstValueIndexes.stream().mapToInt(x -> x).toArray();
     }
 
-    private static BitSet randomNulls(int positionCount) {
-        BitSet nulls = new BitSet(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            if (random.nextDouble() < NULL_PERCENTAGE) {
+    private static BitSet nullsFromFirstValues(int[] firstValueIndexes) {
+        BitSet nulls = new BitSet(firstValueIndexes.length - 1);
+        for (int i = 0; i < firstValueIndexes.length - 1; i++) {
+            if (firstValueIndexes[i + 1] - firstValueIndexes[i] == 1 && random.nextDouble() < NULL_PERCENTAGE) {
                 nulls.set(i);
             }
         }

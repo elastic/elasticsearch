@@ -22,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -345,12 +346,22 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
             return List.of(new IndexFoldersDeletionListener() {
                 @Override
-                public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+                public void beforeIndexFoldersDeleted(
+                    Index index,
+                    IndexSettings indexSettings,
+                    Path[] indexPaths,
+                    IndexRemovalReason reason
+                ) {
                     deletedIndices.add(index);
                 }
 
                 @Override
-                public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
+                public void beforeShardFoldersDeleted(
+                    ShardId shardId,
+                    IndexSettings indexSettings,
+                    Path[] shardPaths,
+                    IndexRemovalReason reason
+                ) {
                     deletedShards.computeIfAbsent(shardId.getIndex(), i -> Collections.synchronizedList(new ArrayList<>())).add(shardId);
                 }
             });

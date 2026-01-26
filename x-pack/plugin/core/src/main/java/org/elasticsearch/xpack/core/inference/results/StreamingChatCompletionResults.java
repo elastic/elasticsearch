@@ -80,7 +80,7 @@ public record StreamingChatCompletionResults(Flow.Publisher<? extends InferenceS
     }
 
     public record Result(String delta) implements ChunkedToXContent, Writeable {
-        private static final String RESULT = "delta";
+        public static final String RESULT = "delta";
 
         private Result(StreamInput in) throws IOException {
             this(in.readString());

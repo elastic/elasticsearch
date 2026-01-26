@@ -21,8 +21,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
@@ -40,6 +38,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -133,7 +132,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         if (askForOtherBucket) {
             builder.otherBucket(true).otherBucketKey("other");
         }
-        withAggregator(builder, new MatchAllDocsQuery(), iw -> {}, (reader, aggregator) -> {
+        withAggregator(builder, Queries.ALL_DOCS_INSTANCE, iw -> {}, (reader, aggregator) -> {
             InternalFilters result = (InternalFilters) aggregator.buildEmptyAggregation();
             for (int i = 0; i < filters.length; i++) {
                 assertThat(result.getBucketByKey(String.valueOf(i)).getDocCount(), equalTo(0L));
@@ -368,7 +367,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testRangeFilter() throws IOException {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -391,7 +390,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }, searcher -> {
             debugTestCase(
                 builder,
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 searcher,
                 (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                     assertThat(filters.getBuckets(), hasSize(1));
@@ -426,7 +425,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * Tests a filter that needs the cache to be fast.
      */
     public void testPhraseFilter() throws IOException {
-        MappedFieldType ft = new TextFieldMapper.TextFieldType("test", randomBoolean());
+        MappedFieldType ft = new TextFieldMapper.TextFieldType("test", randomBoolean(), false);
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
             new KeyedFilter("q1", new MatchPhraseQueryBuilder("test", "will find me").slop(0))
@@ -451,7 +450,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             for (Matcher<Integer> segmentsCountedInConstantTime : List.of(equalTo(0), greaterThanOrEqualTo(1))) {
                 debugTestCase(
                     builder,
-                    new MatchAllDocsQuery(),
+                    Queries.ALL_DOCS_INSTANCE,
                     indexReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
@@ -520,7 +519,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));
@@ -556,7 +555,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));
@@ -604,7 +603,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(2));
@@ -661,7 +660,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     .count();
                 debugTestCase(
                     builder,
-                    new MatchAllDocsQuery(),
+                    Queries.ALL_DOCS_INSTANCE,
                     limitedReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
@@ -727,7 +726,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     .count();
                 debugTestCase(
                     builder,
-                    new MatchAllDocsQuery(),
+                    Queries.ALL_DOCS_INSTANCE,
                     limitedReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
@@ -791,7 +790,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
                 debugTestCase(
                     builder,
-                    new MatchAllDocsQuery(),
+                    Queries.ALL_DOCS_INSTANCE,
                     limitedReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
@@ -825,7 +824,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testComplexUnionDisabledFilterByFilter() throws IOException {
         MappedFieldType dft = new DateFieldMapper.DateFieldType(
             "date",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -882,7 +881,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));
@@ -921,7 +920,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));
@@ -962,7 +961,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));
@@ -1180,7 +1179,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(mostly)
                 ),
                 Occur.FILTER
-            ).add(new MatchAllDocsQuery(), Occur.FILTER).build(),
+            ).add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER).build(),
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));
@@ -1215,7 +1214,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggs() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1257,7 +1256,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Collections.shuffle(docs, random());
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             iw -> iw.addDocuments(docs),
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(2));
@@ -1300,7 +1299,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggsManyDocs() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1331,7 +1330,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Collections.shuffle(docs, random());
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             iw -> iw.addDocuments(docs),
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(2));
@@ -1371,7 +1370,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggsManyFilters() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1410,7 +1409,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Collections.shuffle(docs, random());
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             iw -> iw.addDocuments(docs),
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(buckets.size()));
@@ -1482,46 +1481,16 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
     public void testDocValuesFieldExistsForNumber() throws IOException {
         NumberFieldMapper.NumberType numberType = randomFrom(NumberFieldMapper.NumberType.values());
-        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType(
-            "f",
-            numberType,
-            true,
-            false,
-            true,
-            true,
-            null,
-            Map.of(),
-            null,
-            false,
-            null,
-            null,
-            false
-        );
+        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType("f", numberType);
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             final LuceneDocument document = new LuceneDocument();
-            numberType.addFields(document, "f", i, true, true, false);
+            numberType.addFields(document, "f", i, IndexType.points(true, true), false);
             return document;
         });
     }
 
     public void testDocValuesFieldExistsForNumberWithoutData() throws IOException {
-        docValuesFieldExistsNoDataTestCase(
-            new NumberFieldMapper.NumberFieldType(
-                "f",
-                randomFrom(NumberFieldMapper.NumberType.values()),
-                true,
-                false,
-                true,
-                true,
-                null,
-                Map.of(),
-                null,
-                false,
-                null,
-                null,
-                false
-            )
-        );
+        docValuesFieldExistsNoDataTestCase(new NumberFieldMapper.NumberFieldType("f", randomFrom(NumberFieldMapper.NumberType.values())));
     }
 
     public void testDocValuesFieldExistsForKeyword() throws IOException {
@@ -1545,7 +1514,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-        debugTestCase(builder, new MatchAllDocsQuery(), iw -> {
+        debugTestCase(builder, Queries.ALL_DOCS_INSTANCE, iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocuments(
                     List.of(
@@ -1576,7 +1545,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (reader, aggregator) -> {
+        withAggregator(builder, Queries.ALL_DOCS_INSTANCE, buildIndex, (reader, aggregator) -> {
             assertThat(aggregator, instanceOf(FilterByFilterAggregator.class));
 
             Map<String, Object> debug = collectAndGetFilterDebugInfo(reader, aggregator);

@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -112,7 +113,12 @@ public class IngestRestartIT extends ESIntegTestCase {
         NodesStatsResponse r = clusterAdmin().prepareNodesStats(internalCluster().getNodeNames()).setIngest(true).get();
         int nodeCount = r.getNodes().size();
         for (int k = 0; k < nodeCount; k++) {
-            List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().processorStats().get(pipelineId);
+            List<IngestStats.ProcessorStat> stats = r.getNodes()
+                .get(k)
+                .getIngestStats()
+                .processorStats()
+                .get(ProjectId.DEFAULT)
+                .get(pipelineId);
             for (IngestStats.ProcessorStat st : stats) {
                 assertThat(st.stats().ingestCurrent(), greaterThanOrEqualTo(0L));
             }
@@ -404,7 +410,7 @@ public class IngestRestartIT extends ESIntegTestCase {
 
     private void blockSystemWriteThreadPool(CountDownLatch blockingLatch, ThreadPool threadPool) {
         assertThat(blockingLatch.getCount(), greaterThan(0L));
-        final var executor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
+        final var executor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE_COORDINATION);
         // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
         expectThrows(EsRejectedExecutionException.class, () -> {
             // noinspection InfiniteLoopStatement

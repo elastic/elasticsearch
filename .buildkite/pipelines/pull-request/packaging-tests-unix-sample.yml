@@ -13,7 +13,7 @@ steps:
           setup:
             image:
               - rhel-8
-              - ubuntu-2004
+              - ubuntu-2404
             PACKAGING_TASK:
               - destructiveDistroTest.docker
               - destructiveDistroTest.packages

@@ -31,11 +31,7 @@ import static org.mockito.Mockito.mock;
  * Tests that the ReservedAutoscalingPolicyAction does validation, can add and remove autoscaling policies
  */
 public class ReservedAutoscalingPolicyTests extends ESTestCase {
-    private TransformState<ClusterState> processJSON(
-        ReservedAutoscalingPolicyAction action,
-        TransformState<ClusterState> prevState,
-        String json
-    ) throws Exception {
+    private TransformState processJSON(ReservedAutoscalingPolicyAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -45,7 +41,7 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
         var mocks = createMockServices();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks);
 
         String badPolicyJSON = """
@@ -76,12 +72,12 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
         var mocks = createMockServices();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks);
 
         String emptyJSON = "";
 
-        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 

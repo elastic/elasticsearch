@@ -56,8 +56,12 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -70,6 +74,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
@@ -2761,6 +2767,192 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Auth cache has not been affected
         assertEquals(serviceForDoc1AuthCacheCount, serviceForDoc1.getApiKeyAuthCache().count());
         assertEquals(serviceForDoc2AuthCacheCount, serviceForDoc2.getApiKeyAuthCache().count());
+    }
+
+    public void testCreateCrossClusterApiKeyWithCertificateIdentity() throws Exception {
+        final String certificateIdentity = "CN=remote-cluster-cert";
+        final String keyName = randomAlphaOfLengthBetween(3, 8);
+
+        final CrossClusterApiKeyRoleDescriptorBuilder roleBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse("""
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+
+        final var request = new CreateCrossClusterApiKeyRequest(
+            keyName,
+            roleBuilder,
+            null,
+            null,
+            new CertificateIdentity(certificateIdentity)
+        );
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
+        final CreateApiKeyResponse response = future.actionGet();
+
+        assertEquals(keyName, response.getName());
+        assertNotNull(response.getId());
+        assertNotNull(response.getKey());
+
+        final Map<String, Object> apiKeyDoc = getApiKeyDocument(response.getId());
+        assertThat(apiKeyDoc.get("certificate_identity"), equalTo(certificateIdentity));
+        assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
+    }
+
+    public void testCreateCrossClusterApiKeyWithoutCertificateIdentity() throws Exception {
+        final String keyName = randomAlphaOfLengthBetween(3, 8);
+
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(keyName, """
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
+        final CreateApiKeyResponse response = future.actionGet();
+
+        assertEquals(keyName, response.getName());
+        assertNotNull(response.getId());
+        assertNotNull(response.getKey());
+
+        final Map<String, Object> apiKeyDoc = getApiKeyDocument(response.getId());
+        assertThat(apiKeyDoc.containsKey("certificate_identity"), is(false));
+        assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
+    }
+
+    public void testUpdateCrossClusterApiKeyWithCertificateIdentity() throws Exception {
+        // Create a cross-cluster API key first
+        final String keyName = randomAlphaOfLengthBetween(3, 8);
+        final CrossClusterApiKeyRoleDescriptorBuilder roleBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse("""
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+
+        final var createRequest = new CreateCrossClusterApiKeyRequest(
+            keyName,
+            roleBuilder,
+            null,
+            null,
+            new CertificateIdentity("CN=original-cert")
+        );
+        createRequest.setRefreshPolicy(IMMEDIATE);
+
+        final PlainActionFuture<CreateApiKeyResponse> createFuture = new PlainActionFuture<>();
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, createRequest, createFuture);
+        final CreateApiKeyResponse createdApiKey = createFuture.actionGet();
+        final var apiKeyId = createdApiKey.getId();
+
+        // Verify original certificate identity is set
+        Map<String, Object> apiKeyDoc = getApiKeyDocument(apiKeyId);
+        assertThat(apiKeyDoc.get("certificate_identity"), equalTo("CN=original-cert"));
+        assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
+
+        // Now test updating the certificate identity using UpdateCrossClusterApiKeyRequest
+        final var newCertIdentity = "CN=updated-cert";
+        final UpdateCrossClusterApiKeyRequest updateRequest = new UpdateCrossClusterApiKeyRequest(
+            apiKeyId,
+            null,
+            null,
+            null,
+            new CertificateIdentity(newCertIdentity)
+        );
+
+        final PlainActionFuture<UpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
+        client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateRequest, updateFuture);
+        final UpdateApiKeyResponse response = updateFuture.actionGet();
+
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+
+        apiKeyDoc = getApiKeyDocument(apiKeyId);
+        assertThat(apiKeyDoc.get("certificate_identity"), equalTo(newCertIdentity));
+        assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
+    }
+
+    public void testUpdateCrossClusterApiKeyClearCertificateIdentity() throws Exception {
+        // Create a cross-cluster API key with certificate identity
+        final String keyName = randomAlphaOfLengthBetween(3, 8);
+        final CrossClusterApiKeyRoleDescriptorBuilder roleBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse("""
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+
+        final var createRequest = new CreateCrossClusterApiKeyRequest(
+            keyName,
+            roleBuilder,
+            null,
+            null,
+            new CertificateIdentity("CN=to-be-cleared")
+        );
+        createRequest.setRefreshPolicy(IMMEDIATE);
+
+        final PlainActionFuture<CreateApiKeyResponse> createFuture = new PlainActionFuture<>();
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, createRequest, createFuture);
+        final CreateApiKeyResponse createdApiKey = createFuture.actionGet();
+        final var apiKeyId = createdApiKey.getId();
+
+        final UpdateCrossClusterApiKeyRequest updateRequest = new UpdateCrossClusterApiKeyRequest(
+            apiKeyId,
+            null,
+            null,
+            null,
+            new CertificateIdentity(null)
+        );
+
+        final PlainActionFuture<UpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
+        client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateRequest, updateFuture);
+        final UpdateApiKeyResponse response = updateFuture.actionGet();
+
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+
+        final Map<String, Object> apiKeyDoc = getApiKeyDocument(apiKeyId);
+        assertThat(apiKeyDoc.containsKey("certificate_identity"), is(false));
+    }
+
+    public void testUpdateCrossClusterApiKeyPreserveCertificateIdentity() throws Exception {
+        // Create a cross-cluster API key with certificate identity
+        final String keyName = randomAlphaOfLengthBetween(3, 8);
+        final CrossClusterApiKeyRoleDescriptorBuilder roleBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse("""
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+
+        final var createRequest = new CreateCrossClusterApiKeyRequest(
+            keyName,
+            roleBuilder,
+            null,
+            null,
+            new CertificateIdentity("CN=preserve-me")
+        );
+        createRequest.setRefreshPolicy(IMMEDIATE);
+
+        final PlainActionFuture<CreateApiKeyResponse> createFuture = new PlainActionFuture<>();
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, createRequest, createFuture);
+        final CreateApiKeyResponse createdApiKey = createFuture.actionGet();
+        final var apiKeyId = createdApiKey.getId();
+
+        // Update without specifying certificate identity (should preserve existing)
+        final UpdateCrossClusterApiKeyRequest updateRequest = new UpdateCrossClusterApiKeyRequest(
+            apiKeyId,
+            null,
+            Map.of("updated", "true"),
+            null,
+            null
+        );
+
+        final PlainActionFuture<UpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
+        client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateRequest, updateFuture);
+        final UpdateApiKeyResponse response = updateFuture.actionGet();
+
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+
+        // Verify the certificate identity was preserved
+        final Map<String, Object> apiKeyDoc = getApiKeyDocument(apiKeyId);
+        assertThat(apiKeyDoc.get("certificate_identity"), equalTo("CN=preserve-me"));
     }
 
     private List<RoleDescriptor> randomRoleDescriptors() {

@@ -101,6 +101,13 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
     }
 
     /**
+     * Sets the currently cached item reference to {@code null}, which will result in a {@code refresh()} on the next {@code get()} call.
+     */
+    protected final void clearCurrentCachedItem() {
+        this.currentCachedItemRef.set(null);
+    }
+
+    /**
      * Start a retrieval for the value associated with the given {@code input}, and pass it to the given {@code listener}.
      * <p>
      * If a fresh-enough result is available when this method is called then the {@code listener} is notified immediately, on this thread.
@@ -110,7 +117,8 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      *
      * @param input       The input to compute the desired value, converted to a {@link Key} to determine if the value that's currently
      *                    cached or pending is fresh enough.
-     * @param isCancelled Returns {@code true} if the listener no longer requires the value being computed.
+     * @param isCancelled Returns {@code true} if the listener no longer requires the value being computed. The listener is expected to be
+     *                    completed as soon as possible when cancellation is detected.
      * @param listener    The listener to notify when the desired value becomes available.
      */
     public final void get(Input input, BooleanSupplier isCancelled, ActionListener<Value> listener) {
@@ -230,11 +238,15 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                     ActionListener.completeWith(listener, future::actionResult);
                 } else {
                     // Refresh is still pending; it's not cancelled because there are still references.
-                    future.addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
+                    final var cancellableListener = ActionListener.notifyOnce(
+                        ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
+                    );
+                    future.addListener(cancellableListener);
                     final AtomicBoolean released = new AtomicBoolean();
                     cancellationChecks.add(() -> {
                         if (released.get() == false && isCancelled.getAsBoolean() && released.compareAndSet(false, true)) {
                             decRef();
+                            cancellableListener.onFailure(new TaskCancelledException("task cancelled"));
                         }
                     });
                 }

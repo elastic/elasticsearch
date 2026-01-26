@@ -33,6 +33,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
@@ -119,7 +120,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             if (ip instanceof String ipString) {
                 Map<String, Object> data = ipDataLookup.getData(ipDatabase, ipString);
                 if (data.isEmpty() == false) {
-                    document.setFieldValue(targetField, data);
+                    writeGeoIpData(document, targetField, data);
                 }
             } else if (ip instanceof List<?> ipList) {
                 boolean match = false;
@@ -134,14 +135,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         continue;
                     }
                     if (firstOnly) {
-                        document.setFieldValue(targetField, data);
+                        writeGeoIpData(document, targetField, data);
                         return document;
                     }
                     match = true;
                     dataList.add(data);
                 }
                 if (match) {
-                    document.setFieldValue(targetField, dataList);
+                    writeGeoIpDataList(document, targetField, dataList);
                 }
             } else {
                 throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
@@ -173,6 +174,107 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     /**
+     * Writes GeoIP data to the document. In flexible field access mode, writes individual dotted fields
+     * (e.g., "my.field.city", "my.field.country") instead of a single nested object. The "location" field
+     * is written as an array [lon, lat] for better compatibility with geo_point fields in flexible mode.
+     *
+     * @param document the ingest document
+     * @param targetField the base target field path
+     * @param data the GeoIP data to write
+     */
+    private void writeGeoIpData(IngestDocument document, String targetField, Map<String, Object> data) {
+        if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
+            // In flexible mode, write each property as a separate dotted field
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                String key = entry.getKey();
+                Object value = transformValueForFlexibleMode(key, entry.getValue());
+                document.setFieldValue(targetField + "." + key, value);
+            }
+        } else {
+            // In classic mode, write as a single nested object
+            document.setFieldValue(targetField, data);
+        }
+    }
+
+    /**
+     * Writes a list of GeoIP data to the document. In flexible field access mode, writes each property
+     * as a separate list (e.g., "my.field.city" contains a list of cities, one per IP).
+     * In classic mode, writes as a single list of maps.
+     *
+     * @param document the ingest document
+     * @param targetField the base target field path
+     * @param dataList the list of GeoIP data to write
+     */
+    private void writeGeoIpDataList(IngestDocument document, String targetField, List<Map<String, Object>> dataList) {
+        if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
+            // In flexible mode, transpose the list of maps into separate lists per property
+            // Collect all unique keys across all maps
+            Set<String> allKeys = new java.util.HashSet<>();
+            for (Map<String, Object> data : dataList) {
+                if (data != null) {
+                    allKeys.addAll(data.keySet());
+                }
+            }
+
+            // For each key, build a list of values
+            for (String key : allKeys) {
+                List<Object> valuesList = new ArrayList<>(dataList.size());
+                for (Map<String, Object> data : dataList) {
+                    if (data == null) {
+                        valuesList.add(null);
+                    } else {
+                        Object value = transformValueForFlexibleMode(key, data.get(key));
+                        valuesList.add(value);
+                    }
+                }
+                document.setFieldValue(targetField + "." + key, valuesList);
+            }
+        } else {
+            // In classic mode, write as a single list of maps
+            document.setFieldValue(targetField, dataList);
+        }
+    }
+
+    /**
+     * Transforms a GeoIP value for flexible field access mode.
+     * Converts location maps to [lon, lat] arrays and validates that only location fields contain Maps.
+     *
+     * @param key the property key
+     * @param value the property value
+     * @return the transformed value suitable for flexible mode
+     */
+    private static Object transformValueForFlexibleMode(String key, Object value) {
+        // Convert location from map {lat, lon} to array [lon, lat] in flexible mode
+        if ("location".equals(key) && value instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> locationMap = (Map<String, Object>) value;
+            Double lat = (Double) locationMap.get("lat");
+            Double lon = (Double) locationMap.get("lon");
+            return newMutableLocationList(lon, lat);
+        } else {
+            // Assert that we don't have any unexpected Map values (only location should be a Map)
+            assert value instanceof Map == false : "unexpected Map value for key [" + key + "]";
+        }
+        return value;
+    }
+
+    /**
+     * Creates a mutable list containing [lon, lat] coordinates.
+     * Using ArrayList instead of List.of() to allow users to modify the location field later
+     * with other processors (e.g., script processor).
+     *
+     * @param lon the longitude
+     * @param lat the latitude
+     * @return a mutable ArrayList containing [lon, lat]
+     */
+    private static List<Double> newMutableLocationList(double lon, double lat) {
+        List<Double> location = new ArrayList<>(2);
+        location.add(lon);
+        location.add(lat);
+        return location;
+    }
+
+    /**
      * Retrieves and verifies a {@link IpDatabase} instance for each execution of the {@link GeoIpProcessor}. Guards against missing
      * custom databases, and ensures that database instances are of the proper type before use.
      */
@@ -180,16 +282,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
         private final IpDatabaseProvider ipDatabaseProvider;
         private final String databaseFile;
         private final String databaseType;
+        private final ProjectId projectId;
 
-        public DatabaseVerifyingSupplier(IpDatabaseProvider ipDatabaseProvider, String databaseFile, String databaseType) {
+        public DatabaseVerifyingSupplier(
+            IpDatabaseProvider ipDatabaseProvider,
+            String databaseFile,
+            String databaseType,
+            ProjectId projectId
+        ) {
             this.ipDatabaseProvider = ipDatabaseProvider;
             this.databaseFile = databaseFile;
             this.databaseType = databaseType;
+            this.projectId = projectId;
         }
 
         @Override
         public IpDatabase get() throws IOException {
-            IpDatabase loader = ipDatabaseProvider.getDatabase(databaseFile);
+            IpDatabase loader = ipDatabaseProvider.getDatabase(projectId, databaseFile);
             if (loader == null) {
                 return null;
             }
@@ -242,7 +351,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
             final String databaseType;
-            try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {
+            try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(projectId, databaseFile)) {
                 if (ipDatabase == null) {
                     // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
                     // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
@@ -302,8 +411,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 processorTag,
                 description,
                 ipField,
-                new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType),
-                () -> ipDatabaseProvider.isValid(databaseFile),
+                new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType, projectId),
+                () -> ipDatabaseProvider.isValid(projectId, databaseFile),
                 targetField,
                 ipDataLookup,
                 ignoreMissing,

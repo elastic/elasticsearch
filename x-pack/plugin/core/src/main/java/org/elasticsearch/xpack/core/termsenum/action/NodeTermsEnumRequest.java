@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,7 +25,7 @@ import java.util.Set;
  * Internal terms enum request executed directly against a specific node, querying potentially many
  * shards in one request
  */
-public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest {
+public class NodeTermsEnumRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final String field;
     private final String string;

@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.features.NodeFeature;
 
 public class MinMaxScoreNormalizer extends ScoreNormalizer {
-
     public static final MinMaxScoreNormalizer INSTANCE = new MinMaxScoreNormalizer();
+
+    public static final NodeFeature LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX = new NodeFeature("linear_retriever.minmax_single_doc_fix");
 
     public static final String NAME = "minmax";
 
@@ -54,7 +56,9 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         for (int i = 0; i < docs.length; i++) {
             float score;
             if (minEqualsMax) {
-                score = min;
+                // This can happen if there is only one doc in the result set or if all docs have nearly equivalent scores
+                // (i.e. within epsilon). In this case, assign every doc the max normalized score.
+                score = 1.0f;
             } else {
                 score = (docs[i].score - min) / (max - min);
             }

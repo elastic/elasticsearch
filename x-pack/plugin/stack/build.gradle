@@ -1,13 +1,15 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name = 'x-pack-stack'
   description = 'Elasticsearch Expanded Pack Plugin - Stack'
-  classname ='org.elasticsearch.xpack.stack.StackPlugin'
+  classname = 'org.elasticsearch.xpack.stack.StackPlugin'
   extendedPlugins = ['x-pack-core']
-  hasNativeController =false
-  requiresKeystore =true
+  hasNativeController = false
+  requiresKeystore = true
 }
 
 base {
@@ -19,16 +21,43 @@ dependencies {
   testImplementation project(':modules:data-streams')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: ':x-pack:plugin:stack')
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
   clusterModules project(':modules:mapper-extras')
   clusterModules project(xpackModule('wildcard'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm', 'stack', 'indices'
+  }
 }
 
 // These tests are only invoked direclty as part of a dedicated build job
-tasks.named('javaRestTest').configure {task ->
-    onlyIf("E2E test task must be invoked directly") {
-      gradle.startParameter.getTaskNames().contains(task.path) ||
-        (gradle.startParameter.getTaskNames().contains(task.name) && gradle.startParameter.currentDir == project.projectDir)
-    }
+tasks.named('javaRestTest') { task ->
+  onlyIf("E2E test task must be invoked directly") {
+    gradle.startParameter.getTaskNames().contains(task.path) ||
+      (gradle.startParameter.getTaskNames().contains(task.name) && gradle.startParameter.currentDir == project.projectDir)
+  }
 }
 
-addQaCheckDependencies(project)
+tasks.named("yamlRestCompatTestTransform") { task ->
+  task.skipTest("stack/10_basic/Test kibana reporting index auto creation", "warning does not exist for compatibility")
+  task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
+}
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

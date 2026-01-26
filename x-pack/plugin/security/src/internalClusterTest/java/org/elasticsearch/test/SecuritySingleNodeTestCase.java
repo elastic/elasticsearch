@@ -8,6 +8,8 @@ package org.elasticsearch.test;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -67,6 +69,7 @@ import static org.hamcrest.Matchers.is;
  * {@link SecurityIntegTestCase} due to simplicity and improved speed from not needing to start
  * multiple nodes and wait for the cluster to form.
  */
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-12382
 public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
@@ -413,7 +416,12 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         try {
             client.admin().indices().create(createIndexRequest).actionGet();
         } catch (ResourceAlreadyExistsException e) {
-            logger.info("Security index already exists, ignoring.", e);
+            logger.info("Security index already exists, skipping creation and waiting for it to become available", e);
+            ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, SECURITY_MAIN_ALIAS).waitForActiveShards(
+                ActiveShardCount.ALL
+            );
+            ClusterHealthResponse healthResponse = client.admin().cluster().health(healthRequest).actionGet();
+            assertThat(healthResponse.isTimedOut(), is(false));
         }
     }
 }

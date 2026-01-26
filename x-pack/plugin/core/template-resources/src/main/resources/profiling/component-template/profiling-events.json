@@ -15,10 +15,12 @@
             "service.name",
             "host.name",
             "container.name",
+            "process.executable.name",
             "process.thread.name",
             "@timestamp"
           ],
           "order": [
+            "asc",
             "asc",
             "asc",
             "asc",
@@ -67,8 +69,15 @@
         "process.thread.name": {
           "type": "keyword"
         },
+        "process.executable.name": {
+          "type": "keyword"
+        },
         "Stacktrace.count": {
           "type": "short",
+          "index": false
+        },
+        "Stacktrace.sampling_frequency": {
+          "type": "long",
           "index": false
         },
         "agent.version": {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -39,12 +40,12 @@ public class QueryStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new QueryString(source, args.getFirst(), args.size() > 1 ? args.get(1) : null);
+        return new QueryString(source, args.getFirst(), args.size() > 1 ? args.get(1) : null, EsqlTestUtils.TEST_CFG);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(errorMessageStringForMatch(validPerPosition, signature, (l, p) -> "keyword, text, semantic_text"));
+        return equalTo(errorMessageStringForMatch(validPerPosition, signature, (l, p) -> "keyword, text"));
     }
 
     private static String errorMessageStringForMatch(

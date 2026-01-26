@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -84,11 +83,15 @@ public final class ClusterStateHealth implements Writeable {
         int totalShardCount = 0;
 
         for (String index : concreteIndices) {
-            IndexRoutingTable indexRoutingTable = routingTable.index(index);
             IndexMetadata indexMetadata = project.index(index);
-            if (indexRoutingTable == null) {
+            if (indexMetadata == null) {
+                // should not happen, concreteIndices ought to have been resolved against the project metadata
+                assert false : "concrete index [" + index + "] not found in project [" + project.id() + "]";
+                computeStatus = ClusterHealthStatus.RED;
                 continue;
             }
+
+            IndexRoutingTable indexRoutingTable = routingTable.index(index);
 
             ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
             indices.put(indexHealth.getIndex(), indexHealth);
@@ -121,7 +124,7 @@ public final class ClusterStateHealth implements Writeable {
 
         // shortcut on green
         if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
-            this.activeShardsPercent = 100;
+            this.activeShardsPercent = 100.0;
         } else {
             this.activeShardsPercent = (((double) this.activeShards) / totalShardCount) * 100;
         }
@@ -138,11 +141,7 @@ public final class ClusterStateHealth implements Writeable {
         status = ClusterHealthStatus.readFrom(in);
         indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            unassignedPrimaryShards = in.readVInt();
-        } else {
-            unassignedPrimaryShards = 0;
-        }
+        unassignedPrimaryShards = in.readVInt();
     }
 
     /**
@@ -230,9 +229,7 @@ public final class ClusterStateHealth implements Writeable {
         out.writeByte(status.value());
         out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(unassignedPrimaryShards);
-        }
+        out.writeVInt(unassignedPrimaryShards);
     }
 
     @Override

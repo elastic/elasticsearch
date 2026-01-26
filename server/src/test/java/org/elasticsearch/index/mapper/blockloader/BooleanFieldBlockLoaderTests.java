@@ -9,8 +9,9 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;
@@ -18,15 +19,15 @@ import java.util.Objects;
 
 public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
     public BooleanFieldBlockLoaderTests(Params params) {
-        super(FieldType.BOOLEAN, params);
+        super(FieldType.BOOLEAN.toString(), params);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = switch (fieldMapping.get("null_value")) {
             case Boolean b -> b;
-            case String s -> Boolean.parseBoolean(s);
+            case String s -> Booleans.parseBoolean(s);
             case null -> null;
             default -> throw new IllegalStateException("Unexpected null_value format");
         };

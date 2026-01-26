@@ -14,11 +14,11 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUtils;
+import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -35,8 +35,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(taskSettings);
-        return new OpenAiChatCompletionModel(model, OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new OpenAiChatCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
@@ -73,7 +72,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             taskType,
             service,
             OpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            OpenAiChatCompletionTaskSettings.fromMap(taskSettings),
+            new OpenAiChatCompletionTaskSettings(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
     }

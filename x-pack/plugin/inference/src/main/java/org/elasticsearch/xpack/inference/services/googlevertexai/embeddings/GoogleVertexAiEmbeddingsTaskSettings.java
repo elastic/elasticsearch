@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,13 +18,14 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 
 public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
@@ -35,13 +34,6 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
     public static final String AUTO_TRUNCATE = "auto_truncate";
 
     public static final String INPUT_TYPE = "input_type";
-
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING
-    );
 
     public static final GoogleVertexAiEmbeddingsTaskSettings EMPTY_SETTINGS = new GoogleVertexAiEmbeddingsTaskSettings(null, null);
 
@@ -57,7 +49,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
-            VALID_REQUEST_VALUES,
+            VALID_INPUT_TYPE_VALUES,
             validationException
         );
 
@@ -71,24 +63,20 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     public static GoogleVertexAiEmbeddingsTaskSettings of(
         GoogleVertexAiEmbeddingsTaskSettings originalSettings,
-        GoogleVertexAiEmbeddingsRequestTaskSettings requestSettings,
-        InputType requestInputType
+        GoogleVertexAiEmbeddingsRequestTaskSettings requestSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestSettings, requestInputType);
+        var inputTypeToUse = getValidInputType(originalSettings, requestSettings);
         var autoTruncate = requestSettings.autoTruncate() == null ? originalSettings.autoTruncate : requestSettings.autoTruncate();
         return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, inputTypeToUse);
     }
 
     private static InputType getValidInputType(
         GoogleVertexAiEmbeddingsTaskSettings originalSettings,
-        GoogleVertexAiEmbeddingsRequestTaskSettings requestTaskSettings,
-        InputType requestInputType
+        GoogleVertexAiEmbeddingsRequestTaskSettings requestTaskSettings
     ) {
         InputType inputTypeToUse = originalSettings.inputType;
 
-        if (VALID_REQUEST_VALUES.contains(requestInputType)) {
-            inputTypeToUse = requestInputType;
-        } else if (requestTaskSettings.inputType() != null) {
+        if (requestTaskSettings.inputType() != null) {
             inputTypeToUse = requestTaskSettings.inputType();
         }
 
@@ -106,9 +94,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     public GoogleVertexAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
         this.autoTruncate = in.readOptionalBoolean();
-
-        var inputType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) ? in.readOptionalEnum(InputType.class) : null;
-
+        var inputType = in.readOptionalEnum(InputType.class);
         validateInputType(inputType);
         this.inputType = inputType;
     }
@@ -118,7 +104,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
             return;
         }
 
-        assert VALID_REQUEST_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
+        assert VALID_INPUT_TYPE_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
     }
 
     @Override
@@ -141,16 +127,13 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBoolean(this.autoTruncate);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeOptionalEnum(this.inputType);
-        }
+        out.writeOptionalEnum(this.inputType);
     }
 
     @Override
@@ -180,15 +163,11 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
         return Objects.hash(autoTruncate, inputType);
     }
 
-    public static String invalidInputTypeMessage(InputType inputType) {
-        return Strings.format("received invalid input type value [%s]", inputType.toString());
-    }
-
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(
             new HashMap<>(newSettings)
         );
-        return of(this, updatedSettings, updatedSettings.inputType() != null ? updatedSettings.inputType() : this.inputType);
+        return of(this, updatedSettings);
     }
 }

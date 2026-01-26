@@ -27,6 +27,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -77,7 +78,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     node2.getId(),
                     new RepositoriesHealthInfo(List.of(), List.of())
                 )
-            )
+            ),
+            FileSettingsHealthInfo.INDETERMINATE
         );
 
         featureService = Mockito.mock(FeatureService.class);
@@ -255,7 +257,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true, new HealthInfo(Map.of(), null, Map.of())),
+            service.calculate(true, new HealthInfo(Map.of(), null, Map.of(), FileSettingsHealthInfo.INDETERMINATE)),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -290,7 +292,12 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             invalidRepos.add("invalid-repo-" + i);
             repoHealthInfo.put("node-" + i, new RepositoriesHealthInfo(List.of("unknown-repo-" + i), List.of("invalid-repo-" + i)));
         });
-        healthInfo = new HealthInfo(healthInfo.diskInfoByNode(), healthInfo.dslHealthInfo(), repoHealthInfo);
+        healthInfo = new HealthInfo(
+            healthInfo.diskInfoByNode(),
+            healthInfo.dslHealthInfo(),
+            repoHealthInfo,
+            FileSettingsHealthInfo.INDETERMINATE
+        );
 
         assertThat(
             service.calculate(true, 10, healthInfo).diagnosisList(),

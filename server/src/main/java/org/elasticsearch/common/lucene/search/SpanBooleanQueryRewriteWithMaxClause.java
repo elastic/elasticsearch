@@ -24,7 +24,9 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -95,13 +97,14 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                     while ((bytes = termsEnum.next()) != null) {
                         if (queries.size() >= maxExpansions) {
                             if (hardLimit) {
-                                throw new RuntimeException(
+                                throw new ElasticsearchStatusException(
                                     "["
                                         + query.toString()
                                         + " ] "
                                         + "exceeds maxClauseCount [ Boolean maxClauseCount is set to "
                                         + IndexSearcher.getMaxClauseCount()
-                                        + "]"
+                                        + "]",
+                                    RestStatus.BAD_REQUEST
                                 );
                             } else {
                                 return queries;

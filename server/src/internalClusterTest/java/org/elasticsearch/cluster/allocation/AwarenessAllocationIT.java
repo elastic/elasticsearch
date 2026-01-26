@@ -251,6 +251,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
     }
 
     public void testForceAwarenessSettingValidation() {
+        internalCluster().startNode();
         final String prefix = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey();
 
         final IllegalArgumentException illegalArgumentException = expectThrows(

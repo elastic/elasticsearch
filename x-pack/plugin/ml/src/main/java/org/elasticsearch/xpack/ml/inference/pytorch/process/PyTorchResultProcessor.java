@@ -130,11 +130,12 @@ public class PyTorchResultProcessor {
             var errorResult = new ErrorResult(
                 isStopping
                     ? "inference canceled as process is stopping"
-                    : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
+                    : "inference native process died unexpectedly with failure [" + e.getMessage() + "]",
+                isStopping
             );
             notifyAndClearPendingResults(errorResult);
         } finally {
-            notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping"));
+            notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping", true));
             processorCompletionLatch.countDown();
         }
         logger.debug(() -> "[" + modelId + "] Results processing finished");
@@ -312,7 +313,7 @@ public class PyTorchResultProcessor {
         }
     }
 
-    public void stop() {
+    public void signalIntentToStop() {
         isStopping = true;
     }
 

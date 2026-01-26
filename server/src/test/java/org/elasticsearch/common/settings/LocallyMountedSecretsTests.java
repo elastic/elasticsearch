@@ -236,7 +236,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
 
-        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, contents);
         Files.createDirectories(path.getParent());
         Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }

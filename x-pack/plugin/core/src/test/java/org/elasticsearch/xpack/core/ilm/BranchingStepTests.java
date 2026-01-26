@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-
-import java.util.function.BiPredicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -23,34 +21,26 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
 
     public void testPredicateNextStepChange() {
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(IndexMetadata.builder(indexName).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
-            )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder(indexName).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.id());
         StepKey stepKey = new StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), BranchingStep.NAME);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(6), randomAlphaOfLength(6), BranchingStep.NAME);
         StepKey nextSkipKey = new StepKey(randomAlphaOfLength(7), randomAlphaOfLength(7), BranchingStep.NAME);
         {
             BranchingStep step = new BranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c) -> true);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
-            step.performAction(state.metadata().getProject().index(indexName).getIndex(), state);
+            step.performAction(project.index(indexName).getIndex(), state);
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnTrue()));
-            expectThrows(
-                SetOnce.AlreadySetException.class,
-                () -> step.performAction(state.metadata().getProject().index(indexName).getIndex(), state)
-            );
+            expectThrows(SetOnce.AlreadySetException.class, () -> step.performAction(project.index(indexName).getIndex(), state));
         }
         {
             BranchingStep step = new BranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c) -> false);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
-            step.performAction(state.metadata().getProject().index(indexName).getIndex(), state);
+            step.performAction(project.index(indexName).getIndex(), state);
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnFalse()));
-            expectThrows(
-                SetOnce.AlreadySetException.class,
-                () -> step.performAction(state.metadata().getProject().index(indexName).getIndex(), state)
-            );
+            expectThrows(SetOnce.AlreadySetException.class, () -> step.performAction(project.index(indexName).getIndex(), state));
         }
     }
 
@@ -67,7 +57,6 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
         StepKey key = instance.getKey();
         StepKey nextStepKey = instance.getNextStepKeyOnFalse();
         StepKey nextSkipStepKey = instance.getNextStepKeyOnTrue();
-        BiPredicate<Index, ClusterState> predicate = instance.getPredicate();
 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
@@ -80,7 +69,7 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new BranchingStep(key, nextStepKey, nextSkipStepKey, predicate);
+        return new BranchingStep(key, nextStepKey, nextSkipStepKey, instance.getPredicate());
     }
 
     @Override

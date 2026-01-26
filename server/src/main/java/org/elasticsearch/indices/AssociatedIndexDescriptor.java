@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.indices.system.IndexPatternMatcher;
 
 import java.util.List;
 import java.util.Objects;

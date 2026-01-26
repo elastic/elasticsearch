@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -35,8 +34,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     ) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
-            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
-            originalModelServiceSettings.rateLimitSettings()
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId())
         );
 
         return new ElasticInferenceServiceCompletionModel(model, overriddenServiceSettings);
@@ -79,8 +77,8 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         TaskType taskType,
         String service,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings,
-        @Nullable SecretSettings secretSettings,
+        TaskSettings taskSettings,
+        SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(

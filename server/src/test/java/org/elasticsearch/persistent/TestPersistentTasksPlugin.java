@@ -13,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -27,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -87,8 +86,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     );
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(TEST_ACTION, TransportTestTaskAction.class));
+    public List<ActionHandler> getActions() {
+        return Collections.singletonList(new ActionHandler(TEST_ACTION, TransportTestTaskAction.class));
     }
 
     @Override
@@ -328,12 +327,17 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Assignment getAssignment(TestParams params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+        protected Assignment doGetAssignment(
+            TestParams params,
+            Collection<DiscoveryNode> candidateNodes,
+            ClusterState clusterState,
+            ProjectId projectId
+        ) {
             if (nonClusterStateCondition == false) {
                 return new Assignment(null, "non cluster state condition prevents assignment");
             }
             if (params == null || params.getExecutorNodeAttr() == null) {
-                return super.getAssignment(params, candidateNodes, clusterState);
+                return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
             } else {
                 DiscoveryNode executorNode = selectLeastLoadedNode(
                     clusterState,

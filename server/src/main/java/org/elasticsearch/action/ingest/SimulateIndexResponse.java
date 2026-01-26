@@ -10,10 +10,11 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This is an IndexResponse that is specifically for simulate requests. Unlike typical IndexResponses, we need to include the original
@@ -33,10 +35,16 @@ import java.util.List;
  * BulkItemResponse in IngestService.
  */
 public class SimulateIndexResponse extends IndexResponse {
+
+    private static final TransportVersion SIMULATE_INGEST_EFFECTIVE_MAPPING = TransportVersion.fromName(
+        "simulate_ingest_effective_mapping"
+    );
+
     private final BytesReference source;
     private final XContentType sourceXContentType;
     private final Collection<String> ignoredFields;
     private final Exception exception;
+    private final CompressedXContent effectiveMapping;
 
     @SuppressWarnings("this-escape")
     public SimulateIndexResponse(StreamInput in) throws IOException {
@@ -44,15 +52,16 @@ public class SimulateIndexResponse extends IndexResponse {
         this.source = in.readBytesReference();
         this.sourceXContentType = XContentType.valueOf(in.readString());
         setShardInfo(ShardInfo.EMPTY);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.exception = in.readException();
+        this.exception = in.readException();
+        this.ignoredFields = in.readStringCollectionAsList();
+        if (in.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+            if (in.readBoolean()) {
+                this.effectiveMapping = CompressedXContent.readCompressedString(in);
+            } else {
+                this.effectiveMapping = null;
+            }
         } else {
-            this.exception = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
-            this.ignoredFields = in.readStringCollectionAsList();
-        } else {
-            this.ignoredFields = List.of();
+            effectiveMapping = null;
         }
     }
 
@@ -65,7 +74,8 @@ public class SimulateIndexResponse extends IndexResponse {
         XContentType sourceXContentType,
         List<String> pipelines,
         Collection<String> ignoredFields,
-        @Nullable Exception exception
+        @Nullable Exception exception,
+        @Nullable CompressedXContent effectiveMapping
     ) {
         // We don't actually care about most of the IndexResponse fields:
         super(
@@ -83,6 +93,7 @@ public class SimulateIndexResponse extends IndexResponse {
         setShardInfo(ShardInfo.EMPTY);
         this.ignoredFields = ignoredFields;
         this.exception = exception;
+        this.effectiveMapping = effectiveMapping;
     }
 
     @Override
@@ -108,6 +119,14 @@ public class SimulateIndexResponse extends IndexResponse {
             ElasticsearchException.generateThrowableXContent(builder, params, exception);
             builder.endObject();
         }
+        if (effectiveMapping == null) {
+            builder.field("effective_mapping", Map.of());
+        } else {
+            builder.field(
+                "effective_mapping",
+                XContentHelper.convertToMap(effectiveMapping.uncompressed(), true, builder.contentType()).v2()
+            );
+        }
         return builder;
     }
 
@@ -121,11 +140,13 @@ public class SimulateIndexResponse extends IndexResponse {
         super.writeTo(out);
         out.writeBytesReference(source);
         out.writeString(sourceXContentType.name());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeException(exception);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
-            out.writeStringCollection(ignoredFields);
+        out.writeException(exception);
+        out.writeStringCollection(ignoredFields);
+        if (out.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
+            out.writeBoolean(effectiveMapping != null);
+            if (effectiveMapping != null) {
+                effectiveMapping.writeTo(out);
+            }
         }
     }
 

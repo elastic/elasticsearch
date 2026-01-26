@@ -10,9 +10,11 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -30,12 +32,12 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Supplier;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -87,15 +89,15 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    SubscribableListener<IndexAuthorizationResult> void authorizeIndexAction(
+    public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
         ProjectMetadata project
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
-            ActionListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
-            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+            SubscribableListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
+            indicesAsyncSupplier.getAsync().addListener(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
                     indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
@@ -106,7 +108,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
             }, listener::onFailure));
             return listener;
         } else {
-            return SubscribableListener.succcess(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+            return SubscribableListener.newSucceeded(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 
@@ -119,19 +121,19 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(new AuthorizedIndices() {
-                public Supplier<Set<String>> all() {
-                    return () -> indicesLookup.keySet();
+                public Set<String> all(IndexComponentSelector selector) {
+                    return indicesLookup.keySet();
                 }
-                public boolean check(String name) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return indicesLookup.containsKey(name);
                 }
             });
         } else {
             listener.onResponse(new AuthorizedIndices() {
-                public Supplier<Set<String>> all() {
-                    return () -> Set.of();
+                public Set<String> all(IndexComponentSelector selector) {
+                    return Set.of();
                 }
-                public boolean check(String name) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return false;
                 }
             });
@@ -163,6 +165,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void getUserPrivileges(AuthorizationInfo authorizationInfo,
+                                  @Nullable RoleReference.ApiKeyRoleType unwrapLimitedRole,
                                   ActionListener<GetUserPrivilegesResponse> listener) {
         if (isSuperuser(authorizationInfo)) {
             listener.onResponse(getUserPrivilegesResponse(true));

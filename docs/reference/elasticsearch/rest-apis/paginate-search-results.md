@@ -7,7 +7,7 @@ applies_to:
 
 # Paginate search results [paginate-search-results]
 
-By default, searches return the top 10 matching hits. To page through a larger set of results, you can use the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)'s `from` and `size` parameters. The `from` parameter defines the number of hits to skip, defaulting to `0`. The `size` parameter is the maximum number of hits to return. Together, these two parameters define a page of results.
+By default, searches return the top 10 matching hits. To page through a larger set of results, you can use the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)'s [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-from) and [`size`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-size) parameters. The `from` parameter defines the number of hits to skip, defaulting to `0`. The `size` parameter is the maximum number of hits to return. Together, these two parameters define a page of results.
 
 ```console
 GET /_search
@@ -38,6 +38,24 @@ You can use the `search_after` parameter to retrieve the next page of hits using
 
 Using `search_after` requires multiple search requests with the same `query` and `sort` values. The first step is to run an initial request. The following example sorts the results by two fields (`date` and `tie_breaker_id`):
 
+<!--
+```console
+PUT twitter
+{
+  "mappings": {
+    "properties": {
+      "tie_breaker_id": {
+        "type": "keyword"
+      },
+      "date": {
+        "type": "date"
+      }
+    }
+  }
+}
+```
+-->
+
 ```console
 GET twitter/_search
 {
@@ -52,6 +70,7 @@ GET twitter/_search
     ]
 }
 ```
+% TEST[continued]
 
 1. A copy of the `_id` field with `doc_values` enabled
 
@@ -92,6 +111,7 @@ The search response includes an array of `sort` values for each hit:
   }
 }
 ```
+% TESTRESPONSE[skip: demo of where the sort values are]
 
 1. Sort values for the last returned hit.
 
@@ -113,12 +133,14 @@ GET twitter/_search
     ]
 }
 ```
+% TEST[continued]
 
-Repeat this process by updating the `search_after` array every time you retrieve a new page of results. If a [refresh](docs-content://solutions/search/search-approaches/near-real-time-search.md) occurs between these requests, the order of your results may change, causing inconsistent results across pages. To prevent this, you can create a [point in time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) to preserve the current index state over your searches.
+Repeat this process by updating the `search_after` array every time you retrieve a new page of results. If a [refresh](docs-content://manage-data/data-store/near-real-time-search.md) occurs between these requests, the order of your results may change, causing inconsistent results across pages. To prevent this, you can create a [point in time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) to preserve the current index state over your searches.
 
 ```console
 POST /my-index-000001/_pit?keep_alive=1m
 ```
+% TEST[setup:my_index]
 
 The API returns a PIT ID.
 
@@ -128,6 +150,8 @@ The API returns a PIT ID.
   "_shards": ...
 }
 ```
+% TESTRESPONSE[s/"id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards"/]
 
 To get the first page of results, submit a search request with a `sort` argument. If using a PIT, specify the PIT ID in the `pit.id` parameter and omit the target data stream or index from the request path.
 
@@ -164,6 +188,7 @@ GET /_search
   ]
 }
 ```
+% TEST[catch:unavailable]
 
 1. PIT ID for the search.
 2. Sorts hits for the search with an implicit tiebreak on `_shard_doc` ascending.
@@ -190,6 +215,7 @@ GET /_search
   ]
 }
 ```
+% TEST[catch:unavailable]
 
 1. PIT ID for the search.
 2. Sorts hits for the search with an explicit tiebreak on `_shard_doc` descending.
@@ -220,6 +246,7 @@ GET /_search
   }
 }
 ```
+% TESTRESPONSE[skip: unable to access PIT ID]
 
 1. Updated `id` for the point in time.
 2. Sort values for the last returned hit.
@@ -251,6 +278,7 @@ GET /_search
   "track_total_hits": false                        <3>
 }
 ```
+% TEST[catch:unavailable]
 
 1. PIT ID returned by the previous search.
 2. Sort values from the previous search’s last hit.
@@ -267,7 +295,7 @@ DELETE /_pit
     "id" : "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
 }
 ```
-
+% TEST[catch:missing]
 
 ## Scroll search results [scroll-search-results]
 
@@ -313,6 +341,7 @@ POST /my-index-000001/_search?scroll=1m
   }
 }
 ```
+% TEST[setup:my_index]
 
 The result from the above request includes a `_scroll_id`, which should be passed to the `scroll` API in order to retrieve the next batch of results.
 
@@ -323,8 +352,9 @@ POST /_search/scroll                                                            
   "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <3>
 }
 ```
+% TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
-1. `GET` or `POST` can be used and the URL should not include the `index` name — this is specified in the original `search` request instead.
+1. `GET` or `POST` can be used and the URL should not include the `index` name — this is specified in the original `search` request instead.
 2. The `scroll` parameter tells Elasticsearch to keep the search context open for another `1m`.
 3. The `scroll_id` parameter
 
@@ -332,7 +362,7 @@ POST /_search/scroll                                                            
 The `size` parameter allows you to configure the maximum number of hits to be returned with each batch of results. Each call to the `scroll` API returns the next batch of results until there are no more results left to return, ie the `hits` array is empty.
 
 ::::{important}
-The initial search request and each subsequent scroll request each return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t always change — in any case, only the most recently received `_scroll_id` should be used.
+The initial search request and each subsequent scroll request each return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t always change — in any case, only the most recently received `_scroll_id` should be used.
 ::::
 
 
@@ -354,13 +384,14 @@ GET /_search?scroll=1m
   ]
 }
 ```
+% TEST[setup:my_index]
 
 
 ### Keeping the search context alive [scroll-search-context]
 
 A scroll returns all the documents which matched the search at the time of the initial search request. It ignores any subsequent changes to these documents. The `scroll_id` identifies a *search context* which keeps track of everything that {{es}} needs to return the correct documents. The search context is created by the initial request and kept alive by subsequent requests.
 
-The `scroll` parameter (passed to the `search` request and to every `scroll` request) tells Elasticsearch how long it should keep the search context alive. Its value (e.g. `1m`, see [Time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) does not need to be long enough to process all data — it just needs to be long enough to process the previous batch of results. Each `scroll` request (with the `scroll` parameter) sets a new expiry time. If a `scroll` request doesn’t pass in the `scroll` parameter, then the search context will be freed as part of *that* `scroll` request.
+The `scroll` parameter (passed to the `search` request and to every `scroll` request) tells Elasticsearch how long it should keep the search context alive. Its value (e.g. `1m`, see [Time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) does not need to be long enough to process all data — it just needs to be long enough to process the previous batch of results. Each `scroll` request (with the `scroll` parameter) sets a new expiry time. If a `scroll` request doesn’t pass in the `scroll` parameter, then the search context will be freed as part of *that* `scroll` request.
 
 Normally, the background merge process optimizes the index by merging together smaller segments to create new, bigger segments. Once the smaller segments are no longer needed they are deleted. This process continues during scrolling, but an open search context prevents the old segments from being deleted since they are still in use.
 
@@ -393,6 +424,7 @@ DELETE /_search/scroll
   "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 ```
+% TEST[catch:missing]
 
 Multiple scroll IDs can be passed as array:
 
@@ -405,6 +437,7 @@ DELETE /_search/scroll
   ]
 }
 ```
+% TEST[catch:missing]
 
 All search contexts can be cleared with the `_all` parameter:
 
@@ -417,7 +450,7 @@ The `scroll_id` can also be passed as a query string parameter or in the request
 ```console
 DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==,DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB
 ```
-
+% TEST[catch:missing]
 
 ### Sliced scroll [slice-scroll]
 
@@ -449,6 +482,7 @@ GET /my-index-000001/_search?scroll=1m
   }
 }
 ```
+% TEST[setup:my_index_big]
 
 1. The id of the slice
 2. The maximum number of slices
@@ -488,6 +522,7 @@ GET /my-index-000001/_search?scroll=1m
   }
 }
 ```
+% TEST[setup:my_index_big]
 
 For append only time-based indices, the `timestamp` field can be used safely.
 

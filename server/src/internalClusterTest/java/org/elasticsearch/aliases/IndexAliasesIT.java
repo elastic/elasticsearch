@@ -34,7 +34,7 @@ import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -306,7 +306,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name"))),
             searchResponse -> {
-                Global global = searchResponse.getAggregations().get("global");
+                SingleBucketAggregation global = searchResponse.getAggregations().get("global");
                 Terms terms = global.getAggregations().get("test");
                 assertThat(terms.getBuckets().size(), equalTo(4));
             }
@@ -318,7 +318,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
                 .addSort("_index", SortOrder.ASC),
             searchResponse -> {
-                Global global = searchResponse.getAggregations().get("global");
+                SingleBucketAggregation global = searchResponse.getAggregations().get("global");
                 Terms terms = global.getAggregations().get("test");
                 assertThat(terms.getBuckets().size(), equalTo(4));
             }

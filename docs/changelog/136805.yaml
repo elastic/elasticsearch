@@ -1,0 +1,6 @@
+pr: 136805
+summary: Allow single fork branch
+area: ES|QL
+type: enhancement
+issues:
+ - 135825

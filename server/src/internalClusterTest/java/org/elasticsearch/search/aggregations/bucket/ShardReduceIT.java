@@ -12,13 +12,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.missing.Missing;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -94,7 +90,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 Histogram histo = global.getAggregations().get("histo");
                 assertThat(histo.getBuckets().size(), equalTo(4));
             }
@@ -110,7 +106,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                Filter filter = response.getAggregations().get("filter");
+                SingleBucketAggregation filter = response.getAggregations().get("filter");
                 Histogram histo = filter.getAggregations().get("histo");
                 assertThat(histo.getBuckets().size(), equalTo(4));
             }
@@ -125,7 +121,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                         .subAggregation(dateHistogram("histo").field("date").fixedInterval(DateHistogramInterval.DAY).minDocCount(0))
                 ),
             response -> {
-                Missing missing = response.getAggregations().get("missing");
+                SingleBucketAggregation missing = response.getAggregations().get("missing");
                 Histogram histo = missing.getAggregations().get("histo");
                 assertThat(histo.getBuckets().size(), equalTo(4));
             }
@@ -146,9 +142,9 @@ public class ShardReduceIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                Global global = response.getAggregations().get("global");
-                Filter filter = global.getAggregations().get("filter");
-                Missing missing = filter.getAggregations().get("missing");
+                SingleBucketAggregation global = response.getAggregations().get("global");
+                SingleBucketAggregation filter = global.getAggregations().get("filter");
+                SingleBucketAggregation missing = filter.getAggregations().get("missing");
                 Histogram histo = missing.getAggregations().get("histo");
                 assertThat(histo.getBuckets().size(), equalTo(4));
             }
@@ -164,7 +160,7 @@ public class ShardReduceIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                Nested nested = response.getAggregations().get("nested");
+                SingleBucketAggregation nested = response.getAggregations().get("nested");
                 Histogram histo = nested.getAggregations().get("histo");
                 assertThat(histo.getBuckets().size(), equalTo(4));
             }

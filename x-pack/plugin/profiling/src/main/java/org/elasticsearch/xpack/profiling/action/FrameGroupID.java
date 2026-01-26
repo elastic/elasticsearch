@@ -30,7 +30,10 @@ public final class FrameGroupID {
 
     public static String create(String fileId, Integer addressOrLine, String exeFilename, String sourceFilename, String functionName) {
         if (Strings.isEmpty(functionName)) {
-            return Integer.toString(Objects.hash(fileId, addressOrLine));
+            if (Strings.isEmpty(exeFilename)) {
+                return Integer.toString(Objects.hash(fileId, addressOrLine));
+            }
+            return Integer.toString(Objects.hash(exeFilename));
         }
         if (Strings.isEmpty(sourceFilename)) {
             return Integer.toString(Objects.hash(fileId, functionName));

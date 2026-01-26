@@ -52,7 +52,7 @@ public class EntitlementsAllowedViaOverrideIT extends AbstractEntitlementsIT {
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return Stream.of("runtime_load_library", "fileList").map(action -> new Object[] { action }).toList();
+        return Stream.of("runtimeLoadLibrary", "fileList").map(action -> new Object[] { action }).toList();
     }
 
     @Override

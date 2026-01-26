@@ -295,7 +295,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 if (group instanceof Alias alias && Alias.unwrap(alias) instanceof Bucket && timeBucket == null) {
                     throw new IllegalArgumentException(
                         "Time-series aggregations require direct use of @timestamp which was not found. "
-                            + "Check if @timestamp was shadowed in EVAL and use bucket(@timestamp, ...) instead."
+                            + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
                     );
                 }
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);

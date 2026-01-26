@@ -342,6 +342,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testSparseVectors
   issue: https://github.com/elastic/elasticsearch/issues/141270
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQBFloat16VectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/141271
 
 # Examples:
 #

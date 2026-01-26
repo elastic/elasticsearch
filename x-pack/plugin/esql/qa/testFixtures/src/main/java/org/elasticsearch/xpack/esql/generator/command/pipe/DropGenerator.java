@@ -46,14 +46,16 @@ public class DropGenerator implements CommandGenerator {
             if (name == null) {
                 continue;
             }
-            if (name.length() > 1 && name.startsWith("`") == false && randomIntBetween(0, 100) < 10) {
+            if (EsqlQueryGenerator.needsQuoting(name)) {
+                name = EsqlQueryGenerator.quote(name);
+            } else if (name.length() > 1 && randomIntBetween(0, 100) < 10) {
                 if (randomBoolean()) {
                     name = name.substring(0, randomIntBetween(1, name.length() - 1)) + "*";
                 } else {
                     name = "*" + name.substring(randomIntBetween(1, name.length() - 1));
                 }
-            } else if (name.startsWith("`") == false && (randomBoolean() || name.isEmpty())) {
-                name = "`" + name + "`";
+            } else if (randomBoolean() || name.isEmpty()) {
+                name = EsqlQueryGenerator.quote(name);
             }
             proj.add(name);
             droppedColumns.add(EsqlQueryGenerator.unquote(name));

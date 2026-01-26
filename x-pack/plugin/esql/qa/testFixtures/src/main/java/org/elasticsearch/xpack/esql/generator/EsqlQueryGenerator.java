@@ -199,10 +199,18 @@ public class EsqlQueryGenerator {
         if (result == null) {
             return null;
         }
-        if (randomBoolean() && result.contains("*") == false && result.startsWith("`") == false) {
-            result = "`" + result + "`";
+        // If the raw name needs quoting (contains special characters), we must quote it
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        if (randomBoolean() && result.contains("*") == false) {
+            return quote(result);
         }
         return result;
+    }
+
+    public static boolean needsQuoting(String rawName) {
+        return rawName.contains("`") || rawName.contains("-");
     }
 
     /**
@@ -227,7 +235,11 @@ public class EsqlQueryGenerator {
         if (candidates.isEmpty()) {
             return null;
         }
-        return randomFrom(candidates).name();
+        String result = randomFrom(candidates).name();
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     public static boolean groupable(Column col) {
@@ -248,7 +260,11 @@ public class EsqlQueryGenerator {
         if (candidates.isEmpty()) {
             return null;
         }
-        return randomFrom(candidates).name();
+        String result = randomFrom(candidates).name();
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     public static boolean sortable(Column col) {
@@ -406,7 +422,11 @@ public class EsqlQueryGenerator {
         if (items.isEmpty()) {
             return null;
         }
-        return items.get(randomIntBetween(0, items.size() - 1));
+        String result = items.get(randomIntBetween(0, items.size() - 1));
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     public static String randomCounterField(List<Column> previousOutput) {
@@ -431,7 +451,11 @@ public class EsqlQueryGenerator {
         if (items.size() == 0) {
             return null;
         }
-        return items.get(randomIntBetween(0, items.size() - 1));
+        String result = items.get(randomIntBetween(0, items.size() - 1));
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     /**
@@ -546,12 +570,15 @@ public class EsqlQueryGenerator {
             || field.originalTypes().stream().anyMatch(x -> x.contains("vector"))) == false;
     }
 
+    public static String quote(String rawName) {
+        return "`" + rawName.replace("`", "``") + "`";
+    }
+
     public static String unquote(String colName) {
-        if (colName.startsWith("```") && colName.endsWith("```")) {
-            return colName.substring(2, colName.length() - 2);
-        } else if (colName.startsWith("`") && colName.endsWith("`")) {
-            return colName.substring(1, colName.length() - 1);
+        if (colName.length() >= 2 && colName.startsWith("`") && colName.endsWith("`")) {
+            return colName.substring(1, colName.length() - 1).replace("``", "`");
         }
         return colName;
     }
+
 }

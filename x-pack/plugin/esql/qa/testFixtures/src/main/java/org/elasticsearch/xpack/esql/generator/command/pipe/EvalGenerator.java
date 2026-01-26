@@ -82,8 +82,6 @@ public class EvalGenerator implements CommandGenerator {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
         List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
-        lastColumns = lastColumns.stream().map(EsqlQueryGenerator::unquote).toList();
-        // expected column names are unquoted already
         if (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false) {
             return new ValidationResult(
                 false,

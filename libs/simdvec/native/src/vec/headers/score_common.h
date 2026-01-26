@@ -77,13 +77,13 @@ static inline f32_t score_others_inner(
     f32_t additionalCorrection,
     f32_t qcDist
 ) {
-    float ax = lowerInterval;
+    f32_t ax = lowerInterval;
     // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-    float lx = (upperInterval - ax);
-    float ay = queryLowerInterval;
-    float ly = (queryUpperInterval - ay) * queryBitScale;
-    float y1 = queryComponentSum;
-    float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
+    f32_t lx = (upperInterval - ax);
+    f32_t ay = queryLowerInterval;
+    f32_t ly = (queryUpperInterval - ay) * queryBitScale;
+    f32_t y1 = queryComponentSum;
+    f32_t score = ax * ay * dimensions + ay * lx * (f32_t) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
 
     // For cosine, we need to apply the additional correction, which is
     // assumed to be the non-centered dot-product between the vector and the centroid

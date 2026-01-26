@@ -14,6 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <math.h>
 #include <limits>
 
@@ -37,10 +38,14 @@ static inline __m256 score_inner(const f32_t* lowerInterval, const f32_t* upperI
     __m256 qcDist = _mm256_loadu_ps(score);
 
     // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
+    // ax * ay * dimensions
     __m256 res1 = _mm256_mul_ps(ax, _mm256_set1_ps(ay * dimensions));
-    __m256 res2 = _mm256_mul_ps(tcs, _mm256_mul_ps(lx, _mm256_set1_ps(ay)));
+    // ay * lx * (float) targetComponentSum
+    __m256 res2 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ay)), tcs);
+    // ax * ly * y1
     __m256 res3 = _mm256_mul_ps(ax, _mm256_set1_ps(ly * y1));
-    __m256 res4 = _mm256_mul_ps(qcDist, _mm256_mul_ps(lx, _mm256_set1_ps(ly)));
+    // lx * ly * qcDist
+    __m256 res4 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ly)), qcDist);
     return _mm256_add_ps(_mm256_add_ps(res1, res2), _mm256_add_ps(res3, res4));
 }
 
@@ -67,8 +72,9 @@ EXPORT f32_t score_euclidean_bulk(
     f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
 
     int i = 0;
-    int upperBound = bulkSize & ~(sizeof(__m256) - 1);
-    for (; i < upperBound; i += sizeof(__m256)) {
+    constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
+    int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    for (; i < upperBound; i += floats_per_cycle) {
         __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
         __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
 
@@ -126,14 +132,14 @@ EXPORT f32_t score_maximum_inner_product_bulk(
     f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
 
     int i = 0;
-    int upperBound = bulkSize & ~(sizeof(__m256) - 1);
-    for (; i < upperBound; i += sizeof(__m256)) {
-
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
+    constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
+    int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    for (; i < upperBound; i += floats_per_cycle) {
         __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
 
         // For max inner product, we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
+        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
         res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp));
 
         // On AVX-512, use ternary logic + mask
@@ -193,17 +199,20 @@ EXPORT f32_t score_others_bulk(
     f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
 
     int i = 0;
-    int upperBound = bulkSize & ~(sizeof(__m256) - 1);
-    for (; i < upperBound; i += sizeof(__m256)) {
-
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
+    constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
+    int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    for (; i < upperBound; i += floats_per_cycle) {
         __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
 
+        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
         // For cosine, we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
-        res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp));
 
-        res = _mm256_max_ps(_mm256_mul_ps(_mm256_add_ps(_mm256_set1_ps(1.0f), res), _mm256_set1_ps(0.5f)), _mm256_setzero_ps());
+        // res = res + additionalCorrection + queryAdditionalCorrection - centroidDp (+ 1.0f);
+        res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp + 1.0f));
+
+        // res = max(res / 2.0f, 0.0f);
+        res = _mm256_max_ps(_mm256_mul_ps(res, _mm256_set1_ps(0.5f)), _mm256_setzero_ps());
 
         maxScore = fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
         _mm256_storeu_ps(scores + i, res);

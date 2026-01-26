@@ -610,7 +610,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             queryUpperInterval,
             queryComponentSum,
             queryAdditionalCorrection,
-            1.0f,
+            FOUR_BIT_SCALE,
             centroidDp,
             MemorySegment.ofArray(scores)
         );

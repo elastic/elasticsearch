@@ -68,15 +68,15 @@ if "%SMART_RETRIES%"=="true" (
                   set DEVELOCITY_FAILED_TEST_API_URL=!DEVELOCITY_BASE_URL!/api/tests/build/!BUILD_SCAN_ID!?testOutcomes=failed
 
                   REM Fetch test seed from build scan custom values
-                  set DEVELOCITY_BUILD_SCAN_API_URL=!DEVELOCITY_BASE_URL!/api/builds/!BUILD_SCAN_ID!
+                  set DEVELOCITY_BUILD_SCAN_API_URL=!DEVELOCITY_BASE_URL!/api/builds/!BUILD_SCAN_ID!?models=gradle-attributes
                   set TEST_SEED=
 
                   REM Fetch build scan data
                   curl --compressed --request GET --url "!DEVELOCITY_BUILD_SCAN_API_URL!" --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq "." > .build-scan-data.json 2>nul
 
                   if exist .build-scan-data.json (
-                    REM Extract test seed from custom values
-                    for /f "delims=" %%i in ('jq -r ".customValues[]? | select(.name == \"tests.seed\") | .value" .build-scan-data.json 2^>nul') do set TEST_SEED=%%i
+                    REM Extract test seed from gradle attributes
+                    for /f "delims=" %%i in ('jq -r ".models.gradleAttributes.values[]? | select(.name == \"tests.seed\") | .value" .build-scan-data.json 2^>nul') do set TEST_SEED=%%i
 
                     if defined TEST_SEED (
                       if not "!TEST_SEED!"=="null" (
@@ -115,7 +115,7 @@ if "%SMART_RETRIES%"=="true" (
                     if not defined ORIGIN_JOB_NAME set ORIGIN_JOB_NAME=previous attempt
                     if "!ORIGIN_JOB_NAME!"=="null" set ORIGIN_JOB_NAME=previous attempt
 
-                    echo ✓ Smart retry enabled: filtering to !FILTERED_WORK_UNITS! work units
+                    echo Smart retry enabled: filtering to !FILTERED_WORK_UNITS! work units
 
                     REM Create Buildkite annotation for visibility
                     echo Rerunning failed build job [!ORIGIN_JOB_NAME!]^(!BUILD_SCAN_URL!^) > .smart-retry-annotation.txt

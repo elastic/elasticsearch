@@ -172,7 +172,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
           DEVELOCITY_FAILED_TEST_API_URL="${DEVELOCITY_BASE_URL}/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
 
           # Fetch test seed from build scan custom values
-          DEVELOCITY_BUILD_SCAN_API_URL="${DEVELOCITY_BASE_URL}/api/builds/${BUILD_SCAN_ID}"
+          DEVELOCITY_BUILD_SCAN_API_URL="${DEVELOCITY_BASE_URL}/api/builds/${BUILD_SCAN_ID}?models=gradle-attributes"
           TEST_SEED=""
 
           if BUILD_SCAN_DATA=$(curl --compressed --request GET \
@@ -182,8 +182,8 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
             --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
             --header 'content-type: application/json' 2>/dev/null); then
 
-            # Extract test seed from custom values
-            TEST_SEED=$(printf '%s\n' "$BUILD_SCAN_DATA" | jq -r '.customValues[]? | select(.name == "tests.seed") | .value' 2>/dev/null)
+            # Extract test seed from gradle attributes
+            TEST_SEED=$(printf '%s\n' "$BUILD_SCAN_DATA" | jq -r '.models.gradleAttributes.values[]? | select(.name == "tests.seed") | .value' 2>/dev/null)
 
             if [[ -z "$TEST_SEED" ]] || [[ "$TEST_SEED" == "null" ]]; then
               echo "Could not retrieve test seed from build scan"

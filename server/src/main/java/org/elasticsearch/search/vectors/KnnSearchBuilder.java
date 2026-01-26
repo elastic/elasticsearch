@@ -473,11 +473,17 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
-    public LateRescoringKnnVectorQueryBuilder toQueryBuilder() {
+    public VectorQueryBuilder toQueryBuilder() {
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new LateRescoringKnnVectorQueryBuilder(field, queryVector.asFloatVector(), k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
+        if (rescoreVectorBuilder == null || rescoreVectorBuilder.oversample() > 0) {
+            return new LateRescoringKnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
+                .boost(boost)
+                .queryName(queryName)
+                .addFilterQueries(filterQueries);
+        }
+        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
             .boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);

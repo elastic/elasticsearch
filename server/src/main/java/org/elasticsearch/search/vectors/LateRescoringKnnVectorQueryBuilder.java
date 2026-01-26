@@ -22,28 +22,26 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
-import static org.elasticsearch.search.vectors.RescoreVectorBuilder.DISABLE_RESCORE_VECTOR_BUILDER;
 
 /**
  * A query that performs kNN search using Lucene's {@link org.apache.lucene.search.KnnFloatVectorQuery} or
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
-public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<LateRescoringKnnVectorQueryBuilder> {
+public class LateRescoringKnnVectorQueryBuilder extends AbstractQueryBuilder<LateRescoringKnnVectorQueryBuilder>
+    implements VectorQueryBuilder {
 
     private final KnnVectorQueryBuilder knnVectorQueryBuilder;
     private final RescoreVectorBuilder rescoreVectorBuilder;
     private final int k;
 
-    public LateRescoringKnnVectorQueryBuilder(String field, float[] vector, int k, int numCands, Float visitPercentage, RescoreVectorBuilder rescoreVectorBuilder, Float similarity) {
+    public LateRescoringKnnVectorQueryBuilder(String field, VectorData vector, int k, int numCands, Float visitPercentage, RescoreVectorBuilder rescoreVectorBuilder, Float similarity) {
         this.knnVectorQueryBuilder = new KnnVectorQueryBuilder(
             field,
             vector,
             rescoreVectorBuilder == null ? k : applyRescoringOversample(rescoreVectorBuilder, k),
-// should we increase exploration as well ?
-// rescoreVectorBuilder == null ? numCands: Math.max(numCands, applyRescoringOversample(rescoreVectorBuilder, k)
             rescoreVectorBuilder == null ? numCands: applyRescoringOversample(rescoreVectorBuilder, numCands),
             visitPercentage,
-            DISABLE_RESCORE_VECTOR_BUILDER,
+            null,
             similarity);
         this.k = k;
         this.rescoreVectorBuilder = rescoreVectorBuilder;

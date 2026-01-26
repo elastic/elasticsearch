@@ -36,6 +36,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.LateRescoringKnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
+import org.elasticsearch.search.vectors.VectorQueryBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -186,28 +187,27 @@ public class DfsPhase {
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
-        List<LateRescoringKnnVectorQueryBuilder> lateRescoringKnnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        List<VectorQueryBuilder> knnQueries = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
-        lateRescoringKnnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
+        knnQueries.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
-            for (LateRescoringKnnVectorQueryBuilder lateRescoringKnnVectorQueryBuilder : lateRescoringKnnVectorQueryBuilders) {
-                lateRescoringKnnVectorQueryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
+            for (VectorQueryBuilder queryBuilder : knnQueries) {
+                queryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
             }
         }
-        List<DfsKnnResults> knnResults = new ArrayList<>(lateRescoringKnnVectorQueryBuilders.size());
+        List<DfsKnnResults> knnResults = new ArrayList<>(knnQueries.size());
         final long afterQueryTime;
         final long beforeQueryTime = System.nanoTime();
         var opsListener = context.indexShard().getSearchOperationListener();
         opsListener.onPreQueryPhase(context);
         try {
             for (int i = 0; i < knnSearch.size(); i++) {
-                String knnField = lateRescoringKnnVectorQueryBuilders.get(i).getFieldName();
+                String knnField = knnQueries.get(i).getFieldName();
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-                Query knnQuery = searchExecutionContext.toQuery(lateRescoringKnnVectorQueryBuilders.get(i)).query();
-                int k = lateRescoringKnnVectorQueryBuilders.get(i).k();
-                // todo: pass the rescorer?
-                knnResults.add(singleKnnSearch(knnQuery, k, lateRescoringKnnVectorQueryBuilders.get(i).rescoreVectorBuilder().oversample(), context.getProfilers(), context.searcher(), knnNestedPath));
+                Query knnQuery = searchExecutionContext.toQuery(knnQueries.get(i)).query();
+                int k = knnQueries.get(i).k();
+                knnResults.add(singleKnnSearch(knnQuery, k, knnQueries.get(i).rescoreVectorBuilder().oversample(), context.getProfilers(), context.searcher(), knnNestedPath));
             }
             afterQueryTime = System.nanoTime();
             opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);

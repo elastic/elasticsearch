@@ -189,6 +189,7 @@ class DfsQueryPhase extends SearchPhase {
             i++;
         }
 
+        // TODO: check aggregations, pagination, runtime fields and all else
         source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
         request.source(source);
 

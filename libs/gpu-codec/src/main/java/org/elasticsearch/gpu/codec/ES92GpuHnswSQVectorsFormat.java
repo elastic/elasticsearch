@@ -12,11 +12,13 @@ package org.elasticsearch.gpu.codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
+import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -33,11 +35,12 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
     public static final String NAME = "Lucene99HnswVectorsFormat";
     static final int MAXIMUM_MAX_CONN = 512;
     static final int MAXIMUM_BEAM_WIDTH = 3200;
+
     private final int maxConn;
     private final int beamWidth;
 
-    /** The format for storing, reading, merging vectors on disk */
-    private final FlatVectorsFormat flatVectorsFormat;
+    /** The format for scalar quantized vectors */
+    private final ES93ScalarQuantizedVectorsFormat scalarQuantizedFormat;
     private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
 
     public ES92GpuHnswSQVectorsFormat() {
@@ -59,7 +62,12 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
-        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
+        this.scalarQuantizedFormat = new ES93ScalarQuantizedVectorsFormat(
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            confidenceInterval,
+            bits,
+            compress
+        );
     }
 
     @Override
@@ -69,13 +77,20 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             state,
             maxConn,
             beamWidth,
-            flatVectorsFormat.fieldsWriter(state)
+            (FlatVectorsWriter) scalarQuantizedFormat.fieldsWriter(state)
         );
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(
+            state,
+            new Lucene99ScalarQuantizedVectorsReader(
+                state,
+                scalarQuantizedFormat.getRawVectorFormat().fieldsReader(state),
+                ES93ScalarQuantizedVectorsFormat.flatVectorScorer
+            )
+        );
     }
 
     @Override
@@ -92,8 +107,8 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             + maxConn
             + ", beamWidth="
             + beamWidth
-            + ", flatVectorFormat="
-            + flatVectorsFormat
+            + ", scalarQuantizedFormat="
+            + scalarQuantizedFormat
             + ")";
     }
 }

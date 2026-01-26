@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -95,30 +96,30 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     private void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         final int length = dims;
         long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
-        byte[] firstVector = values.vectorValue(firstOrd).clone();
-        float firstOffset = values.getScoreCorrectionConstant(firstOrd);
+        byte[] firstVector = new byte[dims];
+        input.readBytes(firstByteOffset, firstVector, 0, firstVector.length);
+        float firstOffset = Float.intBitsToFloat(input.readInt(firstByteOffset + dims));
 
         MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, length);
         if (firstSeg == null) {
             for (int i = 0; i < numNodes; i++) {
-                scores[i] = fallbackScorer.score(
-                    firstVector,
-                    firstOffset,
-                    values.vectorValue(ordinals[i]),
-                    values.getScoreCorrectionConstant(ordinals[i])
-                );
+                long secondByteOffset = (long) ordinals[i] * (length + Float.BYTES);
+                byte[] secondVector = new byte[dims];
+                input.readBytes(secondByteOffset, secondVector, 0, secondVector.length);
+                float secondOffset = Float.intBitsToFloat(input.readInt(secondByteOffset + dims));
+
+                scores[i] = fallbackScorer.score(firstVector, firstOffset, secondVector, secondOffset);
             }
         } else {
             for (int i = 0; i < numNodes; i++) {
                 long secondByteOffset = (long) ordinals[i] * (length + Float.BYTES);
                 MemorySegment secondSeg = input.segmentSliceOrNull(secondByteOffset, length);
                 if (secondSeg == null) {
-                    scores[i] = fallbackScorer.score(
-                        firstVector,
-                        firstOffset,
-                        values.vectorValue(ordinals[i]),
-                        values.getScoreCorrectionConstant(ordinals[i])
-                    );
+                    byte[] secondVector = new byte[dims];
+                    input.readBytes(secondByteOffset, secondVector, 0, secondVector.length);
+                    float secondOffset = Float.intBitsToFloat(input.readInt(secondByteOffset + dims));
+
+                    scores[i] = fallbackScorer.score(firstVector, firstOffset, secondVector, secondOffset);
                 } else {
                     float secondOffset = Float.intBitsToFloat(input.readInt(secondByteOffset + length));
                     scores[i] = scoreFromSegments(firstSeg, firstOffset, secondSeg, secondOffset);
@@ -185,7 +186,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
             int squareDistance = Similarities.squareDistance7u(a, b, dims);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
-            return 1 / (1f + adjustedDistance);
+            return VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
         }
 
         @Override
@@ -205,7 +206,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             for (int i = 0; i < numNodes; ++i) {
                 var squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 float adjustedDistance = squareDistance * scoreCorrectionConstant;
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, 1 / (1f + adjustedDistance));
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance));
             }
         }
 
@@ -226,7 +227,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             int dotProduct = Similarities.dotProduct7u(a, b, dims);
             assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
-            return Math.max((1 + adjustedDistance) / 2, 0f);
+            return VectorUtil.normalizeToUnitInterval(adjustedDistance);
         }
 
         @Override
@@ -255,7 +256,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                     vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
                 );
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, Math.max((1 + adjustedDistance) / 2, 0f));
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeToUnitInterval(adjustedDistance));
             }
         }
 
@@ -276,10 +277,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             int dotProduct = Similarities.dotProduct7u(a, b, dims);
             assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
-            if (adjustedDistance < 0) {
-                return 1 / (1 + -1 * adjustedDistance);
-            }
-            return adjustedDistance + 1;
+            return VectorUtil.scaleMaxInnerProductScore(adjustedDistance);
         }
 
         @Override
@@ -308,8 +306,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                     vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
                 );
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
-                adjustedDistance = adjustedDistance < 0 ? 1 / (1 + -1 * adjustedDistance) : adjustedDistance + 1;
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedDistance);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.scaleMaxInnerProductScore(adjustedDistance));
             }
         }
 

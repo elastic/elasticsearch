@@ -35,8 +35,8 @@ public class FlattenedFieldBlockLoaderTests extends BlockLoaderTestCase {
         super("flattened", List.of(new ASCIIStringsHandler()), params);
     }
 
-    @SuppressWarnings("unchecked")
-    protected BlockLoaderTestRunner.ResultMatcher getResultMatcher(Settings.Builder settings, Mapping mapping) {
+    @Override
+    protected BlockLoaderTestRunner.ResultMatcher getResultMatcher(Settings.Builder settings, Mapping mapping, String fullFieldName) {
         return (expected, actual) -> {
             try {
                 var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
@@ -45,7 +45,9 @@ public class FlattenedFieldBlockLoaderTests extends BlockLoaderTestCase {
                 List<Object> expectedList = parseExpected(expected);
                 List<Object> actualList = parseActual(actual);
 
-                var result = matcher.match(actualList, expectedList, mapping.raw(), mapping.raw());
+                var fieldMapping = mapping.lookup().get(fullFieldName);
+
+                var result = matcher.match(actualList, expectedList, fieldMapping, fieldMapping);
                 assertTrue(result.getMessage(), result.isMatch());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

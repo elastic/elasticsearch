@@ -82,7 +82,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         assumeTrue("random test inherited from MapperServiceTestCase", false);
     }
 
-    protected BlockLoaderTestRunner.ResultMatcher getResultMatcher(Settings.Builder settings, Mapping mapping) {
+    protected BlockLoaderTestRunner.ResultMatcher getResultMatcher(Settings.Builder settings, Mapping mapping, String fullFieldName) {
         return runner::defaultMatcher;
     }
 
@@ -99,7 +99,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         var mapperService = createMapperService(settings.build(), mappingXContent);
 
-        runner.runTest(mapperService, document, expected, fieldName, getResultMatcher(settings, mapping));
+        var matcher = getResultMatcher(settings, mapping, fieldName);
+        runner.runTest(mapperService, document, expected, fieldName, matcher);
     }
 
     @SuppressWarnings("unchecked")
@@ -148,7 +149,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext
         );
 
-        runner.runTest(mapperService, document, expected, fullFieldName.toString(), getResultMatcher(settings, mapping));
+        var matcher = getResultMatcher(settings, mapping, fullFieldName.toString());
+        runner.runTest(mapperService, document, expected, fullFieldName.toString(), matcher);
     }
 
     @SuppressWarnings("unchecked")
@@ -208,7 +210,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         var mapperService = createMapperService(settings.build(), mappingXContent);
 
-        runner.runTest(mapperService, document, expected, "parent.mf", getResultMatcher(settings, mapping));
+        var matcher = getResultMatcher(settings, mapping, "parent.mf");
+        runner.runTest(mapperService, document, expected, "parent.mf", matcher);
     }
 
     protected Settings.Builder getSettingsForParams() {

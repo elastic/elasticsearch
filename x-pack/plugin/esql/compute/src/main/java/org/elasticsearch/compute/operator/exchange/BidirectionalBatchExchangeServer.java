@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -245,7 +246,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
         // Cancel the timeout since client is ready
         if (clientReadyTimeoutFuture != null) {
-            clientReadyTimeoutFuture.cancel(false);
+            FutureUtils.cancel(clientReadyTimeoutFuture);
             clientReadyTimeoutFuture = null;
         }
 
@@ -521,7 +522,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         clientReadyTimeoutFuture = transportService.getThreadPool().scheduler().schedule(() -> {
             if (driverStarted == false && closing == false) {
                 logger.warn(
-                    "[LookupJoinServer] Timeout waiting for BatchExchangeStatusRequest from client after {}s, closing server for exchangeId={}",
+                    "[LookupJoinServer] Timeout waiting for BatchExchangeStatusRequest from client after {}s, "
+                        + "closing server for exchangeId={}",
                     CLIENT_READY_TIMEOUT_SECONDS,
                     serverToClientId
                 );
@@ -537,7 +539,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 try {
                     close();
                 } catch (Exception e) {
-                    logger.error("[LookupJoinServer] Exception during timeout cleanup for exchangeId={}", serverToClientId, e);
+                    logger.error("[LookupJoinServer] Exception during timeout cleanup for exchangeId={}: {}", serverToClientId, e);
                 }
             }
         }, CLIENT_READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -583,7 +585,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
         // Cancel the client ready timeout if it's still pending
         if (clientReadyTimeoutFuture != null) {
-            clientReadyTimeoutFuture.cancel(false);
+            FutureUtils.cancel(clientReadyTimeoutFuture);
             clientReadyTimeoutFuture = null;
         }
 

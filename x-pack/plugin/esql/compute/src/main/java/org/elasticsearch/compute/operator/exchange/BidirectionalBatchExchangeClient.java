@@ -462,7 +462,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     public void handleFailure(String context, Exception failure) {
         // Use compareAndSet to ensure only the first failure triggers the listener
         if (failureRef.compareAndSet(null, failure)) {
-            logger.error("[LookupJoinClient] Failure from {} will be reported: {}", context, failure.getMessage(), failure);
+            logger.error("[LookupJoinClient] Failure from {} will be reported: {}", context, failure.getMessage());
             // Finish the server-to-client source handler to unblock the client driver
             // The driver is waiting for pages from this exchange, so we need to signal completion
             if (serverToClientSourceHandler != null) {
@@ -688,7 +688,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             int sourceBufferSize = serverToClientSource != null ? serverToClientSource.bufferSize() : -1;
             boolean pageCacheDone = pageCacheSink != null && pageCacheSink.isDone();
             logger.debug(
-                "[LookupJoinClient] Before waiting for driver: sourceFinished={}, sourceBufferSize={}, pageCacheDone={}, clientDriverFuture.isDone={}",
+                "[LookupJoinClient] Before waiting for driver: sourceFinished={}, sourceBufferSize={}, "
+                    + "pageCacheDone={}, clientDriverFuture.isDone={}",
                 sourceFinished,
                 sourceBufferSize,
                 pageCacheDone,

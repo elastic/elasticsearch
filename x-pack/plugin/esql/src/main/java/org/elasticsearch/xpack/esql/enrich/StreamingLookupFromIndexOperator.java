@@ -263,7 +263,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             client.sendPage(batchPage);
             logger.trace("addInput: sent batchId={} to exchange buffer", batchId);
         } catch (RuntimeException e) {
-            logger.error("addInput: failed to send batchId={}", batchId, e);
+            logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
             // Release the batchPage if it was created (it has incRef'd the blocks)
             if (batchPage != null) {
                 batchPage.releaseBlocks();
@@ -273,7 +273,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             // Rethrow runtime exceptions (like CircuitBreakingException) directly for proper test handling
             throw e;
         } catch (Exception e) {
-            logger.error("addInput: failed to send batchId={}", batchId, e);
+            logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
             // Release the batchPage if it was created (it has incRef'd the blocks)
             if (batchPage != null) {
                 batchPage.releaseBlocks();

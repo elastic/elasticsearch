@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import static org.elasticsearch.inference.EndpointMetadata.METADATA;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.RERANK;
@@ -49,6 +50,7 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
  * @param dimensions the number of dimensions for the embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
  * @param similarity the similarity measure used for embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
  * @param elementType the type of elements in the embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
+ * @param endpointMetadata the metadata associated with the inference endpoint.
  */
 public record MinimalServiceSettings(
     @Nullable String service,
@@ -56,7 +58,7 @@ public record MinimalServiceSettings(
     @Nullable Integer dimensions,
     @Nullable SimilarityMeasure similarity,
     @Nullable ElementType elementType,
-    ElasticInferenceServiceEndpointFields elasticInferenceServiceEndpointFields
+    EndpointMetadata endpointMetadata
 ) implements ServiceSettings, SimpleDiffable<MinimalServiceSettings> {
 
     public static final String NAME = "minimal_service_settings";
@@ -78,10 +80,8 @@ public record MinimalServiceSettings(
             DenseVectorFieldMapper.ElementType elementType = args[4] == null
                 ? null
                 : DenseVectorFieldMapper.ElementType.fromString((String) args[4]);
-            var description = args[5] == null
-                ? ElasticInferenceServiceEndpointFields.EMPTY
-                : (ElasticInferenceServiceEndpointFields) args[5];
-            return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType, description);
+            var metadata = args[5] == null ? EndpointMetadata.EMPTY : (EndpointMetadata) args[5];
+            return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType, metadata);
         }
     );
 
@@ -93,8 +93,8 @@ public record MinimalServiceSettings(
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ElasticInferenceServiceEndpointFields.parse(p),
-            new ParseField(ElasticInferenceServiceEndpointFields.DESCRIPTION)
+            (p, c) -> EndpointMetadata.parse(p),
+            new ParseField(METADATA)
         );
     }
 
@@ -102,7 +102,9 @@ public record MinimalServiceSettings(
         return PARSER.parse(parser, null);
     }
 
-    private static final TransportVersion EIS_FIELDS_ADDED = TransportVersion.fromName("eis_fields_added");
+    private static final TransportVersion INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED = TransportVersion.fromName(
+        "inference_endpoint_metadata_fields_added"
+    );
 
     private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
         "inference_model_registry_metadata"
@@ -145,7 +147,7 @@ public record MinimalServiceSettings(
         @Nullable SimilarityMeasure similarity,
         @Nullable ElementType elementType
     ) {
-        this(service, taskType, dimensions, similarity, elementType, ElasticInferenceServiceEndpointFields.EMPTY);
+        this(service, taskType, dimensions, similarity, elementType, EndpointMetadata.EMPTY);
     }
 
     public MinimalServiceSettings(Model model) {
@@ -165,9 +167,7 @@ public record MinimalServiceSettings(
             in.readOptionalInt(),
             in.readOptionalEnum(SimilarityMeasure.class),
             in.readOptionalEnum(ElementType.class),
-            in.getTransportVersion().supports(EIS_FIELDS_ADDED)
-                ? new ElasticInferenceServiceEndpointFields(in)
-                : ElasticInferenceServiceEndpointFields.EMPTY
+            in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? new EndpointMetadata(in) : EndpointMetadata.EMPTY
         );
     }
 
@@ -178,8 +178,8 @@ public record MinimalServiceSettings(
         out.writeOptionalInt(dimensions);
         out.writeOptionalEnum(similarity);
         out.writeOptionalEnum(elementType);
-        if (out.getTransportVersion().supports(EIS_FIELDS_ADDED)) {
-            elasticInferenceServiceEndpointFields.writeTo(out);
+        if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
+            endpointMetadata.writeTo(out);
         }
     }
 
@@ -228,7 +228,7 @@ public record MinimalServiceSettings(
         if (elementType != null) {
             builder.field(ELEMENT_TYPE_FIELD, elementType);
         }
-        elasticInferenceServiceEndpointFields.toXContent(builder, params);
+        builder.field(METADATA, endpointMetadata);
         return builder.endObject();
     }
 
@@ -246,7 +246,7 @@ public record MinimalServiceSettings(
         if (elementType != null) {
             sb.append(", element_type=").append(elementType);
         }
-        sb.append(", description=").append(elasticInferenceServiceEndpointFields);
+        sb.append(", metadata=").append(endpointMetadata);
         return sb.toString();
     }
 
@@ -286,6 +286,6 @@ public record MinimalServiceSettings(
             && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
             && elementType == other.elementType
-            && Objects.equals(elasticInferenceServiceEndpointFields, other.elasticInferenceServiceEndpointFields);
+            && Objects.equals(endpointMetadata, other.endpointMetadata);
     }
 }

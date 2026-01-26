@@ -16,48 +16,48 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal internal) implements ToXContentFragment, Writeable {
+public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullable String name) implements ToXContentObject, Writeable {
 
-    public static final ElasticInferenceServiceEndpointFields EMPTY = new ElasticInferenceServiceEndpointFields(
-        Metadata.EMPTY,
-        Internal.EMPTY
-    );
+    public static final EndpointMetadata EMPTY = new EndpointMetadata(Heuristics.EMPTY, Internal.EMPTY, null);
 
-    static final String DESCRIPTION = "description";
+    static final String METADATA = "metadata";
 
     private static final String INCLUDE_INTERNAL_FIELDS = "include_internal_fields";
-    private static final String METADATA = "metadata";
+    private static final String HEURISTICS = "heuristics";
     private static final String INTERNAL = "internal";
+    private static final String NAME = "name";
 
-    private static final ConstructingObjectParser<ElasticInferenceServiceEndpointFields, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<EndpointMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "elastic_inference_service_endpoint_fields",
         true,
-        args -> new ElasticInferenceServiceEndpointFields(
-            args[0] == null ? Metadata.EMPTY : (Metadata) args[0],
-            args[1] == null ? Internal.EMPTY : (Internal) args[1]
+        args -> new EndpointMetadata(
+            args[0] == null ? Heuristics.EMPTY : (Heuristics) args[0],
+            args[1] == null ? Internal.EMPTY : (Internal) args[1],
+            (String) args[2]
         )
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Metadata.parse(p), new ParseField(METADATA));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Heuristics.parse(p), new ParseField(HEURISTICS));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Internal.parse(p), new ParseField(INTERNAL));
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(NAME));
     }
 
-    public static ElasticInferenceServiceEndpointFields parse(XContentParser parser) throws IOException {
+    public static EndpointMetadata parse(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
-    public ElasticInferenceServiceEndpointFields(StreamInput in) throws IOException {
-        this(new Metadata(in), new Internal(in));
+    public EndpointMetadata(StreamInput in) throws IOException {
+        this(new Heuristics(in), new Internal(in), in.readOptionalString());
     }
 
     public XContentBuilder toXContentWithoutInternalFields(XContentBuilder builder) throws IOException {
@@ -66,12 +66,16 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(DESCRIPTION);
+        builder.startObject();
 
-        builder.field(METADATA, metadata);
+        builder.field(HEURISTICS, heuristics);
 
         if (params.paramAsBoolean(INCLUDE_INTERNAL_FIELDS, true)) {
             builder.field(INTERNAL, internal);
+        }
+
+        if (name != null) {
+            builder.field(NAME, name);
         }
 
         builder.endObject();
@@ -80,21 +84,24 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
 
     @Override
     public String toString() {
-        return "ElasticInferenceServiceEndpointFields{" + "metadata=" + metadata + ", internal=" + internal + '}';
+        return "ElasticInferenceServiceEndpointFields{" + "heuristics=" + heuristics + ", internal=" + internal + ", name=" + name + '}';
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        metadata.writeTo(out);
+        heuristics.writeTo(out);
         internal.writeTo(out);
+        out.writeOptionalString(name);
     }
 
-    public record Metadata(List<String> properties, @Nullable String status, @Nullable String releaseDate, @Nullable String endOfLifeDate)
-        implements
-            ToXContentObject,
-            Writeable {
+    public record Heuristics(
+        List<String> properties,
+        @Nullable StatusHeuristic status,
+        @Nullable LocalDate releaseDate,
+        @Nullable LocalDate endOfLifeDate
+    ) implements ToXContentObject, Writeable {
 
-        public static final Metadata EMPTY = new Metadata(List.of(), null, null, null);
+        public static final Heuristics EMPTY = new Heuristics(List.of(), null, (LocalDate) null, null);
 
         public static final String PROPERTIES = "properties";
         public static final String STATUS = "status";
@@ -102,10 +109,17 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
         public static final String END_OF_LIFE_DATE = "end_of_life_date";
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Metadata, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<Heuristics, Void> PARSER = new ConstructingObjectParser<>(
             "elastic_inference_service_endpoint_metadata",
             true,
-            args -> new Metadata(args[0] == null ? List.of() : (List<String>) args[0], (String) args[1], (String) args[2], (String) args[3])
+            args -> {
+                List<String> properties = args[0] == null ? List.of() : (List<String>) args[0];
+                var status = args[1] == null ? null : StatusHeuristic.fromString((String) args[1]);
+                var releaseDate = args[2] == null ? null : LocalDate.parse((String) args[2]);
+                var endOfLifeDate = args[3] == null ? null : LocalDate.parse((String) args[3]);
+
+                return new Heuristics(properties, status, releaseDate, endOfLifeDate);
+            }
         );
 
         static {
@@ -115,12 +129,31 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_OF_LIFE_DATE));
         }
 
-        public static Metadata parse(XContentParser parser) throws IOException {
+        public static Heuristics parse(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
         }
 
-        public Metadata(StreamInput in) throws IOException {
-            this(in.readStringCollectionAsList(), in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+        public Heuristics(StreamInput in) throws IOException {
+            this(
+                in.readStringCollectionAsList(),
+                in.readOptionalEnum(StatusHeuristic.class),
+                in.readOptionalString(),
+                in.readOptionalString()
+            );
+        }
+
+        public Heuristics(
+            List<String> properties,
+            @Nullable StatusHeuristic status,
+            @Nullable String releaseDate,
+            @Nullable String endOfLifeDate
+        ) {
+            this(
+                properties,
+                status,
+                releaseDate != null ? LocalDate.parse(releaseDate) : null,
+                endOfLifeDate != null ? LocalDate.parse(endOfLifeDate) : null
+            );
         }
 
         @Override
@@ -133,10 +166,10 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
                 builder.field(STATUS, status);
             }
             if (releaseDate != null) {
-                builder.field(RELEASE_DATE, releaseDate);
+                builder.field(RELEASE_DATE, releaseDate.toString());
             }
             if (endOfLifeDate != null) {
-                builder.field(END_OF_LIFE_DATE, endOfLifeDate);
+                builder.field(END_OF_LIFE_DATE, endOfLifeDate.toString());
             }
 
             builder.endObject();
@@ -163,28 +196,26 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(properties);
-            out.writeOptionalString(status);
-            out.writeOptionalString(releaseDate);
-            out.writeOptionalString(endOfLifeDate);
+            out.writeOptionalEnum(status);
+            out.writeOptionalString(releaseDate != null ? releaseDate.toString() : null);
+            out.writeOptionalString(endOfLifeDate != null ? endOfLifeDate.toString() : null);
         }
     }
 
-    public record Internal(@Nullable String metadataFieldsHash, @Nullable String version) implements ToXContentObject, Writeable {
+    public record Internal(@Nullable Long endpointVersion) implements ToXContentObject, Writeable {
 
-        public static final Internal EMPTY = new Internal(null, null);
+        public static final Internal EMPTY = new Internal((Long) null);
 
-        public static final String METADATA_FIELDS_HASH = "metadata_fields_hash";
-        public static final String VERSION = "version";
+        public static final String ENDPOINT_VERSION = "endpoint_version";
 
         private static final ConstructingObjectParser<Internal, Void> PARSER = new ConstructingObjectParser<>(
             "elastic_inference_service_endpoint_internal",
             true,
-            args -> new Internal((String) args[0], (String) args[1])
+            args -> new Internal((Long) args[0])
         );
 
         static {
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(METADATA_FIELDS_HASH));
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(VERSION));
+            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ENDPOINT_VERSION));
         }
 
         public static Internal parse(XContentParser parser) throws IOException {
@@ -192,19 +223,15 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
         }
 
         public Internal(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readOptionalString());
+            this(in.readOptionalVLong());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
-            if (metadataFieldsHash != null) {
-                builder.field(METADATA_FIELDS_HASH, metadataFieldsHash);
-            }
-
-            if (version != null) {
-                builder.field(VERSION, version);
+            if (endpointVersion != null) {
+                builder.field(ENDPOINT_VERSION, endpointVersion);
             }
 
             builder.endObject();
@@ -213,13 +240,12 @@ public record ElasticInferenceServiceEndpointFields(Metadata metadata, Internal 
 
         @Override
         public String toString() {
-            return "Internal{" + "metadataFieldsHash='" + metadataFieldsHash + '\'' + ", version='" + version + '\'' + '}';
+            return "Internal{" + "endpointVersion='" + endpointVersion + '\'' + '}';
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(metadataFieldsHash);
-            out.writeOptionalString(version);
+            out.writeOptionalVLong(endpointVersion);
         }
     }
 }

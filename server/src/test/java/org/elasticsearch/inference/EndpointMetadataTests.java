@@ -1,0 +1,95 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.inference;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<EndpointMetadata> {
+
+    public static EndpointMetadata randomInstance() {
+        var heuristics = randomHeuristics();
+        var internal = randomInternal();
+        var name = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        return new EndpointMetadata(heuristics, internal, name);
+    }
+
+    public static EndpointMetadata.Heuristics randomHeuristics() {
+        var properties = IntStream.range(0, randomIntBetween(0, 5))
+            .mapToObj(i -> randomAlphaOfLength(randomIntBetween(1, 10)))
+            .collect(Collectors.toList());
+        var status = randomBoolean() ? null : randomFrom(StatusHeuristic.values());
+        var releaseDate = randomBoolean() ? null : randomLocalDate();
+        var endOfLifeDate = randomBoolean() ? null : randomLocalDate();
+        return new EndpointMetadata.Heuristics(properties, status, releaseDate, endOfLifeDate);
+    }
+
+    private static LocalDate randomLocalDate() {
+        var minDay = LocalDate.MIN.toEpochDay();
+        var maxDay = LocalDate.now().toEpochDay();
+        return LocalDate.ofEpochDay(randomLongBetween(minDay, maxDay));
+    }
+
+    public static EndpointMetadata.Internal randomInternal() {
+        Long endpointVersion = randomBoolean() ? null : randomLongBetween(0, Long.MAX_VALUE);
+        return new EndpointMetadata.Internal(endpointVersion);
+    }
+
+    @Override
+    protected EndpointMetadata createTestInstance() {
+        return randomInstance();
+    }
+
+    @Override
+    protected EndpointMetadata doParseInstance(XContentParser parser) throws IOException {
+        return EndpointMetadata.parse(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Writeable.Reader<EndpointMetadata> instanceReader() {
+        return EndpointMetadata::new;
+    }
+
+    public static EndpointMetadata createRandom() {
+        return randomInstance();
+    }
+
+    @Override
+    protected EndpointMetadata mutateInstance(EndpointMetadata instance) throws IOException {
+        var heuristics = instance.heuristics();
+        var internal = instance.internal();
+        var name = instance.name();
+
+        switch (randomInt(2)) {
+            case 0 -> heuristics = randomValueOtherThan(heuristics, EndpointMetadataTests::randomHeuristics);
+            case 1 -> internal = randomValueOtherThan(internal, EndpointMetadataTests::randomInternal);
+            case 2 -> name = randomValueOtherThan(name, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+        }
+
+        return new EndpointMetadata(heuristics, internal, name);
+    }
+
+    @Override
+    protected EndpointMetadata mutateInstanceForVersion(EndpointMetadata instance, TransportVersion version) {
+        return instance;
+    }
+}

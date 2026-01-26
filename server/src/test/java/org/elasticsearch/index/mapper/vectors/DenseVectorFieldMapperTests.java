@@ -2146,7 +2146,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testPushingDownExecutorAndThreads() {
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
-            new DenseVectorFieldMapper.HnswIndexOptions(16, 200)
+            new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1)
         );
         var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, List.of()).indexOptions(testIndexOptions)
             .dimensions(128)
@@ -2261,15 +2261,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            int hnswGraphThreshold
-        ) {
+        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             this.passedMergingExecutorService = mergingExecutorService;
             this.passedNumMergeWorkers = numMergeWorkers;
-            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, hnswGraphThreshold);
+            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
         }
 
         @Override

@@ -1049,7 +1049,6 @@ public final class IndexSettings {
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
     private volatile boolean earlyTermination;
-    private volatile int hnswGraphThreshold;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
@@ -1262,7 +1261,6 @@ public final class IndexSettings {
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
         earlyTermination = scopedSettings.get(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION);
-        hnswGraphThreshold = scopedSettings.get(DenseVectorFieldMapper.HNSW_GRAPH_THRESHOLD);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
@@ -1412,7 +1410,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
-        scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_GRAPH_THRESHOLD, this::setHnswGraphThreshold);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
     }
 
@@ -2109,20 +2106,6 @@ public final class IndexSettings {
 
     private void setHnswEarlyTermination(boolean earlyTermination) {
         this.earlyTermination = earlyTermination;
-    }
-
-    /**
-     * Returns the HNSW graph build threshold setting. This is the minimum expected search cost
-     * before building an HNSW graph becomes worthwhile.
-     * A value of -1 means defer to the format's default threshold.
-     * A non-negative value overrides the format's default.
-     */
-    public int getHnswGraphThreshold() {
-        return this.hnswGraphThreshold;
-    }
-
-    private void setHnswGraphThreshold(int hnswGraphThreshold) {
-        this.hnswGraphThreshold = hnswGraphThreshold;
     }
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {

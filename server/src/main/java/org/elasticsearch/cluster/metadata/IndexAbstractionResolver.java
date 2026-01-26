@@ -281,7 +281,7 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        // assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
+         assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
 
         IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
@@ -398,7 +398,7 @@ public class IndexAbstractionResolver {
     }
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
-        return index.startsWith(".") && expression.startsWith(".");
+        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
     }
 
     private static boolean indexExists(ProjectMetadata projectMetadata, String indexAbstraction) {

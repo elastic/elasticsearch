@@ -23,6 +23,7 @@ teardown:
        by default"
 ---
 "Resolve system index via resolve/cluster":
+
   - do:
       indices.resolve_cluster:
         name: '.tasks'

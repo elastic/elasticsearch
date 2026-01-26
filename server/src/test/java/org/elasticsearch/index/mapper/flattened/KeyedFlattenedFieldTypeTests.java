@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -174,6 +175,12 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             () -> ft.wildcardQuery("valu*", null, false, randomMockContext())
         );
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
+    }
+
+    public void testWildcardQueryOnLeaf() {
+        KeyedFlattenedFieldType ft = createFieldType();
+        Query expected = new WildcardQuery(new Term(ft.name(), "key\0val*"));
+        assertEquals(expected, ft.wildcardQuery("val*", null, false, true, MOCK_CONTEXT));
     }
 
     public void testFetchIsEmpty() throws IOException {

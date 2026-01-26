@@ -33,14 +33,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.*;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -290,7 +286,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
             error.getMessage(),
             equalTo(
                 "Time-series aggregations require direct use of @timestamp which was not found. "
-                    + "Check if @timestamp was shadowed in EVAL and use bucket(@timestamp, ...) instead."
+                    + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
             )
         );
     }

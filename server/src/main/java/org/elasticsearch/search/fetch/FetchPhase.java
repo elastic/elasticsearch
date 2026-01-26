@@ -513,7 +513,7 @@ public final class FetchPhase {
         };
     }
 
-    private static class SearchHitsWithBreakerBytes {
+    private static class SearchHitsWithSizeBytes {
         final SearchHits hits;
         final long searchHitsBytesSize;
 

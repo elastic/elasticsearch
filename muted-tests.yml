@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testExecute_Throws_WhenRateLimitedQueueIsFull
   issue: https://github.com/elastic/elasticsearch/issues/141231
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
+  method: testQuantizedXY
+  issue: https://github.com/elastic/elasticsearch/issues/141234
 
 # Examples:
 #

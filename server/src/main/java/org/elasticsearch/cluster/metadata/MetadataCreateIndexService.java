@@ -228,11 +228,16 @@ public class MetadataCreateIndexService {
     }
 
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
-        if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
+        Predicate<String> isSystem = index -> systemIndices.isSystemIndex(index) || systemIndices.isSystemIndexBackingDataStream(index);
+        if (isSystem.test(request.index())) {
             return;
         }
 
-        var totalUserIndices = projectMetadata.stream().filter(indexMetadata -> indexMetadata.isSystem() == false).count();
+        // Due to asynchronous cluster state publication, there can be a delay before the indexMetadata.isSystem flag is set.
+        // As a result, the isSystem predicate is used instead.
+        var totalUserIndices = projectMetadata.stream()
+            .filter(indexMetadata -> isSystem.test(indexMetadata.getIndex().getName()) == false)
+            .count();
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(
                 "This action would add an index, but this project currently has ["

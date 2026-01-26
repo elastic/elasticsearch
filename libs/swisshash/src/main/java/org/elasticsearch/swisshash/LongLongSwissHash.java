@@ -524,8 +524,8 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     public long getKey2(final long id) {
         final int actualId = Math.toIntExact(id);
         Objects.checkIndex(actualId, size());
-        final int keyOffset = keyOffset(actualId) + Long.BYTES;
-        return smallCore != null ? smallCore.key1(keyOffset) : bigCore.key1(keyOffset);
+        final int keyOffset = keyOffset(actualId);
+        return smallCore != null ? smallCore.key2(keyOffset) : bigCore.key2(keyOffset);
     }
 
     private int keyOffset(final int id) {

@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 import static org.elasticsearch.inference.EndpointMetadata.METADATA;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
@@ -101,10 +102,6 @@ public record MinimalServiceSettings(
     public static MinimalServiceSettings parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
-    private static final TransportVersion INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED = TransportVersion.fromName(
-        "inference_endpoint_metadata_fields_added"
-    );
 
     private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
         "inference_model_registry_metadata"

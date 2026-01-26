@@ -249,6 +249,8 @@ public class InferencePlugin extends Plugin
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
+    private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
+
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
@@ -636,8 +638,19 @@ public class InferencePlugin extends Plugin
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
             .setAliasName(InferenceIndex.INDEX_ALIAS)
             .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-            .setDescription("Contains inference service and model configuration")
+            .setDescription(INFERENCE_INDEX_DESCRIPTION)
             .setMappings(InferenceIndex.mappingsV1())
+            .setSettings(InferenceIndex.settings())
+            .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+            .build();
+
+        var inferenceIndexV2Descriptor = SystemIndexDescriptor.builder()
+            .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+            .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+            .setAliasName(InferenceIndex.INDEX_ALIAS)
+            .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+            .setDescription(INFERENCE_INDEX_DESCRIPTION)
+            .setMappings(InferenceIndex.mappingsV2())
             .setSettings(InferenceIndex.settings())
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
@@ -648,11 +661,11 @@ public class InferencePlugin extends Plugin
                 .setIndexPattern(InferenceIndex.INDEX_PATTERN)
                 .setAliasName(InferenceIndex.INDEX_ALIAS)
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-                .setDescription("Contains inference service and model configuration")
+                .setDescription(INFERENCE_INDEX_DESCRIPTION)
                 .setMappings(InferenceIndex.mappings())
                 .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
+                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor, inferenceIndexV2Descriptor))
                 .build(),
             SystemIndexDescriptor.builder()
                 .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

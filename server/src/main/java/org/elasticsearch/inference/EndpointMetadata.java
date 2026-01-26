@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,6 +27,10 @@ import java.util.List;
 import java.util.Map;
 
 public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullable String name) implements ToXContentObject, Writeable {
+
+    public static final TransportVersion INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED = TransportVersion.fromName(
+        "inference_endpoint_metadata_fields_added"
+    );
 
     public static final EndpointMetadata EMPTY = new EndpointMetadata(Heuristics.EMPTY, Internal.EMPTY, null);
 
@@ -60,8 +65,8 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
         this(new Heuristics(in), new Internal(in), in.readOptionalString());
     }
 
-    public XContentBuilder toXContentWithoutInternalFields(XContentBuilder builder) throws IOException {
-        return toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS, Boolean.FALSE.toString())));
+    public Params getXContentParamsExcludeInternalFields() {
+        return new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS, Boolean.FALSE.toString()));
     }
 
     @Override

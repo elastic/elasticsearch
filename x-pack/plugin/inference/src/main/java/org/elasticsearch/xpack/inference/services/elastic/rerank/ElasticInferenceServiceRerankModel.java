@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -59,8 +60,30 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
+        this(
+            inferenceEntityId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            elasticInferenceServiceComponents,
+            null
+        );
+    }
+
+    public ElasticInferenceServiceRerankModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticInferenceServiceRerankServiceSettings serviceSettings,
+        @Nullable TaskSettings taskSettings,
+        @Nullable SecretSettings secretSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, null, endpointMetadata),
             new ModelSecrets(secretSettings),
             serviceSettings,
             elasticInferenceServiceComponents

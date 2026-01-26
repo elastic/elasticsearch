@@ -13,10 +13,15 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 
 public class ModelConfigurations implements ToFilteredXContentObject, VersionedNamedWriteable {
 
@@ -65,6 +70,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     private final ServiceSettings serviceSettings;
     private final TaskSettings taskSettings;
     private final ChunkingSettings chunkingSettings;
+    private final EndpointMetadata endpointMetadata;
 
     /**
      * Allows no task settings to be defined. This will default to the {@link EmptyTaskSettings} object.
@@ -90,12 +96,14 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         ServiceSettings serviceSettings,
         TaskSettings taskSettings
     ) {
-        this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
-        this.taskType = Objects.requireNonNull(taskType);
-        this.service = Objects.requireNonNull(service);
-        this.serviceSettings = Objects.requireNonNull(serviceSettings);
-        this.taskSettings = Objects.requireNonNull(taskSettings);
-        this.chunkingSettings = null;
+        this(
+            inferenceEntityId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            null
+        );
     }
 
     public ModelConfigurations(
@@ -104,7 +112,27 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         String service,
         ServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        ChunkingSettings chunkingSettings
+        @Nullable ChunkingSettings chunkingSettings
+    ) {
+        this(
+            inferenceEntityId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            null
+        );
+    }
+
+    public ModelConfigurations(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ServiceSettings serviceSettings,
+        TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
@@ -112,6 +140,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
         this.chunkingSettings = chunkingSettings;
+        this.endpointMetadata = Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY);
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {
@@ -121,6 +150,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
         this.chunkingSettings = in.readOptionalNamedWriteable(ChunkingSettings.class);
+
+        if (in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
+            this.endpointMetadata = new EndpointMetadata(in);
+        } else {
+            this.endpointMetadata = EndpointMetadata.EMPTY;
+        }
     }
 
     @Override
@@ -131,6 +166,10 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
         out.writeOptionalNamedWriteable(chunkingSettings);
+
+        if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
+            endpointMetadata.writeTo(out);
+        }
     }
 
     public String getInferenceEntityId() {
@@ -157,8 +196,16 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         return chunkingSettings;
     }
 
+    public EndpointMetadata getEndpointMetadata() {
+        return endpointMetadata;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContentHelper(builder, params, true);
+    }
+
+    public XContentBuilder toXContentHelper(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
         builder.startObject();
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
@@ -167,7 +214,13 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         }
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
-        builder.field(SERVICE_SETTINGS, serviceSettings);
+
+        if (includeFilteredFields) {
+            builder.field(SERVICE_SETTINGS, serviceSettings);
+        } else {
+            builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
+        }
+
         // Always write task settings to the index even if empty.
         // But do not show empty settings in the response
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false) || (taskSettings != null && taskSettings.isEmpty() == false)) {
@@ -176,31 +229,24 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
+
+        if (includeFilteredFields) {
+            builder.field(EndpointMetadata.METADATA, endpointMetadata);
+        } else {
+            builder.field(
+                EndpointMetadata.METADATA,
+                endpointMetadata,
+                endpointMetadata.getXContentParamsExcludeInternalFields()
+            );
+        }
+
         builder.endObject();
         return builder;
     }
 
     @Override
     public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
-            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
-        } else {
-            builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
-        }
-        builder.field(TaskType.NAME, taskType.toString());
-        builder.field(SERVICE, service);
-        builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
-        // Always write task settings to the index even if empty.
-        // But do not show empty settings in the response
-        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false) || (taskSettings != null && taskSettings.isEmpty() == false)) {
-            builder.field(TASK_SETTINGS, taskSettings);
-        }
-        if (chunkingSettings != null) {
-            builder.field(CHUNKING_SETTINGS, chunkingSettings);
-        }
-        builder.endObject();
-        return builder;
+       return toXContentHelper(builder, params, false);
     }
 
     @Override
@@ -222,11 +268,13 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             && taskType == model.taskType
             && Objects.equals(service, model.service)
             && Objects.equals(serviceSettings, model.serviceSettings)
-            && Objects.equals(taskSettings, model.taskSettings);
+            && Objects.equals(taskSettings, model.taskSettings)
+            && Objects.equals(chunkingSettings, model.chunkingSettings)
+            && Objects.equals(endpointMetadata, model.endpointMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings, endpointMetadata);
     }
 }

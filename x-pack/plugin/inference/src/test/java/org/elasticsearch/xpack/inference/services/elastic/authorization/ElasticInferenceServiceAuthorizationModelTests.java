@@ -71,6 +71,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -81,6 +83,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 )
             )
@@ -104,6 +108,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -114,6 +120,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 )
             )
@@ -139,6 +147,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -149,6 +159,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 )
             )
@@ -196,6 +208,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -211,7 +225,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                         null
-                    )
+                    ),
+                    null,
+                    null
                 )
             )
         );
@@ -268,6 +284,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -283,7 +301,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                         null
-                    )
+                    ),
+                    null,
+                    null
                 )
             )
         );
@@ -340,6 +360,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 // Missing similarity measure
@@ -356,7 +378,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Invalid chunking settings
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -372,7 +396,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                         Map.of("unexpected_field", "unexpected_value")
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Invalid similarity measure
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -388,7 +414,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Missing dimensions
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -404,7 +432,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Missing element type
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -420,7 +450,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         123,
                         null,
                         null
-                    )
+                    ),
+                    null,
+                    null
                 )
             )
         );
@@ -479,7 +511,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         // Valid element type as it should be converted to lower case
                         "fLoaT",
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Valid with element type all caps
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -496,7 +530,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         // Valid element type as it should be converted to lower case
                         "FLOAT",
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Valid with element type all lower case
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -512,7 +548,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         "float",
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Unsupported element type byte
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -528,7 +566,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         DenseVectorFieldMapper.ElementType.BYTE.toString(),
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 // Unsupported element type
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -544,7 +584,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         "invalid-element-type",
                         null
-                    )
+                    ),
+                    null,
+                    null
                 )
             )
         );
@@ -624,6 +666,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -634,6 +678,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -649,7 +695,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         dimensions,
                         elementType,
                         null
-                    )
+                    ),
+                    null,
+                    null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idRerank,
@@ -659,6 +707,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
+                    null,
+                    null,
                     null
                 )
             )

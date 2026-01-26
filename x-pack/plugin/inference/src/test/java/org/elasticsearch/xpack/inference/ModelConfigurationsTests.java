@@ -7,61 +7,121 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.EndpointMetadata;
+import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
+public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCase<ModelConfigurations> {
 
     public static ModelConfigurations createRandomInstance() {
         var taskType = randomFrom(TaskType.values());
+        var endpointMetadata = randomBoolean() ? null : EndpointMetadataTests.randomInstance();
         return new ModelConfigurations(
             randomAlphaOfLength(6),
             taskType,
             randomAlphaOfLength(6),
             randomServiceSettings(),
             randomTaskSettings(taskType),
-            randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
+            randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null,
+            endpointMetadata
         );
     }
 
     public static ModelConfigurations mutateTestInstance(ModelConfigurations instance) {
-        switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> new ModelConfigurations(
                 instance.getInferenceEntityId() + "foo",
                 instance.getTaskType(),
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getChunkingSettings(),
+                instance.getEndpointMetadata()
             );
             case 1 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getChunkingSettings(),
+                instance.getEndpointMetadata()
             );
             case 2 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),
                 instance.getService() + "bar",
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getChunkingSettings(),
+                instance.getEndpointMetadata()
             );
+            case 3 -> {
+                var endpointMetadata = instance.getEndpointMetadata();
+                if (endpointMetadata.equals(EndpointMetadata.EMPTY)) {
+                    var heuristics = EndpointMetadataTests.randomHeuristics();
+                    var internal = EndpointMetadataTests.randomInternal();
+                    var name = randomAlphaOfLengthBetween(1, 20);
+                    endpointMetadata = new EndpointMetadata(heuristics, internal, name);
+                } else {
+                    endpointMetadata = EndpointMetadata.EMPTY;
+                }
+                yield new ModelConfigurations(
+                    instance.getInferenceEntityId(),
+                    instance.getTaskType(),
+                    instance.getService(),
+                    instance.getServiceSettings(),
+                    instance.getTaskSettings(),
+                    instance.getChunkingSettings(),
+                    endpointMetadata
+                );
+            }
+            case 4 -> new ModelConfigurations(
+                instance.getInferenceEntityId(),
+                instance.getTaskType(),
+                instance.getService(),
+                randomValueOtherThan(instance.getServiceSettings(), ModelConfigurationsTests::randomServiceSettings),
+                instance.getTaskSettings(),
+                instance.getChunkingSettings(),
+                instance.getEndpointMetadata()
+            );
+            case 5 -> {
+                var chunkingSettings = instance.getChunkingSettings();
+                // Mutate chunkingSettings: if null, create a random one; if non-null, toggle to null or create a different one
+                if (chunkingSettings == null) {
+                    chunkingSettings = ChunkingSettingsTests.createRandomChunkingSettings();
+                } else {
+                    chunkingSettings = randomBoolean() ? null : randomValueOtherThan(
+                        chunkingSettings,
+                        ChunkingSettingsTests::createRandomChunkingSettings
+                    );
+                }
+                yield new ModelConfigurations(
+                    instance.getInferenceEntityId(),
+                    instance.getTaskType(),
+                    instance.getService(),
+                    instance.getServiceSettings(),
+                    instance.getTaskSettings(),
+                    chunkingSettings,
+                    instance.getEndpointMetadata()
+                );
+            }
             default -> throw new IllegalStateException();
-        }
-        return null;
+        };
     }
 
     private static ServiceSettings randomServiceSettings() {
@@ -95,4 +155,20 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
         return mutateTestInstance(instance);
     }
 
+    @Override
+    protected ModelConfigurations mutateInstanceForVersion(ModelConfigurations instance, TransportVersion version) {
+        if (version.supports(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
+            return instance;
+        } else {
+            return new ModelConfigurations(
+                instance.getInferenceEntityId(),
+                instance.getTaskType(),
+                instance.getService(),
+                instance.getServiceSettings(),
+                instance.getTaskSettings(),
+                instance.getChunkingSettings(),
+                EndpointMetadata.EMPTY
+            );
+        }
+    }
 }

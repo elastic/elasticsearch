@@ -306,7 +306,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 null,
                 Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
-            )
+            ),
+            null,
+            null
         );
     }
 
@@ -355,6 +357,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             List.of("multilingual"),
             "2024-05-01",
             "2025-12-31",
+            null,
+            null,
             null
         );
     }
@@ -392,6 +396,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             List.of("multilingual"),
             "2024-05-01",
             null,
+            null,
+            null,
             null
         );
     }
@@ -404,6 +410,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             "ga",
             List.of("multilingual"),
             "2024-05-01",
+            null,
+            null,
             null,
             null
         );
@@ -465,7 +473,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 1024,
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
-            )
+            ),
+            null,
+            null
         );
     }
 
@@ -490,6 +500,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             "preview",
             List.of(),
             "2024-05-01",
+            null,
+            null,
             null,
             null
         );
@@ -526,6 +538,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             null,
             "",
             "",
+            null,
+            null,
             null
         );
     }
@@ -544,6 +558,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 "",
                 "",
+                null,
+                null,
                 null
             );
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -554,6 +570,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 "",
                 "",
+                null,
+                null,
                 null
             );
             case TEXT_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -569,7 +587,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     randomInt(),
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
-                )
+                ),
+                null,
+                null
             );
             case RERANK -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -579,6 +599,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 "",
                 "",
+                null,
+                null,
                 null
             );
             case COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -589,6 +611,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 "",
                 "",
+                null,
+                null,
                 null
             );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);

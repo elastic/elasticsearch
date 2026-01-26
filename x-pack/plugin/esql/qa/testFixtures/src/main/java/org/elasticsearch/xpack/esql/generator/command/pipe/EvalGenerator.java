@@ -55,15 +55,16 @@ public class EvalGenerator implements CommandGenerator {
             }
             cmd.append(" ");
             cmd.append(name);
-            newColumns.remove(unquote(name));
-            newColumns.add(unquote(name));
+            String rawName = unquote(name);
+            newColumns.remove(rawName);
+            newColumns.add(rawName);
             cmd.append(" = ");
             cmd.append(expression);
 
             // there could be collisions in many ways, remove all of them
             usablePrevious.remove(name);
             usablePrevious.remove("`" + name + "`");
-            usablePrevious.remove(unquote(name));
+            usablePrevious.remove(rawName);
         }
         String cmdString = cmd.toString();
         return new CommandDescription(EVAL, this, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));

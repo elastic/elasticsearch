@@ -42,10 +42,11 @@ public class DropGenerator implements CommandGenerator {
         int n = randomIntBetween(1, previousOutput.size() - 1);
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
-            String name = EsqlQueryGenerator.randomRawName(previousOutput);
-            if (name == null) {
+            String rawName = EsqlQueryGenerator.randomRawName(previousOutput);
+            if (rawName == null) {
                 continue;
             }
+            String name = rawName;
             if (EsqlQueryGenerator.needsQuoting(name)) {
                 name = EsqlQueryGenerator.quote(name);
             } else if (name.length() > 1 && randomIntBetween(0, 100) < 10) {
@@ -58,7 +59,7 @@ public class DropGenerator implements CommandGenerator {
                 name = EsqlQueryGenerator.quote(name);
             }
             proj.add(name);
-            droppedColumns.add(EsqlQueryGenerator.unquote(name));
+            droppedColumns.add(rawName);
         }
         if (proj.isEmpty()) {
             return CommandGenerator.EMPTY_DESCRIPTION;

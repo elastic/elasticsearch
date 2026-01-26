@@ -261,6 +261,97 @@ are some uses of `RestClient`, via `RestClientBuilder`, in the production code. 
 `RestClient` requests with much older elasticsearch versions. The `RestClient` is also used externally by the `Java API Client`
 to communicate with Elasticsearch.
 
+## Remote Connection Management
+
+[ClusterSettings]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/settings/ClusterSettings.java
+[Sniff Mode]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/remote-clusters#remote-cluster-sniff-settings
+[Proxy Mode]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/remote-clusters#remote-cluster-proxy-settings
+[ProjectCustom]:https://github.com/elastic/elasticsearch/blob/de452acf6bf84fa59bc80f90c5dd7ea548c5a4c0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L152
+[LinkedProject]:https://github.com/elastic/elasticsearch-serverless/blob/f7ff3375a50d554beac04453a7315e948b44ff06/modules/serverless-cross-project/src/main/java/co/elastic/elasticsearch/serverless/crossproject/config/state/LinkedProjectsState.java#L174
+[LinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java
+[LinkedProjectConfigService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfigService.java
+[ProxyLinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java#L65
+[SniffLinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java#L98
+[LinkedProjectConfigListener]:https://github.com/elastic/elasticsearch/blob/92a33f3fa5785be099d5f48975a838c146fd7bd9/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfigService.java#L37
+[LinkedProjectConfigService.Provider]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfigService.java#L25
+[ClusterSettingsLinkedProjectConfigService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/ClusterSettingsLinkedProjectConfigService.java
+[LinkedProjectsStateConfigService]:https://github.com/elastic/elasticsearch-serverless/blob/main/modules/serverless-cross-project/src/main/java/co/elastic/elasticsearch/serverless/crossproject/config/LinkedProjectsStateConfigService.java
+[PluginServiceInstances]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/node/PluginServiceInstances.java
+[RemoteClusterService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterService.java
+[RemoteClusterConnection]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterConnection.java
+[RemoteConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteConnectionStrategy.java
+[ProxyConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/ProxyConnectionStrategy.java
+[SniffConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/SniffConnectionStrategy.java
+
+This section covers the management of connections from local clusters to remote clusters in the context of
+[CCR](#cross-cluster-replication-ccr) (Cross-Cluster-Replication) and
+[CCS](#cross-cluster-search) (Cross-Cluster-Search), and from origin projects to linked projects in the context of serverless
+CPS (Cross-Project-Search).
+
+### Configuration
+
+For CCR and CCS, remote clusters are configured via [ClusterSettings].  Two configuration modes are available, [Proxy Mode] and
+[Sniff Mode].  The configuration includes an alias string for the remote cluster, along with mode specific and common network
+configuration settings.
+
+For CPS, linked projects are configured via a control plane distributed configuration file that is read in and the linking
+information converted into a [ProjectCustom] and stored in the [ClusterState].  The linking information includes the origin
+project ID, the linked project ID, the linked project alias (akin to the remote cluster alias for CCR/CSS), the `endpoint` which
+is used to configure the proxy address for [Proxy Mode] (CPS only uses proxy mode), and the `server_name` used to configure
+the SNI (Server Name Indication) for the mTLS (Mutual Transport Layer Security) connections between projects.  See the
+core-infra [LinkedProject] class for details.
+
+For the remainder of this section we'll use origin project and linked project for both CCR/CCS and serverless CPS contexts.
+
+### Triggering Project Linking Change Events
+
+The [LinkedProjectConfig] interface and its two implementations, [ProxyLinkedProjectConfig] and [SniffLinkedProjectConfig]
+encapsulate the linking information, whether from remote clusters for CCR/CCS, or from linked projects in CPS.
+
+The [LinkedProjectConfigService] interface hides the details of where the linking information is coming from, whether from
+cluster settings via the [ClusterSettingsLinkedProjectConfigService] implementation used in stateful for CCR/CCS, or from
+[LinkedProjectsStateConfigService] in serverless for CPS.
+
+### Receiving Project Linking Change Events
+
+Elasticsearch components interested in being notified of project linking changes implement the
+[LinkedProjectConfigListener] interface that has callback methods that are invoked when a project is added, updated, or
+removed.  `LinkedProjectConfigListener` implementors register themselves with a `LinkedProjectConfigService` instance
+to receive the callback invocations.
+
+The `LinkedProjectConfigListener` singleton instance is loaded at runtime via SPI through the
+[LinkedProjectConfigService.Provider] interface.  The `NodeConstruction` class in the `elasticsearch` codebase loads the
+`Provider` instance to `create()` the `LinkedProjectConfigService`, otherwise if no `Provider` is defined it defaults to
+constructing a `ClusterSettingsLinkedProjectConfigService` instance (used in CCR/CCS).  The `serverless` CPS module
+registers a SPI `Provider` implementation that creates a `LinkedProjectsStateConfigService`.  `NodeConstruction` stores
+the singleton `LinkedProjectConfigListener` instance in the [PluginServiceInstances] so that it is available to all
+`LinkedProjectConfigListener` implementations so they can register themselves with it.
+
+There are many implementors of `LinkedProjectConfigListener` in the `elasticsearch` codebase, but for this networking
+section we are primarily concerned with `RemoteClusterService`.
+
+### RemoteClusterService
+
+The [RemoteClusterService] implements `LinkedProjectConfigListener`, and maintains a mapping of origin project IDs to
+maps of linked project aliases to [RemoteClusterConnection]s.  Note that for the current stateful CCR/CCS code this outer
+map has a single entry for the default project ID.  `RemoteClusterService` has methods for obtaining a connection instance
+for a linked project alias, checking what projects are linked for a given origin project ID, etc.
+
+When the `RemoteClusterService` receives a callback for a new linked project
+(or an updated linked project that requires rebuilding the connection), the `LinkedProjectConfig` implementations create
+[RemoteConnectionStrategy] implementations ([ProxyConnectionStrategy] or [SniffConnectionStrategy]) that encapsulate the
+details for establishing the connections for those connection modes.  The `RemoteClusterConnection` stores the
+`RemoteConnectionStrategy` and a [RemoteConnectionManager] instance that connects to and stores the connected
+`DiscoveryNode`s.
+
+When a project is first linked an initial attempt is made to establish connections to the remote project.  If successful
+these connections will be immediately available for search calls.  If the initial connection attempt fails the entry
+for the alias will remain in the `RemoteClusterService`'s map, it will just be in a disconnected state.  When search
+requests obtain a connection instance an attempt is made to reconnect disconnected linked projects.  Callers can wait
+on the reconnection attempt listener and timeout as needed.  The [RemoteConnectionStrategy] class handles the
+synchronization details for concurrent connection attempts, adding listeners to a pending notification list if a
+connection thread is already running.
+
 # Cluster Coordination
 
 (Sketch of important classes? Might inform more sections to add for details.)

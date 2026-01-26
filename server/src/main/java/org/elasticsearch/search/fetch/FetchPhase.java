@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.misc.util.fst.ListOfOutputs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -187,12 +188,18 @@ public final class FetchPhase {
             writer,
             sendFailure,
             buildListener,
-            ActionListener.wrap(searchHits -> {
+            ActionListener.wrap(hitsAndBytes -> {
                 // Transfer SearchHits ownership to shardResult
-                SearchHits hitsToRelease = searchHits;
+                SearchHits hitsToRelease = hitsAndBytes.hits;
                 try {
                     ProfileResult profileResult = profiler.finish();
-                    context.fetchResult().shardResult(searchHits, profileResult);
+                    context.fetchResult().shardResult(hitsAndBytes.hits, profileResult);
+
+                    if (writer == null) {
+                        // Store circuit breaker bytes for later release after response is sent
+                        context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize);
+                    }
+
                     hitsToRelease = null; // Ownership transferred
                     listener.onResponse(null);
                 } finally {
@@ -225,7 +232,7 @@ public final class FetchPhase {
         FetchPhaseResponseChunk.Writer writer,
         AtomicReference<Throwable> sendFailure,
         @Nullable ActionListener<Void> buildListener,
-        ActionListener<SearchHits> listener
+        ActionListener<SearchHitsWithSizeBytes> listener
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -346,7 +353,7 @@ public final class FetchPhase {
                         processor.process(hit);
                     }
 
-                    if(writer != null) {
+                    if(writer == null) {
                         BytesReference sourceRef = hit.hit().getSourceRef();
                         if (sourceRef != null) {
                             // This is an empirical value that seems to work well.
@@ -388,7 +395,8 @@ public final class FetchPhase {
 
                 TotalHits totalHits = context.getTotalHits();
                 resultToReturn = new SearchHits(result.hits, totalHits, context.getMaxScore());
-                listener.onResponse(resultToReturn);
+                listener.onResponse(new SearchHitsWithSizeBytes(resultToReturn, docsIterator.getRequestBreakerBytes()));
+
                 resultToReturn = null; // Ownership transferred
             } catch (Exception e) {
                 caughtException = e;
@@ -412,12 +420,14 @@ public final class FetchPhase {
                 long bytes = docsIterator.getRequestBreakerBytes();
                 if (bytes > 0L) {
                     context.circuitBreaker().addWithoutBreaking(-bytes);
-                    LOGGER.debug(
-                        "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
-                        bytes,
-                        context.getSearchExecutionContext().getShardId(),
-                        context.circuitBreaker().getUsed()
-                    );
+                    if(LOGGER.isDebugEnabled()) {
+                        LOGGER.debug(
+                            "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
+                            bytes,
+                            context.getSearchExecutionContext().getShardId(),
+                            context.circuitBreaker().getUsed()
+                        );
+                    }
                 }
             }
         } else {  // Streaming mode
@@ -451,7 +461,8 @@ public final class FetchPhase {
                         lastChunkBytes = null;
                     }
 
-                    l.onResponse(SearchHits.empty(context.getTotalHits(), context.getMaxScore()));
+                    l.onResponse(new SearchHitsWithSizeBytes(
+                        SearchHits.empty(context.getTotalHits(), context.getMaxScore()), 0));
                 } finally {
                     Releasables.closeWhileHandlingException(lastChunkBytes);
                 }
@@ -736,5 +747,15 @@ public final class FetchPhase {
                 return "noop";
             }
         };
+    }
+
+    private static class SearchHitsWithSizeBytes {
+        final SearchHits hits;
+        final long searchHitsBytesSize;
+
+        SearchHitsWithSizeBytes(SearchHits hits, long searchHitsBytesSize) {
+            this.hits = hits;
+            this.searchHitsBytesSize = searchHitsBytesSize;
+        }
     }
 }

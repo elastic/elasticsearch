@@ -207,8 +207,6 @@ public interface EntitlementChecker {
 
     void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
 
-    void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
-
     void check$java_lang_Runtime$removeShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
     void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh);

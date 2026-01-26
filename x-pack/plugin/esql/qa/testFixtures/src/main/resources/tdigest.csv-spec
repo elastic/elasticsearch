@@ -125,7 +125,6 @@ instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
 // -------------------------------------------------------------------------------
 
 Count of tdigest with no matching rows (standard mode)
-required_capability: ts_command_v0
 required_capability: tdigest_tech_preview
 required_capability: count_of_histogram_types
 

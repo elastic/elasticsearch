@@ -39,7 +39,7 @@ develocity {
 
     def fips = buildParams.inFipsJvm
     def gitRevision = buildParams.gitRevision
-    def testSeed = buildParams.testSeedProvider
+    def testSeed = buildParams.testSeed
 
     background {
       tag OS.current().name()

@@ -142,7 +142,7 @@ static inline void dot7u_inner_bulk(
         int32x4_t acc6 = vdupq_n_s32(0);
         int32x4_t acc7 = vdupq_n_s32(0);
 
-        for (size_t i = 0; i < blk; i += 16) {
+        for (int i = 0; i < blk; i += 16) {
             int8x16_t vb = vld1q_s8(b + i);
 
             int8x16_t v0 = vld1q_s8(a0 + i);
@@ -180,7 +180,7 @@ static inline void dot7u_inner_bulk(
         int32_t acc_scalar3 = vaddvq_s32(acc67);
         if (blk != dims) {
             // scalar tail
-            for (size_t t = blk; t < dims; t++) {
+            for (int t = blk; t < dims; t++) {
                 const int8_t bb = b[t];
                 acc_scalar0 += a0[t] * bb;
                 acc_scalar1 += a1[t] * bb;
@@ -216,7 +216,7 @@ EXPORT void vec_dot7u_bulk_offsets(
     dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-static inline int32_t sqr7u_inner(const int8_t *a, const int8_t *b, const int32_t dims) {
+static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32x4_t acc1 = vdupq_n_s32(0);
     int32x4_t acc2 = vdupq_n_s32(0);
     int32x4_t acc3 = vdupq_n_s32(0);
@@ -265,7 +265,7 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    for (size_t c = 0; c < count; c++) {
+    for (int c = 0; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_sqr7u(a0, b, dims);
     }
@@ -288,10 +288,10 @@ EXPORT void vec_sqr7u_bulk_offsets(
 
 // --- single precision floats
 
-// const f32_t *a  pointer to the first float vector
-// const f32_t *b  pointer to the second float vector
+// const f32_t* a  pointer to the first float vector
+// const f32_t* b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
-EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);
@@ -301,7 +301,7 @@ EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCou
     float32x4_t sum6 = vdupq_n_f32(0.0f);
     float32x4_t sum7 = vdupq_n_f32(0.0f);
 
-    int32_t i = 0;
+    int i = 0;
     // Each float32x4_t holds 4 floats, so unroll 8x = 32 floats per loop
     int32_t unrolled_limit = elementCount & ~31UL;
     for (; i < unrolled_limit; i += 32) {
@@ -331,37 +331,37 @@ EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCou
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>
 static inline void dotf32_inner_bulk(
-    const f32_t *a,
-    const f32_t *b,
+    const f32_t* a,
+    const f32_t* b,
     const int32_t dims,
     const int32_t pitch,
-    const int32_t *offsets,
+    const int32_t* offsets,
     const int32_t count,
-    f32_t *results
+    f32_t* results
 ) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
-        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
+    int vec_size = pitch / sizeof(f32_t);
+    for (int c = 0; c < count; c++) {
+        const f32_t* a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_dotf32(a0, b, dims);
     }
 }
 
-EXPORT void vec_dotf32_bulk(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
+EXPORT void vec_dotf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     dotf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 EXPORT void vec_dotf32_bulk_offsets(
-    const f32_t *a,
-    const f32_t *b,
+    const f32_t* a,
+    const f32_t* b,
     const int32_t dims,
     const int32_t pitch,
-    const int32_t *offsets,
+    const int32_t* offsets,
     const int32_t count,
-    f32_t *results) {
+    f32_t* results) {
     dotf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount) {
+EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
     float32x4_t sum0 = vdupq_n_f32(0.0f);
     float32x4_t sum1 = vdupq_n_f32(0.0f);
     float32x4_t sum2 = vdupq_n_f32(0.0f);
@@ -371,9 +371,9 @@ EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCou
     float32x4_t sum6 = vdupq_n_f32(0.0f);
     float32x4_t sum7 = vdupq_n_f32(0.0f);
 
-    int32_t i = 0;
+    int i = 0;
     // Each float32x4_t holds 4 floats, so unroll 8x = 32 floats per loop
-    int32_t unrolled_limit = elementCount & ~31UL;
+    int unrolled_limit = elementCount & ~31UL;
     for (; i < unrolled_limit; i += 32) {
         float32x4_t d0 = vsubq_f32(vld1q_f32(a + i),      vld1q_f32(b + i));
         float32x4_t d1 = vsubq_f32(vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
@@ -411,33 +411,33 @@ EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCou
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>
 static inline void sqrf32_inner_bulk(
-    const f32_t *a,
-    const f32_t *b,
+    const f32_t* a,
+    const f32_t* b,
     const int32_t dims,
     const int32_t pitch,
-    const int32_t *offsets,
+    const int32_t* offsets,
     const int32_t count,
-    f32_t *results
+    f32_t* results
 ) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
-        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
+    int vec_size = pitch / sizeof(f32_t);
+    for (int c = 0; c < count; c++) {
+        const f32_t* a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_sqrf32(a0, b, dims);
     }
 }
 
-EXPORT void vec_sqrf32_bulk(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
+EXPORT void vec_sqrf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     sqrf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 EXPORT void vec_sqrf32_bulk_offsets(
-    const f32_t *a,
-    const f32_t *b,
+    const f32_t* a,
+    const f32_t* b,
     const int32_t dims,
     const int32_t pitch,
-    const int32_t *offsets,
+    const int32_t* offsets,
     const int32_t count,
-    f32_t *results) {
+    f32_t* results) {
     sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 

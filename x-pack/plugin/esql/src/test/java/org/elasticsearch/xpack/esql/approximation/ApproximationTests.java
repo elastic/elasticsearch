@@ -407,9 +407,9 @@ public class ApproximationTests extends ESTestCase {
         assertThat(approximatePlan, hasSample(1e-4));
         // Counting all rows is exact, so no confidence interval is output.
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(COUNT())")));
-        assertThat(approximatePlan, not(hasEval("RELIABLE(COUNT())")));
+        assertThat(approximatePlan, not(hasEval("CERTIFIED(COUNT())")));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(SUM(emp_no))"));
-        assertThat(approximatePlan, hasEval("RELIABLE(SUM(emp_no))"));
+        assertThat(approximatePlan, hasEval("CERTIFIED(SUM(emp_no))"));
     }
 
     public void testApproximationPlan_createsConfidenceInterval_withGrouping() throws Exception {
@@ -424,9 +424,9 @@ public class ApproximationTests extends ESTestCase {
         LogicalPlan approximatePlan = runner.invocations.getLast();
         assertThat(approximatePlan, hasSample(1e-3));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(COUNT())"));
-        assertThat(approximatePlan, hasEval("RELIABLE(COUNT())"));
+        assertThat(approximatePlan, hasEval("CERTIFIED(COUNT())"));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(SUM(emp_no))"));
-        assertThat(approximatePlan, hasEval("RELIABLE(SUM(emp_no))"));
+        assertThat(approximatePlan, hasEval("CERTIFIED(SUM(emp_no))"));
     }
 
     public void testApproximationPlan_dependentConfidenceIntervals() throws Exception {
@@ -444,17 +444,17 @@ public class ApproximationTests extends ESTestCase {
         LogicalPlan approximatePlan = runner.invocations.getLast();
         assertThat(approximatePlan, hasPlan(Sample.class, s -> Foldables.literalValueOf(s.probability()).equals(1e-4)));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(x)"));
-        assertThat(approximatePlan, hasEval("RELIABLE(x)"));
+        assertThat(approximatePlan, hasEval("CERTIFIED(x)"));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(a)"));
-        assertThat(approximatePlan, hasEval("RELIABLE(a)"));
+        assertThat(approximatePlan, hasEval("CERTIFIED(a)"));
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(b)")));
-        assertThat(approximatePlan, not(hasEval("RELIABLE(b)")));
+        assertThat(approximatePlan, not(hasEval("CERTIFIED(b)")));
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(c)")));
-        assertThat(approximatePlan, not(hasEval("RELIABLE(c)")));
+        assertThat(approximatePlan, not(hasEval("CERTIFIED(c)")));
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(d)")));
-        assertThat(approximatePlan, not(hasEval("RELIABLE(d)")));
+        assertThat(approximatePlan, not(hasEval("CERTIFIED(d)")));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(e)"));
-        assertThat(approximatePlan, hasEval("RELIABLE(e)"));
+        assertThat(approximatePlan, hasEval("CERTIFIED(e)"));
     }
 
     private Matcher<? super LogicalPlan> hasFilter(String field) {

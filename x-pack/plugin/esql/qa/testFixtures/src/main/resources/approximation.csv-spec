@@ -23,8 +23,8 @@ FROM many_numbers
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
 ;
 
-count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1300000..2700000 | 1315..1350 | 1700000000..3600000000 | [1300000..2700000,1300000..2700000] | {any}                   | [1315..1350,1315..1350]         | {any}                 | [1700000000..3600000000,1700000000..3600000000] | {any}
+count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
+1300000..2700000 | 1315..1350 | 1700000000..3600000000 | [1300000..2700000,1300000..2700000] | {any}                    | [1315..1350,1315..1350]         | {any}                  | [1700000000..3600000000,1700000000..3600000000] | {any}
 ;
 
 
@@ -38,8 +38,8 @@ FROM many_numbers
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
 ;
 
-count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long | RELIABLE(sum):boolean
-325        | 17.0       | 5525     | [325, 325]                      | true                    | [17.0, 17.0]                    | true                  | [5525, 5525]                  | true
+count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long | CERTIFIED(sum):boolean
+325        | 17.0       | 5525     | [325, 325]                      | true                     | [17.0, 17.0]                    | true                  | [5525, 5525]                   | true
 ;
 
 
@@ -51,7 +51,7 @@ FROM many_numbers
     | STATS count=COUNT(), sum=SUM(value)
 ;
 
-count:long | sum:long               | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
+count:long | sum:long               | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
 200100     | 1700000000..3600000000 | [1700000000..3600000000,1700000000..3600000000] | {any}
 ;
 
@@ -66,8 +66,8 @@ FROM many_numbers
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
 ;
 
-count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | {any}                   | [1545..1565,1545..1565]         | {any}                 | [1500000000..3000000000,1500000000..3000000000] | {any}
+count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
+1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | {any}                    | [1545..1565,1545..1565]         | {any}                  | [1500000000..3000000000,1500000000..3000000000] | {any}
 ;
 
 
@@ -82,8 +82,8 @@ FROM many_numbers
             sum=SUM(value) WHERE value >= 1000
 ;
 
-count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | {any}                   | [1545..1565,1545..1565]         | {any}                 | [1500000000..3000000000,1500000000..3000000000] | {any}
+count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
+1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | {any}                    | [1545..1565,1545..1565]         | {any}                  | [1500000000..3000000000,1500000000..3000000000] | {any}
 ;
 
 
@@ -97,8 +97,8 @@ FROM many_numbers
     | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
 ;
 
-count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                 | RELIABLE(sum):boolean
-1000000..2000000 | 1315..1350 | 130000000..2900000000 | [1000000..2000000,1000000..2000000] | {any}                   | [1315..1350,1315..1350]         | {any}                 | [130000000..2900000000,130000000..2900000000] | {any}
+count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                 | CERTIFIED(sum):boolean
+1000000..2000000 | 1315..1350 | 130000000..2900000000 | [1000000..2000000,1000000..2000000] | {any}                    | [1315..1350,1315..1350]         | {any}                  | [130000000..2900000000,130000000..2900000000] | {any}
 ;
 
 
@@ -121,8 +121,8 @@ FROM many_numbers
     | STATS count=COUNT(), avg=AVG(value5), sum=SUM(value5)
 ;
 
-count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1300000..2700000 | 2630..2700 | 3400000000..7200000000 | [1300000..2700000,1300000..2700000] | {any}                   | [2630..2700,2630..2700]         | {any}                 | [3400000000..7200000000,3400000000..7200000000] | {any}
+count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
+1300000..2700000 | 2630..2700 | 3400000000..7200000000 | [1300000..2700000,1300000..2700000] | {any}                    | [2630..2700,2630..2700]         | {any}                  | [3400000000..7200000000,3400000000..7200000000] | {any}
 ;
 
 
@@ -140,8 +140,8 @@ FROM many_numbers
     | KEEP avg, avg2
 ;
 
-avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(avg2):double | RELIABLE(avg2):boolean
-1315..1350 | 2630..2700  | [1315..1350,1315..1350]         | {any}                 | [2630..2700,2630..2700]          | {any} 
+avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(avg2):double | CERTIFIED(avg2):boolean
+1315..1350 | 2630..2700  | [1315..1350,1315..1350]         | {any}                  | [2630..2700,2630..2700]          | {any} 
 ;
 
 
@@ -159,7 +159,7 @@ FROM many_numbers
     | DROP x 
 ;
 
-y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | RELIABLE(plus1):boolean
+y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | CERTIFIED(plus1):boolean
 1         | 3400000..3700000 | [3400000..3700000,3400000..3700000] | {any}
 ;
 
@@ -208,12 +208,12 @@ FROM many_numbers
     | LIMIT 5
 ;
 
-avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(median):double | RELIABLE(median):boolean | CONFIDENCE_INTERVAL(one):double | RELIABLE(one):boolean
-2000       | 2000          | 1          | 2000          | [2000,2000]                     | {any}                 | [2000,2000]                        | {any}                    | [1,1]                           | {any}
-1999       | 1999          | 1          | 1999          | [1999,1999]                     | {any}                 | [1999,1999]                        | {any}                    | [1,1]                           | {any}
-1998       | 1998          | 1          | 1998          | [1998,1998]                     | {any}                 | [1998,1998]                        | {any}                    | [1,1]                           | {any}
-1997       | 1997          | 1          | 1997          | [1997,1997]                     | {any}                 | [1997,1997]                        | {any}                    | [1,1]                           | {any}
-1996       | 1996          | 1          | 1996          | [1996,1996]                     | {any}                 | [1996,1996]                        | {any}                    | [1,1]                           | {any}
+avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(median):double | CERTIFIED(median):boolean | CONFIDENCE_INTERVAL(one):double | CERTIFIED(one):boolean
+2000       | 2000          | 1          | 2000          | [2000,2000]                     | {any}                  | [2000,2000]                        | {any}                    | [1,1]                            | {any}
+1999       | 1999          | 1          | 1999          | [1999,1999]                     | {any}                  | [1999,1999]                        | {any}                    | [1,1]                            | {any}
+1998       | 1998          | 1          | 1998          | [1998,1998]                     | {any}                  | [1998,1998]                        | {any}                    | [1,1]                            | {any}
+1997       | 1997          | 1          | 1997          | [1997,1997]                     | {any}                  | [1997,1997]                        | {any}                    | [1,1]                            | {any}
+1996       | 1996          | 1          | 1996          | [1996,1996]                     | {any}                  | [1996,1996]                        | {any}                    | [1,1]                            | {any}
 ;
 
 
@@ -229,7 +229,7 @@ FROM many_numbers
     | LIMIT 5
 ;
 
-value:integer | count:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean
+value:integer | count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
 2000          | 1000..3000 | [500..2500,1500..4000]          | {any}
 1999          | 1000..3000 | [500..2500,1500..4000]          | {any}
 1998          | 1000..3000 | [500..2500,1500..4000]          | {any}
@@ -249,7 +249,7 @@ FROM many_numbers
     | SORT value
 ;
 
-count:long | value:integer | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean 
+count:long | value:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean 
 1          | 1             | [1, 1]                          | true
 2          | 2             | [2, 2]                          | true
 3          | 3             | [3, 3]                          | true

@@ -437,9 +437,9 @@ public class Approximation {
 
     /**
      * Returns the original logical plan (returning the exact results), extended with the
-     * confidence interval and reliable fields, that the approximation plan would have
+     * confidence interval and certified fields, that the approximation plan would have
      * returned. The confidence interval of a field is [exact_value, exact_value] and the
-     * reliable field is always true.
+     * certified field is always true.
      */
     private LogicalPlan exactPlanWithConfidenceIntervals() {
         Map<String, Attribute> exactFields = logicalPlan.output()
@@ -450,7 +450,7 @@ public class Approximation {
         // To do so, use a non-zero sample probability lower than the threshold. Otherwise,
         // the approximation plan uses this exactPlanWithConfidenceIntervals again.
         LogicalPlan approximationPlan = approximationPlan(SAMPLE_PROBABILITY_THRESHOLD / 2.0);
-        List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
+        List<Alias> confidenceIntervalsAndCertified = new ArrayList<>();
         for (Attribute field : approximationPlan.output()) {
             // TODO: handle user-defined fields that collide with the extra fields.
             if (exactFields.containsKey(field.name())) {
@@ -459,17 +459,17 @@ public class Approximation {
             if (field.name().startsWith("CONFIDENCE_INTERVAL")) {
                 String exactFieldName = field.name().substring("CONFIDENCE_INTERVAL(".length(), field.name().length() - 1);
                 Attribute exactField = exactFields.get(exactFieldName);
-                confidenceIntervalsAndReliable.add(
+                confidenceIntervalsAndCertified.add(
                     new Alias(Source.EMPTY, field.name(), new MvAppend(Source.EMPTY, exactField, exactField))
                 );
             }
-            if (field.name().startsWith("RELIABLE")) {
-                confidenceIntervalsAndReliable.add(new Alias(Source.EMPTY, field.name(), Literal.TRUE));
+            if (field.name().startsWith("CERTIFIED")) {
+                confidenceIntervalsAndCertified.add(new Alias(Source.EMPTY, field.name(), Literal.TRUE));
             }
         }
-        // The approximation plan appends the confidence interval and reliable fields
+        // The approximation plan appends the confidence interval and certified fields
         // at the end, so do the same here.
-        LogicalPlan logicalPlanWithConfidenceIntervals = new Eval(Source.EMPTY, logicalPlan, confidenceIntervalsAndReliable);
+        LogicalPlan logicalPlanWithConfidenceIntervals = new Eval(Source.EMPTY, logicalPlan, confidenceIntervalsAndCertified);
         logicalPlanWithConfidenceIntervals.setPreOptimized();
         logicalPlanWithConfidenceIntervals = logicalPlanOptimizer.optimize(logicalPlanWithConfidenceIntervals);
         return logicalPlanWithConfidenceIntervals;
@@ -1081,7 +1081,7 @@ public class Approximation {
     }
 
     /**
-     * Returns the confidence interval and reliable fields for the fields.
+     * Returns the confidence interval and certified fields for the fields.
      * This is the expression:
      * <pre>
      *     {@code
@@ -1089,7 +1089,7 @@ public class Approximation {
      *     }
      * </pre>
      * for each field {@code s} that has buckets. The output of {@code CONFIDENCE_INTERVAL}
-     * is separated into two fields: the confidence interval itself, and a reliable field.
+     * is separated into two fields: the confidence interval itself, and a certified field.
      */
     private List<Alias> getConfidenceIntervals(Map<NameId, List<Alias>> fieldBuckets) {
         Expression constNaN = new Literal(Source.EMPTY, Double.NaN, DataType.DOUBLE);
@@ -1098,7 +1098,7 @@ public class Approximation {
         Expression confidenceLevel = Literal.fromDouble(Source.EMPTY, confidenceLevel());
 
         // Compute the confidence interval for all output fields that have buckets.
-        List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
+        List<Alias> confidenceIntervalsAndCertified = new ArrayList<>();
         for (Attribute output : logicalPlan.output()) {
             if (fieldBuckets.containsKey(output.id())) {
                 List<Alias> buckets = fieldBuckets.get(output.id());
@@ -1133,17 +1133,17 @@ public class Approximation {
                     case LONG -> new ToLong(Source.EMPTY, confidenceInterval);
                     default -> throw new IllegalStateException("unexpected data type [" + output.dataType() + "]");
                 };
-                confidenceIntervalsAndReliable.add(
+                confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
                         "CONFIDENCE_INTERVAL(" + output.name() + ")",
                         new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1))
                     )
                 );
-                confidenceIntervalsAndReliable.add(
+                confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
-                        "RELIABLE(" + output.name() + ")",
+                        "CERTIFIED(" + output.name() + ")",
                         new GreaterThanOrEqual(
                             Source.EMPTY,
                             new MvSlice(
@@ -1158,6 +1158,6 @@ public class Approximation {
                 );
             }
         }
-        return confidenceIntervalsAndReliable;
+        return confidenceIntervalsAndCertified;
     }
 }

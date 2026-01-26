@@ -547,10 +547,11 @@ public class EsqlQueryGenerator {
     }
 
     public static String unquote(String colName) {
-        if (colName.startsWith("`") && colName.endsWith("`")) {
+        if (colName.startsWith("```") && colName.endsWith("```")) {
+            return colName.substring(2, colName.length() - 2);
+        } else if (colName.startsWith("`") && colName.endsWith("`")) {
             return colName.substring(1, colName.length() - 1);
         }
         return colName;
     }
-
 }

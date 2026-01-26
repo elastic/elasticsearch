@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -84,10 +83,15 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     private List<Attribute> computeOutputAttributes() {
-        if (left() instanceof LiteralSelector) {
+        // Between an instant vector and a scalar,
+        // the operator is applied to the value of every data sample in the vector.
+        // Therefore, we're returning any grouping attributes (like those created for by (...) and _timeseries) from the vector.
+        // If both the left and right are a scalar, this works, too
+        // as both outputs will be empty (scalars don't have any grouping attributes).
+        if (PromqlPlan.returnsScalar(left())) {
             return right().output();
         }
-        if (right() instanceof LiteralSelector) {
+        if (PromqlPlan.returnsScalar(right())) {
             return left().output();
         }
         Set<String> outputLabels;

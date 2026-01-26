@@ -18,10 +18,7 @@ Each document in this dataset represents a complete eCommerce order. Every order
 
 1. Go to **Integrations** and search for **Sample Data**.   
 2. On the **Sample data** page, expand the **Other sample data sets**.
-<image1>
-3. Click **Add data** to install **Sample eCommerce orders**.
-<image2>
-<image3>
+3. Click **Add data** to install **Sample eCommerce orders**.   
 4. **Verify Installation:** Navigate to **Analytics \> Discover** and select the `kibana_sample_data_ecommerce` data view. You should see eCommerce order documents with complete customer, product, and transaction information.
 
 

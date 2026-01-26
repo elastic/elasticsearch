@@ -236,14 +236,15 @@ public class HashAggregationOperator implements Operator {
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
-            var evaluationContext = evaluationContext(blockHash, keys);
-            for (int i = 0; i < aggregators.size(); i++) {
-                var aggregator = aggregators.get(i);
-                evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
-                offset += aggBlockCounts[i];
+            try (var evaluationContext = evaluationContext(blockHash, keys)) {
+                for (int i = 0; i < aggregators.size(); i++) {
+                    var aggregator = aggregators.get(i);
+                    evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
+                    offset += aggBlockCounts[i];
+                }
+                output = new Page(blocks);
+                success = true;
             }
-            output = new Page(blocks);
-            success = true;
         } finally {
             // selected should always be closed
             if (selected != null) {

@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -131,6 +133,32 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 ),
                 "CoalesceExponentialHistogramEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.EXPONENTIAL_HISTOGRAM,
+                equalTo(firstHisto == null ? secondHisto : firstHisto)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.TDIGEST, DataType.TDIGEST), () -> {
+            TDigestHolder firstHisto = randomBoolean() ? null : EsqlTestUtils.randomTDigest();
+            TDigestHolder secondHisto = EsqlTestUtils.randomTDigest();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstHisto, DataType.TDIGEST, "first"),
+                    new TestCaseSupplier.TypedData(secondHisto, DataType.TDIGEST, "second")
+                ),
+                "CoalesceTDigestEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.TDIGEST,
+                equalTo(firstHisto == null ? secondHisto : firstHisto)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
+            BytesRef firstHisto = randomBoolean() ? null : EsqlTestUtils.randomHistogram();
+            BytesRef secondHisto = EsqlTestUtils.randomHistogram();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstHisto, DataType.HISTOGRAM, "first"),
+                    new TestCaseSupplier.TypedData(secondHisto, DataType.HISTOGRAM, "second")
+                ),
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.HISTOGRAM,
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));

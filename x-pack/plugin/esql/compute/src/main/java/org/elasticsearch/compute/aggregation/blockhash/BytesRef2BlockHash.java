@@ -182,7 +182,7 @@ final class BytesRef2BlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
     }
 
     @Override

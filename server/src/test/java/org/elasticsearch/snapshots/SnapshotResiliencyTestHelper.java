@@ -425,6 +425,8 @@ public class SnapshotResiliencyTestHelper {
 
             private ClusterService clusterService;
 
+            protected SearchService searchService;
+
             private RecoverySettings recoverySettings;
 
             private PeerRecoverySourceService peerRecoverySourceService;
@@ -723,7 +725,7 @@ public class SnapshotResiliencyTestHelper {
                     client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
-                final SearchService searchService = new SearchService(
+                this.searchService = new SearchService(
                     clusterService,
                     indicesService,
                     threadPool,

@@ -46,4 +46,9 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
     public abstract int previousGroupId(int currentGroupId);
 
     public abstract int nextGroupId(int currentGroupId);
+
+    /**
+     * Computes and caches the adjacent group IDs. They weill be used in #previousGroupId and #nextGroupId.
+     */
+    public abstract void computeAdjacentGroupIds();
 }

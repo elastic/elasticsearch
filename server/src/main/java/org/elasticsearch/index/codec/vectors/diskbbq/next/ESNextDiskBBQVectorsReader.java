@@ -33,7 +33,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -50,7 +52,7 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
+public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
@@ -184,6 +186,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         int bulkSize = input.readInt();
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        long preconditionerLength = input.readLong();
+        long preconditionerOffset = -1;
+        if (preconditionerLength > 0) {
+            preconditionerOffset = input.readLong();
+        }
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -197,12 +204,31 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             globalCentroid,
             globalCentroidDp,
             quantEncoding,
-            bulkSize
+            bulkSize,
+            preconditionerOffset,
+            preconditionerLength
         );
+    }
+
+    @Override
+    public Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException {
+        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        long preconditionerOffset = ((NextFieldEntry) fieldEntry).preconditionerOffset();
+        long preconditionerLength = ((NextFieldEntry) fieldEntry).preconditionerLength();
+        if (preconditionerLength > 0) {
+            IndexInput ivfPreconditionerSlice = ivfCentroids.slice("preconditioner", preconditionerOffset, preconditionerLength);
+            if (ivfPreconditionerSlice != null) {
+                ivfPreconditionerSlice.seek(0);
+                return Preconditioner.read(ivfPreconditionerSlice);
+            }
+        }
+        return null;
     }
 
     static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        protected final long preconditionerOffset;
+        protected final long preconditionerLength;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -217,7 +243,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             float[] globalCentroid,
             float globalCentroidDp,
             ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
-            int bulkSize
+            int bulkSize,
+            long preconditionerOffset,
+            long preconditionerLength
         ) {
             super(
                 rawVectorFormat,
@@ -234,10 +262,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 bulkSize
             );
             this.quantEncoding = quantEncoding;
+            this.preconditionerOffset = preconditionerOffset;
+            this.preconditionerLength = preconditionerLength;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
             return quantEncoding;
+        }
+
+        public long preconditionerOffset() {
+            return preconditionerOffset;
+        }
+
+        public long preconditionerLength() {
+            return preconditionerLength;
         }
     }
 

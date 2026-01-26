@@ -41,10 +41,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -481,7 +481,7 @@ public class SecurityTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -1274,7 +1274,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(realmAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1305,7 +1305,7 @@ public class SecurityTests extends ESTestCase {
         assertFalse(apiKeyAuth.isRunAs());
 
         serializer.writeToContext(apiKeyAuth, threadContext);
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
         assertNotNull(authContext);
 
         assertThat(authContext.get("user.name"), equalTo(apiKeyAuth.getAuthenticatingSubject().getUser().principal()));
@@ -1372,7 +1372,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(runAsAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1424,7 +1424,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1469,7 +1469,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1528,7 +1528,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
         // Assertions for the fields derived from the inner Run-as user

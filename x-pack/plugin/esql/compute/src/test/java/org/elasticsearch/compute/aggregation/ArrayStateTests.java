@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -190,7 +189,7 @@ public class ArrayStateTests extends ESTestCase {
         setAll(state, values, 0);
         Block[] intermediate = new Block[2];
         DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
-        state.toIntermediate(intermediate, 0, IntVector.range(0, valueCount, ctx.blockFactory()), ctx);
+        state.toIntermediate(intermediate, 0, ctx.blockFactory().newIntRangeVector(0, valueCount), ctx);
         try {
             assertThat(intermediate[0].elementType(), equalTo(elementType));
             assertThat(intermediate[1].elementType(), equalTo(ElementType.BOOLEAN));
@@ -223,7 +222,7 @@ public class ArrayStateTests extends ESTestCase {
         setAll(state, values, 0);
         Block[] intermediate = new Block[2];
         DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
-        state.toIntermediate(intermediate, 0, IntVector.range(0, end, ctx.blockFactory()), ctx);
+        state.toIntermediate(intermediate, 0, ctx.blockFactory().newIntRangeVector(0, end), ctx);
         try {
             assertThat(intermediate[0].elementType(), equalTo(elementType));
             assertThat(intermediate[1].elementType(), equalTo(ElementType.BOOLEAN));

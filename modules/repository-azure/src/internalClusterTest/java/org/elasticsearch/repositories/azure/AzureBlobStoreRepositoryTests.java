@@ -70,7 +70,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -403,7 +402,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             container.writeBlob(randomPurpose(), blobName, new ByteArrayInputStream(data), data.length, true);
 
             var originalDataInputStream = new ByteArrayInputStream(data);
-            try (var azureInputStream = container.readBlob(randomRetryingPurpose(), blobName)) {
+            try (var azureInputStream = container.readBlob(randomPurpose(), blobName)) {
                 for (int i = 0; i < data.length; i++) {
                     assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }

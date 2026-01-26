@@ -42,7 +42,9 @@ public class DynamicInstrumentationTests extends ESTestCase {
                             List.of("java/net/URLConnection"),
                             null
                         )
-                    )
+                    ),
+                    // removed in JDK 26
+                    is(new Descriptor("java/net/MulticastSocket", "send", List.of("java/net/DatagramPacket", "B"), null))
                 )
             )
         );

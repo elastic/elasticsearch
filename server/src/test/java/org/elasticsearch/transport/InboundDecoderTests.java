@@ -13,14 +13,17 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.InboundDecoder.ChannelType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,13 +37,17 @@ import static org.hamcrest.Matchers.instanceOf;
 public class InboundDecoderTests extends ESTestCase {
 
     private ThreadContext threadContext;
-    private BytesRefRecycler recycler;
+    private MockBytesRefRecycler recycler;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createServices() {
         threadContext = new ThreadContext(Settings.EMPTY);
-        recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        recycler = new MockBytesRefRecycler();
+    }
+
+    @After
+    public void closeServices() {
+        Releasables.closeExpectNoException(recycler);
     }
 
     public void testDecode() throws IOException {
@@ -65,7 +72,8 @@ public class InboundDecoderTests extends ESTestCase {
                 null,
                 isRequest ? new TestRequest(randomAlphaOfLength(100)) : new TestResponse(randomAlphaOfLength(100)),
                 threadContext,
-                os
+                os,
+                recycler
             );
             int totalHeaderSize = TcpHeader.HEADER_SIZE + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
@@ -137,7 +145,8 @@ public class InboundDecoderTests extends ESTestCase {
                 compressionScheme,
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,
-                os
+                os,
+                recycler
             );
 
             InboundDecoder decoder = new InboundDecoder(recycler);
@@ -188,7 +197,8 @@ public class InboundDecoderTests extends ESTestCase {
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,
-                os
+                os,
+                recycler
             );
             try (InboundDecoder clientDecoder = new InboundDecoder(recycler, ChannelType.CLIENT)) {
                 IllegalArgumentException e = expectThrows(
@@ -236,7 +246,8 @@ public class InboundDecoderTests extends ESTestCase {
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,
-                os
+                os,
+                recycler
             );
             try (InboundDecoder decoder = new InboundDecoder(recycler, ChannelType.SERVER)) {
                 final ReleasableBytesReference releasable1 = wrapAsReleasable(bytes);
@@ -281,7 +292,8 @@ public class InboundDecoderTests extends ESTestCase {
                 scheme,
                 transportMessage,
                 threadContext,
-                os
+                os,
+                recycler
             );
             final BytesStreamOutput out = new BytesStreamOutput();
             transportMessage.writeTo(out);
@@ -351,7 +363,8 @@ public class InboundDecoderTests extends ESTestCase {
                 Compression.Scheme.DEFLATE,
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,
-                os
+                os,
+                recycler
             );
 
             InboundDecoder decoder = new InboundDecoder(recycler);

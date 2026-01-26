@@ -57,6 +57,7 @@ public class BulkByScrollTask extends CancellableTask {
 
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
+    private volatile boolean relocationRequested = false;
 
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
@@ -179,6 +180,26 @@ public class BulkByScrollTask extends CancellableTask {
         if (isWorker()) {
             workerState.handleCancel();
         }
+    }
+
+    /**
+     * Marks this task as requiring relocation to another node, e.g. because this node is about to shut down.
+     *
+     * <p>This method is fire-and-forget and does not guarantee that relocation actually happens. (That can depend on various factors, such
+     * as whether: the task considers itself eligible for relocation; whether a suitable new node is available; and whether the task is able
+     * to get to an appropriate point to stop work and trigger the relocation in time.)
+     */
+    public void requestRelocation() {
+        // N.B. This method can be called regardless of whether the feature flag that gates this work is enabled or not (see
+        // org.elasticsearch.reindex.ReindexPlugin#REINDEX_RESILIENCE_ENABLED}). If it is not, calling this method should have no effect.
+        relocationRequested = true;
+    }
+
+    /**
+     * Returns whether this task has been marked as requiring relocation to another node. See {@link #requestRelocation()}.
+     */
+    public boolean isRelocationRequested() {
+        return relocationRequested;
     }
 
     /**

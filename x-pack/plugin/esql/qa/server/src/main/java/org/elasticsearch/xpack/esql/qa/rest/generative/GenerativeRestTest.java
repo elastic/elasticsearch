@@ -280,6 +280,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static String normalizeColumnName(String name) {
+        if (name.startsWith("`") && name.endsWith("`") && name.startsWith("```") == false) {
+            name = "``" + name + "``";
+        }
         return name.contains("-") && name.startsWith("`") == false ? Strings.format("`%s`", name) : name;
     }
 

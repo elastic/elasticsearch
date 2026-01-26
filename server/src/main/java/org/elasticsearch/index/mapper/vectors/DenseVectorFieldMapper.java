@@ -1765,8 +1765,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
+                boolean doPrecondition = false;
+                if (Build.current().isSnapshot()) {
+                    doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
+                }
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion);
+                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion, doPrecondition);
             }
 
             @Override
@@ -2417,19 +2422,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
+        final boolean doPrecondition;
 
         BBQIVFIndexOptions(
             int clusterSize,
             double defaultVisitPercentage,
             boolean onDiskRescore,
             RescoreVector rescoreVector,
-            IndexVersion indexVersionCreated
+            IndexVersion indexVersionCreated,
+            boolean doPrecondition
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
             this.onDiskRescore = onDiskRescore;
             this.indexVersionCreated = indexVersionCreated;
+            this.doPrecondition = doPrecondition;
         }
 
         @Override
@@ -2451,7 +2459,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     elementType,
                     onDiskRescore,
                     mergingExecutorService,
-                    numMergeWorkers
+                    numMergeWorkers,
+                    doPrecondition,
+                    ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
                 );
             }
             return new ES920DiskBBQVectorsFormat(
@@ -2500,6 +2510,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
+            if (doPrecondition) {
+                builder.field("precondition", doPrecondition);
+            }
             builder.endObject();
             return builder;
         }
@@ -2514,6 +2527,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean isOnDiskRescore() {
             return onDiskRescore;
+        }
+
+        public boolean doPrecondition() {
+            return doPrecondition;
         }
     }
 
@@ -2968,9 +2985,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         parentFilter,
-                        visitRatio
+                        visitRatio,
+                        bbqIndexOptions.doPrecondition()
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, visitRatio);
+                    : new IVFKnnFloatVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        visitRatio,
+                        bbqIndexOptions.doPrecondition()
+                    );
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

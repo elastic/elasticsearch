@@ -133,6 +133,8 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         for (String nodeId : nodeIds) {
             nodes[currentNode++] = clusterState.getNodes().get(nodeId);
         }
-        listener.onResponse(new ClusterSearchShardsResponse(groupResponses, nodes, indicesAndFilters));
+        listener.onResponse(
+            new ClusterSearchShardsResponse(groupResponses, nodes, indicesAndFilters, request.getResolvedIndexExpressions())
+        );
     }
 }

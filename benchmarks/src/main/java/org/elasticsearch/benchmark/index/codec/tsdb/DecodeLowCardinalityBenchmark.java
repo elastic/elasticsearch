@@ -52,15 +52,20 @@ public class DecodeLowCardinalityBenchmark {
     @Param({ "1", "2", "3" })
     private double skew;
 
+    /**
+     * Number of blocks decoded per measured benchmark invocation.
+     *
+     * <p>Default is 10: the smallest batch size that provides stable measurements with good
+     * signal-to-noise ratio for regression tracking. Exposed as a JMH parameter to allow
+     * tuning without code changes.
+     */
+    @Param({ "10" })
+    private int blocksPerInvocation;
+
     private final AbstractTSDBCodecBenchmark decode;
 
     public DecodeLowCardinalityBenchmark() {
         this.decode = new DecodeBenchmark();
-    }
-
-    @Setup(Level.Invocation)
-    public void setupInvocation() throws IOException {
-        decode.setupInvocation();
     }
 
     @Setup(Level.Trial)
@@ -68,11 +73,14 @@ public class DecodeLowCardinalityBenchmark {
         decode.setupTrial(
             LowCardinalitySupplier.builder(SEED, decode.getBlockSize()).withDistinctValues(distinctValues).withSkew(skew).build()
         );
+
+        decode.setBlocksPerInvocation(blocksPerInvocation);
+        decode.run();
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize() * blocksPerInvocation, decode.getEncodedSize() * blocksPerInvocation);
     }
 }

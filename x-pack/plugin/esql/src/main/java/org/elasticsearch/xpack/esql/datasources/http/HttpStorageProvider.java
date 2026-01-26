@@ -1,0 +1,133 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources.http;
+
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+
+import java.io.IOException;
+import java.net.http.HttpClient;
+import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+
+/**
+ * StorageProvider implementation for HTTP/HTTPS using Java's built-in HttpClient.
+ * 
+ * Features:
+ * - Full object reads via GET
+ * - Range reads via HTTP Range header
+ * - Metadata retrieval via HEAD
+ * - Configurable timeouts and redirects
+ * 
+ * Note: HTTP/HTTPS does not support directory listing, so listObjects() returns null.
+ */
+public final class HttpStorageProvider implements StorageProvider {
+    private final HttpClient httpClient;
+    private final HttpConfiguration config;
+
+    /**
+     * Creates an HttpStorageProvider with configuration and executor.
+     * 
+     * @param config the HTTP configuration
+     * @param executor the executor service for async operations
+     */
+    public HttpStorageProvider(HttpConfiguration config, ExecutorService executor) {
+        if (config == null) {
+            throw new IllegalArgumentException("config cannot be null");
+        }
+        if (executor == null) {
+            throw new IllegalArgumentException("executor cannot be null");
+        }
+        
+        this.config = config;
+        this.httpClient = HttpClient.newBuilder()
+            .connectTimeout(config.connectTimeout())
+            .followRedirects(config.followRedirects() ? HttpClient.Redirect.NORMAL : HttpClient.Redirect.NEVER)
+            .executor(executor)
+            .build();
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path) {
+        validateHttpScheme(path);
+        return new HttpStorageObject(httpClient, path, config);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length) {
+        validateHttpScheme(path);
+        return new HttpStorageObject(httpClient, path, config, length);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+        validateHttpScheme(path);
+        return new HttpStorageObject(httpClient, path, config, length, lastModified);
+    }
+
+    @Override
+    public StorageIterator listObjects(StoragePath directory) throws IOException {
+        // HTTP/HTTPS does not support directory listing
+        // Return null to indicate this operation is not available
+        return null;
+    }
+
+    @Override
+    public boolean exists(StoragePath path) throws IOException {
+        validateHttpScheme(path);
+        StorageObject object = newObject(path);
+        return object.exists();
+    }
+
+    @Override
+    public List<String> supportedSchemes() {
+        return List.of("http", "https");
+    }
+
+    @Override
+    public void close() throws IOException {
+        // HttpClient doesn't require explicit cleanup
+        // The executor is managed externally
+    }
+
+    /**
+     * Validates that the path uses an HTTP or HTTPS scheme.
+     */
+    private void validateHttpScheme(StoragePath path) {
+        String scheme = path.scheme().toLowerCase();
+        if (!scheme.equals("http") && !scheme.equals("https")) {
+            throw new IllegalArgumentException(
+                "HttpStorageProvider only supports http:// and https:// schemes, got: " + scheme
+            );
+        }
+    }
+
+    /**
+     * Returns the HttpClient used by this provider.
+     * Useful for testing and advanced use cases.
+     */
+    public HttpClient httpClient() {
+        return httpClient;
+    }
+
+    /**
+     * Returns the configuration used by this provider.
+     */
+    public HttpConfiguration config() {
+        return config;
+    }
+
+    @Override
+    public String toString() {
+        return "HttpStorageProvider{config=" + config + "}";
+    }
+}

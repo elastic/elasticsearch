@@ -14,6 +14,9 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
 
+// EXTERNAL command (development only)
+EXTERNAL : {this.isDevVersion()}? 'external' -> pushMode(FROM_MODE);
+
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_COLON : COLON -> type(COLON);
@@ -21,6 +24,24 @@ FROM_SELECTOR : CAST_OP -> type(CAST_OP);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
+
+// Support for EXTERNAL command WITH clause - transitions to EXPRESSION_MODE for map parsing
+FROM_WITH : WITH -> type(WITH), popMode, pushMode(EXPRESSION_MODE);
+
+// Support for EXTERNAL command parameters
+FROM_UNQUOTED_IDENTIFIER : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+FROM_QUOTED_IDENTIFIER : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);
+FROM_PARAM : PARAM -> type(PARAM);
+FROM_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+FROM_TRUE : TRUE -> type(TRUE);
+FROM_FALSE : FALSE -> type(FALSE);
+FROM_NULL : NULL -> type(NULL);
+FROM_INTEGER_LITERAL : INTEGER_LITERAL -> type(INTEGER_LITERAL);
+FROM_DECIMAL_LITERAL : DECIMAL_LITERAL -> type(DECIMAL_LITERAL);
+FROM_PLUS : PLUS -> type(PLUS);
+FROM_MINUS : MINUS -> type(MINUS);
+FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
+FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 
 // we need this for EXPLAIN
 // change to double popMode to accommodate subquerys in FROM, when see ')' pop out of subquery(default) mode and from mode

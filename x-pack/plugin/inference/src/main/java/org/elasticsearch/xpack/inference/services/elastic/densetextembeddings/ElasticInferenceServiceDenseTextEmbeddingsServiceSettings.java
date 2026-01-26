@@ -167,14 +167,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-        rateLimitSettings.toXContent(builder, params);
-
-        return builder;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
 
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
@@ -191,6 +183,15 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (maxBatchSize != null) {
             builder.field(MAX_BATCH_SIZE, maxBatchSize);
         }
+
+        rateLimitSettings.toXContent(builder, params);
+
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
 

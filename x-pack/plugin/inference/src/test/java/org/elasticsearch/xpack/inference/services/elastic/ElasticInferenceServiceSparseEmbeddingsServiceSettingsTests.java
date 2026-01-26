@@ -59,7 +59,10 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         switch (randomIntBetween(0, 2)) {
             case 0 -> modelId = randomValueOtherThan(instance.modelId(), ElserModelsTests::randomElserModel);
             case 1 -> maxInputTokens = randomValueOtherThan(instance.maxInputTokens(), ESTestCase::randomNonNegativeIntOrNull);
-            case 2 -> maxBatchSize = randomValueOtherThan(instance.maxBatchSize(), () -> randomIntBetween(1, 512));
+            case 2 -> maxBatchSize = randomValueOtherThan(
+                instance.maxBatchSize(),
+                () -> randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
@@ -130,7 +133,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
     public void testToXContent_WritesAllFields() throws IOException {
         var modelId = ElserModels.ELSER_V1_MODEL;
         var maxInputTokens = randomNonNegativeInt();
-        var maxBatchSize = randomNonNegativeInt();
+        var maxBatchSize = randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND);
         var serviceSettings = new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -143,7 +146,10 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
 
     public void testUpdateServiceSettings_GivenValidMaxBatchSize() {
         ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
-        int newBatchSize = randomValueOtherThan(original.maxBatchSize(), () -> randomIntBetween(1, 512));
+        int newBatchSize = randomValueOtherThan(
+            original.maxBatchSize(),
+            () -> randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
+        );
 
         ServiceSettings updated = original.updateServiceSettings(Map.of("max_batch_size", newBatchSize));
 
@@ -156,22 +162,53 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
     public void testUpdateServiceSettings_GivenInvalidMaxBatchSize() {
         ElasticInferenceServiceSparseEmbeddingsServiceSettings original = createRandom();
 
-        expectThrows(
-            ValidationException.class,
-            () -> original.updateServiceSettings(Map.of("max_batch_size", randomIntBetween(Integer.MIN_VALUE, 0)))
-        );
-        expectThrows(ValidationException.class, () -> original.updateServiceSettings(Map.of("max_batch_size", 0)));
-        expectThrows(
-            ValidationException.class,
-            () -> original.updateServiceSettings(Map.of("max_batch_size", randomIntBetween(513, Integer.MAX_VALUE)))
-        );
+        {
+            ValidationException e = expectThrows(
+                ValidationException.class,
+                () -> original.updateServiceSettings(Map.of("max_batch_size", 0))
+            );
+            assertThat(e.getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer;"));
+        }
+
+        {
+            final int newBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
+            ValidationException e = expectThrows(
+                ValidationException.class,
+                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("Invalid value [" + newBatchSize + "]. [max_batch_size] must be a positive integer;")
+            );
+        }
+
+        {
+            final int newBatchSize = randomIntBetween(
+                ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND + 1,
+                Integer.MAX_VALUE
+            );
+            ValidationException e = expectThrows(
+                ValidationException.class,
+                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Invalid value ["
+                        + Strings.format("%s", (double) newBatchSize)
+                        + "]. [max_batch_size] must be less than or equal to ["
+                        + (double) ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND
+                        + "];"
+                )
+            );
+        }
     }
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings createRandom() {
         return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(
             randomElserModel(),
             randomNonNegativeIntOrNull(),
-            randomNonNegativeIntOrNull()
+            randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
         );
     }
 

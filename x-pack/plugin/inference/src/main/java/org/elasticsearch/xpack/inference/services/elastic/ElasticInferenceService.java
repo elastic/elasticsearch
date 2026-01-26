@@ -524,6 +524,19 @@ public class ElasticInferenceService extends SenderService {
                 .build()
         );
 
+        configurationMap.put(
+            ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
+            new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
+                "Allows you to specify the maximum number of chunks per batch."
+            )
+                .setLabel("Maximum Batch Size")
+                .setRequired(false)
+                .setSensitive(false)
+                .setUpdatable(true)
+                .setType(SettingsConfigurationFieldType.INTEGER)
+                .build()
+        );
+
         return new InferenceServiceConfiguration.Builder().setService(NAME)
             .setName(SERVICE_NAME)
             .setTaskTypes(enabledTaskTypes)

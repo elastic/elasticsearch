@@ -37,7 +37,7 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
         assert ExponentialHistogramFieldProducer.TYPE.equals(fieldType) == false
             : "field type cannot be exponential histogram: " + fieldType + " for field " + name;
-        assert TDigestHistogramFieldProducer.TYPE.equals(fieldType) == false
+        assert TDigestHistogramFieldProducer.HISTOGRAM_TYPE.equals(fieldType) == false
             : "field type cannot be histogram: " + fieldType + " for field " + name;
         if ("flattened".equals(fieldType)) {
             return new LastValueFieldProducer.FlattenedFieldProducer(name);

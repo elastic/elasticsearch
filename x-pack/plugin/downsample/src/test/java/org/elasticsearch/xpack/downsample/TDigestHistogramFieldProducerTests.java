@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TDigestHistogramFieldProducerTests extends ESTestCase {
 
     public void testLastValueProducer() throws IOException {
-        var producer = TDigestHistogramFieldProducer.create("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
+        var producer = TDigestHistogramFieldProducer.createForLegacyHistogram("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -47,7 +47,7 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
     }
 
     public void testAggregateProducer() throws IOException {
-        var producer = TDigestHistogramFieldProducer.create("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
+        var producer = TDigestHistogramFieldProducer.createForLegacyHistogram("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 

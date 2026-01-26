@@ -88,8 +88,8 @@ class FieldValueFetcher {
     private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
-        if (TDigestHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
-            return TDigestHistogramFieldProducer.create(name(), samplingMethod);
+        if (TDigestHistogramFieldProducer.HISTOGRAM_TYPE.equals(fieldType.typeName())) {
+            return TDigestHistogramFieldProducer.createForLegacyHistogram(name(), samplingMethod);
         }
         if (ExponentialHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
             return ExponentialHistogramFieldProducer.create(name(), samplingMethod);

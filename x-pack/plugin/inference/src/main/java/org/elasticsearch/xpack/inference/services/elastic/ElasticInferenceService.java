@@ -252,7 +252,7 @@ public class ElasticInferenceService extends SenderService {
         return switch (model) {
             case ElasticInferenceServiceDenseTextEmbeddingsModel denseModel -> new EmbeddingRequestChunker<>(
                 inputs,
-                Optional.ofNullable(denseModel.getServiceSettings().maxBatchSize()).orElse(DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE),
+                DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
                 denseModel.getConfigurations().getChunkingSettings()
             );
             case ElasticInferenceServiceSparseEmbeddingsModel sparseModel -> new EmbeddingRequestChunker<>(
@@ -465,14 +465,12 @@ public class ElasticInferenceService extends SenderService {
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? defaultDenseTextEmbeddingsSimilarity() : similarityFromModel;
             var maxInputTokens = serviceSettings.maxInputTokens();
-            var maxBatchSize = serviceSettings.maxBatchSize();
 
             var updateServiceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
                 modelId,
                 similarityToUse,
                 embeddingSize,
-                maxInputTokens,
-                maxBatchSize
+                maxInputTokens
             );
 
             return new ElasticInferenceServiceDenseTextEmbeddingsModel(embeddingsModel, updateServiceSettings);
@@ -526,7 +524,7 @@ public class ElasticInferenceService extends SenderService {
 
         configurationMap.put(
             ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
-            new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
+            new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription(
                 "Allows you to specify the maximum number of chunks per batch."
             )
                 .setLabel("Maximum Batch Size")

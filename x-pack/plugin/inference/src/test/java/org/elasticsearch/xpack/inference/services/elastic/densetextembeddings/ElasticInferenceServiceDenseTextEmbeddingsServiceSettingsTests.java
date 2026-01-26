@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -54,20 +53,15 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = instance.similarity();
         var dimensions = instance.dimensions();
         var maxInputTokens = instance.maxInputTokens();
-        var maxBatchSize = instance.maxBatchSize();
-        switch (randomInt(4)) {
+        switch (randomInt(3)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
             case 1 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
             case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 1024), null));
             case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
-            case 4 -> maxBatchSize = randomValueOtherThan(
-                maxBatchSize,
-                () -> randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
-            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens, maxBatchSize);
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
     }
 
     public void testFromMap_Request_WithAllSettings() {
@@ -87,9 +81,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                     ServiceFields.DIMENSIONS,
                     dimensions,
                     ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
-                    maxBatchSize
+                    maxInputTokens
                 )
             ),
             ConfigurationParseContext.REQUEST
@@ -99,7 +91,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         assertThat(serviceSettings.similarity(), is(similarity));
         assertThat(serviceSettings.dimensions(), is(dimensions));
         assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
-        assertThat(serviceSettings.maxBatchSize(), is(maxBatchSize));
     }
 
     public void testFromMap_WithAllSettings_DoesNotRemoveRateLimitField_DoesNotThrowValidationException_PersistentContext() {
@@ -107,7 +98,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 384;
         var maxInputTokens = 512;
-        var maxBatchSize = randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND);
 
         var map = new HashMap<String, Object>(
             Map.of(
@@ -119,8 +109,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 dimensions,
                 ServiceFields.MAX_INPUT_TOKENS,
                 maxInputTokens,
-                ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
-                maxBatchSize,
                 RateLimitSettings.FIELD_NAME,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
@@ -132,7 +120,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         assertThat(serviceSettings.similarity(), is(similarity));
         assertThat(serviceSettings.dimensions(), is(dimensions));
         assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
-        assertThat(serviceSettings.maxBatchSize(), is(maxBatchSize));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
@@ -141,7 +128,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 384;
         var maxInputTokens = 512;
-        var maxBatchSize = randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND);
 
         var map = new HashMap<String, Object>(
             Map.of(
@@ -153,8 +139,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 dimensions,
                 ServiceFields.MAX_INPUT_TOKENS,
                 maxInputTokens,
-                ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
-                maxBatchSize,
                 RateLimitSettings.FIELD_NAME,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
@@ -176,7 +160,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 384;
         var maxInputTokens = 512;
-        var maxBatchSize = randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND);
 
         var map = new HashMap<String, Object>(
             Map.of(
@@ -187,9 +170,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 ServiceFields.DIMENSIONS,
                 dimensions,
                 ServiceFields.MAX_INPUT_TOKENS,
-                maxInputTokens,
-                ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
-                maxBatchSize
+                maxInputTokens
             )
         );
         var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
@@ -199,7 +180,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         assertThat(serviceSettings.similarity(), is(similarity));
         assertThat(serviceSettings.dimensions(), is(dimensions));
         assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
-        assertThat(serviceSettings.maxBatchSize(), is(maxBatchSize));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
@@ -208,29 +188,20 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.DOT_PRODUCT;
         var dimensions = 1024;
         var maxInputTokens = 256;
-        var maxBatchSize = randomIntBetween(1, 512);
 
         var serviceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
             modelId,
             similarity,
             dimensions,
-            maxInputTokens,
-            maxBatchSize
+            maxInputTokens
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        String expectedResult = Strings.format(
-            """
-                {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d,"max_batch_size":%d}""",
-            modelId,
-            similarity,
-            dimensions,
-            maxInputTokens,
-            maxBatchSize
-        );
+        String expectedResult = Strings.format("""
+            {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d}""", modelId, similarity, dimensions, maxInputTokens);
 
         assertThat(xContentResult, is(expectedResult));
     }
@@ -242,8 +213,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             modelId,
             null, // similarity
             null, // dimensions
-            null, // maxInputTokens,
-            null // maxBatchSize
+            null // maxInputTokens
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -257,13 +227,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
     public void testToXContentFragmentOfExposedFields() throws IOException {
         var modelId = "my-dense-model";
 
-        var serviceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-            modelId,
-            SimilarityMeasure.COSINE,
-            512,
-            128,
-            32
-        );
+        var serviceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, 512, 128);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
@@ -278,81 +242,15 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 XContentHelper.stripWhitespace(
                     Strings.format(
                         """
-                            {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d,"max_batch_size":%d}""",
+                            {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d}""",
                         modelId,
                         serviceSettings.similarity(),
                         serviceSettings.dimensions(),
-                        serviceSettings.maxInputTokens(),
-                        serviceSettings.maxBatchSize()
+                        serviceSettings.maxInputTokens()
                     )
                 )
             )
         );
-    }
-
-    public void testUpdateServiceSettings_GivenValidMaxBatchSize() {
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings original = createRandom();
-        int newBatchSize = randomValueOtherThan(original.maxBatchSize(), () -> randomIntBetween(1, 512));
-
-        ServiceSettings updated = original.updateServiceSettings(Map.of("max_batch_size", newBatchSize));
-
-        assertThat(
-            updated,
-            is(
-                new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-                    original.modelId(),
-                    original.similarity(),
-                    original.dimensions(),
-                    original.maxInputTokens(),
-                    newBatchSize
-                )
-            )
-        );
-    }
-
-    public void testUpdateServiceSettings_GivenInvalidMaxBatchSize() {
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings original = createRandom();
-
-        {
-            ValidationException e = expectThrows(
-                ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", 0))
-            );
-            assertThat(e.getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer;"));
-        }
-
-        {
-            final int newBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
-            ValidationException e = expectThrows(
-                ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("Invalid value [" + newBatchSize + "]. [max_batch_size] must be a positive integer;")
-            );
-        }
-
-        {
-            final int newBatchSize = randomIntBetween(
-                ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND + 1,
-                Integer.MAX_VALUE
-            );
-            ValidationException e = expectThrows(
-                ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
-            );
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "Invalid value ["
-                        + Strings.format("%s", (double) newBatchSize)
-                        + "]. [max_batch_size] must be less than or equal to ["
-                        + (double) ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND
-                        + "];"
-                )
-            );
-        }
     }
 
     public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings createRandom() {
@@ -360,9 +258,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = randomBoolean() ? randomIntBetween(1, 1024) : null;
         var maxInputTokens = randomBoolean() ? randomIntBetween(128, 256) : null;
-        var maxBatchSize = randomBoolean() ? randomIntBetween(1, 512) : null;
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens, maxBatchSize);
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
     }
 
     @Override
@@ -370,15 +267,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings instance,
         TransportVersion version
     ) {
-        if (version.supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE) == false) {
-            return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-                instance.modelId(),
-                instance.similarity(),
-                instance.dimensions(),
-                instance.maxInputTokens(),
-                null
-            );
-        }
         return instance;
     }
 }

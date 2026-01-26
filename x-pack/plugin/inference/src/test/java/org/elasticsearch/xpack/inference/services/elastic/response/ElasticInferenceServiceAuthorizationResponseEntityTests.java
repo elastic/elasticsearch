@@ -474,13 +474,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_EMBED_V3_ENDPOINT_ID,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-                JINA_EMBED_V3_MODEL_NAME,
-                SimilarityMeasure.COSINE,
-                1024,
-                null,
-                null
-            ),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),

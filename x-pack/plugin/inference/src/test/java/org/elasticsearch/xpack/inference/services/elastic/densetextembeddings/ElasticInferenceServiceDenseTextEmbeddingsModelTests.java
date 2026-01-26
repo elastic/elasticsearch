@@ -22,7 +22,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
             "id",
             TaskType.TEXT_EMBEDDING,
             "elastic",
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null, null),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),

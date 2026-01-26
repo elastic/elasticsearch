@@ -27,7 +27,6 @@ import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.plugins.Plugin;
@@ -56,7 +55,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -939,52 +937,12 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testBatching_GivenDenseAndBatchSizeOfOne() throws IOException {
-        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
+    public void testBatching_GivenSparseAndMultipleChunksFittingInSingleBatch() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 1),
-            new WordBoundaryChunkingSettings(1, 0)
-        );
-
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = createService(senderFactory, getUrl(webServer))) {
-            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
-                model,
-                List.of(new ChunkInferenceInput("hello world"))
-            );
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
-            assertThat(batches, hasSize(2));
-            assertThatBatchContains(batches.get(0), List.of(List.of("hello")));
-            assertThatBatchContains(batches.get(1), List.of(List.of(" world")));
-        }
-    }
-
-    public void testBatching_GivenDenseAndBatchSizeOfTwo() throws IOException {
-        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
-            getUrl(webServer),
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 2),
-            new WordBoundaryChunkingSettings(1, 0)
-        );
-
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = createService(senderFactory, getUrl(webServer))) {
-            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
-                model,
-                List.of(new ChunkInferenceInput("hello world plus"))
-            );
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
-            assertThat(batches, hasSize(2));
-            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world")));
-            assertThatBatchContains(batches.get(1), List.of(List.of(" plus")));
-        }
-    }
-
-    public void testBatching_GivenDenseAndMultipleChunksFittingInSingleBatch() throws IOException {
-        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
-            getUrl(webServer),
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings("my-dense-model-id", SimilarityMeasure.COSINE, null, null, 10),
+            "my-sparse-model-id",
+            null,
+            10,
             new WordBoundaryChunkingSettings(1, 0)
         );
 
@@ -1096,7 +1054,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                            "sensitive": false,
                            "updatable": true,
                            "type": "int",
-                           "supported_task_types": ["text_embedding", "sparse_embedding"]
+                           "supported_task_types": ["sparse_embedding"]
                        }
                    }
                }
@@ -1145,7 +1103,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                            "sensitive": false,
                            "updatable": true,
                            "type": "int",
-                           "supported_task_types": ["text_embedding", "sparse_embedding"]
+                           "supported_task_types": ["sparse_embedding"]
                        }
                    }
                }

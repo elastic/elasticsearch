@@ -181,7 +181,6 @@ public class ElasticInferenceServiceAuthorizationModel {
                 authorizedEndpoint.modelName(),
                 getSimilarityMeasure(config),
                 config.dimensions(),
-                null,
                 null
             ),
             EmptyTaskSettings.INSTANCE,

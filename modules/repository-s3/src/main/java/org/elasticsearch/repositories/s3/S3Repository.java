@@ -136,18 +136,13 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
-     * Default size allowed for copy without multipart.
-     */
-    static final ByteSizeValue DEFAULT_MAX_COPY_SIZE_BEFORE_MULTIPART = ByteSizeValue.of(100, ByteSizeUnit.MB);
-
-    /**
      * Maximum size allowed for copy without multipart.
      * Objects larger than this will be copied using multipart copy. S3 enforces a minimum multipart size of 5 MiB and a maximum
-     * non-multipart copy size of 5 GiB. The default is 100MB in order to minimize request count without hitting the read timeout.
+     * non-multipart copy size of 5 GiB. The default is to use the maximum allowable size in order to minimize request count.
      */
-    static final Setting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING = Setting.byteSizeSetting(
+    static final Setting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART = Setting.byteSizeSetting(
         "max_copy_size_before_multipart",
-        DEFAULT_MAX_COPY_SIZE_BEFORE_MULTIPART,
+        MAX_FILE_SIZE,
         MIN_PART_SIZE_USING_MULTIPART,
         MAX_FILE_SIZE
     );
@@ -347,7 +342,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             );
         }
 
-        this.maxCopySizeBeforeMultipart = MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING.get(metadata.settings());
+        this.maxCopySizeBeforeMultipart = MAX_COPY_SIZE_BEFORE_MULTIPART.get(metadata.settings());
 
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 

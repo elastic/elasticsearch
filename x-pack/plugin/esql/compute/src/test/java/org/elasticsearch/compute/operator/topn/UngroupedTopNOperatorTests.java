@@ -71,6 +71,11 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
     }
 
     @Override
+    protected List<List<Object>> expectedTop(List<List<Object>> input) {
+        throw new AssertionError("TODO(gal) NOCOMMIT");
+    }
+
+    @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         for (int i = 0; i < results.size() - 1; i++) {
             assertThat(results.get(i).getPositionCount(), equalTo(pageSize));

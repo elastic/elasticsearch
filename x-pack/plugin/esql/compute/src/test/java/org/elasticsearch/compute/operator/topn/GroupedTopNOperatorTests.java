@@ -77,6 +77,11 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         assertThat(outputValues, equalTo(expectedValues));
     }
 
+    @Override
+    protected List<List<Object>> expectedTop(List<List<Object>> input) {
+        return computeTopN(input, groupKeys(), List.of(new SortOrder(0, true, false)), TOP_COUNT);
+    }
+
     public void testBasicTopN() {
         List<Long> values = Arrays.asList(2L, 1L, 4L, null, 4L, null);
         assertThat(topNLong(values, 1, true, false), equalTo(Arrays.asList(1L, 2L, 4L, null)));
@@ -318,7 +323,11 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         int limit,
         boolean ascendingOrder
     ) {
-        List<List<Object>> singleValueInput = inputValues.stream().map(row -> row.stream().map(v -> (Object) v).toList()).toList();
+        List<List<Object>> singleValueInput = new ArrayList<>();
+        for (List<?> row : inputValues) {
+            List<Object> rowAsObject = row.stream().map(v -> (Object) v).toList();
+            singleValueInput.add(rowAsObject);
+        }
         List<SortOrder> sortOrders = List.of(new SortOrder(sortChannel, ascendingOrder, false));
         return new GroupedTopNOperatorTests().computeTopN(singleValueInput, List.of(groupChannel), sortOrders, limit);
     }

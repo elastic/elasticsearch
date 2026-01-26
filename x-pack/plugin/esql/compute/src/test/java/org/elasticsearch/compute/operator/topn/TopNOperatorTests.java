@@ -361,13 +361,11 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         int size = 10;
         int topCount = 3;
         List<Block> blocks = new ArrayList<>();
-        List<List<? extends Object>> expectedTop = new ArrayList<>();
+        List<List<Object>> rawValues = new ArrayList<>();
 
         IntBlock keys = blockFactory.newIntArrayVector(IntStream.range(0, size).toArray(), size).asBlock();
-        List<Integer> topKeys = new ArrayList<>(IntStream.range(size - topCount, size).boxed().toList());
-        Collections.reverse(topKeys);
-        expectedTop.add(topKeys);
         blocks.add(keys);
+        rawValues.add(IntStream.range(0, size).<Object>mapToObj(Integer::valueOf).toList());
 
         List<ElementType> elementTypes = new ArrayList<>();
         List<TopNEncoder> encoders = new ArrayList<>();
@@ -382,18 +380,15 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             }
             elementTypes.add(e);
             encoders.add(nonKeyEncoder(e));
-            List<Object> eTop = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(size, driverContext().blockFactory())) {
+                var rawValuesForElement = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {
                     Object value = randomValue(e);
                     append(builder, value);
-                    if (i >= size - topCount) {
-                        eTop.add(value);
-                    }
+                    rawValuesForElement.add(value);
                 }
-                Collections.reverse(eTop);
                 blocks.add(builder.build());
-                expectedTop.add(eTop);
+                rawValues.add(rawValuesForElement);
             }
         }
 
@@ -420,9 +415,11 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             runDriver(driver);
         }
 
-        assertMap(actualTop, matchesList(expectedTop));
+        assertMap(actualTop, matchesList(expectedTop(rawValues)));
         assertDriverContext(driverContext);
     }
+
+    protected abstract List<List<Object>> expectedTop(List<List<Object>> input);
 
     public void testCollectAllValues_RandomMultiValues() {
         DriverContext driverContext = driverContext();
@@ -573,7 +570,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                             sourceOperator.elementTypes(),
                             encoder,
                             sortOrders,
-                            groupKeys(),
+                            groupKeys,
                             randomPageSize()
                         )
                     ),

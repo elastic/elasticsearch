@@ -175,7 +175,7 @@ decade:integer | description:keyword | in_range:boolean
 1960           | Swinging Sixties    | true
 ;
 
-inRangeMultipleMatches
+inRangeMultipleMatches#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM employees

@@ -230,7 +230,11 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
             case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context, stepAttribute);
             case ScalarFunction functionCall -> mapScalarFunction(promqlCommand, functionCall, stepAttribute);
-            case VectorBinaryOperator binaryOperator -> mapBinaryOperator(promqlCommand, binaryOperator, labelFilterConditions, context,
+            case VectorBinaryOperator binaryOperator -> mapBinaryOperator(
+                promqlCommand,
+                binaryOperator,
+                labelFilterConditions,
+                context,
                 stepAttribute
             );
             default -> throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", p);

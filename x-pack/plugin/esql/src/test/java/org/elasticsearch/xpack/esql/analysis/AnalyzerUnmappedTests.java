@@ -3065,7 +3065,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *       \_Project[[c{r}#44, _fork{r}#6, d{r}#10, does_not_exist2{r}#39]]
      *         \_Eval[[null[LONG] AS c#44]]
      *           \_Eval[[fork2[KEYWORD] AS _fork#6]]
-     *             \_Aggregate[[does_not_exist2{r}#39],[AVG(salary{f}#29,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS d#10, does_not_exist2{r}#39]]
+     *             \_Aggregate[[does_not_exist2{r}#39],[AVG(salary{f}#29,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS d#10,
+     *                  does_not_exist2{r}#39]]
      *               \_Filter[ISNULL(does_not_exist1{r}#37)]
      *                 \_Eval[[null[NULL] AS does_not_exist1#37, null[NULL] AS does_not_exist2#39]]
      *                   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]

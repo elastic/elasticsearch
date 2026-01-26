@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.logsdb.patterntext.PatternTextDocValues.getArgsDocValues;
+
 /**
  * Values which exceed 32kb cannot be stored as sorted set doc values. Such values must be stored outside sorted set doc values.
  * This class relies on {@link PatternTextDocValues} but can fall back to values that were stored seperately because limit was exceded.
@@ -135,18 +137,15 @@ public abstract class PatternTextFallbackDocValues extends BinaryDocValues {
             return null;
         }
 
-        var docValues = PatternTextDocValues.from(
-            leafReader,
-            fieldType.templateFieldName(),
-            fieldType.argsFieldName(),
-            fieldType.argsInfoFieldName(),
-            fieldType.useBinaryDocValuesArgs()
-        );
+        SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, fieldType.templateFieldName());
+        BinaryDocValues argsDocValues = getArgsDocValues(leafReader, fieldType.argsFieldName(), fieldType.useBinaryDocValuesArgs());
+        SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, fieldType.argsInfoFieldName());
+        var docValues = new PatternTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
 
         FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(fieldType.storedNamed());
         if (fieldInfo == null) {
             // If there is no stored subfield (either binary doc values or stored field),
-            // then there is no need to use PatternTextCompositeValues
+            // then there is no need to use PatternTextFallbackDocValues
             return docValues;
         }
 

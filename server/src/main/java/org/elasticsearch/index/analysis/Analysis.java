@@ -369,45 +369,54 @@ public class Analysis {
     }
 
     public static Reader getReaderFromIndex(
-        String synonymsSet,
+        List<String> synonymsSets,
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
+        List<PlainActionFuture<PagedResult<SynonymRule>>> futures = new ArrayList<>();
 
-        PagedResult<SynonymRule> results;
-
-        try {
-            results = synonymsLoadingFuture.actionGet();
-        } catch (Exception e) {
-            if (ignoreMissing == false) {
-                throw e;
-            }
-
-            boolean notFound = e instanceof ResourceNotFoundException;
-            String message = String.format(
-                Locale.ROOT,
-                "Synonyms set %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
-                synonymsSet,
-                notFound ? "not found" : "could not be loaded"
-            );
-
-            if (notFound) {
-                logger.warn(message);
-            } else {
-                logger.error(message, e);
-            }
-
-            results = new PagedResult<>(0, new SynonymRule[0]);
+        for (String synonymsSet : synonymsSets) {
+            PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+            synonymsManagementAPIService.getSynonymSetRules(synonymsSet, future);
+            futures.add(future);
         }
 
-        SynonymRule[] synonymRules = results.pageResults();
         StringBuilder sb = new StringBuilder();
-        for (SynonymRule synonymRule : synonymRules) {
-            sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+
+        for (int i = 0; i < futures.size(); i++) {
+            String synonymsSet = synonymsSets.get(i);
+            PlainActionFuture<PagedResult<SynonymRule>> future = futures.get(i);
+
+            PagedResult<SynonymRule> results;
+            try {
+                results = future.actionGet();
+            } catch (Exception e) {
+                if (ignoreMissing == false) {
+                    throw e;
+                }
+
+                boolean notFound = e instanceof ResourceNotFoundException;
+                String message = String.format(
+                    Locale.ROOT,
+                    "Synonyms set %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
+                    synonymsSet,
+                    notFound ? "not found" : "could not be loaded"
+                );
+
+                if (notFound) {
+                    logger.warn(message);
+                } else {
+                    logger.error(message, e);
+                }
+
+                results = new PagedResult<>(0, new SynonymRule[0]);
+            }
+
+            for (SynonymRule synonymRule : results.pageResults()) {
+                sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+            }
         }
+
         return new StringReader(sb.toString());
     }
-
 }

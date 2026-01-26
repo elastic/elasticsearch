@@ -18,12 +18,20 @@
 #include <math.h>
 #include <limits>
 
+// Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
+#ifdef __clang__
+#pragma clang attribute push(__attribute__((target("arch=icelake-client"))), apply_to=function)
+#elif __GNUC__
+#pragma GCC push_options
+#pragma GCC target ("arch=icelake-client")
+#endif
+
 #include "vec.h"
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"
 #include "score_common.h"
 
-static inline __m256 score_inner(
+static inline __m512 score_inner(
     const f32_t* lowerInterval,
     const f32_t* upperInterval,
     const int16_t* targetComponentSum,
@@ -33,30 +41,30 @@ static inline __m256 score_inner(
     const f32_t y1,
     const f32_t dimensions
 ) {
-    __m256 ax = _mm256_loadu_ps(lowerInterval);
+    __m512 ax = _mm512_loadu_ps(lowerInterval);
     // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-    __m256 lx = _mm256_sub_ps(_mm256_loadu_ps(upperInterval), ax);
-    __m256 tcs = _mm256_cvtepi32_ps(
-        _mm256_cvtepi16_epi32(
-            _mm_lddqu_si128((const __m128i*)(targetComponentSum))
+    __m512 lx = _mm512_sub_ps(_mm512_loadu_ps(upperInterval), ax);
+    __m512 tcs = _mm512_cvtepi32_ps(
+        _mm512_cvtepi16_epi32(
+            _mm256_lddqu_si256((const __m256i*)(targetComponentSum))
         )
     );
 
-    __m256 qcDist = _mm256_loadu_ps(score);
+    __m512 qcDist = _mm512_loadu_ps(score);
 
     // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
     // ax * ay * dimensions
-    __m256 res1 = _mm256_mul_ps(ax, _mm256_set1_ps(ay * dimensions));
+    __m512 res1 = _mm512_mul_ps(ax, _mm512_set1_ps(ay * dimensions));
     // ay * lx * (float) targetComponentSum
-    __m256 res2 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ay)), tcs);
+    __m512 res2 = _mm512_mul_ps(_mm512_mul_ps(lx, _mm512_set1_ps(ay)), tcs);
     // ax * ly * y1
-    __m256 res3 = _mm256_mul_ps(ax, _mm256_set1_ps(ly * y1));
+    __m512 res3 = _mm512_mul_ps(ax, _mm512_set1_ps(ly * y1));
     // lx * ly * qcDist
-    __m256 res4 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ly)), qcDist);
-    return _mm256_add_ps(_mm256_add_ps(res1, res2), _mm256_add_ps(res3, res4));
+    __m512 res4 = _mm512_mul_ps(_mm512_mul_ps(lx, _mm512_set1_ps(ly)), qcDist);
+    return _mm512_add_ps(_mm512_add_ps(res1, res2), _mm512_add_ps(res3, res4));
 }
 
-EXPORT f32_t score_euclidean_bulk(
+EXPORT f32_t score_euclidean_bulk_2(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -71,7 +79,8 @@ EXPORT f32_t score_euclidean_bulk(
     f32_t ay = queryLowerInterval;
     f32_t ly = (queryUpperInterval - ay) * queryBitScale;
     f32_t y1 = queryComponentSum;
-    f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
+
+    __m512 max_score = _mm512_set1_ps(-std::numeric_limits<f32_t>::infinity());
 
     f32_t* lowerIntervals = (f32_t*)corrections;
     f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
@@ -79,21 +88,21 @@ EXPORT f32_t score_euclidean_bulk(
     f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
 
     int i = 0;
-    constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
+    constexpr int floats_per_cycle = sizeof(__m512) / sizeof(f32_t);
     int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
-        __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
+        __m512 additionalCorrection = _mm512_loadu_ps(additionalCorrections + i);
+        __m512 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
 
         // For euclidean, we need to invert the score and apply the additional correction, which is
         // assumed to be the squared l2norm of the centroid centered vectors.
-        //res = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(res, _mm256_set1_ps(-2.0f)), additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection + 1.0f));
-        res = _mm256_add_ps(_mm256_fnmadd_ps(_mm256_set1_ps(2.0f), res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection + 1.0f));
-        res = _mm256_max_ps(_mm256_rcp_ps(res), _mm256_setzero_ps());
+        res = _mm512_add_ps(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), res, additionalCorrection), _mm512_set1_ps(queryAdditionalCorrection + 1.0f));
+        res = _mm512_max_ps(_mm512_rcp14_ps(res), _mm512_setzero_ps());
 
-        maxScore = fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
-        _mm256_storeu_ps(scores + i, res);
+        max_score = _mm512_max_ps(max_score, res);
+        _mm512_storeu_ps(scores + i, res);
     }
+    f32_t maxScore = _mm512_reduce_max_ps(max_score);
     for (; i < bulkSize; ++i) {
         f32_t score = score_euclidean_inner(
             dimensions,
@@ -116,7 +125,7 @@ EXPORT f32_t score_euclidean_bulk(
     return maxScore;
 }
 
-EXPORT f32_t score_maximum_inner_product_bulk(
+EXPORT f32_t score_maximum_inner_product_bulk_2(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -131,7 +140,8 @@ EXPORT f32_t score_maximum_inner_product_bulk(
     f32_t ay = queryLowerInterval;
     f32_t ly = (queryUpperInterval - ay) * queryBitScale;
     f32_t y1 = queryComponentSum;
-    f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
+
+    __m512 max_score = _mm512_set1_ps(-std::numeric_limits<f32_t>::infinity());
 
     f32_t* lowerIntervals = (f32_t*)corrections;
     f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
@@ -139,27 +149,26 @@ EXPORT f32_t score_maximum_inner_product_bulk(
     f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
 
     int i = 0;
-    constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
+    constexpr int floats_per_cycle = sizeof(__m512) / sizeof(f32_t);
     int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
+        __m512 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
 
         // For max inner product, we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
-        res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp));
+        __m512 additionalCorrection = _mm512_loadu_ps(additionalCorrections + i);
+        res = _mm512_add_ps(_mm512_add_ps(res, additionalCorrection), _mm512_set1_ps(queryAdditionalCorrection - centroidDp));
 
-        // On AVX-512, use ternary logic + mask
-        //__m256 negative_scaled = _mm256_rcp_ps(_mm256_add_ps(_mm256_set1_ps(1.0f), _mm256_mul_ps(_mm256_set1_ps(-1.0f), res)));
-        __m256 negative_scaled = _mm256_rcp_ps(_mm256_fnmadd_ps(_mm256_set1_ps(1.0f), res, _mm256_set1_ps(1.0f)));
-        __m256 positive_scaled = _mm256_add_ps(_mm256_set1_ps(1.0f), res);
+        __mmask16 is_neg_mask = _mm512_fpclass_ps_mask(res, 0x40);
+        __m512 negative_scaled = _mm512_rcp14_ps(_mm512_fnmadd_ps(_mm512_set1_ps(1.0f), res, _mm512_set1_ps(1.0f)));
+        __m512 positive_scaled = _mm512_add_ps(_mm512_set1_ps(1.0f), res);
 
-        __m256 is_neg = _mm256_cmp_ps(res, _mm256_setzero_ps(), _CMP_LT_OQ);
-        res = _mm256_add_ps(_mm256_and_ps(is_neg, negative_scaled), _mm256_andnot_ps(is_neg, positive_scaled));
+        res = _mm512_mask_mov_ps(positive_scaled, is_neg_mask, negative_scaled);
 
-        maxScore = fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
-        _mm256_storeu_ps(scores + i, res);
+        max_score = _mm512_max_ps(max_score, res);
+        _mm512_storeu_ps(scores + i, res);
     }
+    f32_t maxScore = _mm512_reduce_max_ps(max_score);
 
     for (; i < bulkSize; ++i) {
         f32_t score = score_maximum_inner_product_inner(
@@ -183,7 +192,7 @@ EXPORT f32_t score_maximum_inner_product_bulk(
     return maxScore;
 }
 
-EXPORT f32_t score_others_bulk(
+EXPORT f32_t score_others_bulk_2(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -198,7 +207,8 @@ EXPORT f32_t score_others_bulk(
     f32_t ay = queryLowerInterval;
     f32_t ly = (queryUpperInterval - ay) * queryBitScale;
     f32_t y1 = queryComponentSum;
-    f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
+
+    __m512 max_score = _mm512_set1_ps(-std::numeric_limits<f32_t>::infinity());
 
     f32_t* lowerIntervals = (f32_t*)corrections;
     f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
@@ -206,25 +216,26 @@ EXPORT f32_t score_others_bulk(
     f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
 
     int i = 0;
-    constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
+    constexpr int floats_per_cycle = sizeof(__m512) / sizeof(f32_t);
     int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
+        __m512 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
 
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
+        __m512 additionalCorrection = _mm512_loadu_ps(additionalCorrections + i);
         // For cosine, we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
 
         // res = res + additionalCorrection + queryAdditionalCorrection - centroidDp (+ 1.0f);
-        res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp + 1.0f));
+        res = _mm512_add_ps(_mm512_add_ps(res, additionalCorrection), _mm512_set1_ps(queryAdditionalCorrection - centroidDp + 1.0f));
 
         // res = max(res / 2.0f, 0.0f);
-        res = _mm256_max_ps(_mm256_mul_ps(res, _mm256_set1_ps(0.5f)), _mm256_setzero_ps());
+        res = _mm512_max_ps(_mm512_mul_ps(res, _mm512_set1_ps(0.5f)), _mm512_setzero_ps());
 
-        maxScore = fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
-        _mm256_storeu_ps(scores + i, res);
+        max_score = _mm512_max_ps(max_score, res);
+        _mm512_storeu_ps(scores + i, res);
     }
 
+    f32_t maxScore = _mm512_reduce_max_ps(max_score);
     for (; i < bulkSize; ++i) {
         f32_t score = score_others_inner(
             dimensions,
@@ -246,3 +257,10 @@ EXPORT f32_t score_others_bulk(
 
     return maxScore;
 }
+
+#ifdef __clang__
+#pragma clang attribute pop
+#elif __GNUC__
+#pragma GCC pop_options
+#endif
+

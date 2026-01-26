@@ -52,15 +52,15 @@ public final class ReplicationRequestSplitHelper {
         // Create a request for original source shard and for each target shard.
         // New requests that are to be handled by target shards should contain the
         // latest ShardCountSummary.
-        // TODO: This will not work if the reshard metadata is gone
         int targetShardId;
         if (indexMetadata.getReshardingMetadata() == null) {
             // If the resharding metadata is gone, we calculate the target shard id assuming
             // 2x splits and assuming request is atmost 1 split behind
-            targetShardId = sourceShard.id() + shardCountSummary.asInt()/2;
+            targetShardId = sourceShard.id() + shardCountSummary.asInt() / IndexMetadata.RESHARD_SPLIT_FACTOR;
         } else {
             targetShardId = indexMetadata.getReshardingMetadata().getSplit().targetShard(sourceShard.id());
         }
+
         ShardId targetShard = new ShardId(sourceShard.getIndex(), targetShardId);
 
         requestsByShard.put(targetShard, targetRequestFactory.apply(targetShard, shardCountSummary));

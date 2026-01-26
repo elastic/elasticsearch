@@ -443,6 +443,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 case Literal literal -> new LiteralSelector(source, literal);
                 case Node n -> throw new IllegalStateException("Unexpected value: " + n);
             };
+            assert providedParam instanceof PromqlPlan;
             PromqlDataType actualType = PromqlPlan.getType(providedParam);
             PromqlDataType expectedType = expectedParam.type();
             if (actualType != expectedType) {

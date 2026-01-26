@@ -318,7 +318,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.LONG);
-        sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
+        sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
         assertThat(sortField.getComparatorSource(), instanceOf(LongValuesComparatorSource.class));
     }
 

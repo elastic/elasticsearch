@@ -1863,6 +1863,12 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_FUNCTION,
 
         /**
+         * A fix allowing the {@code TOP_SNIPPETS} function to process string config
+         * parameters like the other functions.
+         */
+        TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
+
+        /**
          * Fix for multi-value constant propagation after GROUP BY.
          * When a multi-value constant (e.g., [1, 2]) is used as GROUP BY key, the aggregation explodes
          * it into single values. Propagating the original multi-value literal after the Aggregate would

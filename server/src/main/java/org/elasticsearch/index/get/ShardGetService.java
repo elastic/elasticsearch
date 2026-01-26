@@ -142,6 +142,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
+    @Deprecated
     public GetResult mget(
         String id,
         String[] gFields,
@@ -151,6 +152,30 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
         MultiEngineGet mget
+    ) throws IOException {
+        return mget(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            fetchSourceContext,
+            forceSyntheticSource,
+            mget,
+            SplitShardCountSummary.UNSET
+        );
+    }
+
+    public GetResult mget(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource,
+        MultiEngineGet mget,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -163,7 +188,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             mget::get
         );
     }

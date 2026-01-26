@@ -10,6 +10,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -17,6 +18,9 @@ import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -61,6 +65,8 @@ public class MultiGetRequest extends LegacyActionRequest
     private static final ParseField STORED_FIELDS = new ParseField("stored_fields");
     private static final ParseField SOURCE = new ParseField("_source");
 
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("get_split_shard_count_summary");
+
     /**
      * A single get item.
      */
@@ -73,6 +79,7 @@ public class MultiGetRequest extends LegacyActionRequest
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private FetchSourceContext fetchSourceContext;
+        private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
 
         public Item() {
 
@@ -87,6 +94,9 @@ public class MultiGetRequest extends LegacyActionRequest
             versionType = VersionType.fromValue(in.readByte());
 
             fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
+            if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+                this.splitShardCountSummary = new SplitShardCountSummary(in);
+            }
         }
 
         public Item(String index, String id) {
@@ -168,6 +178,17 @@ public class MultiGetRequest extends LegacyActionRequest
             return this;
         }
 
+        public SplitShardCountSummary getSplitShardCountSummary() {
+            return splitShardCountSummary;
+        }
+
+        public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+            final var indexMetadata = projectMetadata.index(index);
+            final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+            final var shardId = indexRouting.getShard(id(), routing());
+            this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
@@ -178,6 +199,9 @@ public class MultiGetRequest extends LegacyActionRequest
             out.writeByte(versionType.getValue());
 
             out.writeOptionalWriteable(fetchSourceContext);
+            if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+                splitShardCountSummary.writeTo(out);
+            }
         }
 
         @Override

@@ -89,6 +89,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 }
                 item.routing(project.resolveIndexRouting(item.routing(), item.index()));
                 shardId = OperationRouting.shardId(project, concreteSingleIndex, item.id(), item.routing());
+                item.setSplitShardCountSummary(project, item.index());
             } catch (RoutingMissingException e) {
                 responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
                 continue;

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -22,8 +23,10 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -40,9 +43,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
@@ -52,6 +55,8 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -60,6 +65,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -69,7 +75,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -590,6 +595,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final boolean ccsCheckCompatibility;
         private final CrossProjectModeDecider crossProjectModeDecider;
+        private final TransportService transportService;
 
         @Inject
         public TransportAction(
@@ -607,6 +613,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
+            this.transportService = transportService;
         }
 
         @Override
@@ -629,45 +636,85 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
             final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
             if (remoteClusterIndices.size() > 0) {
-                final int remoteRequests = remoteClusterIndices.size();
-                final CountDown completionCounter = new CountDown(remoteRequests);
-                final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
-                final Runnable terminalHandler = () -> {
-                    if (completionCounter.countDown()) {
+                ActionListener<Collection<Map.Entry<String, Response>>> responsesListener = listener.delegateFailureAndWrap(
+                    (l, responses) -> {
+                        Map<String, Response> linkedProjectsResponses = responses.stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
                         if (resolveCrossProject) {
                             final Exception ex = CrossProjectIndexResolutionValidator.validate(
                                 originalIndicesOptions,
                                 request.getProjectRouting(),
                                 localResolvedIndexExpressions,
-                                getResolvedExpressionsByRemote(remoteResponses)
+                                getResolvedExpressionsByRemote(linkedProjectsResponses)
                             );
+
                             if (ex != null) {
-                                listener.onFailure(ex);
+                                l.onFailure(ex);
                                 return;
                             }
                         }
-                        mergeResults(remoteResponses, indices, aliases, dataStreams, request.indexModes);
+
+                        mergeResults(linkedProjectsResponses, indices, aliases, dataStreams, request.indexModes);
                         listener.onResponse(new Response(indices, aliases, dataStreams));
                     }
-                };
+                );
+
+                ActionListener<Map.Entry<String, Response>> gal = new GroupedActionListener<>(
+                    remoteClusterIndices.size(),
+                    responsesListener
+                );
 
                 // make the cross-cluster calls
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
-                    var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                        clusterAlias,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-                    );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
-                    remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
-                        remoteResponses.put(clusterAlias, response);
-                        terminalHandler.run();
-                    }, failure -> {
+
+                    SubscribableListener<Transport.Connection> connectionListener = new SubscribableListener<>();
+
+                    // Add a short timeout for Cross Project Search requests only.
+                    if (resolveCrossProject) {
+                        connectionListener.addTimeout(
+                            TimeValue.timeValueSeconds(3L),
+                            transportService.getThreadPool(),
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        );
+                    }
+
+                    connectionListener.addListener(gal.delegateResponse((l, failure) -> {
                         logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
-                        terminalHandler.run();
-                    }));
+                        l.onFailure(failure);
+                    })
+                        .delegateFailure(
+                            (ignored, connection) -> transportService.sendRequest(
+                                connection,
+                                ResolveIndexAction.REMOTE_TYPE.name(),
+                                remoteRequest,
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(gal.delegateResponse((l, failure) -> {
+                                    logger.info("Error occurred on remote cluster [" + clusterAlias + "]", failure);
+                                    l.onFailure(failure);
+                                }).map(resolveIndexResponse -> Map.entry(clusterAlias, resolveIndexResponse)),
+                                    Response::new,
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                                )
+                            )
+                        ));
+
+                    boolean ensureConnected;
+                    if (resolveCrossProject) {
+                        // Always force establish connection for Cross Project Search requests.
+                        ensureConnected = true;
+                    } else if (remoteClusterService.isSkipUnavailable(clusterAlias).orElse(false)) {
+                        // skip_unavailable=true, do not force establish a connection and wait for it.
+                        ensureConnected = false;
+                    } else {
+                        // skip_unavailable=false, force establish a connection.
+                        ensureConnected = true;
+                    }
+
+                    remoteClusterService.maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
                 }
             } else {
                 if (resolveCrossProject) {

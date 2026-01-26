@@ -421,7 +421,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             try {
                 if (Assertions.ENABLED) {
                     boolean allNull = (buffer == null && bloomFilterDataOut == null && metadataOut == null);
-                    boolean allSet  = (buffer != null && bloomFilterDataOut != null && metadataOut != null);
+                    boolean allSet = (buffer != null && bloomFilterDataOut != null && metadataOut != null);
                     assert allNull || allSet : buffer + " vs " + bloomFilterDataOut + " vs " + metadataOut;
                 }
                 try {

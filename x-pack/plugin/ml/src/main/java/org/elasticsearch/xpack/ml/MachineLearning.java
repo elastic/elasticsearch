@@ -318,6 +318,8 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.GetDatafeedCrossProjectHeadersAction;
+import org.elasticsearch.xpack.ml.datafeed.TransportGetDatafeedCrossProjectHeadersAction;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -1639,6 +1641,9 @@ public class MachineLearning extends Plugin
             actionHandlers.add(new ActionHandler(StartDatafeedAction.INSTANCE, TransportStartDatafeedAction.class));
             actionHandlers.add(new ActionHandler(StopDatafeedAction.INSTANCE, TransportStopDatafeedAction.class));
             actionHandlers.add(new ActionHandler(IsolateDatafeedAction.INSTANCE, TransportIsolateDatafeedAction.class));
+            actionHandlers.add(
+                new ActionHandler(GetDatafeedCrossProjectHeadersAction.INSTANCE, TransportGetDatafeedCrossProjectHeadersAction.class)
+            );
             actionHandlers.add(new ActionHandler(DeleteModelSnapshotAction.INSTANCE, TransportDeleteModelSnapshotAction.class));
             actionHandlers.add(new ActionHandler(UpdateProcessAction.INSTANCE, TransportUpdateProcessAction.class));
             actionHandlers.add(new ActionHandler(ForecastJobAction.INSTANCE, TransportForecastJobAction.class));

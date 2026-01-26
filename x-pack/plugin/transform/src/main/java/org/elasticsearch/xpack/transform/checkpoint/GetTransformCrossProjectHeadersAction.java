@@ -18,12 +18,12 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
-public class GetCrossProjectHeadersAction extends ActionType<GetCrossProjectHeadersAction.Response> {
+public class GetTransformCrossProjectHeadersAction extends ActionType<GetTransformCrossProjectHeadersAction.Response> {
 
     public static final String NAME = "indices:data/cross_project/headers/get";
-    public static final GetCrossProjectHeadersAction INSTANCE = new GetCrossProjectHeadersAction(NAME);
+    public static final GetTransformCrossProjectHeadersAction INSTANCE = new GetTransformCrossProjectHeadersAction(NAME);
 
-    public GetCrossProjectHeadersAction(String name) {
+    public GetTransformCrossProjectHeadersAction(String name) {
         super(name);
     }
 

@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Minimal helper that runs {@link GetCrossProjectHeadersAction} as a local-only internal action.
+ * Minimal helper that runs {@link GetTransformCrossProjectHeadersAction} as a local-only internal action.
  */
 public final class CrossProjectHeadersHelper {
 
@@ -33,8 +33,8 @@ public final class CrossProjectHeadersHelper {
             currentHeaders,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            GetCrossProjectHeadersAction.INSTANCE,
-            new GetCrossProjectHeadersAction.Request(transformConfig),
+            GetTransformCrossProjectHeadersAction.INSTANCE,
+            new GetTransformCrossProjectHeadersAction.Request(transformConfig),
             ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
         );
     }

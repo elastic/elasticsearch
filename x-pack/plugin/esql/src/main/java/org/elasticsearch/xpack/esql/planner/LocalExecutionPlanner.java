@@ -71,6 +71,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -542,10 +543,17 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout, context.shardContexts);
-            Layout.Builder layout = source.layout.builder();
-            layout.append(field.toAttribute());
-            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+            try {
+                var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout, context.shardContexts);
+                Layout.Builder layout = source.layout.builder();
+                layout.append(field.toAttribute());
+                source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+            } catch (QlIllegalArgumentException e) {
+                throw new EsqlIllegalArgumentException(
+                    "Cannot evaluate expression for field [" + field.name() + "] of type [" + field.dataType() + "]: " + e.getMessage(),
+                    e
+                );
+            }
         }
         return source;
     }

@@ -2607,6 +2607,13 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
     }
 
+    public void testEvalWithinStats() {
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var query = "TS test | STATS avg(to_double(network.bytes_in) / 1024) + 10";
+        LogicalPlan plan = analyze(query, analyzer);
+        // For now we do not verify anything.
+    }
+
     public void testRateRequiresCounterTypes() {
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";

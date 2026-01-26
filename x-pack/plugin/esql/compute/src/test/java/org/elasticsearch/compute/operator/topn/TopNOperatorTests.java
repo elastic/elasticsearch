@@ -393,6 +393,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, false, false));
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -404,7 +405,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
                         topCount,
                         elementTypes,
                         encoders,
-                        List.of(new TopNOperator.SortOrder(0, false, false)),
+                        sortOrders,
                         groupKeys(),
                         randomPageSize()
                     )
@@ -415,11 +416,11 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             runDriver(driver);
         }
 
-        assertMap(actualTop, matchesList(expectedTop(rawValues)));
+        assertMap(actualTop, matchesList(expectedTop(rawValues, sortOrders, topCount)));
         assertDriverContext(driverContext);
     }
 
-    protected abstract List<List<Object>> expectedTop(List<List<Object>> input);
+    protected abstract List<List<Object>> expectedTop(List<List<Object>> input, List<TopNOperator.SortOrder> sortOrders, int topCount);
 
     public void testCollectAllValues_RandomMultiValues() {
         DriverContext driverContext = driverContext();

@@ -71,7 +71,7 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
     }
 
     @Override
-    protected List<List<Object>> expectedTop(List<List<Object>> input) {
+    protected List<List<Object>> expectedTop(List<List<Object>> input, List<TopNOperator.SortOrder> sortOrders, int topCount) {
         throw new AssertionError("TODO(gal) NOCOMMIT");
     }
 

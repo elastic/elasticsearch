@@ -2,6 +2,16 @@ version: 9.3.0
 released: false
 generated: 2026-01-30T15:33:50.122842428Z
 changelogs:
+  - pr: []
+    summary: Elastic Inference Service now adds new AI/ML models dynamically, independent of stack release cycles.
+    area: Machine Learning
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: Independent AI/ML model delivery
+      body: "Elastic will regularly be adding new AI/ML models from 9.3 onwards which will appear as pre-configured inference endpoints in Elasticsearch. See the [Elastic Inference Service](https://www.elastic.co/docs/explore-analyze/elastic-inference/eis) page for more details."
+      pr: []
   - pr: 122491
     summary: Add CEF processor to Ingest node
     area: Ingest Node

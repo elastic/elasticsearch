@@ -27,6 +27,10 @@ stack: ga 9.3.0
 
 ### Highlights [elasticsearch-9.3.0-highlights]
 
+::::{dropdown} Independent AI/ML model delivery
+Elastic will regularly be adding new AI/ML models from 9.3 onwards which will appear as pre-configured inference endpoints in Elasticsearch. See the [Elastic Inference Service](https://www.elastic.co/docs/explore-analyze/elastic-inference/eis) page for more details
+::::
+
 ::::{dropdown} Add CEF processor to Ingest node
 The `cef` ingest processor parses a CEF (Common Event Format) message into a structured JSON object. It follows the CEF specification to extract fields such as device vendor, device product, device version, signature ID, name, severity, and extension fields. This allows users to easily analyze and visualize CEF-formatted logs within Elasticsearch and Kibana.
 ::::

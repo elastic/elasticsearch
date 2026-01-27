@@ -61,6 +61,10 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private record DoneState(boolean done, Throwable error) {
         static final DoneState STILL_READING = new DoneState(false, null);
         static final DoneState FINISHED = new DoneState(true, null);
+
+        public DoneState {
+            assert done || error == null : "Must be done to specify an error";
+        }
     }
 
     /**

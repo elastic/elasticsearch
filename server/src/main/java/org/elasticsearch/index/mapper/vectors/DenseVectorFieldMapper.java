@@ -1782,7 +1782,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     // no oversampling with 4 bits
                     if (quantizeBits == 2) {
                         rescoreVector = new RescoreVector(1.5f);
-                    } else {
+                    } else if (quantizeBits == 1){
                         rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                     }
                 }

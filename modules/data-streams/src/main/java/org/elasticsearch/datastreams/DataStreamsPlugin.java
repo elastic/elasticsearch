@@ -64,7 +64,6 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecyc
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
-import org.elasticsearch.datastreams.lifecycle.transitions.actions.NoopAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
@@ -213,7 +212,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         );
 
         // Register DLM actions here. Order matters - they will be executed in the order they are listed for a given index.
-        List<DlmAction> dlmActions = List.of(new NoopAction());
+        List<DlmAction> dlmActions = List.of();
 
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(

@@ -69,7 +69,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
-    public void testStatusApiConsistency() throws Exception {
+    public void testStatusApiConsistency() {
         createRepository("test-repo", "fs");
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -782,6 +782,88 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         // Wait for both snapshots to finish
         assertSuccessful(snapshot1Future);
         assertSuccessful(snapshot2Future);
+    }
+
+    /**
+     * Starts a snapshot which is expected to succeed. When calling the snapshot status API, we expect
+     * <i>every</i> snapshot shard status to be {@link SnapshotIndexShardStage#DONE}
+     */
+    public void testSuccessfulSnapshot() {
+        String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        String indexName = "test-idx";
+        createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
+
+        final String snapshot = "snapshot";
+        createFullSnapshot(repoName, snapshot);
+
+        SnapshotsStatusResponse snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repoName)
+            .setSnapshots(snapshot)
+            .get();
+        assertThat(snapshotsStatusResponse.getSnapshots(), hasSize(1));
+        SnapshotStatus status = snapshotsStatusResponse.getSnapshots().getFirst();
+        assertThat(status.getShards().stream().allMatch(s -> s.getStage() == SnapshotIndexShardStage.DONE), is(true));
+    }
+
+    /**
+     * Starts a snapshot blocked on a data node. Since the snapshot will be started but not finished,
+     * we expect a minimum of one snapshot shard status to be {@link SnapshotIndexShardStage#STARTED}
+     * @throws Exception if something goes wrong starting the snapshot, or waiting for the block
+     */
+    public void testInitialisedSnapshot() throws Exception {
+        String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        String indexName = "test-idx";
+        createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
+        String dataNode = blockNodeWithIndex(repoName, indexName);
+
+        final String snapshot = "snapshot";
+        final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshot, repoName, dataNode);
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repoName);
+
+        SnapshotsStatusResponse snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repoName)
+            .setSnapshots(snapshot)
+            .get();
+        assertThat(snapshotsStatusResponse.getSnapshots(), hasSize(1));
+        SnapshotStatus status = snapshotsStatusResponse.getSnapshots().getFirst();
+        assertThat(status.getShards().stream().anyMatch(s -> s.getStage() == SnapshotIndexShardStage.STARTED), is(true));
+
+        unblockNode(repoName, dataNode);
+        assertSuccessful(snapshotFuture);
+    }
+
+    /**
+     * Starts a snapshot which is expected to fail on a single node. When calling the snapshot status API, we expect
+     * at least one snapshot shard status to be {@link SnapshotIndexShardStage#FAILURE}
+     */
+    public void testFailedSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+        final String indexName = "test-idx";
+        indexRandomDocs(indexName, 100000);
+        blockAndFailDataNode(repository, dataNode);
+
+        String snapshotName = "failing-snapshot";
+        final ActionFuture<CreateSnapshotResponse> snapshotFutureFailure = startFullSnapshot(repository, snapshotName);
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repository);
+        unblockNode(repository, dataNode);
+
+        final SnapshotInfo failedSnapshot = snapshotFutureFailure.get().getSnapshotInfo();
+        assertEquals(SnapshotState.PARTIAL, failedSnapshot.state());
+
+        final SnapshotsStatusResponse snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repository)
+            .setSnapshots(snapshotName)
+            .get();
+
+        assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+        assertEquals(SnapshotsInProgress.State.SUCCESS, snapshotsStatusResponse.getSnapshots().get(0).getState());
+        SnapshotStatus status = snapshotsStatusResponse.getSnapshots().getFirst();
+        assertThat(status.getShards().stream().anyMatch(s -> s.getStage() == SnapshotIndexShardStage.FAILURE), is(true));
     }
 
     public void testInfiniteTimeout() throws Exception {

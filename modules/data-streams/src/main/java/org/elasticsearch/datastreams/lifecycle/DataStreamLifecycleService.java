@@ -499,7 +499,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     Set<Index> maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
         HashSet<Index> indicesProcessed = new HashSet<>();
         for (DlmAction action : actions) {
-            var actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
+            TimeValue actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
 
             if (actionSchedule == null) {
                 logger.trace(

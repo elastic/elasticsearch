@@ -87,6 +87,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -94,7 +95,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -289,7 +289,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PostRecoveryMerger postRecoveryMerger;
     private final List<SearchOperationListener> searchOperationListeners;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
-    final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
+    final ActionLoggingFieldsProvider loggingFieldsProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
@@ -421,7 +421,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
-        this.slowLogFieldProvider = builder.slowLogFieldProvider;
+        this.loggingFieldsProvider = builder.loggingFieldsProvider;
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
@@ -819,7 +819,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
@@ -919,7 +919,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,

@@ -27,8 +27,6 @@ import java.util.List;
  */
 abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer<HistogramValues> {
 
-    static final String HISTOGRAM_TYPE = "histogram";
-    static final String TDIGEST_TYPE = "tdigest";
     static final double DEFAULT_COMPRESSION = 100;
     // MergingDigest is the best fit because we have pre-constructed histograms
     static final TDigestState.Type DEFAULT_TYPE = TDigestState.Type.MERGING;
@@ -54,14 +52,9 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
     /**
      * @return the requested produces based on the sampling method for metric of type tdigest histogram
      */
-    public static TDigestHistogramFieldProducer createForTDigest(
-        String name,
-        DownsampleConfig.SamplingMethod samplingMethod,
-        TDigestState.Type type,
-        double compression
-    ) {
+    public static TDigestHistogramFieldProducer createForTDigest(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new Aggregate(name, CENTROIDS_FIELD, type, compression);
+            case AGGREGATE -> new Aggregate(name, CENTROIDS_FIELD);
             case LAST_VALUE -> new LastValue(name, CENTROIDS_FIELD);
         };
     }

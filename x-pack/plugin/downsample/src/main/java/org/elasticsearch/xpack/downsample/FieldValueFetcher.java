@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
@@ -89,16 +90,11 @@ class FieldValueFetcher {
     private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
-        if (TDigestHistogramFieldProducer.HISTOGRAM_TYPE.equals(fieldType.typeName())) {
+        if (HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
             return TDigestHistogramFieldProducer.createForLegacyHistogram(name(), samplingMethod);
         }
-        if (fieldType instanceof TDigestFieldMapper.TDigestFieldType tDigestFieldType) {
-            return TDigestHistogramFieldProducer.createForTDigest(
-                name(),
-                samplingMethod,
-                tDigestFieldType.getTDigestType(),
-                tDigestFieldType.getCompression()
-            );
+        if (TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
+            return TDigestHistogramFieldProducer.createForTDigest(name(), samplingMethod);
         }
         if (ExponentialHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
             return ExponentialHistogramFieldProducer.create(name(), samplingMethod);

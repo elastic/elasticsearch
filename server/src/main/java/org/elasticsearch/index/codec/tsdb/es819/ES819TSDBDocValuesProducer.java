@@ -231,6 +231,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
+                    public int getLength() {
+                        return length;
+                    }
+
+                    @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
@@ -287,6 +292,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+
+                    @Override
+                    public int getLength() throws IOException {
+                        long startOffset = addresses.get(doc);
+                        int length = (int) (addresses.get(doc + 1L) - startOffset);
+                        return length;
+                    }
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
@@ -373,6 +385,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
+                    public int getLength() throws IOException {
+                        return length;
+                    }
+
+                    @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) disi.index() * length, bytes.bytes, 0, length);
                         return bytes;
@@ -384,6 +401,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new SparseBinaryDocValues(disi) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+
+                    @Override
+                    public int getLength() throws IOException {
+                        final int index = disi.index();
+                        long startOffset = addresses.get(index);
+                        return (int) (addresses.get(index + 1L) - startOffset);
+                    }
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
@@ -415,6 +439,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     entry.maxUncompressedChunkSize,
                     entry.maxNumDocsInAnyBlock
                 );
+
+                @Override
+                public int getLength() throws IOException {
+                    return decoder.decodeLength(doc, entry.numCompressedBlocks);
+                }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -486,6 +515,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 );
 
                 @Override
+                public int getLength() throws IOException {
+                    return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
+                }
+
+                @Override
                 public BytesRef binaryValue() throws IOException {
                     return decoder.decode(disi.index(), entry.numCompressedBlocks);
                 }
@@ -527,6 +561,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
             uncompressedBytesRef = new BytesRef(uncompressedBlock);
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
+        }
+
+        private void decompressLengthOnly(long blockId, int numDocsInBlock) throws IOException {
+            long blockStartOffset = addresses.get(blockId);
+            compressedData.seek(blockStartOffset);
+
+            var header = BinaryDVCompressionMode.BlockHeader.fromByte(compressedData.readByte());
+            int uncompressedBlockLength = compressedData.readVInt();
+
+            if (uncompressedBlockLength == 0) {
+                Arrays.fill(uncompressedDocStarts, 0);
+                return;
+            }
+
+            decompressDocOffsets(numDocsInBlock, compressedData);
         }
 
         // unconditionally decompress blockId into uncompressedDocStarts and uncompressedBlock
@@ -588,6 +637,25 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             startDocNumForBlock = docOffsets.get(index);
             limitDocNumForBlock = docOffsets.get(index + 1);
             return index;
+        }
+
+        int decodeLength(int docNumber, int numBlocks) throws IOException {
+            // docNumber, rather than docId, because these are dense and could be indices from a DISI
+            long blockId = findAndUpdateBlock(docNumber, numBlocks);
+
+            int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
+            int idxInBlock = (int) (docNumber - startDocNumForBlock);
+            assert idxInBlock < numDocsInBlock;
+
+            if (blockId != lastBlockId) {
+                decompressLengthOnly(blockId, numDocsInBlock);
+                // uncompressedBytesRef and uncompressedDocStarts now populated
+                lastBlockId = blockId;
+            }
+
+            int start = uncompressedDocStarts[idxInBlock];
+            int end = uncompressedDocStarts[idxInBlock + 1];
+            return end - start;
         }
 
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
@@ -689,7 +757,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class DenseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+    abstract static class DenseBinaryDocValues extends BinaryDocValues
+        implements BlockLoader.OptionalColumnAtATimeReader, DirectLengthReader {
 
         final int maxDoc;
         int doc = -1;
@@ -747,7 +816,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class SparseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+    abstract static class SparseBinaryDocValues extends BinaryDocValues
+        implements BlockLoader.OptionalColumnAtATimeReader, DirectLengthReader {
 
         final IndexedDISI disi;
 

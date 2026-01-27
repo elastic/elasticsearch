@@ -824,6 +824,82 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
+     *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": 42}} ]
+     * }
+     */
+    public void testGuessMappingRecursiveWithNestedListOfObjectsConsistentTypes() {
+        var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", 42)));
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("key", innerList);
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "key.x", "long");
+            assertKeyAndMappedType(mappings, "key.y.z", "long");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": "a"}} ]
+     * }
+     */
+    public void testGuessMappingRecursiveWithNestedListOfObjectsMixedPrimitiveTypes() {
+        var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", "a")));
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("key", innerList);
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "key.x", "long");
+            assertKeyAndMappedType(mappings, "key.y.z", "keyword");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": {"w": 1}}} ]
+     * }
+     */
+    public void testGuessMappingRecursiveWithNestedListOfObjectsMixedObjectAndPrimitive() {
+        var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", Map.of("w", 1))));
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("key", innerList);
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "key.x", "long");
+            assertKeyAndMappedType(mappings, "key.y.z", "long");
+            assertKeyAndMappedType(mappings, "key.y.z.w", "long");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
      *  "hosts": { "host": null },
      *  "timestamp": "1478261151445"
      * }

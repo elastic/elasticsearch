@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.textstructure.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,8 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
+
+    private static final TransportVersion RECURSIVE_PARSING_SUPPORT = TransportVersion.fromName("should_parse_recursively_parameter");
 
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
 
@@ -81,7 +84,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
-        shouldParseRecursively = in.readOptionalBoolean();
+        if (in.getTransportVersion().supports(RECURSIVE_PARSING_SUPPORT)) {
+            shouldParseRecursively = in.readOptionalBoolean();
+        }
         grokPattern = in.readOptionalString();
         ecsCompatibility = in.readOptionalString();
         timestampFormat = in.readOptionalString();
@@ -332,7 +337,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             out.writeVInt(quote);
         }
         out.writeOptionalBoolean(shouldTrimFields);
-        out.writeOptionalBoolean(shouldParseRecursively);
+        if (out.getTransportVersion().supports(RECURSIVE_PARSING_SUPPORT)) {
+            out.writeOptionalBoolean(shouldParseRecursively);
+        }
         out.writeOptionalString(grokPattern);
         out.writeOptionalString(ecsCompatibility);
         out.writeOptionalString(timestampFormat);

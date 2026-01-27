@@ -249,9 +249,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/139974
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/140612
@@ -321,9 +318,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141203
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/140859
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial-grid.GridGeohexByBoundsDropLocation}
   issue: https://github.com/elastic/elasticsearch/issues/141233

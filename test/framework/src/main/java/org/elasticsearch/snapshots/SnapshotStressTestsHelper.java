@@ -1251,6 +1251,15 @@ public class SnapshotStressTestsHelper {
                         return;
                     }
 
+                    // Acquire a permit for each index so that they cannot be deleted while a node is marked for shutting down.
+                    // Deleting an index is followed by re-creating or restoring the index which may fail if the shard needs
+                    // to be assigned onto the shutting down node but cannot due to shutting down.
+                    for (TrackedIndex trackedIndex : indices.values()) {
+                        if (localReleasables.add(tryAcquirePermit(trackedIndex.permits)) == null) {
+                            return;
+                        }
+                    }
+
                     final var clusterService = cluster.getCurrentMasterNodeInstance(ClusterService.class);
 
                     if (node.nodeName.equals(clusterService.localNode().getName())) {

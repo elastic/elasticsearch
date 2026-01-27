@@ -57,7 +57,8 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
         PhysicalPlan rightPreJoinPlan,
         Expression joinOnConditions,
         boolean useStreamingOperator,
-        int exchangeBufferSize
+        int exchangeBufferSize,
+        boolean profile
     ) implements OperatorFactory {
 
         private String operatorName() {
@@ -97,7 +98,8 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
                     source,
                     rightPreJoinPlan,
                     joinOnConditions,
-                    exchangeBufferSize
+                    exchangeBufferSize,
+                    profile
                 );
             } else {
                 return new LookupFromIndexOperator(
@@ -219,13 +221,14 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
             source,
             rightPreJoinPlan,
             joinOnConditions,
-            null // streamingSessionId - set by StreamingLookupFromIndexOperator
+            null, // streamingSessionId - set only by StreamingLookupFromIndexOperator
+            false // profile - non-streaming lookup doesn't support plan output
         );
-        lookupService.lookupAsync(
-            request,
-            parentTask,
-            listener.map(pages -> new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator()))
-        );
+        lookupService.lookupAsync(request, parentTask, listener.map(response -> {
+            List<Page> pages = response.takePages();
+            response.decRef();
+            return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
+        }));
     }
 
     /**

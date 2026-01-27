@@ -373,7 +373,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             Source.EMPTY,
             null,
             null,
-            "test-streaming-session" // streamingSessionId - required for streaming mode
+            "test-streaming-session", // streamingSessionId - required for streaming mode
+            false // profile
         );
         LookupFromIndexService.TransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
 

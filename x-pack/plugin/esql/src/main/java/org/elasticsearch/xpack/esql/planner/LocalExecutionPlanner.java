@@ -840,7 +840,8 @@ public class LocalExecutionPlanner {
                 join.right(),
                 join.joinOnConditions(),
                 useStreamingOperator,
-                context.queryPragmas().exchangeBufferSize()
+                context.queryPragmas().exchangeBufferSize(),
+                configuration.profile()
             ),
             layout
         );

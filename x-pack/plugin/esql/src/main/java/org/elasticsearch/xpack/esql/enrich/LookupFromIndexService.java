@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -35,6 +34,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -149,7 +149,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.source,
             request.rightPreJoinPlan,
             request.joinOnConditions,
-            request.streamingSessionId
+            request.streamingSessionId,
+            request.profile
         );
     }
 
@@ -210,6 +211,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
         private final String streamingSessionId;
+        private final boolean profile;
 
         Request(
             String sessionId,
@@ -221,13 +223,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source,
             PhysicalPlan rightPreJoinPlan,
             Expression joinOnConditions,
-            String streamingSessionId
+            String streamingSessionId,
+            boolean profile
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
             this.streamingSessionId = streamingSessionId;
+            this.profile = profile;
         }
     }
 
@@ -246,6 +250,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
         private final String streamingSessionId;
+        private final boolean profile;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -260,13 +265,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source,
             PhysicalPlan rightPreJoinPlan,
             Expression joinOnConditions,
-            String streamingSessionId
+            String streamingSessionId,
+            boolean profile
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
             this.streamingSessionId = streamingSessionId;
+            this.profile = profile;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -320,6 +327,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (in.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
                 streamingSessionId = in.readOptionalString();
             }
+            boolean profile = false;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+                profile = in.readBoolean();
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -331,7 +342,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 source,
                 rightPreJoinPlan,
                 joinOnConditions,
-                streamingSessionId
+                streamingSessionId,
+                profile
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -347,6 +359,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         public String getStreamingSessionId() {
             return streamingSessionId;
+        }
+
+        public boolean isProfile() {
+            return profile;
         }
 
         @Override
@@ -396,6 +412,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
                 out.writeOptionalString(streamingSessionId);
             }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+                out.writeBoolean(profile);
+            }
         }
 
         @Override
@@ -408,17 +427,32 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     protected static class LookupResponse extends AbstractLookupService.LookupResponse {
+        // Reuse the streaming session ID version since streaming is not in production yet
+        private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_lookup_streaming_session_id");
+
         private List<Page> pages;
+        @Nullable
+        private final String planString;
 
         LookupResponse(List<Page> pages, BlockFactory blockFactory) {
+            this(pages, blockFactory, null);
+        }
+
+        LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString) {
             super(blockFactory);
             this.pages = pages;
+            this.planString = planString;
         }
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.pages = bsi.readCollectionAsList(Page::new);
+            }
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                this.planString = in.readOptionalString();
+            } else {
+                this.planString = null;
             }
         }
 
@@ -428,6 +462,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize lookup join response");
             reservedBytes += bytes;
             out.writeCollection(pages);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                out.writeOptionalString(planString);
+            }
+        }
+
+        @Nullable
+        public String planString() {
+            return planString;
         }
 
         @Override
@@ -454,22 +496,22 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 return false;
             }
             LookupResponse that = (LookupResponse) o;
-            return Objects.equals(pages, that.pages);
+            return Objects.equals(pages, that.pages) && Objects.equals(planString, that.planString);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(pages);
+            return Objects.hash(pages, planString);
         }
 
         @Override
         public String toString() {
-            return "LookupResponse{pages=" + pages + '}';
+            return "LookupResponse{pages=" + pages + ", planString=" + planString + '}';
         }
     }
 
     @Override
-    protected void doLookup(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
+    protected void doLookup(TransportRequest request, CancellableTask task, ActionListener<AbstractLookupService.LookupResponse> listener) {
         if (request.getStreamingSessionId() != null) {
             doLookupStreaming(request, task, listener);
         } else {
@@ -480,7 +522,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected void doLookupStreaming(
         LookupFromIndexService.TransportRequest request,
         CancellableTask task,
-        ActionListener<List<Page>> listener
+        ActionListener<AbstractLookupService.LookupResponse> listener
     ) {
         // Streaming lookup is always a setup request - check that input page is empty
         if (request.inputPage.getPositionCount() != 0) {
@@ -522,8 +564,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             // Get source factory from server for planning
             ExchangeSourceOperator.ExchangeSourceOperatorFactory sourceFactory = server.getSourceOperatorFactory();
 
+            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request);
+            String planString = request.isProfile() ? physicalPlan.toString() : null;
+
             // Build operators using the planning system with the actual source factory
-            LocalExecutionPlanner.PhysicalOperation physicalOperation = buildOperatorFactories(request, sourceFactory);
+            LocalExecutionPlanner.PhysicalOperation physicalOperation = executionPlanner.buildOperatorFactories(
+                request,
+                physicalPlan,
+                BlockOptimization.NONE,
+                dc -> this,
+                sourceFactory
+            );
 
             LookupQueryPlan lookupQueryPlan = executionPlanner.buildOperators(
                 physicalOperation,
@@ -543,8 +594,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             // Stage 2: Start batch processing with the operators
             startServerWithOperators(server, lookupQueryPlan, intermediateOperators, serverReleasables);
 
-            // Server is ready - send empty response to indicate setup complete
-            listener.onResponse(List.of());
+            // Server is ready - send response with optional plan string
+            // Response will be released by the transport layer after sending
+            listener.onResponse(new LookupResponse(List.of(), blockFactory, planString));
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);
@@ -601,17 +653,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             clusterService.getClusterName().value(),
             releasables
         );
-    }
-
-    /**
-     * Builds operator factories for lookup.
-     * The factories do not refer to any input data,
-     * so they can be reused across multiple calls with different input pages.
-     */
-    protected LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(TransportRequest request, SourceOperatorFactory sourceFactory)
-        throws IOException {
-        PhysicalPlan physicalPlan = createLookupPhysicalPlan(request);
-        return executionPlanner.buildOperatorFactories(request, physicalPlan, BlockOptimization.NONE, dc -> this, sourceFactory);
     }
 
     /**

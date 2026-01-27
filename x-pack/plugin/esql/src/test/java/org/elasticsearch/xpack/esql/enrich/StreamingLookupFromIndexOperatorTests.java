@@ -44,10 +44,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
-import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.NoOpReleasable;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
@@ -66,7 +66,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -111,7 +110,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
-public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase {
+public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
     private static final int LESS_THAN_VALUE = 40;
     private final ThreadPool threadPool = threadPool();
@@ -302,13 +301,14 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
                     Source.EMPTY,
                     finalRightPlan,
                     finalJoinOnExpression,
-                    exchangeBufferSize
+                    exchangeBufferSize,
+                    false // profile
                 );
             }
 
             @Override
             public String describe() {
-                return "StreamingLookupOperator2[index=" + lookupIndex + "]";
+                return "StreamingLookupOperator[index=" + lookupIndex + "]";
             }
         };
     }
@@ -327,12 +327,12 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesPattern("StreamingLookupOperator2\\[index=idx\\]");
+        return matchesPattern("StreamingLookupOperator\\[index=idx\\]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesPattern("StreamingLookupOperator2\\[index=idx\\]");
+        return matchesPattern("StreamingLookupOperator\\[index=idx\\]");
     }
 
     private LookupFromIndexService lookupService(DriverContext mainContext) {
@@ -451,9 +451,17 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
     }
 
     @Override
-    protected MapMatcher extendStatusMatcher(MapMatcher mapMatcher, List<Page> input, List<Page> output) {
-        // StreamingLookupFromIndexOperator returns null status for now
-        return mapMatcher;
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        long inputRows = input.stream().mapToLong(Page::getPositionCount).sum();
+        // Check page counts
+        assertThat(map.get("pages_received"), equalTo(input.size()));
+        assertThat(map.get("pages_emitted"), equalTo(input.size()));
+        // Check row counts (use Number to handle Integer/Long from JSON)
+        assertThat(((Number) map.get("rows_received")).longValue(), equalTo(inputRows));
+        assertThat(((Number) map.get("rows_emitted")).longValue(), greaterThanOrEqualTo(0L));
+        // Check timing fields
+        assertThat(((Number) map.get("planning_nanos")).longValue(), greaterThanOrEqualTo(0L));
+        assertThat(((Number) map.get("process_nanos")).longValue(), greaterThanOrEqualTo(0L));
     }
 
     @Override

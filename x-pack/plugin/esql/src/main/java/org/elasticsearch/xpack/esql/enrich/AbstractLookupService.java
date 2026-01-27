@@ -48,6 +48,7 @@ import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -217,6 +218,18 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory) throws IOException;
 
     /**
+     * Helper to create a LookupResponse from pages and send it to the listener.
+     * The response will be released by the transport layer after sending.
+     */
+    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages) {
+        try {
+            listener.onResponse(createLookupResponse(pages, blockFactory));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Read the response from a {@link StreamInput}.
      */
     protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException;
@@ -231,9 +244,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     /**
-     * Perform the actual lookup.
+     * Perform the actual lookup, returning the full {@link LookupResponse}.
+     * Callers can access pages via {@link LookupResponse#takePages()} and must call {@link LookupResponse#decRef()} when done.
      */
-    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
+    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<LookupResponse> outListener) {
         ClusterState clusterState = clusterService.state();
         var projectState = projectResolver.getProjectState(clusterState);
         List<SearchShardRouting> shardIterators = clusterService.operationRouting()
@@ -257,7 +271,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<LookupResponse> delegate,
         DiscoveryNode targetNode,
         T transportRequest
     ) {
@@ -267,22 +281,18 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             transportRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                delegate.map(LookupResponse::takePages),
-                in -> readLookupResponse(in, blockFactory),
-                executor
-            )
+            new ActionListenerResponseHandler<>(delegate, in -> readLookupResponse(in, blockFactory), executor)
         );
     }
 
-    protected void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
+    protected void doLookup(T request, CancellableTask task, ActionListener<LookupResponse> listener) {
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
             Block inputBlock = request.inputPage.getBlock(j);
             if (inputBlock.areAllValuesNull()) {
                 List<Page> nullResponse = mergePages
                     ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                     : List.of();
-                listener.onResponse(nullResponse);
+                respondWithPages(listener, nullResponse);
                 return;
             }
         }
@@ -409,7 +419,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                     }
-                    listener.onResponse(out);
+                    respondWithPages(listener, out);
                 }
 
                 @Override
@@ -521,13 +531,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         public void messageReceived(T request, TransportChannel channel, Task task) {
             request.incRef();
             ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
-            doLookup(
-                request,
-                (CancellableTask) task,
-                listener.delegateFailureAndWrap(
-                    (l, resultPages) -> ActionListener.respondAndRelease(l, createLookupResponse(resultPages, blockFactory))
-                )
-            );
+            doLookup(request, (CancellableTask) task, listener);
         }
     }
 
@@ -666,6 +670,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
 
         protected abstract List<Page> takePages();
+
+        /**
+         * Returns the plan string for profile output, or null if not available.
+         * Subclasses can override to provide a plan string when profiling is enabled.
+         */
+        @Nullable
+        public String planString() {
+            return null;
+        }
 
         private void release() {
             blockFactory.breaker().addWithoutBreaking(-reservedBytes);

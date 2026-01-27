@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -66,6 +67,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private final Expression joinOnConditions;
     private final int exchangeBufferSize;
     private final LookupFromIndexOperator.MatchFieldsMapping matchFieldsMapping;
+    private final boolean profile;
 
     // State
     private final AtomicLong batchIdGenerator = new AtomicLong(0);
@@ -84,6 +86,15 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private long pagesCompleted = 0;
     private long totalInputRows = 0;
     private long totalOutputRows = 0;
+
+    // Timing stats
+    private long planningStartNanos = 0;
+    private long planningEndNanos = 0;
+    private long processEndNanos = 0;
+
+    // Lookup plan from server (for profile output)
+    @Nullable
+    private volatile String lookupPlan = null;
 
     /**
      * State for a single batch (one input page).
@@ -114,11 +125,12 @@ public class StreamingLookupFromIndexOperator implements Operator {
         Source source,
         PhysicalPlan rightPreJoinPlan,
         Expression joinOnConditions,
-        int exchangeBufferSize
+        int exchangeBufferSize,
+        boolean profile
     ) {
         this.driverContext = driverContext;
         this.lookupService = lookupService;
-        this.sessionId = sessionId + "/streaming2/" + sessionIdGenerator.incrementAndGet();
+        this.sessionId = sessionId + "/streaming/" + sessionIdGenerator.incrementAndGet();
         this.parentTask = parentTask;
         this.lookupIndex = lookupIndex;
         this.lookupIndexPattern = lookupIndexPattern;
@@ -128,6 +140,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         this.joinOnConditions = joinOnConditions;
         this.exchangeBufferSize = exchangeBufferSize;
         this.matchFieldsMapping = LookupFromIndexOperator.buildMatchFieldsMapping(matchFields, joinOnConditions);
+        this.profile = profile;
 
         // Initialize exchange client in constructor
         initializeClient();
@@ -171,16 +184,24 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 source,
                 rightPreJoinPlan,
                 joinOnConditions,
-                client.getSessionId()
+                client.getSessionId(),
+                profile
             );
 
-            lookupService.lookupAsync(setupRequest, parentTask, ActionListener.wrap(pages -> {
+            planningStartNanos = System.nanoTime();
+            lookupService.lookupAsync(setupRequest, parentTask, ActionListener.wrap(response -> {
+                planningEndNanos = System.nanoTime();
+                // Store the lookup plan from the response (if profiling is enabled)
+                lookupPlan = response.planString();
+                // Release the response (it has no pages for streaming setup)
+                response.decRef();
                 logger.debug("Client setup complete, connecting to server sink");
                 // Connect to server's sink to receive results and send BatchExchangeStatusRequest
                 // This starts the server's driver which processes the batches
                 client.connectToServerSink();
                 clientReadyListener.onResponse(client);
             }, e -> {
+                planningEndNanos = System.nanoTime();
                 logger.error("Client setup failed", e);
                 failure.set(e);
                 // Notify the client of the failure to unblock its internal driver
@@ -611,6 +632,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     @Override
     public void close() {
         logger.debug("close() called");
+        processEndNanos = System.nanoTime();
         closed = true;
 
         if (currentBatch != null) {
@@ -659,17 +681,28 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     @Override
     public Status status() {
-        return new StreamingLookupStatus(pagesReceived, pagesCompleted, 0);
+        long planningNanos = (planningEndNanos > 0 && planningStartNanos > 0) ? (planningEndNanos - planningStartNanos) : 0;
+        // Calculate process_nanos as time since planning completed until now (or until close() was called)
+        long processEnd = (processEndNanos > 0) ? processEndNanos : System.nanoTime();
+        long processNanos = (planningEndNanos > 0) ? (processEnd - planningEndNanos) : 0;
+        return new StreamingLookupStatus(
+            pagesReceived,
+            pagesCompleted,
+            totalInputRows,
+            totalOutputRows,
+            planningNanos,
+            processNanos,
+            lookupPlan
+        );
     }
 
     @Override
     public String toString() {
-        return "StreamingLookupOperator2[index=" + lookupIndex + "]";
+        return "StreamingLookupOperator[index=" + lookupIndex + "]";
     }
 
     /**
      * Status for StreamingLookupFromIndexOperator.
-     * Compatible with AsyncOperatorTestCase expectations.
      */
     public static class StreamingLookupStatus implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -678,27 +711,61 @@ public class StreamingLookupFromIndexOperator implements Operator {
             StreamingLookupStatus::new
         );
 
-        private final long pagesReceived;
-        private final long pagesCompleted;
-        private final long processNanos;
+        // Reuse the streaming session ID version since streaming is not in production yet
+        private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_lookup_streaming_session_id");
 
-        public StreamingLookupStatus(long pagesReceived, long pagesCompleted, long processNanos) {
+        private final long pagesReceived;
+        private final long pagesEmitted;
+        private final long rowsReceived;
+        private final long rowsEmitted;
+        private final long planningNanos;
+        private final long processNanos;
+        @Nullable
+        private final String lookupPlan;
+
+        public StreamingLookupStatus(
+            long pagesReceived,
+            long pagesEmitted,
+            long rowsReceived,
+            long rowsEmitted,
+            long planningNanos,
+            long processNanos,
+            @Nullable String lookupPlan
+        ) {
             this.pagesReceived = pagesReceived;
-            this.pagesCompleted = pagesCompleted;
+            this.pagesEmitted = pagesEmitted;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
+            this.planningNanos = planningNanos;
             this.processNanos = processNanos;
+            this.lookupPlan = lookupPlan;
         }
 
         public StreamingLookupStatus(StreamInput in) throws IOException {
             this.pagesReceived = in.readVLong();
-            this.pagesCompleted = in.readVLong();
+            this.pagesEmitted = in.readVLong();
+            this.rowsReceived = in.readVLong();
+            this.rowsEmitted = in.readVLong();
+            this.planningNanos = in.readVLong();
             this.processNanos = in.readVLong();
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                this.lookupPlan = in.readOptionalString();
+            } else {
+                this.lookupPlan = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(pagesReceived);
-            out.writeVLong(pagesCompleted);
+            out.writeVLong(pagesEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+            out.writeVLong(planningNanos);
             out.writeVLong(processNanos);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                out.writeOptionalString(lookupPlan);
+            }
         }
 
         @Override
@@ -710,8 +777,14 @@ public class StreamingLookupFromIndexOperator implements Operator {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("pages_received", pagesReceived);
-            builder.field("pages_completed", pagesCompleted);
+            builder.field("pages_emitted", pagesEmitted);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            builder.field("planning_nanos", planningNanos);
             builder.field("process_nanos", processNanos);
+            if (lookupPlan != null) {
+                builder.field("lookup_plan", lookupPlan);
+            }
             return builder.endObject();
         }
 
@@ -719,17 +792,73 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return pagesReceived;
         }
 
-        public long pagesCompleted() {
-            return pagesCompleted;
+        public long pagesEmitted() {
+            return pagesEmitted;
+        }
+
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
+        public long planningNanos() {
+            return planningNanos;
         }
 
         public long processNanos() {
             return processNanos;
         }
 
+        @Nullable
+        public String lookupPlan() {
+            return lookupPlan;
+        }
+
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StreamingLookupStatus that = (StreamingLookupStatus) o;
+            return pagesReceived == that.pagesReceived
+                && pagesEmitted == that.pagesEmitted
+                && rowsReceived == that.rowsReceived
+                && rowsEmitted == that.rowsEmitted
+                && planningNanos == that.planningNanos
+                && processNanos == that.processNanos
+                && java.util.Objects.equals(lookupPlan, that.lookupPlan);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, planningNanos, processNanos, lookupPlan);
+        }
+
+        @Override
+        public String toString() {
+            return "StreamingLookupStatus{"
+                + "pagesReceived="
+                + pagesReceived
+                + ", pagesEmitted="
+                + pagesEmitted
+                + ", rowsReceived="
+                + rowsReceived
+                + ", rowsEmitted="
+                + rowsEmitted
+                + ", planningNanos="
+                + planningNanos
+                + ", processNanos="
+                + processNanos
+                + ", lookupPlan="
+                + lookupPlan
+                + '}';
         }
     }
 }

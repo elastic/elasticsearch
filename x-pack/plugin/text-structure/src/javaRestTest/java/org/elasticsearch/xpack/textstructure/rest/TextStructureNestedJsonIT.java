@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TextStructureNestedJsonIT extends ESRestTestCase {
 
@@ -36,13 +37,13 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
     }
 
     public void testJsonObjectDetectionBasicRequest() throws IOException {
-        String nestedJsonSample = """
+        String jsonSample = """
             {"timestamp": "1478261151445", "id": 1, "message": "Connection established"}
             {"timestamp": "1478261151446", "id": 2, "message": "Request processed"}
             {"timestamp": "1478261151447", "id": 3, "message": "Data written"}
             """;
 
-        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
+        Map<String, Object> responseMap = executeAndVerifyRequest(jsonSample, null);
 
         assertKeyValue("timestamp", "date", responseMap);
         assertKeyValue("id", "long", responseMap);
@@ -56,7 +57,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
             {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
             """;
 
-        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample);
+        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample, null);
 
         assertKeyValue("host", "object", responseMap);
         assertKeyValue("timestamp", "date", responseMap);
@@ -69,7 +70,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
             {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
             """;
 
-        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample, true, true);
+        Map<String, Object> responseMap = executeAndVerifyRequest(nestedJsonSample, Boolean.TRUE);
 
         assertKeyValue("host.id", "long", responseMap);
         assertKeyValue("host.category", "keyword", responseMap);
@@ -83,7 +84,7 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
             {"host": {"id": 3, "category": "STORAGE DEVICE"}, "timestamp": "1478261151447"}
             """;
 
-        Map<String, Object> responseMap1 = executeAndVerifyRequest(nestedJsonSample, true, false);
+        Map<String, Object> responseMap1 = executeAndVerifyRequest(nestedJsonSample, Boolean.FALSE);
         Map<String, Object> responseMap2 = executeAndVerifyRequest(nestedJsonSample);
 
         assertThat(
@@ -113,19 +114,35 @@ public class TextStructureNestedJsonIT extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    private static Map<String, Object> executeAndVerifyRequest(String sample, Boolean shouldParseRecursively) throws IOException {
+        Request request = new Request("POST", "/_text_structure/find_structure");
+        request.setEntity(new StringEntity(sample, ContentType.APPLICATION_JSON));
+
+        if (shouldParseRecursively != null) {
+            request.addParameter("should_parse_recursively", Boolean.toString(shouldParseRecursively));
+        }
+        Response response = client().performRequest(request);
+        assertOK(response);
+        return entityAsMap(response);
+    }
+
     private void assertKeyValue(String expectedKey, String expectedType, Map<String, Object> responseMap) {
         assertThat(responseMap.get("format"), equalTo("ndjson"));
+        assertThat(responseMap, hasKey("mappings"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) responseMap.get("mappings");
+        assertThat(mappings, instanceOf(Map.class));
         assertThat(mappings, hasKey("properties"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-
+        assertThat(properties, instanceOf(Map.class));
         assertThat(properties, hasKey(expectedKey));
+
         @SuppressWarnings("unchecked")
-        Map<String, Object> timestampMapping = (Map<String, Object>) properties.get(expectedKey);
-        assertThat(timestampMapping.get("type"), equalTo(expectedType));
+        Map<String, Object> typeMapping = (Map<String, Object>) properties.get(expectedKey);
+        assertThat(typeMapping.get("type"), equalTo(expectedType));
+        assertThat(typeMapping, instanceOf(Map.class));
     }
 }

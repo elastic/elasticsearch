@@ -45,8 +45,9 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
     }
 
     public static EndpointMetadata.Internal randomInternal() {
-        Long endpointVersion = randomBoolean() ? null : randomLongBetween(0, Long.MAX_VALUE);
-        return new EndpointMetadata.Internal(endpointVersion);
+        var fingerprint = randomBoolean() ? null : randomAlphaOfLengthBetween(10, 50);
+        var version = randomBoolean() ? null : randomLongBetween(0, Long.MAX_VALUE);
+        return new EndpointMetadata.Internal(fingerprint, version);
     }
 
     @Override

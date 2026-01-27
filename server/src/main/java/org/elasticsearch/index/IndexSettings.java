@@ -1276,7 +1276,6 @@ public final class IndexSettings {
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
-            assert false;
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -1291,7 +1290,7 @@ public final class IndexSettings {
             assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
             assert indexMetadata.useTimeSeriesSyntheticId();
             assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
-            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID);
+            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
             useTimeSeriesSyntheticId = true;
         } else {
             useTimeSeriesSyntheticId = false;

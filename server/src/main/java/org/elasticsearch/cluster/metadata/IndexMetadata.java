@@ -2537,7 +2537,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             boolean useTimeSeriesSyntheticId = false;
             if (isTsdb
                 && IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
-                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID)) {
+                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
                 var setting = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
                 if (setting != null && setting.equalsIgnoreCase(Boolean.TRUE.toString())) {
                     assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG;

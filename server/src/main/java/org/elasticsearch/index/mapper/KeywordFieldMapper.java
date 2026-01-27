@@ -866,7 +866,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
                 return switch (cfg.function()) {
-                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(name());
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
                     case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
                     case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name());
                     case MV_MIN -> new MvMinBytesRefsFromOrdsBlockLoader(name());
@@ -902,7 +902,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 return switch (config.function()) {
-                    case BYTE_LENGTH, LENGTH, MV_MAX, MV_MIN -> true;
+                    // Only push BYTE_LENGTH to load if using doc values
+                    case BYTE_LENGTH -> usesBinaryDocValues;
+                    case LENGTH, MV_MAX, MV_MIN -> true;
                     default -> false;
                 };
             }

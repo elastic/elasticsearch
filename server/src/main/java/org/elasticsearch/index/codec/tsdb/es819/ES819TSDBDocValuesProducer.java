@@ -296,8 +296,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public int getLength() throws IOException {
                         long startOffset = addresses.get(doc);
-                        int length = (int) (addresses.get(doc + 1L) - startOffset);
-                        return length;
+                        return (int) (addresses.get(doc + 1L) - startOffset);
                     }
 
                     @Override
@@ -563,7 +562,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
         }
 
-        private void decompressLengthOnly(long blockId, int numDocsInBlock) throws IOException {
+        private BinaryDVCompressionMode.BlockHeader decompressOffsets(long blockId, int numDocsInBlock) throws IOException {
             long blockStartOffset = addresses.get(blockId);
             compressedData.seek(blockStartOffset);
 
@@ -572,27 +571,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
             if (uncompressedBlockLength == 0) {
                 Arrays.fill(uncompressedDocStarts, 0);
-                return;
+            } else {
+                decompressDocOffsets(numDocsInBlock, compressedData);
             }
 
-            decompressDocOffsets(numDocsInBlock, compressedData);
+            return header;
         }
 
         // unconditionally decompress blockId into uncompressedDocStarts and uncompressedBlock
         private void decompressBlock(long blockId, int numDocsInBlock) throws IOException {
-            long blockStartOffset = addresses.get(blockId);
-            compressedData.seek(blockStartOffset);
+            var header = decompressOffsets(blockId, numDocsInBlock);
 
-            var header = BinaryDVCompressionMode.BlockHeader.fromByte(compressedData.readByte());
-            int uncompressedBlockLength = compressedData.readVInt();
-
-            if (uncompressedBlockLength == 0) {
-                Arrays.fill(uncompressedDocStarts, 0);
-                return;
-            }
-
-            decompressDocOffsets(numDocsInBlock, compressedData);
-
+            int  uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;
@@ -639,25 +629,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return index;
         }
 
-        int decodeLength(int docNumber, int numBlocks) throws IOException {
-            // docNumber, rather than docId, because these are dense and could be indices from a DISI
-            long blockId = findAndUpdateBlock(docNumber, numBlocks);
-
-            int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
-            int idxInBlock = (int) (docNumber - startDocNumForBlock);
-            assert idxInBlock < numDocsInBlock;
-
-            if (blockId != lastBlockId) {
-                decompressLengthOnly(blockId, numDocsInBlock);
-                // uncompressedBytesRef and uncompressedDocStarts now populated
-                lastBlockId = blockId;
-            }
-
-            int start = uncompressedDocStarts[idxInBlock];
-            int end = uncompressedDocStarts[idxInBlock + 1];
-            return end - start;
-        }
-
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber, rather than docId, because these are dense and could be indices from a DISI
             long blockId = findAndUpdateBlock(docNumber, numBlocks);
@@ -677,6 +648,25 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             uncompressedBytesRef.offset = start;
             uncompressedBytesRef.length = end - start;
             return uncompressedBytesRef;
+        }
+
+        int decodeLength(int docNumber, int numBlocks) throws IOException {
+            // docNumber, rather than docId, because these are dense and could be indices from a DISI
+            long blockId = findAndUpdateBlock(docNumber, numBlocks);
+
+            int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
+            int idxInBlock = (int) (docNumber - startDocNumForBlock);
+            assert idxInBlock < numDocsInBlock;
+
+            if (blockId != lastBlockId) {
+                decompressOffsets(blockId, numDocsInBlock);
+                // uncompressedDocStarts now populated
+                lastBlockId = blockId;
+            }
+
+            int start = uncompressedDocStarts[idxInBlock];
+            int end = uncompressedDocStarts[idxInBlock + 1];
+            return end - start;
         }
 
         void decodeBulk(int numBlocks, int firstDocId, int lastDocId, int count, BlockLoader.SingletonBytesRefBuilder builder)

@@ -12,5 +12,12 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import java.io.IOException;
 
 public interface DirectLengthReader {
+    /**
+     * If a BinaryDocValues is used as a DirectLengthReader, the BytesRef itself cannot be accessed.
+     * Calls to both getLength and binaryValue will invalid the BinaryDocValues.
+     *
+     * @return returns the length of the current BytesRefs
+     * @throws IOException
+     */
     int getLength() throws IOException;
 }

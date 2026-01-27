@@ -9,6 +9,8 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -59,7 +61,7 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("indexingNode" + randomIntBetween(1, 5))
             .localNodeId("indexingNode3")
             .build();
-        Optional<String> id = picker.pickNode(nodes);
+        Optional<String> id = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY);
         assertThat(id, isPresentWith(oneOf("indexingNode1", "indexingNode2", "indexingNode4", "indexingNode5")));
     }
 
@@ -76,8 +78,27 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("indexingNode" + randomIntBetween(1, 2))
             .localNodeId("indexingNode2")
             .build();
-        Optional<String> id = picker.pickNode(nodes);
+        Optional<String> id = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY);
         assertThat(id, isPresentWith("indexingNode1"));
+    }
+
+    public void testPickNode_skipsIndexingNodeThatIsShuttingDown() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(createNode("searchNode1", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode2", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode3", SEARCH_NODE_ROLES))
+            .add(createNode("mlNode1", ML_NODE_ROLES))
+            .add(createNode("mlNode2", ML_NODE_ROLES))
+            .add(createNode("mlNode3", ML_NODE_ROLES))
+            .add(createNode("indexingNode1", INDEXING_NODE_ROLES)) // this node is marked for shutdown
+            .add(createNode("indexingNode2", INDEXING_NODE_ROLES)) // this is the local node
+            .add(createNode("indexingNode3", INDEXING_NODE_ROLES))
+            .masterNodeId("indexingNode" + randomIntBetween(1, 3))
+            .localNodeId("indexingNode2")
+            .build();
+        NodesShutdownMetadata nodeShutdowns = randomShutdownForNode("indexingNode1");
+        Optional<String> id = picker.pickNode(nodes, nodeShutdowns);
+        assertThat(id, isPresentWith("indexingNode3"));
     }
 
     public void testPickNode_prefersDedicatedCoordinatingNodeIfAvailable() {
@@ -97,8 +118,29 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("indexingNode" + randomIntBetween(1, 3))
             .localNodeId("coordinatingNode2")
             .build();
-        Optional<String> id = picker.pickNode(nodes);
+        Optional<String> id = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY);
         assertThat(id, isPresentWith(oneOf("coordinatingNode1", "coordinatingNode3")));
+    }
+
+    public void testPickNode_skipsDedicatedCoordinatingNodeThatIsShuttingDown() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(createNode("searchNode1", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode2", SEARCH_NODE_ROLES))
+            .add(createNode("searchNode3", SEARCH_NODE_ROLES))
+            .add(createNode("mlNode1", ML_NODE_ROLES))
+            .add(createNode("mlNode2", ML_NODE_ROLES))
+            .add(createNode("mlNode3", ML_NODE_ROLES))
+            .add(createNode("indexingNode1", INDEXING_NODE_ROLES))
+            .add(createNode("indexingNode2", INDEXING_NODE_ROLES)) // this is the local node
+            .add(createNode("indexingNode3", INDEXING_NODE_ROLES))
+            .add(createNode("coordinatingNode1", Set.of()))
+            .add(createNode("coordinatingNode2", Set.of())) // this node is marked for shutdown
+            .masterNodeId("indexingNode" + randomIntBetween(1, 3))
+            .localNodeId("indexingNode2")
+            .build();
+        NodesShutdownMetadata nodeShutdowns = randomShutdownForNode("coordinatingNode2");
+        Optional<String> id = picker.pickNode(nodes, nodeShutdowns);
+        assertThat(id, isPresentWith("coordinatingNode1"));
     }
 
     public void testPickNode_onlyDedicatedCoordinatingNodeIsLocal_fallsBackToIndexingNode() {
@@ -116,7 +158,7 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("indexingNode" + randomIntBetween(1, 3))
             .localNodeId("coordinatingNode1")
             .build();
-        Optional<String> id = picker.pickNode(nodes);
+        Optional<String> id = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY);
         assertThat(id, isPresentWith(oneOf("indexingNode1", "indexingNode2", "indexingNode3")));
     }
 
@@ -132,7 +174,7 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("indexingNode1")
             .localNodeId("indexingNode1")
             .build();
-        Optional<String> id = picker.pickNode(nodes);
+        Optional<String> id = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY);
         assertThat(id, isEmpty());
     }
 
@@ -152,11 +194,28 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
             .masterNodeId("indexingNode" + randomIntBetween(1, 5))
             // We never set the local node
             .build();
-        Optional<String> id = picker.pickNode(nodes);
+        Optional<String> id = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY);
         assertThat(id, isEmpty());
     }
 
     private static DiscoveryNode createNode(String id, Set<DiscoveryNodeRole> roles) {
         return DiscoveryNodeUtils.create(id, buildNewFakeTransportAddress(), Map.of(), roles);
+    }
+
+    private static NodesShutdownMetadata randomShutdownForNode(String nodeId) {
+        SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        return new NodesShutdownMetadata(
+            Map.of(
+                nodeId,
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(nodeId)
+                    .setStartedAtMillis(randomMillisUpToYear9999())
+                    .setType(type)
+                    .setReason(randomAlphaOfLengthBetween(5, 20))
+                    .setGracePeriod(type == SingleNodeShutdownMetadata.Type.SIGTERM ? randomPositiveTimeValue() : null)
+                    .setTargetNodeName(type == SingleNodeShutdownMetadata.Type.REPLACE ? randomIdentifier("newNode") : null)
+                    .build()
+            )
+        );
     }
 }

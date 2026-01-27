@@ -34,19 +34,6 @@ public class Warnings {
     }
 
     /**
-     * Create a new warnings object based on the given mode.
-     * Prefer the overload that takes a {@link WarningSourceLocation} when possible.
-     * @param warningsMode The warnings collection strategy to use
-     * @param lineNumber The line number of the source text
-     * @param columnNumber The column number of the source text
-     * @param sourceText The source text that caused the warning
-     * @return A warnings collector object
-     */
-    public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, int lineNumber, int columnNumber, String sourceText) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, null, sourceText, "evaluation of [{}] failed, treating result as null");
-    }
-
-    /**
      * Create a new warnings object based on the given mode which warns that
      * it treats the result as {@code false}.
      * @param warningsMode The warnings collection strategy to use
@@ -66,25 +53,6 @@ public class Warnings {
      */
     public static Warnings createOnlyWarnings(DriverContext.WarningsMode warningsMode, WarningSourceLocation source) {
         return createWarnings(warningsMode, source, "warnings during evaluation of [{}]");
-    }
-
-    /**
-     * Create a new warnings object based on the given mode which warns that
-     * evaluation resulted in warnings.
-     * Prefer the overload that takes a {@link WarningSourceLocation} when possible.
-     * @param warningsMode The warnings collection strategy to use
-     * @param lineNumber The line number of the source text
-     * @param columnNumber The column number of the source text
-     * @param sourceText The source text that caused the warning
-     * @return A warnings collector object
-     */
-    public static Warnings createOnlyWarnings(
-        DriverContext.WarningsMode warningsMode,
-        int lineNumber,
-        int columnNumber,
-        String sourceText
-    ) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, null, sourceText, "warnings during evaluation of [{}]");
     }
 
     private static Warnings createWarnings(DriverContext.WarningsMode warningsMode, WarningSourceLocation source, String first) {

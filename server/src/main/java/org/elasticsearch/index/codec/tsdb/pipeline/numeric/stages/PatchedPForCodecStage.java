@@ -57,6 +57,9 @@ public final class PatchedPForCodecStage implements NumericCodecStage {
 
         int maxBitsNeeded = 0;
         for (int i = 0; i < valueCount; i++) {
+            if (values[i] < 0) {
+                return valueCount;
+            }
             int bits = bitsRequired(values[i]);
             maxBitsNeeded = Math.max(maxBitsNeeded, bits);
         }

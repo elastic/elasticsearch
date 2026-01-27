@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 
 import java.io.IOException;
@@ -83,6 +84,19 @@ public class PatchedPForCodecStageTests extends NumericCodecStageTestCase {
     public void testRoundTripManyExceptions() throws IOException {
         final int blockSize = randomBlockSize();
         assertRoundTrip(LongStream.generate(() -> randomLongBetween(100000, 1000000)).limit(blockSize).toArray(), blockSize, 1);
+    }
+
+    public void testNegativeValuesSkip() throws IOException {
+        final int blockSize = randomBlockSize();
+        final long[] values = LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(blockSize).toArray();
+        for (int i = 0; i < Math.min(3, blockSize); i++) {
+            values[randomIntBetween(0, blockSize - 1)] = -randomIntBetween(1, 1000);
+        }
+        final long[] original = values.clone();
+        final EncodingContext encodingContext = createEncodingContext(blockSize, StageId.PATCHED_PFOR.id);
+        PatchedPForCodecStage.INSTANCE.encode(values, values.length, encodingContext);
+        assertArrayEquals(original, values);
+        assertFalse(encodingContext.isStageApplied(0));
     }
 
     private void assertRoundTrip(final long[] original, int blockSize) throws IOException {

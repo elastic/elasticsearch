@@ -338,11 +338,11 @@ public final class SearchPhaseController {
             if (hits != null) {
                 hits.decRef();
             }
-//            if (reducedQueryPhase.aggregations != null) {
-//                reducedQueryPhase.aggregations.forEach(agg -> {
-//                    agg.close();
-//                });
-//            }
+            // if (reducedQueryPhase.aggregations != null) {
+            // reducedQueryPhase.aggregations.forEach(agg -> {
+            // agg.close();
+            // });
+            // }
         }
     }
 

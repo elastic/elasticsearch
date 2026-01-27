@@ -277,7 +277,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public void releaseAggs() {
         if (aggregations != null) {
-            aggregations.expand().forEach(agg -> {agg.close();});
+            aggregations.expand().forEach(agg -> { agg.close(); });
             aggregations.close();
             aggregations = null;
         }

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -95,9 +97,13 @@ public class ByteLength extends UnaryScalarFunction implements BlockLoaderExpres
     }
 
     @Override
-    public BlockLoaderExpression.PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
         if (field instanceof FieldAttribute f) {
-            return new BlockLoaderExpression.PushedBlockLoaderExpression(f, BlockLoaderFunctionConfig.Function.BYTE_LENGTH);
+            BlockLoaderWarnings warnings = new BlockLoaderWarnings(DriverContext.WarningsMode.COLLECT, source());
+            return new PushedBlockLoaderExpression(
+                f,
+                new BlockLoaderFunctionConfig.JustWarnings(BlockLoaderFunctionConfig.Function.BYTE_LENGTH, warnings)
+            );
         }
         return null;
     }

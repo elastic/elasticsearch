@@ -207,20 +207,22 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
         }
     }
 
-    public record Internal(@Nullable String endpointFingerprint) implements ToXContentObject, Writeable {
+    public record Internal(@Nullable String fingerprint, @Nullable Long version) implements ToXContentObject, Writeable {
 
-        public static final Internal EMPTY = new Internal((String) null);
+        public static final Internal EMPTY = new Internal(null, null);
 
-        public static final String ENDPOINT_VERSION = "endpoint_version";
+        public static final String FINGERPRINT = "fingerprint";
+        public static final String VERSION = "version";
 
         private static final ConstructingObjectParser<Internal, Void> PARSER = new ConstructingObjectParser<>(
             "endpoint_metadata_internal",
             true,
-            args -> new Internal((String) args[0])
+            args -> new Internal((String) args[0], (Long) args[1])
         );
 
         static {
-            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ENDPOINT_VERSION));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(FINGERPRINT));
+            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(VERSION));
         }
 
         public static Internal parse(XContentParser parser) throws IOException {
@@ -228,15 +230,19 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
         }
 
         public Internal(StreamInput in) throws IOException {
-            this(in.readOptionalString());
+            this(in.readOptionalString(), in.readOptionalVLong());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
-            if (endpointFingerprint != null) {
-                builder.field(ENDPOINT_VERSION, endpointFingerprint);
+            if (fingerprint != null) {
+                builder.field(FINGERPRINT, fingerprint);
+            }
+
+            if (version != null) {
+                builder.field(VERSION, version);
             }
 
             builder.endObject();
@@ -245,12 +251,13 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
 
         @Override
         public String toString() {
-            return "Internal{" + "endpointFingerprint=" + endpointFingerprint + '}';
+            return "Internal{" + "fingerprint=" + fingerprint + ", version=" + version + '}';
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(endpointFingerprint);
+            out.writeOptionalString(fingerprint);
+            out.writeOptionalVLong(version);
         }
     }
 }

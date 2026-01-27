@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
@@ -26,11 +28,13 @@ import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 
+import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_CHAT_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_SPARSE_PATH;
@@ -640,11 +644,13 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
     }
 
     public void testCreatesAllSupportedTaskTypesAndReturnsCorrectModels() {
+        var idCompletion = "id_completion";
         var idChat = "id_chat";
         var idSparse = "id_sparse";
         var idDense = "id_dense";
         var idRerank = "id_rerank";
 
+        var nameCompletion = "completion_model";
         var nameChat = "chat_model";
         var nameSparse = "sparse_model";
         var nameDense = "dense_model";
@@ -658,6 +664,18 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    idCompletion,
+                    nameCompletion,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.COMPLETION.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    null,
+                    null,
+                    null
+                ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idChat,
                     nameChat,
@@ -716,11 +734,21 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
 
-        var endpoints = auth.getEndpoints(Set.of(idChat, idSparse, idDense, idRerank));
-        assertThat(endpoints.size(), is(4));
+        var ids = Set.of(idCompletion, idChat, idSparse, idDense, idRerank);
+        var endpoints = auth.getEndpoints(ids);
+        assertThat(endpoints.size(), is(ids.size()));
         assertThat(
             endpoints,
             containsInAnyOrder(
+                new ElasticInferenceServiceCompletionModel(
+                    idCompletion,
+                    TaskType.COMPLETION,
+                    ElasticInferenceService.NAME,
+                    new ElasticInferenceServiceCompletionServiceSettings(nameCompletion),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    new ElasticInferenceServiceComponents(url)
+                ),
                 new ElasticInferenceServiceCompletionModel(
                     idChat,
                     TaskType.CHAT_COMPLETION,
@@ -761,5 +789,583 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testCreatesEndpointMetadataWithHeuristics() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var properties = List.of("multilingual", "preview");
+        var statusHeuristic = randomFrom(StatusHeuristic.values());
+        var status = statusHeuristic.toString();
+        var releaseDate = "2024-05-01";
+        var endOfLifeDate = "2025-12-31";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    properties,
+                    releaseDate,
+                    endOfLifeDate,
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(properties, statusHeuristic, LocalDate.parse(releaseDate), LocalDate.parse(endOfLifeDate)),
+                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testCreatesEndpointMetadataWithInternalFields() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var fingerprint = "fingerprint123";
+        var status = "ga";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    null,
+                    null,
+                    fingerprint
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), (LocalDate) null, null),
+                new EndpointMetadata.Internal(fingerprint, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testCreatesEndpointMetadataWithKibanaConnectorName() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var kibanaConnectorName = "my-connector";
+        var status = "ga";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    null,
+                    kibanaConnectorName,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), (LocalDate) null, null),
+                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                kibanaConnectorName
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testHandlesNullPropertiesInHeuristics() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var statusHeuristic = randomFrom(StatusHeuristic.values());
+        var status = statusHeuristic.toString();
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of(), statusHeuristic, (LocalDate) null, null),
+                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testHandlesNullDatesInHeuristics() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var statusHeuristic = randomFrom(StatusHeuristic.values());
+        var status = statusHeuristic.toString();
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "",
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of(), statusHeuristic, (LocalDate) null, null),
+                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testFiltersEndpointsWithInvalidReleaseDate() {
+        var id1 = "id1";
+        var invalidId = "invalid_id";
+        var status = "ga";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id1,
+                    "name1",
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    null,
+                    null,
+                    null
+                ),
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    invalidId,
+                    "name2",
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "invalid-date-format",
+                    "",
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
+        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
+        assertTrue(auth.isAuthorized());
+    }
+
+    public void testFiltersEndpointsWithInvalidEndOfLifeDate() {
+        var id1 = "id1";
+        var invalidId = "invalid_id";
+        var status = "ga";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id1,
+                    "name1",
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    null,
+                    null,
+                    null
+                ),
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    invalidId,
+                    "name2",
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    "",
+                    "invalid-date-format",
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
+        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
+        assertTrue(auth.isAuthorized());
+    }
+
+    public void testHandlesChunkingSettingsInSparseEmbeddings() {
+        var id = "id_sparse";
+        var name = "sparse_model";
+        var url = "base_url";
+        var status = "ga";
+        Map<String, Object> chunkingSettings = Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1);
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, chunkingSettings),
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceSparseEmbeddingsModel(
+            id,
+            TaskType.SPARSE_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(name, null, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            ChunkingSettingsBuilder.fromMap(chunkingSettings),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), (LocalDate) null, null),
+                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testHandlesChunkingSettingsInDenseTextEmbeddings() {
+        var id = "id_dense";
+        var name = "dense_model";
+        var url = "base_url";
+        var similarity = SimilarityMeasure.COSINE;
+        var dimensions = 256;
+        var status = "ga";
+        Map<String, Object> chunkingSettings = Map.of("strategy", "word", "max_chunk_size", 512);
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                        similarity.toString(),
+                        dimensions,
+                        DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        chunkingSettings
+                    ),
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+            id,
+            TaskType.TEXT_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarity, dimensions, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            ChunkingSettingsBuilder.fromMap(chunkingSettings),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), (LocalDate) null, null),
+                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testHandlesEmptyChunkingSettings() {
+        var id = "id_sparse";
+        var name = "sparse_model";
+        var url = "base_url";
+        var status = "ga";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, Map.of()),
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceSparseEmbeddingsModel(
+            id,
+            TaskType.SPARSE_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(name, null, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            ChunkingSettingsBuilder.fromMap(Map.of()),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString(status), (LocalDate) null, null),
+                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testGetEndpointsFiltersUnknownIds() {
+        var id1 = "id1";
+        var id2 = "id2";
+        var name = "name";
+        var url = "url";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id1,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id1,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url)
+        );
+        assertThat(auth.getEndpoints(Set.of(id1, id2, "nonexistent")).get(0), is(expectedEndpoint));
+    }
+
+    public void testGetEndpointsWithEmptySet() {
+        var id = "id1";
+        var name = "name";
+        var url = "url";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        var endpoints = auth.getEndpoints(Set.of());
+        assertThat(endpoints, is(List.of()));
+    }
+
+    public void testNewLimitedToTaskTypesPreservesMetadata() {
+        var id1 = "id1";
+        var id2 = "id2";
+        var name1 = "name1";
+        var name2 = "name2";
+        var url = "url";
+        var fingerprint = "fingerprint123";
+        var properties = List.of("multilingual");
+        var status = "ga";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id1,
+                    name1,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    properties,
+                    "2024-05-01",
+                    null,
+                    null,
+                    null,
+                    fingerprint
+                ),
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id2,
+                    name2,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    status,
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                        SimilarityMeasure.COSINE.toString(),
+                        256,
+                        DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null
+                    ),
+                    null,
+                    null
+                )
+            )
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        var scoped = auth.newLimitedToTaskTypes(EnumSet.of(TaskType.CHAT_COMPLETION));
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id1,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name1),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), LocalDate.parse("2024-05-01"), null),
+                new EndpointMetadata.Internal(fingerprint, ENDPOINT_VERSION),
+                null
+            )
+        );
+
+        assertThat(scoped.getEndpoints(Set.of(id1)).get(0), is(expectedEndpoint));
     }
 }

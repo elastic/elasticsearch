@@ -44,6 +44,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
+
 /**
  * Transforms the response from {@link ElasticInferenceServiceAuthorizationRequestHandler} into a format
  * for consumption by the {@link ElasticInferenceService}.
@@ -167,7 +169,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     private static EndpointMetadata.Internal getInternalFields(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
-        return new EndpointMetadata.Internal(authorizedEndpoint.fingerprint());
+        return new EndpointMetadata.Internal(authorizedEndpoint.fingerprint(), ENDPOINT_VERSION);
     }
 
     private static ElasticInferenceServiceCompletionModel createCompletionModel(

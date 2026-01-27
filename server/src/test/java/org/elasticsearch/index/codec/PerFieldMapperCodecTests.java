@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -160,26 +158,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         int numIterations = randomIntBetween(2, 64);
         for (int i = 0; i < numIterations; i++) {
             var indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES);
-            String mapping = randomBoolean() ? MAPPING_1 : randomBoolean() ? MAPPING_2 : MAPPING_3;
+            String mapping = randomFrom(MAPPING_1, MAPPING_2, MAPPING_3);
             PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(randomBoolean(), randomBoolean(), indexMode, mapping);
             var result = perFieldMapperCodec.getPostingsFormatForField("_id");
             if (result instanceof ES87BloomFilterPostingsFormat es87BloomFilterPostingsFormat) {
-                result = getPostingsFormatFromBloomFilterFormat(es87BloomFilterPostingsFormat);
+                Function<String, PostingsFormat> postingsFormats = es87BloomFilterPostingsFormat.getPostingsFormats();
+                result = postingsFormats.apply("_id");
             }
             assertThat(result, instanceOf(ES812PostingsFormat.class));
-        }
-    }
-
-    @SuppressForbidden(reason = "access violation required in order to read private field for this test")
-    private static PostingsFormat getPostingsFormatFromBloomFilterFormat(ES87BloomFilterPostingsFormat es87BloomFilterPostingsFormat) {
-        try {
-            Field field = ES87BloomFilterPostingsFormat.class.getDeclaredField("postingsFormats");
-            field.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Function<String, PostingsFormat> postingsFormats = (Function<String, PostingsFormat>) field.get(es87BloomFilterPostingsFormat);
-            return postingsFormats.apply("_id");
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
         }
     }
 

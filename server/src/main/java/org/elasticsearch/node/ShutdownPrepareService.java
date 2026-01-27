@@ -106,7 +106,11 @@ public class ShutdownPrepareService {
 
         // first make sure the node can safely be shutdown
         if (terminationHandler != null) {
-            terminationHandler.blockTermination();
+            try {
+                terminationHandler.blockTermination();
+            } catch (RuntimeException | Error e) {
+                logger.warn("termination handler failed; proceeding with shutdown", e);
+            }
         }
 
         record Stopper(String name, SubscribableListener<Void> listener) {

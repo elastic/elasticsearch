@@ -3769,7 +3769,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {
         final List<String> localIndices = resolvedIndices.getLocal();
         assertEquals(1, localIndices.size());
-        assertEquals("-*", localIndices.iterator().next());
+        assertEquals(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER, localIndices.iterator().next());
         assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(request.indices()));
         assertEquals(0, resolvedIndices.getRemote().size());
     }

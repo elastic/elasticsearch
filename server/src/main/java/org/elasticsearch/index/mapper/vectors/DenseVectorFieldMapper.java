@@ -1746,9 +1746,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
-                if (rescoreVector == null) {
-                    rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
-                }
 
                 Object visitPercentageNode = indexOptionsMap.remove("default_visit_percentage");
                 double visitPercentage = 0d;
@@ -1780,6 +1777,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 } else {
                     quantizeBits = 1;
                 }
+                if (rescoreVector == null) {
+                    // adjust the oversampling factor based on quantization scheme
+                    // no oversampling with 4 bits
+                    if (quantizeBits == 2) {
+                        rescoreVector = new RescoreVector(1.5f);
+                    } else {
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    }
+                }
+
 
                 boolean doPrecondition = false;
                 if (Build.current().isSnapshot()) {

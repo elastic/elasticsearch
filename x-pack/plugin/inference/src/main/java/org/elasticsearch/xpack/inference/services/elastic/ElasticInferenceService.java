@@ -685,8 +685,8 @@ public class ElasticInferenceService extends SenderService {
         configurationMap.put(
             ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
             new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription(
-                    "Allows you to specify the maximum number of chunks per batch."
-                )
+                "Allows you to specify the maximum number of chunks per batch."
+            )
                 .setLabel("Maximum Batch Size")
                 .setRequired(false)
                 .setSensitive(false)

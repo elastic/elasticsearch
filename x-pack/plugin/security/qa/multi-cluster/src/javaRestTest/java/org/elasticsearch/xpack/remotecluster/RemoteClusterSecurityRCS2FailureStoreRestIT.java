@@ -197,7 +197,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
               "remote_indices": [
                 {
                   "names": ["test*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]

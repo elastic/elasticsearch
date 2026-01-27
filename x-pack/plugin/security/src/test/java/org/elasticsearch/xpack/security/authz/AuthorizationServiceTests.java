@@ -3489,7 +3489,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         RoleDescriptor role = new RoleDescriptor(
             "a_all",
             null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read_cross_cluster").build() },
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read").build() },
             null
         );
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));

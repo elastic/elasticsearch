@@ -552,7 +552,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("/. ? + * | { } [ ] ( ) \" \\/", "*")
-                    .privileges("read", "read_cross_cluster")
+                    .privileges("read")
                     .grantedFields("almost", "all*")
                     .deniedFields("denied*")
                     .build() },
@@ -3328,7 +3328,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     }""",
                 "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\"],"
                     + "\"indices\":[{\"names\":[\"logs*\"],"
-                    + "\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"],"
+                    + "\"privileges\":[\"read\",\"view_index_metadata\"],"
                     + "\"field_security\":{\"grant\":[\"*\"],\"except\":[\"private\"]},"
                     + "\"query\":\"{\\\"term\\\":{\\\"tag\\\":42}}\"}],"
                     + "\"applications\":[],\"run_as\":[]}]"
@@ -3369,7 +3369,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         ]
                       }""",
                 "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\",\"cross_cluster_replication\"],"
-                    + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"]},"
+                    + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"view_index_metadata\"]},"
                     + "{\"names\":[\"archive\"],\"privileges\":[\"cross_cluster_replication\",\"cross_cluster_replication_internal\"],"
                     + "\"allow_restricted_indices\":true}],\"applications\":[],\"run_as\":[]}]"
             )

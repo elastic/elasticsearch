@@ -29,21 +29,4 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
     }
-
-    public static ElasticInferenceServiceDenseTextEmbeddingsModel createModel(
-        String url,
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings serviceSettings,
-        ChunkingSettings chunkingSettings
-    ) {
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "elastic",
-            serviceSettings,
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            ElasticInferenceServiceComponents.of(url),
-            chunkingSettings
-        );
-    }
 }

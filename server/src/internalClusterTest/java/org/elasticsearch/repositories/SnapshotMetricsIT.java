@@ -212,14 +212,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotFuture;
 
         // Kick off a snapshot
-        final long snapshotStartTimeInNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long snapshotStartTimeInNanos = System.nanoTime();
         snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(true)
             .execute();
 
         // Poll until we see some throttling occurring
-        final long snap_ts0 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long snap_ts0 = System.nanoTime();
         assertBusy(() -> {
             collectMetrics();
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
@@ -227,21 +227,21 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
 
         // Remove create throttling
-        final long snap_ts1 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long snap_ts1 = System.nanoTime();
         createRepository(
             repositoryName,
             "mock",
             repositorySettings.put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO),
             false
         );
-        final long snap_ts2 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long snap_ts2 = System.nanoTime();
 
         // wait for the snapshot to finish
         safeGet(snapshotFuture);
-        final long snap_ts3 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long snap_ts3 = System.nanoTime();
 
         logger.info(
-            "saw throttling in [{}] remove throttling took [{}ns], snapshot took [{}ns]",
+            "saw throttling in [{}] remove throttling took [{}], snapshot took [{}]",
             TimeValue.timeValueNanos(snap_ts1 - snap_ts0),
             TimeValue.timeValueNanos(snap_ts2 - snap_ts1),
             TimeValue.timeValueNanos(snap_ts3 - snap_ts2)
@@ -254,7 +254,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // we should also have incurred some read duration due to the throttling
         final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * maximumPerNodeConcurrency * TimeValue
-            .timeValueNanos(TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()) - snapshotStartTimeInNanos)
+            .timeValueNanos(System.nanoTime() - snapshotStartTimeInNanos)
             .nanos();
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
@@ -262,21 +262,21 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         );
 
         // Restore the snapshot
-        final long restore_ts0 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long restore_ts0 = System.nanoTime();
         ActionFuture<RestoreSnapshotResponse> restoreFuture = clusterAdmin().prepareRestoreSnapshot(
             TEST_REQUEST_TIMEOUT,
             repositoryName,
             snapshotName
         ).setIndices(indexName).setWaitForCompletion(true).setRenamePattern("(.+)").setRenameReplacement("restored-$1").execute();
 
-        final long restore_ts1 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long restore_ts1 = System.nanoTime();
         // assert we throttled on restore
         assertBusy(() -> {
             collectMetrics();
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
         });
 
-        final long restore_ts2 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long restore_ts2 = System.nanoTime();
         // Remove restore throttling
         createRepository(
             repositoryName,
@@ -285,10 +285,10 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             false
         );
         safeGet(restoreFuture);
-        final long restore_ts3 = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long restore_ts3 = System.nanoTime();
 
         logger.info(
-            "saw throttling in [{}] remove throttling took [{}ns], restore took [{}ns]",
+            "saw throttling in [{}] remove throttling took [{}], restore took [{}]",
             TimeValue.timeValueNanos(restore_ts1 - restore_ts0),
             TimeValue.timeValueNanos(restore_ts2 - restore_ts1),
             TimeValue.timeValueNanos(restore_ts3 - restore_ts2)

@@ -298,7 +298,7 @@ public class CreateIndexLimitIT extends ESIntegTestCase {
 
     public void testCreateIndexLimit() throws Exception {
         final String indexName = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        int userIndicesLimit = 3;
+        int userIndicesLimit = randomIntBetween(3, 5);
         final Set<String> systemIndexAndDataStreamsPatterns = Set.of(
             ".my-elasticsearch-system-",
             ".test-index-limit-",

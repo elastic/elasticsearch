@@ -180,7 +180,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
             echo "Test seed retrieval will be skipped"
           else
             DEVELOCITY_BUILD_SCAN_API_URL="${DEVELOCITY_BASE_URL}/api/builds/${BUILD_SCAN_ID}?models=gradle-attributes"
-            TEST_SEED=""
+            TESTS_SEED=""
 
             echo "Fetching test seed from build scan: $BUILD_SCAN_ID"
             echo "API URL: $DEVELOCITY_BUILD_SCAN_API_URL"
@@ -195,25 +195,26 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
               # Check if we got valid JSON
               if echo "$BUILD_SCAN_DATA" | jq empty 2>/dev/null; then
                 # Extract test seed from gradle attributes
-                TEST_SEED=$(printf '%s\n' "$BUILD_SCAN_DATA" | jq -r '.models.gradleAttributes.model.values[]? | select(.name == "tests.seed") | .value' 2>/dev/null)
+                TESTS_SEED=$(printf '%s\n' "$BUILD_SCAN_DATA" | jq -r '.models.gradleAttributes.model.values[]? | select(.name == "tests.seed") | .value' 2>/dev/null)
 
-                if [[ -z "$TEST_SEED" ]] || [[ "$TEST_SEED" == "null" ]]; then
+                if [[ -z "$TESTS_SEED" ]] || [[ "$TESTS_SEED" == "null" ]]; then
                   echo "Could not retrieve test seed from build scan"
                   echo "Debug: Checking available gradle attributes..."
                   printf '%s\n' "$BUILD_SCAN_DATA" | jq -r '.models.gradleAttributes.model.values[]? | .name' 2>/dev/null || echo "No gradle attributes found"
-                  TEST_SEED=""
+                  TESTS_SEED=""
                 else
-                  echo "Retrieved test seed: $TEST_SEED"
+                  echo "Retrieved test seed: $TESTS_SEED"
+                  export TESTS_SEED
                 fi
               else
                 echo "Error: Invalid JSON response from Develocity API"
                 echo "Response preview: ${BUILD_SCAN_DATA:0:200}"
-                TEST_SEED=""
+                TESTS_SEED=""
               fi
             else
               echo "Error: Failed to fetch build scan data from Develocity API"
               echo "Curl output: ${BUILD_SCAN_DATA:0:200}"
-              TEST_SEED=""
+              TESTS_SEED=""
             fi
           fi
 
@@ -226,7 +227,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
             --max-time 30 \
             --header 'accept: application/json' \
             --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
-            --header 'content-type: application/json' 2>/dev/null | jq --arg testseed "$TEST_SEED" '. + {testseed: $testseed}' &> .failed-test-history.json; then
+            --header 'content-type: application/json' 2>/dev/null | jq --arg testseed "$TESTS_SEED" '. + {testseed: $testseed}' &> .failed-test-history.json; then
 
             # Set secure file permissions
             chmod 600 .failed-test-history.json

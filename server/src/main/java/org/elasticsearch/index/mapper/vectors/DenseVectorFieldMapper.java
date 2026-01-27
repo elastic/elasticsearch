@@ -2856,10 +2856,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                     if (base64Bytes != null) {
                         if (dims != null && base64Bytes.length != element.getNumBytes(dims)) {
-                            throw invalidBase64Length(
-                                base64Bytes.length,
-                                "[query_vector] must contain a valid Base64-encoded byte vector"
-                            );
+                            throw invalidBase64Length(base64Bytes.length, "[query_vector] must contain a valid Base64-encoded byte vector");
                         }
                         return VectorData.fromBytes(base64Bytes);
                     }

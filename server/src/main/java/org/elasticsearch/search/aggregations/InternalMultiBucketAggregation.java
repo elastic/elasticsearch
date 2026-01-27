@@ -256,7 +256,7 @@ public abstract class InternalMultiBucketAggregation<
     @Override
     public void close() {
         for (Bucket b : getBuckets()) {
-            b.getAggregations().asList().forEach(InternalAggregation::close);
+            b.getAggregations().asList().forEach(agg -> {agg.close();});
         }
     }
 }

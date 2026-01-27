@@ -352,7 +352,9 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
     @Override
     public void close() {
+//        while (refCounted.hasReferences()) {
         decRef();
+//        }
     }
 
 }

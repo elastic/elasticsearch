@@ -224,6 +224,6 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
 
     @Override
     public void close() {
-        aggregations.asList().forEach(InternalAggregation::close);
+        aggregations.asList().forEach(agg -> {agg.close();});
     }
 }

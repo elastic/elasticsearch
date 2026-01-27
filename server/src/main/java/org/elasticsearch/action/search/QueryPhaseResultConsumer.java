@@ -480,14 +480,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     private void consume(QuerySearchResult result, Runnable next) {
+        boolean isReferrence = result.aggregations() != null && result.aggregations().isSerialized() == false;
         if (hasFailure()) {
             result.consumeAll();
+            if (isReferrence) {
+                result.aggregations().expand().forEach(agg -> {agg.close();});
+            }
             next.run();
         } else if (result.isNull() || result.isPartiallyReduced()) {
             SearchShardTarget target = result.getSearchShardTarget();
             SearchShard searchShard = new SearchShard(target.getClusterAlias(), target.getShardId());
             synchronized (this) {
                 emptyResults.add(searchShard);
+            }
+            if (isReferrence) {
+                result.aggregations().expand().forEach(agg -> {agg.close();});
             }
             next.run();
         } else {
@@ -528,6 +535,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             if (hasFailure) {
                 result.consumeAll();
+            }
+            if (isReferrence) {
+                result.aggregations().expand().forEach(agg -> {agg.close();});
             }
             if (executeNextImmediately) {
                 next.run();

@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
@@ -34,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -214,7 +214,7 @@ public class WriteLoadConstraintMonitor {
             for (NodeIdName nodeIdName : newHotspotNodes) {
                 hotspotNodeStartTimesUpdate.put(nodeIdName, startTimestamp);
             }
-            hotspotNodeStartTimes = new ImmutableOpenMap.Builder<NodeIdName, Long>().putAllFromMap(hotspotNodeStartTimesUpdate).build();
+            hotspotNodeStartTimes = Collections.unmodifiableMap(hotspotNodeStartTimesUpdate);
         }
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
     }
@@ -240,7 +240,7 @@ public class WriteLoadConstraintMonitor {
                     Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName())
                 );
             }
-            hotspotNodeStartTimes = new ImmutableOpenMap.Builder<NodeIdName, Long>().putAllFromMap(hotspotNodeStartTimesUpdate).build();
+            hotspotNodeStartTimes = Collections.unmodifiableMap(hotspotNodeStartTimesUpdate);
         }
 
         hotspotNodesCount.set(hotspotNodeStartTimes.size());

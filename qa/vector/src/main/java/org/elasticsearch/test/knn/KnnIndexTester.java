@@ -127,10 +127,12 @@ public class KnnIndexTester {
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));
-            suffix.add(Integer.toString(
-                args.secondaryClusterSize() == -1 ?
-                    ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER :
-                    args.secondaryClusterSize())
+            suffix.add(
+                Integer.toString(
+                    args.secondaryClusterSize() == -1
+                        ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                        : args.secondaryClusterSize()
+                )
             );
             suffix.add(Integer.toString(args.quantizeBits()));
         } else {
@@ -163,7 +165,8 @@ public class KnnIndexTester {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),
-                args.secondaryClusterSize() == -1 ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                args.secondaryClusterSize() == -1
+                    ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
                     : args.secondaryClusterSize(),
                 elementType,
                 args.onDiskRescore(),
@@ -332,18 +335,10 @@ public class KnnIndexTester {
         for (TestConfiguration testConfiguration : testConfigurationList) {
             String indexPathName = formatIndexPath(testConfiguration);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
-            Results indexResults = new Results(
-                indexPathName,
-                indexType,
-                testConfiguration.numDocs()
-            );
+            Results indexResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
             for (int i = 0; i < results.length; i++) {
-                results[i] = new Results(
-                    indexPathName,
-                    indexType,
-                    testConfiguration.numDocs()
-                );
+                results[i] = new Results(indexPathName, indexType, testConfiguration.numDocs());
             }
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
@@ -389,11 +384,7 @@ public class KnnIndexTester {
                     // Warm up
                     for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
                         for (int i = 0; i < results.length; i++) {
-                            var ignoreResults = new Results(
-                                indexPathName,
-                                indexType,
-                                testConfiguration.numDocs()
-                            );
+                            var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                             knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
                         }

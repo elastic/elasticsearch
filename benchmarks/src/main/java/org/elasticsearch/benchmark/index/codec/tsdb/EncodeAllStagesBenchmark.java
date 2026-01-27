@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmark for encoding data that triggers all encoding stages (Delta → Offset → GCD → FOR).
+ * Benchmark for encoding data that triggers all encoding stages (Delta -> Offset -> GCD -> FOR).
  */
 @Fork(value = 1)
 @Warmup(iterations = 3)

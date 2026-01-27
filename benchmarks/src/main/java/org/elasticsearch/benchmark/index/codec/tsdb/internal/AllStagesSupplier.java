@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 /**
  * Generates data that triggers ALL stages of the ES87 encoding pipeline.
  *
- * <p>The ES87 codec applies stages in order: Delta → Offset → GCD → FOR (bit-pack).
+ * <p>The ES87 codec applies stages in order: Delta -> Offset -> GCD -> FOR (bit-pack).
  * This supplier generates monotonically increasing values with carefully chosen
  * deltas that ensure every stage is applied:
  *
@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * After GCD stage:    [  0,   0,   1,   2,   3,   4,   5,   6]  (divided by GCD=2)
  * After FOR stage:    bit-packed with 3 bits per value
  *
- * Original size:      64 bytes (8 longs × 8 bytes)
+ * Original size:      64 bytes (8 longs x 8 bytes)
  * Compressed size:    ~8 bytes (token + 3 bytes packed + metadata)
  * Compression ratio:  ~8x
  * </pre>

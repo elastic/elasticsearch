@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -4350,8 +4350,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEqualsIgnoringIds(attribute("a"), parts.getInput());
 
         // Dynamically get expected field names
-        List<String> expectedFieldNames = UriPartsFunction.getInstance()
-            .outputFields()
+        List<String> expectedFieldNames = UriPartsFunctionBridge.getAllOutputFields()
             .keySet()
             .stream()
             .map(name -> "p." + name)

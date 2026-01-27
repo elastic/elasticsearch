@@ -17,11 +17,19 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 
-import java.util.LinkedHashMap;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.SequencedCollection;
+import java.util.function.BiConsumer;
+import java.util.function.ObjIntConsumer;
 
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.NOOP_INT_COLLECTOR;
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.NOOP_STRING_COLLECTOR;
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.intValueCollector;
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.nullValueCollector;
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.stringValueCollector;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -30,111 +38,133 @@ import static org.hamcrest.Matchers.is;
  */
 public class CompoundOutputEvaluatorTests extends ESTestCase {
 
-    /**
-     * All tests assume that the predefined output fields are as follows:
-     * <ul>
-     *     <li>field_a: KEYWORD</li>
-     *     <li>field_b: INTEGER</li>
-     *     <li>field_c: KEYWORD</li>
-     * </ul>
-     */
-    private static final LinkedHashMap<String, DataType> PREDEFINED_OUTPUT_FIELDS;
-
-    static {
-        PREDEFINED_OUTPUT_FIELDS = new LinkedHashMap<>();
-        PREDEFINED_OUTPUT_FIELDS.putLast("field_a", DataType.KEYWORD);
-        PREDEFINED_OUTPUT_FIELDS.putLast("field_b", DataType.INTEGER);
-        PREDEFINED_OUTPUT_FIELDS.putLast("field_c", DataType.KEYWORD);
-    }
-
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
-    /**
-     * In order to imitate real scenarios, {@link CompoundOutputFunction#outputFields()} and {@link CompoundOutputFunction#evaluate(String)}
-     * should be in sync.
-     */
-    private static class TestFunction implements CompoundOutputFunction {
-        private final LinkedHashMap<String, DataType> outputColumns;
-        private final Map<String, Object> evaluationOutput;
+    private static Map<String, Object> testFunction(String input) {
+        Map<String, Object> result = new HashMap<>();
+        String[] parts = input.split("-");
+        for (String part : parts) {
+            String[] entry = part.trim().split(":");
+            if (entry.length != 2) {
+                throw new IllegalArgumentException("Invalid input: " + input);
+            }
+            Object value;
+            try {
+                value = Integer.parseInt(entry[1]);
+            } catch (NumberFormatException e) {
+                value = entry[1];
+            }
+            result.put(entry[0], value);
+        }
+        return result;
+    }
 
-        TestFunction(Map<String, Object> evaluationOutput) {
-            this.evaluationOutput = evaluationOutput;
-            this.outputColumns = new LinkedHashMap<>(evaluationOutput.size());
-            evaluationOutput.forEach((fieldName, value) -> {
-                switch (value) {
-                    case String ignored -> outputColumns.putLast(fieldName, DataType.KEYWORD);
-                    case Integer ignored -> outputColumns.putLast(fieldName, DataType.INTEGER);
-                    default -> throw new IllegalArgumentException("Unsupported value type: " + value);
+    private static class TestFieldsCollector extends CompoundOutputEvaluator.OutputFieldsCollector {
+        private BiConsumer<Block.Builder[], String> fieldA = NOOP_STRING_COLLECTOR;
+        private ObjIntConsumer<Block.Builder[]> fieldB = NOOP_INT_COLLECTOR;
+        private BiConsumer<Block.Builder[], String> fieldC = NOOP_STRING_COLLECTOR;
+
+        TestFieldsCollector(SequencedCollection<String> outputFields, CompoundOutputEvaluator.BlocksBearer blocksBearer) {
+            super(blocksBearer);
+            int index = 0;
+            for (String fieldName : outputFields) {
+                switch (fieldName) {
+                    case "field_a" -> fieldA = stringValueCollector(index);
+                    case "field_b" -> fieldB = intValueCollector(index, value -> value >= 0);
+                    case "field_c" -> fieldC = stringValueCollector(index);
+                    default -> unknownFieldCollectors.add(nullValueCollector(index));
                 }
-            });
+                index++;
+            }
+        }
+
+        public void fieldA(String value) {
+            fieldA.accept(blocksBearer.get(), value);
+        }
+
+        public void fieldB(Integer value) {
+            fieldB.accept(blocksBearer.get(), value);
+        }
+
+        public void fieldC(String value) {
+            fieldC.accept(blocksBearer.get(), value);
         }
 
         @Override
-        public LinkedHashMap<String, DataType> outputFields() {
-            return outputColumns;
+        protected boolean evaluate(String input) {
+            Map<String, Object> evaluationFunctionOutput = testFunction(input);
+            fieldA((String) evaluationFunctionOutput.get("field_a"));
+            Object valueB = evaluationFunctionOutput.get("field_b");
+            valueB = valueB == null ? -1 : ((Number) valueB).intValue();
+            fieldB((Integer) valueB);
+            fieldC((String) evaluationFunctionOutput.get("field_c"));
+            return true;
         }
+    }
 
-        @Override
-        public Map<String, Object> evaluate(String input) {
-            return evaluationOutput;
+    private static class TestEvaluator extends CompoundOutputEvaluator<TestFieldsCollector> {
+        TestEvaluator(SequencedCollection<String> outputFields) {
+            super(DataType.TEXT, Warnings.NOOP_WARNINGS, new TestFieldsCollector(outputFields, new BlocksBearer()));
         }
     }
 
     public void testMatchingOutput() {
-        Map<String, Object> evaluationFunctionOutput = new LinkedHashMap<>();
-        evaluationFunctionOutput.put("field_a", "value_a");
-        evaluationFunctionOutput.put("field_b", 2);
-        evaluationFunctionOutput.put("field_c", "value_c");
-        Object[] expectedRowComputationOutput = new Object[] { "value_a", 2, "value_c" };
-        evaluateAndCompare(evaluationFunctionOutput, expectedRowComputationOutput);
+        List<String> requestedFields = List.of("field_a", "field_b", "field_c");
+        String input = "field_a:valueA-field_b:2-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2, "valueC" };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
-    public void testMismatchedOutput_missingField() {
-        Map<String, Object> evaluationFunctionOutput = new LinkedHashMap<>();
-        evaluationFunctionOutput.put("field_a", "value_a");
-        evaluateAndCompare(evaluationFunctionOutput, new Object[] { "value_a", null, null });
+    public void testPartialFieldsRequested() {
+        List<String> requestedFields = List.of("field_a", "field_b");
+        String input = "field_a:valueA-field_b:2-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2 };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
-    public void testMismatchedOutput_extraField() {
-        Map<String, Object> evaluationFunctionOutput = new LinkedHashMap<>();
-        evaluationFunctionOutput.put("field_a", "value_a");
-        evaluationFunctionOutput.put("field_b", 2);
-        evaluationFunctionOutput.put("field_c", "value_c");
-        evaluationFunctionOutput.put("field_d", "extra_value");
-        Object[] expectedRowComputationOutput = new Object[] { "value_a", 2, "value_c" };
-        evaluateAndCompare(evaluationFunctionOutput, expectedRowComputationOutput);
+    public void testUnsupportedField() {
+        List<String> requestedFields = List.of("field_a", "field_b", "field_c");
+        String input = "field_a:valueA-field_b:2-field_c:valueC-extra_field:extraValue";
+        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2, "valueC" };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
-    public void testMismatchedOutput_sameLength() {
-        Map<String, Object> evaluationFunctionOutput = new LinkedHashMap<>();
-        evaluationFunctionOutput.put("field_a", "value_a");
-        evaluationFunctionOutput.put("field_b", 2);
-        evaluationFunctionOutput.put("field_d", "extra_value");
-        evaluateAndCompare(evaluationFunctionOutput, new Object[] { "value_a", 2, null });
+    public void testMissingField() {
+        List<String> requestedFields = List.of("field_a", "field_b", "field_c");
+        String input = "field_b:2-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { null, 2, "valueC" };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
-    private void evaluateAndCompare(Map<String, Object> evaluationFunctionOutput, Object[] expectedRowComputationOutput) {
-        Block.Builder[] targetBlocks = new Block.Builder[PREDEFINED_OUTPUT_FIELDS.size()];
+    public void testAllMissingFields() {
+        List<String> requestedFields = List.of("field_a", "field_b", "field_c");
+        String input = "field_d:2-field_e:valueE";
+        Object[] expectedRowComputationOutput = new Object[] { null, null, null };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+    }
+
+    public void testUnknownField() {
+        List<String> requestedFields = List.of("field_a", "field_b", "unknown_field");
+        String input = "field_a:valueA-field_b:2-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2, null };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+    }
+
+    private void evaluateAndCompare(String input, List<String> requestedFields, Object[] expectedRowComputationOutput) {
+        TestEvaluator evaluator = new TestEvaluator(requestedFields);
+        Block.Builder[] targetBlocks = new Block.Builder[requestedFields.size()];
         try (BytesRefBlock.Builder inputBuilder = blockFactory.newBytesRefBlockBuilder(1)) {
-            inputBuilder.appendBytesRef(new BytesRef("test_input"));
+            inputBuilder.appendBytesRef(new BytesRef(input));
             BytesRefBlock inputBlock = inputBuilder.build();
 
             int i = 0;
-            for (DataType valueType : PREDEFINED_OUTPUT_FIELDS.values()) {
-                targetBlocks[i++] = switch (valueType) {
-                    case KEYWORD -> blockFactory.newBytesRefBlockBuilder(1);
-                    case INTEGER -> blockFactory.newIntBlockBuilder(1);
-                    default -> throw new IllegalArgumentException("Unsupported data type: " + valueType);
+            for (String fieldName : requestedFields) {
+                // noinspection SwitchStatementWithTooFewBranches
+                targetBlocks[i++] = switch (fieldName) {
+                    case "field_b" -> blockFactory.newIntBlockBuilder(1);
+                    default -> blockFactory.newBytesRefBlockBuilder(1);
                 };
             }
-
-            CompoundOutputFunction function = new TestFunction(evaluationFunctionOutput);
-            CompoundOutputEvaluator evaluator = new CompoundOutputEvaluator(
-                PREDEFINED_OUTPUT_FIELDS,
-                function,
-                DataType.KEYWORD,
-                Warnings.NOOP_WARNINGS
-            );
             evaluator.computeRow(inputBlock, 0, targetBlocks, new BytesRef());
 
             for (int j = 0; j < expectedRowComputationOutput.length; j++) {

@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
-import java.util.Map;
 
 public class UriPartsExecSerializationTests extends CompoundOutputEvalExecSerializationTests {
 
@@ -22,9 +20,9 @@ public class UriPartsExecSerializationTests extends CompoundOutputEvalExecSerial
         Source source,
         PhysicalPlan child,
         Expression input,
-        Map<String, DataType> functionOutputFields,
-        List<Attribute> outputFields
+        List<String> outputFieldNames,
+        List<Attribute> outputFieldAttributes
     ) {
-        return new UriPartsExec(source, child, input, functionOutputFields, outputFields);
+        return new UriPartsExec(source, child, input, outputFieldNames, outputFieldAttributes);
     }
 }

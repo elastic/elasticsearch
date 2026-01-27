@@ -10,13 +10,10 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public abstract class CompoundOutputEvalSerializationTests<T extends CompoundOutputEval<T>> extends AbstractLogicalPlanSerializationTests<
     T> {
@@ -34,8 +31,8 @@ public abstract class CompoundOutputEvalSerializationTests<T extends CompoundOut
     protected T mutateInstance(T instance) throws IOException {
         LogicalPlan child = instance.child();
         Expression input = instance.getInput();
-        Map<String, DataType> functionOutputFields = instance.getFunctionOutputFields();
-        List<Attribute> outputFields = instance.generatedAttributes();
+        List<String> outputFieldNames = instance.outputFieldNames();
+        List<Attribute> outputFieldAttributes = instance.generatedAttributes();
 
         switch (between(0, 3)) {
             case 0:
@@ -45,21 +42,18 @@ public abstract class CompoundOutputEvalSerializationTests<T extends CompoundOut
                 input = randomValueOtherThan(input, () -> FieldAttributeTests.createFieldAttribute(0, false));
                 break;
             case 2:
-                final int mapSize = functionOutputFields.size();
-                functionOutputFields = randomValueOtherThan(functionOutputFields, () -> {
-                    Map<String, DataType> newMap = new LinkedHashMap<>();
-                    for (int i = 0; i < mapSize; i++) {
-                        newMap.put(randomAlphaOfLength(6), randomFrom(DataType.KEYWORD, DataType.INTEGER, DataType.IP));
-                    }
-                    return newMap;
-                });
+                final int nameSize = outputFieldNames.size();
+                outputFieldNames = randomValueOtherThan(
+                    outputFieldNames,
+                    () -> randomList(nameSize, nameSize, () -> randomAlphaOfLengthBetween(1, 10))
+                );
                 break;
             case 3:
-                final int listSize = outputFields.size();
-                outputFields = randomValueOtherThan(outputFields, () -> randomFieldAttributes(listSize, listSize, false));
+                final int attrSize = outputFieldAttributes.size();
+                outputFieldAttributes = randomValueOtherThan(outputFieldAttributes, () -> randomFieldAttributes(attrSize, attrSize, false));
                 break;
         }
-        return instance.createNewInstance(instance.source(), child, input, functionOutputFields, outputFields);
+        return instance.createNewInstance(instance.source(), child, input, outputFieldNames, outputFieldAttributes);
     }
 
     protected abstract T createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix);

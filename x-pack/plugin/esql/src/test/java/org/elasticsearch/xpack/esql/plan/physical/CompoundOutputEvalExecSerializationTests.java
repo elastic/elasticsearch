@@ -10,13 +10,10 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public abstract class CompoundOutputEvalExecSerializationTests extends AbstractPhysicalPlanSerializationTests<CompoundOutputEvalExec> {
 
@@ -27,21 +24,18 @@ public abstract class CompoundOutputEvalExecSerializationTests extends AbstractP
         Expression input = FieldAttributeTests.createFieldAttribute(0, false);
 
         int fieldCount = randomIntBetween(1, 5);
-        Map<String, DataType> functionOutputFields = new LinkedHashMap<>();
-        for (int i = 0; i < fieldCount; i++) {
-            functionOutputFields.put(randomAlphaOfLength(5), randomFrom(DataType.KEYWORD, DataType.INTEGER, DataType.IP));
-        }
-        List<Attribute> outputFields = randomFieldAttributes(fieldCount, fieldCount, false);
+        List<String> outputFieldNames = randomList(fieldCount, fieldCount, () -> randomAlphaOfLengthBetween(1, 10));
+        List<Attribute> outputFieldAttributes = randomFieldAttributes(fieldCount, fieldCount, false);
 
-        return createInstance(source, child, input, functionOutputFields, outputFields);
+        return createInstance(source, child, input, outputFieldNames, outputFieldAttributes);
     }
 
     @Override
     protected CompoundOutputEvalExec mutateInstance(CompoundOutputEvalExec instance) throws IOException {
         PhysicalPlan child = instance.child();
         Expression input = instance.input();
-        Map<String, DataType> functionOutputFields = instance.getFunctionOutputFields();
-        List<Attribute> outputFields = instance.outputFields();
+        List<String> outputFieldNames = instance.outputFieldNames();
+        List<Attribute> outputFieldAttributes = instance.outputFieldAttributes();
 
         switch (between(0, 3)) {
             case 0:
@@ -51,28 +45,25 @@ public abstract class CompoundOutputEvalExecSerializationTests extends AbstractP
                 input = randomValueOtherThan(input, () -> FieldAttributeTests.createFieldAttribute(0, false));
                 break;
             case 2:
-                final int mapSize = functionOutputFields.size();
-                functionOutputFields = randomValueOtherThan(functionOutputFields, () -> {
-                    Map<String, DataType> newMap = new LinkedHashMap<>();
-                    for (int i = 0; i < mapSize; i++) {
-                        newMap.put(randomAlphaOfLength(6), randomFrom(DataType.KEYWORD, DataType.INTEGER, DataType.IP));
-                    }
-                    return newMap;
-                });
+                final int nameSize = outputFieldNames.size();
+                outputFieldNames = randomValueOtherThan(
+                    outputFieldNames,
+                    () -> randomList(nameSize, nameSize, () -> randomAlphaOfLengthBetween(1, 10))
+                );
                 break;
             case 3:
-                final int listSize = outputFields.size();
-                outputFields = randomValueOtherThan(outputFields, () -> randomFieldAttributes(listSize, listSize, false));
+                final int attrSize = outputFieldAttributes.size();
+                outputFieldAttributes = randomValueOtherThan(outputFieldAttributes, () -> randomFieldAttributes(attrSize, attrSize, false));
                 break;
         }
-        return instance.createNewInstance(instance.source(), child, input, functionOutputFields, outputFields);
+        return instance.createNewInstance(instance.source(), child, input, outputFieldNames, outputFieldAttributes);
     }
 
     protected abstract CompoundOutputEvalExec createInstance(
         Source source,
         PhysicalPlan child,
         Expression input,
-        Map<String, DataType> functionOutputFields,
+        List<String> outputFieldNames,
         List<Attribute> outputFields
     );
 }

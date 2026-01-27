@@ -8,56 +8,45 @@
 package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.util.Collections;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.IntPredicate;
+import java.util.function.ObjIntConsumer;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 
 /**
- * An evaluator that extracts compound output based on a {@link CompoundOutputFunction}.
+ * The base evaluator that extracts compound output. Subclasses should implement the actual evaluation logic.
  */
-public class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator {
+public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.OutputFieldsCollector>
+    implements
+        ColumnExtractOperator.Evaluator {
 
-    /**
-     * A map of output fields to use from the evaluating {@link CompoundOutputFunction}.
-     * The actual output of the evaluating function may not fully match the required fields for the expected output as it is reflected
-     * in {@link #computeRow}. This may happen if the actual execution occurs on a data node that has a different version from the
-     * coordinating node (e.g. during cluster upgrade).
-     */
-    private final Map<String, DataType> functionOutputFields;
-
-    private final CompoundOutputFunction function;
+    private final T outputFieldsCollector;
     private final DataType inputType;
     private final Warnings warnings;
 
-    public CompoundOutputEvaluator(
-        Map<String, DataType> functionOutputFields,
-        CompoundOutputFunction function,
-        DataType inputType,
-        Warnings warnings
-    ) {
-        this.functionOutputFields = functionOutputFields;
-        this.function = function;
+    protected CompoundOutputEvaluator(DataType inputType, Warnings warnings, T outputFieldsCollector) {
         this.inputType = inputType;
         this.warnings = warnings;
+        this.outputFieldsCollector = outputFieldsCollector;
     }
 
     /**
-     * Executes the evaluation of the {@link CompoundOutputFunction} on the provided input.
-     * The {@code target} output array must have the same size as {@link #functionOutputFields} and its elements must match the
-     * {@link #functionOutputFields} entries in type and order. Otherwise, this method will throw an exception.
+     * Executes the evaluation of the corresponding function on the provided input.
+     * The {@code target} output array must have the same size as the {@code functionOutputFields} list that was provided in construction,
+     * and its elements must match this list's entries in type and order. Otherwise, this method will throw an exception.
      * If an expected output field is missing from the actual output of the function, a null value will be appended to the corresponding
      * target block. If the actual output of the function contains an entry that is not expected, it will be ignored.
      * @param input the input to evaluate the function on
@@ -69,105 +58,22 @@ public class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator 
      */
     @Override
     public void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare) {
-        if (target.length != functionOutputFields.size()) {
-            throw new EsqlIllegalArgumentException("Incorrect number of target blocks for function [" + function + "]");
-        }
-
-        // if the input is null or invalid, we return nulls for all output fields
-
-        Map<String, Object> result = Collections.emptyMap();
+        boolean evaluated = false;
         if (input.isNull(row) == false) {
             try {
                 BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
                 String inputAsString = getInputAsString(bytes, inputType);
-                result = function.evaluate(inputAsString);
+                evaluated = outputFieldsCollector.evaluate(inputAsString, target);
             } catch (Exception e) {
                 warnings.registerException(e);
             }
         }
 
-        int i = 0;
-        for (Map.Entry<String, DataType> entry : functionOutputFields.entrySet()) {
-            String relativeKey = entry.getKey();
-            DataType dataType = entry.getValue();
-            Object value = result.get(relativeKey);
-            Block.Builder blockBuilder = target[i];
-
-            if (value == null) {
-                blockBuilder.appendNull();
-            } else {
-                switch (dataType) {
-                    case KEYWORD:
-                    case TEXT:
-                        if (blockBuilder instanceof BytesRefBlock.Builder brbb) {
-                            brbb.appendBytesRef(new BytesRef(value.toString()));
-                        } else {
-                            throw new EsqlIllegalArgumentException("Incorrect block builder for type [" + dataType + "]");
-                        }
-                        break;
-                    case IP:
-                        if (blockBuilder instanceof BytesRefBlock.Builder brbb) {
-                            if (value instanceof BytesRef) {
-                                brbb.appendBytesRef((BytesRef) value);
-                            } else {
-                                brbb.appendBytesRef(EsqlDataTypeConverter.stringToIP(value.toString()));
-                            }
-                        } else {
-                            throw new EsqlIllegalArgumentException("Incorrect block builder for type [" + dataType + "]");
-                        }
-                        break;
-                    case DOUBLE:
-                        if (blockBuilder instanceof DoubleBlock.Builder dbb) {
-                            dbb.appendDouble(((Number) value).doubleValue());
-                        } else {
-                            throw new EsqlIllegalArgumentException("Incorrect block builder for type [" + dataType + "]");
-                        }
-                        break;
-                    case LONG:
-                        if (blockBuilder instanceof LongBlock.Builder lbb) {
-                            lbb.appendLong(((Number) value).longValue());
-                        } else {
-                            throw new EsqlIllegalArgumentException("Incorrect block builder for type [" + dataType + "]");
-                        }
-                        break;
-                    case INTEGER:
-                        if (blockBuilder instanceof IntBlock.Builder ibb) {
-                            ibb.appendInt(((Number) value).intValue());
-                        } else {
-                            throw new EsqlIllegalArgumentException("Incorrect block builder for type [" + dataType + "]");
-                        }
-                        break;
-                    case BOOLEAN:
-                        if (blockBuilder instanceof BooleanBlock.Builder bbb) {
-                            bbb.appendBoolean((Boolean) value);
-                        } else {
-                            throw new EsqlIllegalArgumentException("Incorrect block builder for type [" + dataType + "]");
-                        }
-                        break;
-                    case GEO_POINT:
-                        if (blockBuilder instanceof BytesRefBlock.Builder brbb) {
-                            if (value instanceof GeoPoint gp) {
-                                brbb.appendBytesRef(EsqlDataTypeConverter.stringToGeo(gp.toWKT()));
-                            } else {
-                                throw new EsqlIllegalArgumentException(
-                                    "Unsupported value type ["
-                                        + value.getClass().getName()
-                                        + "] for an output field of type ["
-                                        + dataType
-                                        + "]"
-                                );
-                            }
-                        } else {
-                            throw new EsqlIllegalArgumentException("Incorrect block builder for type [" + dataType + "]");
-                        }
-                        break;
-                    default:
-                        throw new EsqlIllegalArgumentException(
-                            "Unsupported DataType [" + dataType + "] for GeoIP output field [" + relativeKey + "]"
-                        );
-                }
+        // if the input is null or invalid, we must return nulls for all output fields
+        if (evaluated == false) {
+            for (Block.Builder builder : target) {
+                builder.appendNull();
             }
-            i++;
         }
     }
 
@@ -179,5 +85,115 @@ public class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator 
         } else {
             throw new IllegalArgumentException("Unsupported input type [" + inputType + "]");
         }
+    }
+
+    /**
+     * The base class for output fields collectors.
+     * Concrete collectors would implement interfaces that correspond to their corresponding evaluating function, in addition to
+     * extending this class.
+     */
+    abstract static class OutputFieldsCollector {
+        /**
+         * A {@link Block.Builder[]} holder that is being set before each row evaluation.
+         */
+        protected final BlocksBearer blocksBearer;
+
+        /**
+         * Subclasses must fill this list with a null value collector for each unknown requested output field.
+         * Normally, we shouldn't encounter unknown fields. This should only happen in rare cases where the cluster contains nodes
+         * of different versions and the coordinating node's version supports a field that is not supported by the executing node.
+         */
+        protected final ArrayList<Consumer<Block.Builder[]>> unknownFieldCollectors;
+
+        protected OutputFieldsCollector(BlocksBearer blocksBearer) {
+            this.blocksBearer = blocksBearer;
+            this.unknownFieldCollectors = new ArrayList<>();
+        }
+
+        /**
+         * The main evaluation logic, dispatching actual evaluation to subclasses.
+         * The subclass {@link #evaluate(String)} method would apply the evaluation logic and fill the target blocks accordingly.
+         * @param input the input string to evaluate the function on
+         * @param target the output column blocks
+         * @return {@code true} means that ALL fields were evaluated; {@code false} means that NONE were evaluated
+         * @throws Exception if thrown by the evaluation logic, the implementation must guarantee that NO field was evaluated
+         */
+        boolean evaluate(final String input, final Block.Builder[] target) throws Exception {
+            boolean evaluated;
+            try {
+                blocksBearer.accept(target);
+                evaluated = evaluate(input);
+            } finally {
+                blocksBearer.accept(null);
+            }
+            if (evaluated && unknownFieldCollectors.isEmpty() == false) {
+                // noinspection ForLoopReplaceableByForEach
+                for (int i = 0; i < unknownFieldCollectors.size(); i++) {
+                    unknownFieldCollectors.get(i).accept(target);
+                }
+            }
+            return evaluated;
+        }
+
+        /**
+         * IMPORTANT: the implementing method must ensure that the entire evaluation is completed in full before writing values
+         * to the output fields. The returned value should indicate whether ALL fields were evaluated or NONE were evaluated.
+         * The best practice is to accumulate all output values in local variables/structures, and only write to the output fields at the
+         * end of the method.
+         * @param input the input string to evaluate the function on
+         * @return {@code true} means that ALL fields were evaluated; {@code false} means that NONE were evaluated
+         * @throws Exception if thrown by the evaluation logic, the implementation must guarantee that NO field was evaluated
+         */
+        protected abstract boolean evaluate(String input) throws Exception;
+    }
+
+    /**
+     * A {@link Block.Builder[]} holder that is being set before each row evaluation.
+     */
+    public static final class BlocksBearer implements Consumer<Block.Builder[]>, Supplier<Block.Builder[]> {
+        private Block.Builder[] blocks;
+
+        @Override
+        public void accept(Block.Builder[] blocks) {
+            this.blocks = blocks;
+        }
+
+        @Override
+        public Block.Builder[] get() {
+            return blocks;
+        }
+    }
+
+    protected static final BiConsumer<Block.Builder[], String> NOOP_STRING_COLLECTOR = (blocks, value) -> {/*no-op*/};
+    protected static final ObjIntConsumer<Block.Builder[]> NOOP_INT_COLLECTOR = (value, index) -> {/*no-op*/};
+
+    protected static Consumer<Block.Builder[]> nullValueCollector(final int index) {
+        return blocks -> blocks[index].appendNull();
+    }
+
+    protected static BiConsumer<Block.Builder[], String> stringValueCollector(final int index) {
+        return (blocks, value) -> {
+            if (value == null) {
+                blocks[index].appendNull();
+            } else {
+                ((BytesRefBlock.Builder) blocks[index]).appendBytesRef(toBytesRef(value));
+            }
+        };
+    }
+
+    /**
+     * Creates a collector for primitive int values.
+     * @param index the index of the corresponding block in the target array
+     * @param predicate the predicate to apply on the int value to determine whether to append it or a null
+     * @return a primitive int collector
+     */
+    protected static ObjIntConsumer<Block.Builder[]> intValueCollector(final int index, final IntPredicate predicate) {
+        return (blocks, value) -> {
+            if (predicate.test(value)) {
+                ((IntBlock.Builder) blocks[index]).appendInt(value);
+            } else {
+                blocks[index].appendNull();
+            }
+        };
     }
 }

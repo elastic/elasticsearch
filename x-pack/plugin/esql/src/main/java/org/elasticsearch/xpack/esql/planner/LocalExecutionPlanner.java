@@ -91,7 +91,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
-import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
@@ -328,21 +327,18 @@ public class LocalExecutionPlanner {
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
     }
 
-    private PhysicalOperation planCompoundOutputEval(CompoundOutputEvalExec coe, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planCompoundOutputEval(final CompoundOutputEvalExec coe, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(coe.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        layoutBuilder.append(coe.outputFields());
+        layoutBuilder.append(coe.outputFieldAttributes());
 
-        ElementType[] types = new ElementType[coe.outputFields().size()];
-        for (int i = 0; i < coe.outputFields().size(); i++) {
-            types[i] = PlannerUtils.toElementType(coe.outputFields().get(i).dataType());
+        ElementType[] types = new ElementType[coe.outputFieldAttributes().size()];
+        for (int i = 0; i < coe.outputFieldAttributes().size(); i++) {
+            types[i] = PlannerUtils.toElementType(coe.outputFieldAttributes().get(i).dataType());
         }
 
         Layout layout = layoutBuilder.build();
 
-        final Map<String, DataType> functionOutputFields = coe.getFunctionOutputFields();
-        final CompoundOutputFunction function = coe.function();
-        final DataType inputType = coe.input().dataType();
         final Warnings warnings = Warnings.createWarnings(
             context.warningsMode,
             coe.source().source().getLineNumber(),
@@ -350,12 +346,14 @@ public class LocalExecutionPlanner {
             coe.source().text()
         );
 
+        final CompoundOutputEvaluator.BlocksBearer blocksBearer = new CompoundOutputEvaluator.BlocksBearer();
+        final List<String> outputFileNames = coe.outputFieldNames();
+
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
-                // The supplier creates our existing CompoundOutputEvaluator
-                () -> new CompoundOutputEvaluator(functionOutputFields, function, inputType, warnings)
+                () -> coe.createEvaluator(warnings, outputFileNames, blocksBearer)
             ),
             layout
         );

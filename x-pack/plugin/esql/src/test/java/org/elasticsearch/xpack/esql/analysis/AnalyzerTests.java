@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -5895,14 +5895,14 @@ public class AnalyzerTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         UriParts parts = as(limit.child(), UriParts.class);
 
-        Map<String, DataType> expectedColumns = UriPartsFunction.getInstance().outputFields();
+        Map<String, Class<?>> expectedColumns = UriPartsFunctionBridge.getAllOutputFields();
         final List<Attribute> attributes = parts.generatedAttributes();
         // verify that the attributes list is unmodifiable
         assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
         assertEquals(expectedColumns.size(), attributes.size());
         expectedColumns.entrySet().iterator().forEachRemaining(entry -> {
             String expectedName = "p." + entry.getKey();
-            DataType expectedType = entry.getValue();
+            DataType expectedType = DataType.fromJavaType(entry.getValue());
             Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
             assertNotNull("Expected attribute " + expectedName + " not found", attr);
             assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());

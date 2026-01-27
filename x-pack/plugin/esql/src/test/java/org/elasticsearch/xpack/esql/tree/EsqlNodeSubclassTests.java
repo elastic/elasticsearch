@@ -87,7 +87,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -565,13 +564,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
-        Map<Object, Object> map;
-        if (CompoundOutputEval.class.isAssignableFrom(toBuildClass) || CompoundOutputEvalExec.class.isAssignableFrom(toBuildClass)) {
-            // subclasses of CompoundOutputEval/Exec require an ordered map
-            map = new LinkedHashMap<>();
-        } else {
-            map = new HashMap<>();
-        }
+        Map<Object, Object> map = new HashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {
             Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);

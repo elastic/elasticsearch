@@ -156,7 +156,7 @@ public class MapperUtils {
         if (p instanceof CompoundOutputEval<?> coe) {
             // Create the concrete physical plan based on the logical type
             if (coe instanceof UriParts) {
-                return new UriPartsExec(coe.source(), child, coe.getInput(), coe.getFunctionOutputFields(), coe.generatedAttributes());
+                return new UriPartsExec(coe.source(), child, coe.getInput(), coe.outputFieldNames(), coe.generatedAttributes());
             }
             throw new EsqlIllegalArgumentException("Unsupported CompoundOutputEval type [" + coe.getClass().getSimpleName() + "]");
         }

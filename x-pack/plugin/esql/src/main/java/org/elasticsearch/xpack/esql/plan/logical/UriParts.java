@@ -14,12 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -31,8 +30,8 @@ public class UriParts extends CompoundOutputEval<UriParts> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "UriParts", UriParts::new);
 
     /**
-     * Use this static factory method for the initial creation of the logical plan. Subsequent instantiations (such as deserialization)
-     * should use the constructors.
+     * Use this static factory method for the initial creation of the logical plan, as it computes the output attributes.
+     * Subsequent instantiations (such as deserialization, child replacement, etc.) should use the constructors.
      * @param source source of the command
      * @param child child plan
      * @param input input expression to base the computation on
@@ -40,19 +39,20 @@ public class UriParts extends CompoundOutputEval<UriParts> {
      * @return the logical plan
      */
     public static UriParts createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
-        LinkedHashMap<String, DataType> functionOutputFields = UriPartsFunction.getInstance().outputFields();
-        List<Attribute> outputFields = computeOutputAttributes(functionOutputFields, outputFieldPrefix.name(), source);
-        return new UriParts(source, child, input, functionOutputFields, outputFields);
+        LinkedHashMap<String, Class<?>> functionOutputFields = UriPartsFunctionBridge.getAllOutputFields();
+        List<String> outputFileNames = functionOutputFields.keySet().stream().toList();
+        List<Attribute> outputFieldAttributes = computeOutputAttributes(functionOutputFields, outputFieldPrefix.name(), source);
+        return new UriParts(source, child, input, outputFileNames, outputFieldAttributes);
     }
 
     public UriParts(
         Source source,
         LogicalPlan child,
         Expression input,
-        Map<String, DataType> functionOutputFields,
-        List<Attribute> outputFields
+        List<String> outputFieldNames,
+        List<Attribute> outputFieldAttributes
     ) {
-        super(source, child, input, functionOutputFields, outputFields);
+        super(source, child, input, outputFieldNames, outputFieldAttributes);
     }
 
     public UriParts(StreamInput in) throws IOException {
@@ -64,10 +64,10 @@ public class UriParts extends CompoundOutputEval<UriParts> {
         Source source,
         LogicalPlan child,
         Expression input,
-        Map<String, DataType> functionOutputFields,
-        List<Attribute> outputFields
+        List<String> outputFieldNames,
+        List<Attribute> outputFieldAttributes
     ) {
-        return new UriParts(source, child, input, functionOutputFields, outputFields);
+        return new UriParts(source, child, input, outputFieldNames, outputFieldAttributes);
     }
 
     @Override

@@ -38,12 +38,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 
@@ -161,7 +163,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final int bitsetSizeInBits;
         private final int bitSetSizeInBytes;
         private final ByteArray buffer;
-        private final int[] hashes;
         private boolean closed;
 
         Writer(
@@ -177,7 +178,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
 
             this.numHashFunctions = numHashFunctions;
-            this.hashes = new int[numHashFunctions];
             this.bloomFilterFieldName = bloomFilterFieldName;
 
             boolean success = false;
@@ -241,9 +241,15 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         private void addToBloomFilter(BytesRef value) {
-            // TODO: consider merging the hashing with the bit array population
-            var valueHashes = hashValue(value, hashes);
-            for (int hash : valueHashes) {
+            long hash64 = hash64(value.bytes, value.offset, value.length);
+            // First use output splitting to get two hash values out of a single hash function
+            int upperHalf = (int) (hash64 >> Integer.SIZE);
+            int lowerHalf = (int) hash64;
+            // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
+            for (int i = 0; i < numHashFunctions; i++) {
+                // Use prime numbers as the constant for the KM technique so these don't have a common gcd
+                final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
+
                 final int posInBitArray = hash & (bitsetSizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
@@ -336,6 +342,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 return;
             }
 
+            final var pageSizeInBytes = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+            final var newBloomFilterPageScratch = new BytesRef(pageSizeInBytes);
+            final var existingPageScratch = new BytesRef(pageSizeInBytes);
             for (int readerIdx = 0; readerIdx < mergeState.docValuesProducers.length; readerIdx++) {
                 final FieldInfo fieldInfo = mergeState.fieldInfos[readerIdx].fieldInfo(bloomFilterFieldName);
                 if (fieldInfo == null) {
@@ -361,11 +370,31 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                         + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
 
                 RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
-                for (int i = 0; i < bitSetSizeInBytes; i++) {
-                    var existingBloomFilterByte = bloomFilterData.readByte(i);
-                    var resultingBloomFilterByte = buffer.get(i);
-                    // TODO: Consider merging more than a byte at a time to speed up the process
-                    buffer.set(i, (byte) (existingBloomFilterByte | resultingBloomFilterByte));
+                int offset = 0;
+                while (offset < bitSetSizeInBytes) {
+                    var pageLen = Math.min(pageSizeInBytes, bitSetSizeInBytes - offset);
+                    // Read one BigArrays page at a time to amortize the cost of going through
+                    // the big arrays machinery. In most systems, this means that we'll read
+                    // 4 OS page cache pages at a time, but since we're reading it sequentially
+                    // and when we create the BloomFilterFieldReader we call madvise to prefetch
+                    // the entire bloom filter, it should be fine.
+                    buffer.get(offset, pageLen, newBloomFilterPageScratch);
+                    bloomFilterData.readBytes(offset, existingPageScratch.bytes, 0, pageLen);
+
+                    int i = 0;
+                    for (; i + Long.BYTES <= pageLen; i += Long.BYTES) {
+                        long existing = (long) BitUtil.VH_LE_LONG.get(existingPageScratch.bytes, i);
+                        long current = (long) BitUtil.VH_LE_LONG.get(newBloomFilterPageScratch.bytes, i);
+                        BitUtil.VH_LE_LONG.set(newBloomFilterPageScratch.bytes, i, existing | current);
+                    }
+
+                    // OR the remaining bytes that do not fit in a Long
+                    for (; i < pageLen; i++) {
+                        newBloomFilterPageScratch.bytes[i] |= existingPageScratch.bytes[i];
+                    }
+
+                    buffer.set(offset, newBloomFilterPageScratch.bytes, 0, pageLen);
+                    offset += pageLen;
                 }
             }
         }
@@ -555,19 +584,24 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static class BloomFilterFieldReader extends BinaryDocValues implements BloomFilter {
         private final RandomAccessInput bloomFilterIn;
         private final int bloomFilterBitSetSizeInBits;
-        private final int[] hashes;
+        private final int numHashFunctions;
 
         private BloomFilterFieldReader(RandomAccessInput bloomFilterIn, int bloomFilterBitSetSizeInBits, int numHashFunctions) {
             this.bloomFilterIn = bloomFilterIn;
             this.bloomFilterBitSetSizeInBits = bloomFilterBitSetSizeInBits;
-            this.hashes = new int[numHashFunctions];
+            this.numHashFunctions = numHashFunctions;
         }
 
         public boolean mayContainValue(String field, BytesRef value) throws IOException {
-            var valueHashes = hashValue(value, hashes);
-            // TODO: consider merging the hashing with the bit array reads
+            long hash64 = hash64(value.bytes, value.offset, value.length);
+            // First use output splitting to get two hash values out of a single hash function
+            int upperHalf = (int) (hash64 >> Integer.SIZE);
+            int lowerHalf = (int) hash64;
+            // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
+            for (int i = 0; i < numHashFunctions; i++) {
+                // Use prime numbers as the constant for the KM technique so these don't have a common gcd
+                final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
 
-            for (int hash : valueHashes) {
                 final int posInBitArray = hash & (bloomFilterBitSetSizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
@@ -638,19 +672,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             final int numOfHashFunctions = in.readVInt();
             return new BloomFilterMetadata(fileOffset, bloomFilterSizeInBits, numOfHashFunctions);
         }
-    }
-
-    private static int[] hashValue(BytesRef value, int[] outputs) {
-        long hash64 = hash64(value.bytes, value.offset, value.length);
-        // First use output splitting to get two hash values out of a single hash function
-        int upperHalf = (int) (hash64 >> Integer.SIZE);
-        int lowerHalf = (int) hash64;
-        // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
-        for (int i = 0; i < outputs.length; i++) {
-            // Use prime numbers as the constant for the KM technique so these don't have a common gcd
-            outputs[i] = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
-        }
-        return outputs;
     }
 
     private static String bloomFilterMetadataFileName(SegmentInfo segmentInfo, String segmentSuffix) {

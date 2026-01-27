@@ -54,7 +54,8 @@ public class QuerySettings {
     @Param(
         name = "time_zone",
         type = { "keyword" },
-        description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC"
+        since = "9.4+",
+        description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter"
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
@@ -62,7 +63,7 @@ public class QuerySettings {
         DataType.KEYWORD,
         false,
         true,
-        true,
+        false,
         (value) -> {
             String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
@@ -77,7 +78,7 @@ public class QuerySettings {
     @Param(
         name = "unmapped_fields",
         type = { "keyword" },
-        since = "9.3+",
+        since = "9.3.0",
         description = "Defines how unmapped fields are treated. Possible values are: "
             + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
             + "\"NULLIFY\" - treats unmapped fields as null values. "

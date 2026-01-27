@@ -68,6 +68,7 @@
       },
       "sort": {
         "type": "enum",
+        "default": "total",
         "options": [
           "cpu",
           "wait",

@@ -19,7 +19,9 @@ import java.util.stream.Collectors;
 
 public enum StreamType {
 
-    LOGS("logs");
+    LOGS("logs"),
+    LOGS_ECS("logs.ecs"),
+    LOGS_OTEL("logs.otel");
 
     private final String streamName;
 
@@ -35,6 +37,8 @@ public enum StreamType {
         StreamsMetadata metadata = projectMetadata.custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
         return switch (this) {
             case LOGS -> metadata.isLogsEnabled();
+            case LOGS_ECS -> metadata.isLogsECSEnabled();
+            case LOGS_OTEL -> metadata.isLogsOTelEnabled();
         };
     }
 
@@ -43,6 +47,15 @@ public enum StreamType {
             return false;
         }
         return indexName.startsWith(streamName + ".");
+    }
+
+    public static StreamType fromString(String text) {
+        return switch (text) {
+            case "logs.otel" -> LOGS_OTEL;
+            case "logs.ecs" -> LOGS_ECS;
+            case "logs" -> LOGS;
+            default -> throw new IllegalArgumentException("Unknown stream type [" + text + "]");
+        };
     }
 
     public static Set<StreamType> getEnabledStreamTypesForProject(ProjectMetadata projectMetadata) {

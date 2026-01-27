@@ -1,57 +1,75 @@
 ---
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_streams/status
+          capabilities: [stream_split]
+      test_runner_features: capabilities
+      reason: "Logs stream split into logs.otel and logs.ecs"
+
+---
 teardown:
   - do:
-      streams.logs_disable: { }
+      streams.logs_disable:
+        name: logs.otel
+
+  - do:
+      streams.logs_disable:
+        name: logs.ecs
 
 ---
 "Check User Can't Write To Substream Directly":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       bulk:
         body: |
-          { "index": { "_index": "logs.foo" } }
+          { "index": { "_index": "logs.otel.foo" } }
           { "foo": "bar" }
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs] stream instead" }
+  - match: { items.0.index.error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs.otel] stream instead" }
 
 ---
 "Check User Can't Write To Substream Directly With Single Doc":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       catch: bad_request
       index:
-        index: logs.foo
+        index: logs.otel.foo
         id: "1"
         body:
           foo: bar
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs] stream instead" }
+  - match: { error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs.otel] stream instead" }
 
 ---
 "Check Bulk Index With Reroute Processor To Substream Is Rejected":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       ingest.put_pipeline:
@@ -59,7 +77,7 @@ teardown:
         body:
           processors:
             - reroute:
-                destination: "logs.foo"
+                destination: "logs.otel.foo"
   - do:
       indices.create:
         index: "bad-index"
@@ -74,7 +92,7 @@ teardown:
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "Pipeline [reroute-to-logs-foo] can't change the target index (from [bad-index] to [logs] child stream [logs.foo]) History: [bad-index]" }
+  - match: { items.0.index.error.reason: "Pipeline [reroute-to-logs-foo] can't change the target index (from [bad-index] to [logs.otel] child stream [logs.otel.foo]) History: [bad-index]" }
 
   - do:
       indices.delete:
@@ -83,12 +101,13 @@ teardown:
 ---
 "Check Bulk Index With Script Processor To Substream Is Rejected":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       ingest.put_pipeline:
@@ -96,7 +115,7 @@ teardown:
         body:
           processors:
             - script:
-                source: "ctx._index = 'logs.foo'"
+                source: "ctx._index = 'logs.otel.foo'"
   - do:
       indices.create:
         index: "bad-index-script"
@@ -111,7 +130,7 @@ teardown:
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "Pipeline [script-to-logs-foo] can't change the target index (from [bad-index-script] to [logs] child stream [logs.foo]) History: [bad-index-script]" }
+  - match: { items.0.index.error.reason: "Pipeline [script-to-logs-foo] can't change the target index (from [bad-index-script] to [logs.otel] child stream [logs.otel.foo]) History: [bad-index-script]" }
 
   - do:
       indices.delete:
@@ -120,12 +139,13 @@ teardown:
 ---
 "Check Delete By Query Directly On Substream After Reroute Succeeds":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       ingest.put_pipeline:
@@ -133,28 +153,28 @@ teardown:
         body:
           processors:
             - reroute:
-                destination: "logs.foo"
+                destination: "logs.otel.foo"
   - do:
       indices.create:
-        index: "logs"
+        index: "logs.otel"
         body:
           settings:
             index.default_pipeline: "reroute-to-logs-foo-success"
   - do:
       bulk:
         body: |
-          { "index": { "_index": "logs" } }
+          { "index": { "_index": "logs.otel" } }
           { "foo": "bar", "baz": "qux" }
   - match: { errors: false }
   - match: { items.0.index.status: 201 }
 
   - do:
       indices.refresh:
-        index: logs.foo
+        index: logs.otel.foo
 
   - do:
       delete_by_query:
-        index: logs.foo
+        index: logs.otel.foo
         refresh: true
         body:
           query:
@@ -165,7 +185,7 @@ teardown:
 
   - do:
       search:
-        index: logs.foo
+        index: logs.otel.foo
         body:
           query:
             match_all: {}
@@ -173,4 +193,4 @@ teardown:
 
   - do:
       indices.delete:
-        index: logs
+        index: logs.otel

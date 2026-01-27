@@ -16,10 +16,16 @@
     "url": {
       "paths": [
         {
-          "path": "/_streams/logs/_enable",
+          "path": "/_streams/{name}/_enable",
           "methods": [
             "POST"
-          ]
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "Stream name to enable"
+            }
+          }
         }
       ]
     },

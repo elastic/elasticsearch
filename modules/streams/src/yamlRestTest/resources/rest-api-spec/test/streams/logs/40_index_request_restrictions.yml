@@ -1,25 +1,63 @@
 ---
-teardown:
-  - do:
-      streams.logs_disable: { }
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_streams/status
+          capabilities: [stream_split]
+      test_runner_features: capabilities
+      reason: "Logs stream split into logs.otel and logs.ecs"
 
 ---
-"Check User Can't Provide Pipeline to Logs Stream":
+teardown:
   - do:
-      streams.logs_enable: { }
+      streams.logs_disable:
+        name: logs.otel
+
+  - do:
+      streams.logs_disable:
+        name: logs.ecs
+
+---
+"Check User Can't Provide Pipeline to Logs OTel Stream":
+  - do:
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       bulk:
-        index: logs
+        index: logs.otel
         body: |
           { "create": {"pipeline": "noop"}}
           { "message": "hello streams!"}
   - match: { errors: true }
   - match: { items.0.create.status: 400 }
   - match: { items.0.create.error.type: "illegal_argument_exception" }
-  - match: { items.0.create.error.reason: "Cannot provide a pipeline when writing to a stream however the [noop] pipeline was provided when writing to the [logs] stream" }
+  - match: { items.0.create.error.reason: "Cannot provide a pipeline when writing to a stream however the [noop] pipeline was provided when writing to the [logs.otel] stream" }
+
+---
+"Check User Can't Provide Pipeline to Logs ECS Stream":
+  - do:
+      streams.logs_enable:
+        name: logs.ecs
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs\.ecs.enabled
+
+  - do:
+      bulk:
+        index: logs.ecs
+        body: |
+          { "create": {"pipeline": "noop"}}
+          { "message": "hello streams!"}
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: "illegal_argument_exception" }
+  - match: { items.0.create.error.reason: "Cannot provide a pipeline when writing to a stream however the [noop] pipeline was provided when writing to the [logs.ecs] stream" }

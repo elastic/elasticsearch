@@ -1,84 +1,172 @@
 ---
-teardown:
-  - do:
-      streams.logs_disable: { }
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_streams/status
+          capabilities: [stream_split]
+      test_runner_features: capabilities
+      reason: "Logs stream split into logs.otel and logs.ecs"
 
 ---
-"Basic toggle of logs state enable to disable and back":
+teardown:
   - do:
-      streams.logs_enable: { }
+      streams.logs_disable:
+        name: logs.otel
+
+  - do:
+      streams.logs_disable:
+        name: logs.ecs
+
+---
+"Basic toggle of logs.otel state enable to disable and back":
+  - do:
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
-      streams.logs_disable: { }
+      streams.logs_disable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_false: logs.enabled
+  - is_false: logs\.otel.enabled
 
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
-      streams.logs_disable: { }
+      streams.logs_disable:
+        name: logs.otel
+  - is_true: acknowledged
+
+---
+"Basic toggle of logs.ecs state enable to disable and back":
+  - do:
+      streams.logs_enable:
+        name: logs.ecs
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs\.ecs.enabled
+
+  - do:
+      streams.logs_disable:
+        name: logs.ecs
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_false: logs\.ecs.enabled
+
+  - do:
+      streams.logs_enable:
+        name: logs.ecs
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs\.ecs.enabled
+
+  - do:
+      streams.logs_disable:
+        name: logs.ecs
   - is_true: acknowledged
 
 ---
 "Check for repeated toggle to same state":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
-      streams.logs_disable: { }
+      streams.logs_disable:
+        name: logs.otel
   - is_true: acknowledged
 
 ---
-"Check streams can't be enabled with existing logs indices":
+"Check streams can't be enabled with existing logs.otel indices":
   - do:
       indices.create:
-        index: logs
+        index: logs.otel
 
   - do:
       catch: conflict
-      streams.logs_enable: { }
-  - match: { error.reason: "Cannot enable logs streams: indices named 'logs' or starting with 'logs.' already exist." }
+      streams.logs_enable:
+        name: logs.otel
+  - match: { error.reason: "Cannot enable streams: indices named 'logs.otel' or starting with 'logs.otel.' already exist." }
 
   - do:
       indices.delete:
-        index: logs
+        index: logs.otel
 
   - do:
       indices.create:
-        index: logs.test
+        index: logs.otel.test
 
   - do:
       catch: conflict
-      streams.logs_enable: { }
-  - match: { error.reason: "Cannot enable logs streams: indices named 'logs' or starting with 'logs.' already exist." }
+      streams.logs_enable:
+        name: logs.otel
+  - match: { error.reason: "Cannot enable streams: indices named 'logs.otel' or starting with 'logs.otel.' already exist." }
 
   - do:
       indices.delete:
-        index: logs.test
+        index: logs.otel.test
+
+---
+"Check streams can't be enabled with existing logs.ecs indices":
+  - do:
+      indices.create:
+        index: logs.ecs
+
+  - do:
+      catch: conflict
+      streams.logs_enable:
+        name: logs.ecs
+  - match: { error.reason: "Cannot enable streams: indices named 'logs.ecs' or starting with 'logs.ecs.' already exist." }
+
+  - do:
+      indices.delete:
+        index: logs.ecs
+
+  - do:
+      indices.create:
+        index: logs.ecs.test
+
+  - do:
+      catch: conflict
+      streams.logs_enable:
+        name: logs.ecs
+  - match: { error.reason: "Cannot enable streams: indices named 'logs.ecs' or starting with 'logs.ecs.' already exist." }
+
+  - do:
+      indices.delete:
+        index: logs.ecs.test

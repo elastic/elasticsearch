@@ -1083,7 +1083,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expected:
-     * Project[[!alias_integer, boolean{f}#7, byte{f}#8, constant_keyword{f}#9, date{f}#10, date_nanos{f}#11, dense_vector
+     * Project[[!alias_integer, boolean{f}#7, byte{f}#8, constant_keyword-foo{f}#9, date{f}#10, date_nanos{f}#11, dense_vector
      * {f}#26, double{f}#12, float{f}#13, half_float{f}#14, integer{f}#16, ip{f}#17, keyword{f}#18, long{f}#19, scaled_float{f}#15,
      * semantic_text{f}#25, short{f}#21, text{f}#22, unsigned_long{f}#20, version{f}#23, wildcard{f}#24, s{r}#5]]
      * \_Eval[[$$dense_vector$V_DOT_PRODUCT$27{f}#27 AS s#5]]

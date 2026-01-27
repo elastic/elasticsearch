@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -174,5 +175,53 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     @Override
     public int hashCode() {
         return Objects.hash(modelId, maxInputTokens, rateLimitSettings, maxBatchSize);
+    }
+
+    private Builder createBuilderWithCopy() {
+        return new Builder(modelId).maxInputTokens(maxInputTokens).rateLimitSettings(rateLimitSettings).maxBatchSize(maxBatchSize);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        serviceSettings = new HashMap<>(serviceSettings);
+
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(serviceSettings, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return createBuilderWithCopy().maxBatchSize(maxBatchSize).build();
+    }
+
+    private static class Builder {
+        private final String modelId;
+        private Integer maxInputTokens;
+        private Integer maxBatchSize;
+        private RateLimitSettings rateLimitSettings;
+
+        Builder(String modelId) {
+            this.modelId = Objects.requireNonNull(modelId);
+        }
+
+        Builder maxInputTokens(Integer maxInputTokens) {
+            this.maxInputTokens = maxInputTokens;
+            return this;
+        }
+
+        Builder maxBatchSize(Integer maxBatchSize) {
+            this.maxBatchSize = maxBatchSize;
+            return this;
+        }
+
+        Builder rateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+            return this;
+        }
+
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings build() {
+            return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, rateLimitSettings, maxBatchSize);
+        }
     }
 }

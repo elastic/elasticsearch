@@ -358,20 +358,16 @@ public class ElasticInferenceService extends SenderService {
         ActionListener<List<ChunkedInference>> listener
     ) {
         EmbeddingRequestChunker<?> embeddingRequestChunker = createEmbeddingRequestChunker(model, inputs);
-        if (embeddingRequestChunker == null) {
+        if (model instanceof ElasticInferenceServiceExecutableActionModel == false || embeddingRequestChunker == null) {
             // Model cannot perform chunked inference
             listener.onFailure(createInvalidModelException(model));
             return;
         }
 
+        ElasticInferenceServiceExecutableActionModel eisModel = (ElasticInferenceServiceExecutableActionModel) model;
         var batchedRequests = embeddingRequestChunker.batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
-            if (model instanceof ElasticInferenceServiceExecutableActionModel == false) {
-                listener.onFailure(createInvalidModelException(model));
-                return;
-            }
-            ElasticInferenceServiceExecutableActionModel eisModel = (ElasticInferenceServiceExecutableActionModel) model;
             var action = eisModel.accept(actionCreator, taskSettings);
             action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
             return;
@@ -677,7 +673,7 @@ public class ElasticInferenceService extends SenderService {
                         .setLabel("Maximum Batch Size")
                         .setRequired(false)
                         .setSensitive(false)
-                        .setUpdatable(false)
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.INTEGER)
                         .build()
                 );

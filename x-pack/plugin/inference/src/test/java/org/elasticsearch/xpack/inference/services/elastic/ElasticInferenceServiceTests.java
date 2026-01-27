@@ -1077,7 +1077,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                               "label": "Maximum Batch Size",
                               "required": false,
                               "sensitive": false,
-                              "updatable": false,
+                              "updatable": true,
                               "type": "int",
                               "supported_task_types": ["sparse_embedding"]
                           }
@@ -1141,7 +1141,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                               "label": "Maximum Batch Size",
                               "required": false,
                               "sensitive": false,
-                              "updatable": false,
+                              "updatable": true,
                               "type": "int",
                               "supported_task_types": ["sparse_embedding"]
                           }
@@ -1219,7 +1219,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                               "label": "Maximum Batch Size",
                               "required": false,
                               "sensitive": false,
-                              "updatable": false,
+                              "updatable": true,
                               "type": "int",
                               "supported_task_types": ["sparse_embedding"]
                           }

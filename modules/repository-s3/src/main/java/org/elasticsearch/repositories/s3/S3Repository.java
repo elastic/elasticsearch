@@ -250,8 +250,6 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final ByteSizeValue chunkSize;
 
-    private final ByteSizeValue maxCopySizeBeforeMultipart;
-
     private final boolean serverSideEncryption;
 
     private final String storageClass;
@@ -330,8 +328,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             );
         }
 
-        this.maxCopySizeBeforeMultipart = service.settings(projectId, metadata).maxCopySizeBeforeMultipart;
-
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
@@ -362,13 +358,11 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         logger.debug(
-            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], "
-                + "max_copy_size_before_multipart [{}], cannedACL [{}], storageClass [{}]",
+            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket,
             chunkSize,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass
         );
@@ -495,7 +489,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             bucket,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass,
             supportsConditionalWrites,

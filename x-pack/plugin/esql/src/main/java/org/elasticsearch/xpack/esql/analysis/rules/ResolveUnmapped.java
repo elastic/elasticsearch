@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -274,12 +275,31 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * {@link UnresolvedTimestamp} subtypes.
      */
     private static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
+        var aliasedGroupings = aliasNamesInAggregateGroupings(plan);
         List<UnresolvedAttribute> unresolved = new ArrayList<>();
         plan.forEachExpression(UnresolvedAttribute.class, ua -> {
-            if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false) {
+            if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false
+                // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
+                // as they'll be resolved as refs once the aliased expression is resolved.
+                && aliasedGroupings.contains(ua.name()) == false) {
                 unresolved.add(ua);
             }
         });
         return unresolved;
+    }
+
+    /**
+     * @return the names of the aliases used in the grouping expressions of any Aggregate found in the plan.
+     */
+    private static Set<String> aliasNamesInAggregateGroupings(LogicalPlan plan) {
+        Set<String> aliasNames = new LinkedHashSet<>();
+        plan.forEachUp(Aggregate.class, agg -> {
+            for (var grouping : agg.groupings()) {
+                if (grouping instanceof Alias alias) {
+                    aliasNames.add(alias.name());
+                }
+            }
+        });
+        return aliasNames;
     }
 }

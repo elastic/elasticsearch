@@ -1787,7 +1787,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-
                 boolean doPrecondition = false;
                 if (Build.current().isSnapshot()) {
                     doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);

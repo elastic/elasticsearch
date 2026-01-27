@@ -1,0 +1,19 @@
+ALL-UNNAMED:
+  - outbound_network
+  - load_native_libraries
+  - files:
+    - relative_path: lance-data
+      relative_to: data
+      mode: read
+    - relative_path: lance-data
+      relative_to: config
+      mode: read
+    - relative_path: .oss
+      relative_to: home
+      mode: read
+    - relative_path: oss
+      relative_to: config
+      mode: read
+    - relative_path: .lance
+      relative_to: data
+      mode: read

@@ -1,0 +1,37 @@
+apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  description = 'Custom security realm that verifies Aliyun RAM credentials (POC)'
+  classname = 'org.elasticsearch.plugin.security.cloudiam.CloudIamRealmPlugin'
+  extendedPlugins = ['x-pack-security']
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:core')
+  testImplementation project(':test:framework')
+  testImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':test:framework')
+  javaRestTestImplementation project(':client:rest')
+}
+
+tasks.withType(Test).configureEach {
+  // Entitlements bootstrap tries to read /proc and fails in restricted envs.
+  systemProperty 'es.entitlement.enableForTests', 'false'
+}
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'tests.security.manager', 'false'
+}
+
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.security.authc.realms.cloud_iam.iam1.order', '0'
+  setting 'xpack.security.authc.realms.cloud_iam.iam1.auth.mode', 'mock'
+  setting 'xpack.security.authc.realms.cloud_iam.iam1.mock.signature', 'mock'
+  setting 'xpack.security.authc.realms.cloud_iam.iam1.role_mapping.enabled', 'false'
+  setting 'xpack.security.authc.realms.cloud_iam.iam1.mock.roles', 'superuser'
+  setting 'xpack.security.authc.realms.cloud_iam.iam1.auth.allowed_time_skew', '1h'
+  testDistribution = 'DEFAULT'
+}

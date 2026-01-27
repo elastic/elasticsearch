@@ -1,0 +1,58 @@
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.testclusters'
+
+esplugin {
+  name = 'lance-vector'
+  description = 'Lance vector field type with external dataset support'
+  classname = 'org.elasticsearch.plugin.lance.LanceVectorPlugin'
+  hasNativeController = false
+  requiresKeystore = false
+}
+
+dependencies {
+  implementation project(':server')
+  implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+
+  // Lance Java SDK (JNI bindings to Rust core)
+  // Provides IVF-PQ indexed vector search with SIMD acceleration
+  // Exclude Guava as it's not allowed on compile classpath in Elasticsearch
+  // Exclude arrow-memory-netty to use arrow-memory-unsafe instead (avoids ES security conflicts)
+  implementation('com.lancedb:lance-core:1.0.0-beta.2') {
+    exclude group: 'com.google.guava', module: 'guava'
+    exclude group: 'com.google.guava', module: 'failureaccess'
+    exclude group: 'org.apache.arrow', module: 'arrow-memory-netty'
+  }
+
+  // Guava is required by lance-java at runtime
+  runtimeOnly 'com.google.guava:guava:33.4.0-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+
+  // Apache Arrow (required by lance-java for columnar data)
+  // Use arrow-memory-unsafe instead of arrow-memory-netty to avoid
+  // Netty's platform detection which conflicts with ES security/entitlements
+  implementation 'org.apache.arrow:arrow-vector:15.0.0'
+  implementation 'org.apache.arrow:arrow-memory-unsafe:15.0.0'
+  implementation 'org.apache.arrow:arrow-c-data:15.0.0'
+  implementation 'org.apache.arrow:arrow-format:15.0.0'
+
+  // FlatBuffers (required by Arrow for schema serialization)
+  implementation 'com.google.flatbuffers:flatbuffers-java:24.3.25'
+
+  // Eclipse Collections (required by Arrow for MapWithOrdinal)
+  implementation 'org.eclipse.collections:eclipse-collections-api:11.1.0'
+  implementation 'org.eclipse.collections:eclipse-collections:11.1.0'
+
+  // Note: OSS support uses simple HTTP requests (see OssStorageAdapter)
+  // For production, consider adding: implementation 'com.aliyun.oss:aliyun-sdk-oss:3.17.4'
+  // (requires updating gradle/verification-metadata.xml)
+
+  // Test dependencies
+  testImplementation project(':test:framework')
+}
+
+tasks.named('test').configure {
+  systemProperty 'java.awt.headless', 'true'
+  // Required for Apache Arrow memory management (Java 21+)
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+}

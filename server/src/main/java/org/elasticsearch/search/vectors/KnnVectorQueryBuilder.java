@@ -565,13 +565,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (fieldType == null) {
             return new MatchNoDocsQuery();
         }
-        if (fieldType instanceof DenseVectorFieldType == false) {
-            throw new IllegalArgumentException(
-                "[" + NAME + "] queries are only supported on [" + DenseVectorFieldMapper.CONTENT_TYPE + "] fields"
-            );
-        }
-        DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
+        // Build filter queries first (needed for both dense_vector and lance_vector)
         List<Query> filtersInitial = new ArrayList<>(filterQueries.size());
         for (QueryBuilder query : this.filterQueries) {
             filtersInitial.add(query.toQuery(context));
@@ -618,7 +613,49 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             filterQuery = buildFilterQuery(filterAdjusted);
         }
 
-        DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
+        // Check if this is a DenseVectorFieldType or a LanceVectorFieldType (custom external vector field)
+        if (fieldType instanceof DenseVectorFieldType == false) {
+            // Check if it's a lance_vector field (custom external vector storage)
+            if (fieldType.typeName().equals("lance_vector")) {
+                // Lance vector fields use external storage; handle them specially
+                // Use reflection to call createKnnQuery method on LanceVectorFieldType
+                try {
+                    @SuppressWarnings("unchecked")
+                    java.lang.reflect.Method createKnnMethod = fieldType.getClass().getMethod(
+                        "createKnnQuery",
+                        VectorData.class,
+                        int.class,
+                        int.class,
+                        Float.class,
+                        Float.class,
+                        Query.class,
+                        Float.class,
+                        BitSetProducer.class,
+                        DenseVectorFieldMapper.FilterHeuristic.class,
+                        boolean.class
+                    );
+                    return (Query) createKnnMethod.invoke(
+                        fieldType,
+                        queryVector,
+                        k,
+                        adjustedNumCands,
+                        visitPercentage,
+                        null,  // oversample - not used by Lance
+                        filterQuery,
+                        vectorSimilarity,
+                        parentBitSet,
+                        context.getIndexSettings().getHnswFilterHeuristic(),
+                        context.getIndexSettings().getHnswEarlyTermination()
+                    );
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Failed to create kNN query for lance_vector field: " + e.getMessage(), e);
+                }
+            }
+            throw new IllegalArgumentException(
+                "[" + NAME + "] queries are only supported on [" + DenseVectorFieldMapper.CONTENT_TYPE + "] fields"
+            );
+        }
+        DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
         if (filterQuery != null && (vectorFieldType.getIndexOptions() == null || vectorFieldType.getIndexOptions().isFlat() == false)) {
@@ -638,7 +675,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             filterQuery,
             vectorSimilarity,
             parentBitSet,
-            heuristic,
+            context.getIndexSettings().getHnswFilterHeuristic(),
             hnswEarlyTermination
         );
     }

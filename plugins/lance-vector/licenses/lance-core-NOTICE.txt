@@ -1,0 +1,2 @@
+Lance
+Copyright 2023-2025 LanceDB, Inc.

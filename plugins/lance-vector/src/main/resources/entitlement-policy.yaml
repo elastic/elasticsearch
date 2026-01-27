@@ -1,0 +1,9 @@
+ALL-UNNAMED:
+  - outbound_network
+  - files:
+    - relative_path: lance-data
+      relative_to: data
+      mode: read
+    - relative_path: lance-data
+      relative_to: config
+      mode: read

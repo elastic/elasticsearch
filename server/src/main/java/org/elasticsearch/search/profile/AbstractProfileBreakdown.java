@@ -31,6 +31,12 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      */
     private final Map<T, Collection<Timer>> timings;
 
+    /**
+     * Extra debugging information provided by custom queries.
+     * This allows queries to inject custom timing or debug data into the profile response.
+     */
+    private final Map<String, Object> debugData = new HashMap<>();
+
     /** Sole constructor. */
     public AbstractProfileBreakdown(Class<T> clazz) {
         T[] enumConstants = clazz.getEnumConstants();
@@ -67,9 +73,38 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
 
     /**
      * Fetch extra debugging information.
+     * Subclasses can override this to provide custom debug data.
+     * This implementation includes any custom debug data added via {@link #putDebugData}.
      */
     protected Map<String, Object> toDebugMap() {
-        return emptyMap();
+        return Collections.unmodifiableMap(debugData);
+    }
+
+    /**
+     * Add custom debugging information to this profile breakdown.
+     * This data will be included in the profile response under the 'debug' field.
+     * <p>
+     * This is useful for custom queries that want to expose additional timing
+     * or debugging information beyond the standard breakdown.
+     *
+     * @param key The debug key (will be visible in profile response)
+     * @param value The debug value (must be JSON-serializable: String, Number, Boolean, Map, List)
+     */
+    public final void putDebugData(String key, Object value) {
+        debugData.put(key, value);
+    }
+
+    /**
+     * Add multiple custom debugging entries to this profile breakdown.
+     * <p>
+     * This is a convenience method for adding multiple debug entries at once.
+     *
+     * @param data Map of debug keys to values (must be JSON-serializable)
+     */
+    public final void putAllDebugData(Map<String, Object> data) {
+        if (data != null) {
+            debugData.putAll(data);
+        }
     }
 
     /**

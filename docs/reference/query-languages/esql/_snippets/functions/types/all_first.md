@@ -6,6 +6,10 @@
 | --- | --- | --- |
 | boolean | date | boolean |
 | boolean | date_nanos | boolean |
+| date | date | date |
+| date | date_nanos | date |
+| date_nanos | date | date_nanos |
+| date_nanos | date_nanos | date_nanos |
 | double | date | double |
 | double | date_nanos | double |
 | integer | date | integer |

@@ -55,7 +55,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     private final ResponseHeadersCollector responseHeadersCollector;
     private final LongAdder processNanos = new LongAdder();
 
-    private boolean finished = false;
+    protected boolean finished = false;
     private volatile boolean closed = false;
 
     /*
@@ -198,6 +198,13 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         }
     }
 
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        synchronized (this) {
+            return checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint();
+        }
+    }
+
     /**
      * Get a {@link Fetched} from the buffer.
      * @return a result if one is ready or {@code null} if none are available.
@@ -218,11 +225,16 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     @Override
     public IsBlockedResult isBlocked() {
         // TODO: Add an exchange service between async operation instead?
-        if (finished) {
-            return Operator.NOT_BLOCKED;
-        }
+        // Note: We do NOT return early when finished=true here.
+        // Even after finish() is called, there may be pending async operations.
+        // We should wait for them to complete before returning NOT_BLOCKED.
+        // The check for persistedCheckpoint == maxSeqNo handles the truly finished case.
         long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
         if (persistedCheckpoint == checkpoint.getMaxSeqNo() || persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
+            return Operator.NOT_BLOCKED;
+        }
+        // If finished and no more results expected, return NOT_BLOCKED
+        if (finished && persistedCheckpoint == checkpoint.getMaxSeqNo()) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (this) {

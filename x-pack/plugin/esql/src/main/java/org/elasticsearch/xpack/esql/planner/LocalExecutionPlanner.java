@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -69,6 +74,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -819,6 +825,7 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(fieldName, input));
         }
+        boolean useStreamingOperator = shouldUseStreamingOperator(lookupFromIndexService, indexName);
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -831,10 +838,60 @@ public class LocalExecutionPlanner {
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
                 join.right(),
-                join.joinOnConditions()
+                join.joinOnConditions(),
+                useStreamingOperator,
+                context.queryPragmas().exchangeBufferSize()
             ),
             layout
         );
+    }
+
+    /**
+     * The transport version that introduced streaming lookup support.
+     */
+    private static final TransportVersion ESQL_LOOKUP_STREAMING_SESSION_ID = TransportVersion.fromName("esql_lookup_streaming_session_id");
+
+    /**
+     * Determines whether streaming lookup should be used based on the target node's transport version.
+     * Streaming lookup requires all target nodes to support the streaming protocol.
+     *
+     * @param service the lookup service providing access to cluster and transport services
+     * @param indexName the name of the lookup index
+     * @return true if streaming lookup should be used, false otherwise
+     */
+    private boolean shouldUseStreamingOperator(LookupFromIndexService service, String indexName) {
+        try {
+            ClusterState clusterState = service.getClusterService().state();
+
+            // Resolve target nodes for the lookup index
+            var projectState = service.getProjectResolver().getProjectState(clusterState);
+            var shardIterators = service.getClusterService()
+                .operationRouting()
+                .searchShards(projectState, new String[] { indexName }, Map.of(), "_local");
+
+            for (ShardIterator shardIt : shardIterators) {
+                ShardRouting shardRouting = shardIt.nextOrNull();
+                if (shardRouting != null) {
+                    DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
+                    Transport.Connection connection = service.getTransportService().getConnection(node);
+                    TransportVersion nodeVersion = connection.getTransportVersion();
+                    if (nodeVersion.supports(ESQL_LOOKUP_STREAMING_SESSION_ID) == false) {
+                        logger.debug(
+                            "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
+                            node.getId(),
+                            nodeVersion,
+                            ESQL_LOOKUP_STREAMING_SESSION_ID
+                        );
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            // If we can't determine the version, fall back to non-streaming for safety
+            logger.debug("Failed to determine target node version for lookup, using non-streaming operator", e);
+            return false;
+        }
     }
 
     private static EsRelation findEsRelation(PhysicalPlan node) {

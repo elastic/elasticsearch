@@ -79,6 +79,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     private static final String LANGUAGES_LOOKUP_INDEX = "languages_lookup";
     private static final String LANGUAGES_MIXED_NUMERICS_INDEX = "languages_mixed_numerics";
     private static final String MESSAGE_TYPES_LOOKUP_INDEX = "message_types_lookup";
+    private static final String SAMPLE_DATA_INDEX = "sample_data";
 
     // Enrich policy name constants
     private static final String AGES_POLICY = "ages_policy";
@@ -362,6 +363,36 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse response = runQuery(query)) {
             assertValues(response.values(), List.of(List.of("left", "Connected to 10.1.0.1", "right", "Success")));
+        }
+    }
+
+    // Test ported from csv-spec:lookup-join.lookupMessageFromIndexKeep
+    // Tests LOOKUP JOIN from an index with KEEP to select specific fields
+    public void testLookupMessageFromIndexKeep() throws IOException {
+        // Required indices for this test
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        // Run the query (added SORT for deterministic results - csv-spec uses ignoreOrder:true)
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(
+                response.values(),
+                List.of(
+                    List.of("2023-10-23T13:55:01.543Z", "172.21.3.15", 1756467L, "Connected to 10.1.0.1", "Success"),
+                    List.of("2023-10-23T13:53:55.832Z", "172.21.3.15", 5033755L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:52:55.015Z", "172.21.3.15", 8268153L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:51:54.732Z", "172.21.3.15", 725448L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:33:34.937Z", "172.21.0.5", 1232382L, "Disconnected", "Disconnected"),
+                    List.of("2023-10-23T12:27:28.948Z", "172.21.2.113", 2764889L, "Connected to 10.1.0.2", "Success"),
+                    List.of("2023-10-23T12:15:03.360Z", "172.21.2.162", 3450233L, "Connected to 10.1.0.3", "Success")
+                )
+            );
         }
     }
 }

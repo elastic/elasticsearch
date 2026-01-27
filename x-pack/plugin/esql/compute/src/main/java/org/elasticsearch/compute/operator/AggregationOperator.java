@@ -128,6 +128,11 @@ public class AggregationOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return output != null;
+    }
+
+    @Override
     public void finish() {
         if (finished) {
             return;

@@ -412,7 +412,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 return wrapped.meaningfulProgressSize();
             }
         }
-        throw new IllegalArgumentException("unexpected stream type: " + stream.getClass());
+        // The passed stream is not a RetryingInputStream, so there is no concept of "meaningful progress"
+        return Long.MAX_VALUE;
     }
 
     protected static byte[] randomBlobContent() {

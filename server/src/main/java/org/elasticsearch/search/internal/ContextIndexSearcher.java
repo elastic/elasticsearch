@@ -200,6 +200,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return this.cancellable.isEnabled();
     }
 
+    /**
+     * Checks if the current task has been cancelled and throws a {@link TaskCancelledException} if so.
+     * This method provides plugin developers (e.g., custom runtime fields) with a way to detect
+     * task cancellation and act accordingly, for example to release resources early.
+     */
+    public void checkCancelled() {
+        if (this.cancellable.isEnabled()) {
+            this.cancellable.checkCancelled();
+        }
+    }
+
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
         this.aggregatedDfs = aggregatedDfs;
     }

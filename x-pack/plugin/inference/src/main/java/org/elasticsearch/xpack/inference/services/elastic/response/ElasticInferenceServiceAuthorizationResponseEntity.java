@@ -27,8 +27,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
-
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -36,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 

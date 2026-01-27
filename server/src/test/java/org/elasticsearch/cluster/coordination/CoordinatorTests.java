@@ -575,6 +575,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertThat("leader should be last to ack", ackCollector.getSuccessfulAckIndex(leader), equalTo(1));
 
             follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
+            leader.submitValue(randomLong()); // follower0 acks next value allowing cluster to stabilise
         }
     }
 
@@ -592,11 +593,16 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing value");
             assertTrue(leader.coordinator.getMode() != Coordinator.Mode.LEADER || leader.coordinator.getCurrentTerm() > startingTerm);
-            leader.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
-            cluster.stabilise();
+
             assertTrue("expected nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
             assertTrue("expected ack from " + follower0, ackCollector.hasAckedSuccessfully(follower0));
             assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+
+            leader.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing new leader election");
+            cluster.getAnyLeader().submitValue(randomLong()); // old leader acks this value allowing cluster to stabilise
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+
             assertTrue(leader.coordinator.getMode() != Coordinator.Mode.LEADER || leader.coordinator.getCurrentTerm() > startingTerm);
         }
     }
@@ -660,14 +666,32 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             follower0.heal();
             follower1.heal();
-            cluster.stabilise();
-            assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
-            assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
+
             if (expectLeaderAcksSuccessfullyInStateless) {
                 // A stateless leader directly updates the cluster state in the remote blob store: it does not require communication with
-                // the other cluster nodes to procceed with an update commit to the cluster state.
+                // the other cluster nodes to proceed with an update commit to the cluster state, so in fact the publication doesn't really
+                // time out in this case. However, this means the nodes may remain lagging until the next cluster state update - there's no
+                // master failover to resync them in this case. The nacks happen when the blackholed requests are processed.
+
+                while (leader.deliverBlackholedRequests()) {
+                    // two tasks: (i) deliver the error response, and then (ii) handle it
+                    cluster.runFor(DEFAULT_DELAY_VARIABILITY * 2, "processing blackholed cluster state update requests");
+                }
+
+                assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+                assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
+
+                // one more task delay for the final ack
+                cluster.runFor(DEFAULT_DELAY_VARIABILITY, "processing final ack from leader");
                 assertTrue("expected ack from leader, " + leader, ackCollector.hasAckedSuccessfully(leader));
+
+                leader.submitValue(randomLong());
+                cluster.stabilise();
             } else {
+                // The timeout causes the publication to fail, the leader stands down and runs another election, and everything settles:
+                cluster.stabilise();
+                assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+                assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
                 assertTrue("expected eventual nack from leader, " + leader, ackCollector.hasAckedUnsuccessfully(leader));
             }
         }
@@ -1801,7 +1825,18 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             + "org.elasticsearch.cluster.coordination.Coordinator.CoordinatorPublication:INFO"
     )
     public void testLogsMessagesIfPublicationDelayed() {
-        try (Cluster cluster = new Cluster(between(3, 5))) {
+        try (
+            Cluster cluster = new Cluster(
+                between(3, 5),
+                true,
+                Settings.builder()
+                    .put(
+                        LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(),
+                        TimeValue.timeValueMillis(defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING))
+                    )
+                    .build()
+            )
+        ) {
             cluster.runRandomly();
             cluster.stabilise();
             final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
@@ -1876,12 +1911,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
                 cluster.getAnyLeader().submitValue(randomLong());
                 cluster.runFor(
-                    defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY + defaultMillis(
-                        LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING
-                    ) + DEFAULT_DELAY_VARIABILITY + 2 * DEFAULT_DELAY_VARIABILITY,
+                    DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY
+                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY + 2
+                            * DEFAULT_DELAY_VARIABILITY,
                     "waiting for messages to be emitted"
                 );
-
                 mockLog.assertAllExpectationsMatched();
             }
         }

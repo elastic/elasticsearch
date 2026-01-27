@@ -21,7 +21,7 @@ import java.util.Random;
 
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
-    private final float delta = 1e-2f;
+    private final float deltaPercent = 0.1f;
     private final int dims;
     private final int bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
@@ -60,7 +60,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
                 float[] result = vectorized.score();
 
-                assertArrayEquals("single scoring, scalar VS vectorized", expected, result, delta);
+                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
@@ -92,7 +92,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
                 float[] result = vectorized.bulkScore();
 
-                assertArrayEquals("bulk scoring, scalar VS vectorized", expected, result, delta);
+                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();

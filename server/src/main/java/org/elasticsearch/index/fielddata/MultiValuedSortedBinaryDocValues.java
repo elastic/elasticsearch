@@ -49,9 +49,15 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {
+            Sparsity sparsity = Sparsity.UNKNOWN;
+            ValueMode valueMode = ValueMode.UNKNOWN;
+
             DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
-            Sparsity sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
-            ValueMode valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
+            if (countsSkipper != null) {
+                sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
+                valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
+            }
+
             return new SeparateCounts(values, counts, sparsity, valueMode);
         }
     }

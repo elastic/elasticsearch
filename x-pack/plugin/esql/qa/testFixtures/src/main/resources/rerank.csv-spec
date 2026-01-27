@@ -6,6 +6,7 @@
 reranker using a single field, overwrite existing _score column
 required_capability: rerank
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -17,14 +18,15 @@ FROM books METADATA _score
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
 5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
-4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
 9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
 2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
 ;
 
 reranker using a single field, create a mew column
 required_capability: rerank
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -35,15 +37,16 @@ FROM books METADATA _score
 ;
 
 book_no:keyword | title:text                                            | author:text                                 | rerank_score:double
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08         
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03                  
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02         
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
 ;
 
 reranker using a single field, create a mew column, sort by rerank_score
 required_capability: rerank
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -56,9 +59,9 @@ FROM books METADATA _score
 
 book_no:keyword | title:text                                            | author:text                                 | rerank_score:double
 2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
-9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08         
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
 ;
 
 reranker using a non text fields
@@ -84,6 +87,7 @@ book_no:keyword | title:text                                            | rating
 reranker using a sparse input field
 required_capability: rerank
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE MATCH(title, "lord of the rings", {"minimum_should_match": "100%"}) AND author:"tolkien"
@@ -94,10 +98,10 @@ FROM books METADATA _score
 | KEEP book_no, title, author, collection, rerank_score, _score
 ;
 
-book_no:keyword | title:text                                                                 | author:text                  | collection:text       | rerank_score:double | _score:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings           | J. R. R. Tolkien             | The Lord of the Rings | 0.05                | 8.56
-2675            | The Lord of the Rings - Boxed Set                                          | J.R.R. Tolkien               | The Lord of the Rings | 0.05                | 8.35
-7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | [Alan Lee, J. R. R. Tolkien] | null                  | null                | 5.5
+book_no:keyword | title:text                                                                                  | author:text                                                                      | collection:text       | rerank_score:double | _score:double
+2675            | The Lord of the Rings - Boxed Set                                                           | J.R.R. Tolkien                                                                   | The Lord of the Rings | 0.05                | 7.28
+2714            | Return of the King Being the Third Part of The Lord of the Rings                            | J. R. R. Tolkien                                                                 | The Lord of the Rings | 0.05                | 7.25
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | [Agnes Perkins, Charles Adolph Huttar, John Ronald Reuel Tolkien, Walter Scheps] | null                  | null                | 5.36
 ;
 
 
@@ -207,6 +211,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: rerank
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -219,14 +224,15 @@ FROM books METADATA _id, _index, _score
 | KEEP book_no, title, author, _score
 ;
 
-book_no:keyword | title:keyword                         | author:keyword                                   | _score:double
-5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 0.04
-2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 0.03
+book_no:keyword | title:keyword             | author:keyword   | _score:double
+5335            | Letters of J R R Tolkien  | J.R.R. Tolkien   | 0.04
+7635            | Oliphaunt (Beastly Verse) | J. R. R. Tolkien | 0.04
 ;
 
 
 simple
 required_capability: rerank
+required_capability: routing_function_update
 
 // tag::simple-query[]
 FROM books METADATA _score
@@ -240,15 +246,16 @@ FROM books METADATA _score
 ;
 
 // tag::simple-query-result[]
-title:text                                                                                  | _score:double
-Poems from the Hobbit                                                                       | 0.0015673980815336108
-A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 0.007936508394777775
-Return of the King Being the Third Part of The Lord of the Rings                            | 9.960159659385681E-4
+title:text                        | _score:double
+Poems from the Hobbit             | 0.0015673980815336108
+The Lord of the Rings - Boxed Set | 0.0011135857785120606
+Letters of J R R Tolkien          | 0.0024999999441206455
 // end::simple-query-result[]
 ;
 
 two_queries
 required_capability: rerank
+required_capability: routing_function_update
 
 // tag::two-queries[]
 FROM books METADATA _score
@@ -264,9 +271,9 @@ FROM books METADATA _score
 
 // tag::two-queries-result[]
 title:text                                                       | _score:double      | rerank_score:double
-Return of the Shadow                                             | 2.8181066513061523 | 5.740527994930744E-4
-Return of the King Being the Third Part of The Lord of the Rings | 3.6248698234558105 | 9.000900317914784E-4
-The Lays of Beleriand                                            | 1.3002015352249146 | 9.36329597607255E-4
+Return of the Shadow                                             | 3.4218082427978516 | 5.740527994930744E-4
+Return of the King Being the Third Part of The Lord of the Rings | 2.8398752212524414 | 9.000900317914784E-4
+The Lays of Beleriand                                            | 1.5629040002822876 | 9.36329597607255E-4
 // end::two-queries-result[]
 ;
 

@@ -82,7 +82,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
-import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -164,7 +163,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 if (shardIdx != 0) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
-                return loader;
+                return ValuesSourceReaderOperator.load(loader);
             })),
             new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
@@ -563,7 +562,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             if (shardIdx != 0) {
                 fail("unexpected shardIdx [" + shardIdx + "]");
             }
-            return ft.blockLoader(blContext());
+            return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
         });
     }
 
@@ -898,7 +897,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> new ConstantBytes(new BytesRef("foo"))
+                    shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 ),
                 checks::constantBytes,
                 StatusChecks::constantBytes
@@ -906,7 +905,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(
             new FieldCase(
-                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE),
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "null",
+                    ElementType.NULL,
+                    false,
+                    shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                ),
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
@@ -1614,8 +1618,18 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new ValuesSourceReaderOperator.Factory(
                         ByteSizeValue.ofGb(1),
                         List.of(
-                            new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE),
-                            new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, false, shardIdx -> ConstantNull.INSTANCE)
+                            new ValuesSourceReaderOperator.FieldInfo(
+                                "null1",
+                                ElementType.NULL,
+                                false,
+                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                            ),
+                            new ValuesSourceReaderOperator.FieldInfo(
+                                "null2",
+                                ElementType.NULL,
+                                false,
+                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                            )
                         ),
                         new IndexedByShardIdFromSingleton<>(
                             new ValuesSourceReaderOperator.ShardContext(
@@ -1760,7 +1774,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 ByteSizeValue.ofGb(1),
                 List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
                     seenShards.add(shardIdx);
-                    return ft.blockLoader(blContext());
+                    return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 0

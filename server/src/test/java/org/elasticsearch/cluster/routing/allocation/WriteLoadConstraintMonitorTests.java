@@ -574,7 +574,12 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         recordingMeterRegistry.getRecorder().collect();
         incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
-        assertMetricsCollected(recordingMeterRegistry, hotspotSizes, Map.of(removeHotspotId, List.of(millisAdded / 1000.0)), hotspotFlagCounts);
+        assertMetricsCollected(
+            recordingMeterRegistry,
+            hotspotSizes,
+            Map.of(removeHotspotId, List.of(millisAdded / 1000.0)),
+            hotspotFlagCounts
+        );
     }
 
     private boolean indexingNodeBelowQueueLatencyThreshold(
@@ -856,9 +861,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             Set<String> newHotspotNodeIds = new HashSet<>(hotspotNodeIds);
             newHotspotNodeIds.remove(nodeId);
 
-            ClusterState newClusterState = new ClusterState.Builder(clusterState)
-                .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId))
-                .build();
+            ClusterState newClusterState = new ClusterState.Builder(clusterState).nodes(
+                DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)
+            ).build();
 
             return new TestState(
                 latencyThresholdMillis,

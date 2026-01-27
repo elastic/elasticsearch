@@ -53,7 +53,6 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -384,7 +383,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
-        assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, ignoreValueOrder(), logger);
+        assertResults(expectedColumnsWithValues, actualColumns, actualValues, logger);
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);
@@ -435,12 +434,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ExpectedResults expected,
         List<Map<String, String>> actualColumns,
         List<List<Object>> actualValues,
-        boolean ignoreOrder,
-        boolean ignoreValueOrder,
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, ignoreValueOrder, logger, this::valueMapper);
+        assertData(expected, actualValues, testCase.ignoreOrder, ignoreValueOrder(), logger, this::valueMapper);
     }
 
     private Object valueMapper(CsvTestUtils.Type type, Object value) {

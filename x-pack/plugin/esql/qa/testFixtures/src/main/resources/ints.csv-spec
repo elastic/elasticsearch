@@ -433,12 +433,12 @@ warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentExcepti
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
 
 string:keyword | base:integer | to_long:long  | to_integer:integer
-0              | 10           | 0	      | 0
-473            | 10           | 473	      | 473
-+42            | 10           | 42	      | 42
--0             | 10           | 0	      | 0
+0              | 10           | 0	          | 0
+473            | 10           | 473	          | 473
++42            | 10           | 42	          | 42
+-0             | 10           | 0	          | 0
 -FF            | 16           | -255	      | -255
-1100110        | 2            | 102	      | 102
+1100110        | 2            | 102	          | 102
 99             | 8            | null	      | null
 Hazelnut       | 10           | null	      | null
 Hazelnut       | 36           | 1356099454469 | null

@@ -221,7 +221,10 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
      * Literal to represent AggregateMetricDouble and primarily used for testing and during folding.
      * For all other purposes it is preferred to use the individual builders over the literal for generating blocks when possible.
      */
-    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
+    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count)
+        implements
+            GenericNamedWriteable,
+            Comparable<AggregateMetricDoubleLiteral> {
 
         private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = TransportVersion.fromName(
             "esql_aggregate_metric_double_literal"
@@ -265,6 +268,23 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         public TransportVersion getMinimalSupportedVersion() {
             assert false : "must not be called when overriding supportsVersion";
             throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
+
+        @Override
+        public int compareTo(AggregateMetricDoubleLiteral other) {
+            int c = Double.compare(min, other.min);
+            if (c != 0) {
+                return c;
+            }
+            c = Double.compare(max, other.max);
+            if (c != 0) {
+                return c;
+            }
+            c = Double.compare(sum, other.sum);
+            if (c != 0) {
+                return c;
+            }
+            return Double.compare(count, other.count);
         }
     }
 

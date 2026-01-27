@@ -10,33 +10,12 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.CsvTestUtils;
-import org.elasticsearch.xpack.esql.SpecReader;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
-import org.elasticsearch.xpack.esql.plugin.ComputeService;
-import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
-import org.junit.Before;
-import org.junit.ClassRule;
 
-import java.io.IOException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
 /**
  * Runs the {@code csv-spec} tests while <strong>requesting</strong> all values to

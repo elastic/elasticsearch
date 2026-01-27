@@ -7,18 +7,15 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
@@ -28,11 +25,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.net.URL;
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {

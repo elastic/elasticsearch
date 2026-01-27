@@ -412,15 +412,9 @@ public final class CsvAssert {
 
     private static Comparator<List<Object>> resultRowComparator(List<Type> types) {
         return (x, y) -> {
-            for (int i = 0; i < x.size(); i++) {
-                Object left = x.get(i);
-                if (left instanceof List<?> l) {
-                    left = l.stream().min(types.get(i).comparator()).orElse(null);
-                }
-                Object right = y.get(i);
-                if (right instanceof List<?> r) {
-                    right = r.stream().min(types.get(i).comparator()).orElse(null);
-                }
+            for (int field = 0; field < x.size(); field++) {
+                Object left = x.get(field);
+                Object right = y.get(field);
                 if (left == null && right == null) {
                     continue;
                 }
@@ -430,9 +424,20 @@ public final class CsvAssert {
                 if (right == null) {
                     return -1;
                 }
-                int result = types.get(i).comparator().compare(left, right);
-                if (result != 0) {
-                    return result;
+                List<?> leftList = left instanceof List<?> l ? l : List.of(left);
+                List<?> rightList = right instanceof List<?> r ? r : List.of(right);
+                int len = Math.max(leftList.size(), rightList.size());
+                for (int i = 0; i < len; i++) {
+                    if (i >= leftList.size()) {
+                        return 1;
+                    }
+                    if (i >= rightList.size()) {
+                        return -1;
+                    }
+                    int result = types.get(field).comparator().compare(leftList.get(i), rightList.get(i));
+                    if (result != 0) {
+                        return result;
+                    }
                 }
             }
             return 0;

@@ -16,6 +16,9 @@ final class UngroupedRowFiller implements RowFiller {
     private final ValueExtractor[] valueExtractors;
     private final KeyFactory[] keyFactories;
 
+    private int keyPreAllocSize = 0;
+    private int valuePreAllocSize = 0;
+
     record KeyFactory(KeyExtractor extractor, boolean ascending) {}
 
     UngroupedRowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, Page page) {
@@ -43,6 +46,14 @@ final class UngroupedRowFiller implements RowFiller {
         }
     }
 
+    int preAllocatedKeysSize() {
+        return keyPreAllocSize;
+    }
+
+    int preAlocatedValueSize() {
+        return valuePreAllocSize;
+    }
+
     @Override
     public void writeKey(int position, Row row) {
         int orderByCompositeKeyCurrentPosition = 0;
@@ -54,6 +65,7 @@ final class UngroupedRowFiller implements RowFiller {
             orderByCompositeKeyCurrentPosition += valueAsBytesSize;
             row.bytesOrder().endOffsets[i] = orderByCompositeKeyCurrentPosition - 1;
         }
+        keyPreAllocSize = RowFiller.newPreAllocSize(row.keys(), keyPreAllocSize);
     }
 
     @Override
@@ -65,5 +77,6 @@ final class UngroupedRowFiller implements RowFiller {
             }
             e.writeValue(destination.values(), position);
         }
+        valuePreAllocSize = RowFiller.newPreAllocSize(destination.values(), valuePreAllocSize);
     }
 }

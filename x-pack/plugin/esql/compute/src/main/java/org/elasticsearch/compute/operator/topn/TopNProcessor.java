@@ -16,7 +16,7 @@ import java.util.List;
 interface TopNProcessor {
     RowFiller rowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, Page page);
 
-    Row row(CircuitBreaker breaker, List<TopNOperator.SortOrder> sortOrders, int spareKeysPreAllocSize, int spareValuesPreAllocSize);
+    Row row(CircuitBreaker breaker, List<TopNOperator.SortOrder> sortOrders, RowFiller rowFiller);
 
     TopNQueue queue(CircuitBreaker breaker, int topCount);
 }

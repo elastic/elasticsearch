@@ -16,6 +16,10 @@ final class GroupedRowFiller implements RowFiller {
     private final UngroupedRowFiller ungroupedRowFiller;
     private final ValueExtractor[] valueExtractors;
 
+    private int keyPreAllocSize = 0;
+    private int valuePreAllocSize = 0;
+    private int groupKeyPreAllocSize = 0;
+
     GroupedRowFiller(
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
@@ -36,16 +40,32 @@ final class GroupedRowFiller implements RowFiller {
         }
     }
 
+    int preAllocatedGroupKeySize() {
+        return groupKeyPreAllocSize;
+    }
+
+    int preAllocatedValueSize() {
+        return valuePreAllocSize;
+    }
+
+    int preAllocatedKeysSize() {
+        return keyPreAllocSize;
+    }
+
     @Override
     public void writeKey(int i, Row row) {
         ungroupedRowFiller.writeKey(i, row);
+        GroupedRow groupedRow = (GroupedRow) row;
         for (ValueExtractor extractor : valueExtractors) {
-            extractor.writeValue(((GroupedRow) row).groupKey(), i);
+            extractor.writeValue(groupedRow.groupKey(), i);
         }
+        keyPreAllocSize = RowFiller.newPreAllocSize(row.keys(), keyPreAllocSize);
+        groupKeyPreAllocSize = RowFiller.newPreAllocSize(groupedRow.groupKey(), groupKeyPreAllocSize);
     }
 
     @Override
     public void writeValues(int i, Row row) {
         ungroupedRowFiller.writeValues(i, row);
+        valuePreAllocSize = RowFiller.newPreAllocSize(row.values(), keyPreAllocSize);
     }
 }

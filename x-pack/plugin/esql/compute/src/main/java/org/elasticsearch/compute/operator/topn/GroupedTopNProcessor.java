@@ -31,16 +31,11 @@ class GroupedTopNProcessor implements TopNProcessor {
     }
 
     @Override
-    public Row row(
-        CircuitBreaker breaker,
-        List<TopNOperator.SortOrder> sortOrders,
-        int spareKeysPreAllocSize,
-        int spareValuesPreAllocSize
-    ) {
-        int preAllocatedGroupKeySize = 42; // FIXME(gal, NOCOMMIT)
+    public Row row(CircuitBreaker breaker, List<TopNOperator.SortOrder> sortOrders, RowFiller filler) {
+        GroupedRowFiller groupedFiller = (GroupedRowFiller) filler;
         return new GroupedRow(
-            new UngroupedRow(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize),
-            preAllocatedGroupKeySize
+            new UngroupedRow(breaker, sortOrders, groupedFiller.preAllocatedKeysSize(), groupedFiller.preAllocatedValueSize()),
+            groupedFiller.preAllocatedGroupKeySize()
         );
     }
 

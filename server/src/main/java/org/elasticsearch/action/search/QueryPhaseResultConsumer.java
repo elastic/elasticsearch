@@ -484,7 +484,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (hasFailure()) {
             result.consumeAll();
             if (isReferrence) {
-                result.aggregations().expand().forEach(agg -> {agg.close();});
+                result.aggregations().expand().forEach(agg -> { agg.close(); });
             }
             next.run();
         } else if (result.isNull() || result.isPartiallyReduced()) {
@@ -494,7 +494,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 emptyResults.add(searchShard);
             }
             if (isReferrence) {
-                result.aggregations().expand().forEach(agg -> {agg.close();});
+                result.aggregations().expand().forEach(agg -> { agg.close(); });
             }
             next.run();
         } else {
@@ -537,7 +537,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 result.consumeAll();
             }
             if (isReferrence) {
-                result.aggregations().expand().forEach(agg -> {agg.close();});
+                result.aggregations().expand().forEach(agg -> { agg.close(); });
             }
             if (executeNextImmediately) {
                 next.run();

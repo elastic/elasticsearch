@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -99,7 +98,7 @@ public class SearchResponseSections implements Releasable {
     @Override
     public void close() {
         if (aggregations != null) {
-            aggregations.forEach(agg -> {agg.close();});
+            aggregations.forEach(agg -> { agg.close(); });
         }
         hits.decRef();
     }

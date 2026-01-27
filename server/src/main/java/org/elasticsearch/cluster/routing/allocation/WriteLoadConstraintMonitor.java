@@ -272,8 +272,10 @@ public class WriteLoadConstraintMonitor {
 
     private static String nodeSummary(Set<NodeIdName> nodeIdNames) {
         if (nodeIdNames.isEmpty() == false && nodeIdNames.size() <= MAX_NODE_IDS_IN_MESSAGE) {
-            List<String> nodeIds = nodeIdNames.stream().map(nodeIdName -> nodeIdName.nodeId()).collect(Collectors.toList());
-            return "[" + String.join(", ", nodeIds) + "]";
+            List<String> nodeLabels = nodeIdNames.stream()
+                .map(nodeIdName -> Strings.format("{%s} ({%s})", nodeIdName.nodeName(), nodeIdName.nodeId()))
+                .collect(Collectors.toList());
+            return "[" + String.join(", ", nodeLabels) + "]";
         } else {
             return nodeIdNames.size() + " nodes";
         }

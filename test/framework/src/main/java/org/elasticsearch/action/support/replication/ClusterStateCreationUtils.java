@@ -370,16 +370,25 @@ public class ClusterStateCreationUtils {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> indexNodeIds = new HashSet<>();
         for (int i = 0; i < numberOfIndexNodes; i++) {
-            final DiscoveryNode node = DiscoveryNodeUtils.builder("index_" + i).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build();
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("index_" + i)
+                .name("index_" + i)
+                .roles(Set.of(DiscoveryNodeRole.INDEX_ROLE))
+                .build();
             discoBuilder = discoBuilder.add(node);
             indexNodeIds.add(node.getId());
         }
         for (int i = 0; i < numberOfSearchNodes; i++) {
-            final DiscoveryNode node = DiscoveryNodeUtils.builder("search_" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("search_" + i)
+                .name("index_" + i)
+                .roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE))
+                .build();
             discoBuilder = discoBuilder.add(node);
         }
         for (int i = 0; i < numberOfMLNodes; i++) {
-            final DiscoveryNode node = DiscoveryNodeUtils.builder("ml_" + i).roles(Set.of(DiscoveryNodeRole.ML_ROLE)).build();
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("ml_" + i)
+                .name("index_" + i)
+                .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                .build();
             discoBuilder = discoBuilder.add(node);
         }
 

@@ -418,6 +418,54 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 Map.of("node1", List.of(4.0), "node2", List.of(4.0))
             );
         }
+
+    }
+
+    /**
+     * Test that the logging portion of the service and its queued summaries are cleared/disabled
+     * by setting {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING} to false.
+     */
+    public void testEnableAndThenDisableLogging() {
+        var disabledSettingsUpdate = Settings.builder()
+            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
+            .build();
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
+        ClusterSettings clusterSettings = new ClusterSettings(enabledSummariesSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var service = new AllocationBalancingRoundSummaryService(testThreadPool, clusterSettings, balancingRoundMetrics);
+
+        try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
+            /**
+             * Add some summaries, but then disable the service before logging occurs. Disabling logging should drain and discard any
+             * summaries waiting to be reported.
+             */
+
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.verifyNumberOfSummaries(1);
+
+            clusterSettings.applySettings(disabledSettingsUpdate);
+            service.verifyNumberOfSummaries(0);
+
+            /**
+             * Verify that any additional summaries are not retained, since logging is disabled.
+             */
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.verifyNumberOfSummaries(0);
+
+            // Check that the service never logged anything.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "Running balancer summary logging",
+                    AllocationBalancingRoundSummaryService.class.getName(),
+                    Level.INFO,
+                    "*"
+                )
+            );
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+            mockLog.awaitAllExpectationsMatched();
+            service.verifyNumberOfSummaries(0);
+        }
     }
 
     /**

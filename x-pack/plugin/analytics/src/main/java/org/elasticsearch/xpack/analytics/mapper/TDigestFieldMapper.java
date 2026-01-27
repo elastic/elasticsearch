@@ -145,13 +145,7 @@ public class TDigestFieldMapper extends FieldMapper {
         public TDigestFieldMapper build(MapperBuilderContext context) {
             return new TDigestFieldMapper(
                 leafName(),
-                new TDigestFieldType(
-                    context.buildFullName(leafName()),
-                    meta.getValue(),
-                    this.digestType.getValue(),
-                    this.compression.getValue(),
-                    this.metric.getValue()
-                ),
+                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue(), this.metric.getValue()),
                 builderParams(this, context),
                 this
             );
@@ -208,19 +202,9 @@ public class TDigestFieldMapper extends FieldMapper {
 
     public static class TDigestFieldType extends MappedFieldType {
         private final TimeSeriesParams.MetricType metricType;
-        private final TDigestState.Type tDigestType;
-        private final double compression;
 
-        public TDigestFieldType(
-            String name,
-            Map<String, String> meta,
-            TDigestState.Type tDigestType,
-            double compression,
-            TimeSeriesParams.MetricType metricType
-        ) {
+        public TDigestFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
             super(name, IndexType.docValuesOnly(), false, meta);
-            this.tDigestType = tDigestType;
-            this.compression = compression;
             this.metricType = metricType;
         }
 
@@ -232,14 +216,6 @@ public class TDigestFieldMapper extends FieldMapper {
         @Override
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
-        }
-
-        public TDigestState.Type getTDigestType() {
-            return tDigestType;
-        }
-
-        public double getCompression() {
-            return compression;
         }
 
         @Override

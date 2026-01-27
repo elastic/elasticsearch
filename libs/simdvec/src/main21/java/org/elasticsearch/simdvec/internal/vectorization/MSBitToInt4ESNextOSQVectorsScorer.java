@@ -39,6 +39,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     // TODO: split Panama and Native implementations
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
     private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+    private static final boolean IS_X64 = System.getProperty("os.arch").equals("amd64");
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
@@ -405,8 +406,16 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         // 128 / 8 == 16
         if (length >= 16) {
             if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+                // Compute quantized distance
                 if (NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS) {
                     nativeQuantizeScoreBulk(q, bulkSize, scores);
+                } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                    quantizeScore256Bulk(q, bulkSize, scores);
+                } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
+                    quantizeScore128Bulk(q, bulkSize, scores);
+                }
+                // Compute score from distance
+                if (NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS && IS_X64) {
                     return nativeScoreBulk(
                         queryLowerInterval,
                         queryUpperInterval,
@@ -417,7 +426,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                         scores
                     );
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                    quantizeScore256Bulk(q, bulkSize, scores);
                     return score256Bulk(
                         queryLowerInterval,
                         queryUpperInterval,
@@ -428,7 +436,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                         scores
                     );
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                    quantizeScore128Bulk(q, bulkSize, scores);
                     return score128Bulk(
                         queryLowerInterval,
                         queryUpperInterval,

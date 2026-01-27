@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasables;
  * This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
-public final class LongLongHash extends AbstractHash {
+public final class LongLongHash extends AbstractHash implements LongLongHashTable {
     /**
      * The keys of the hash, stored one after another. So the keys for an id
      * are stored in {@code 2 * id} and {@code 2 * id + 1}. This arrangement
@@ -52,6 +52,7 @@ public final class LongLongHash extends AbstractHash {
      * Return the first key at {@code 0 <= index <= capacity()}. The
      * result is undefined if the slot is unused.
      */
+    @Override
     public long getKey1(long id) {
         return keys.get(2 * id);
     }
@@ -60,6 +61,7 @@ public final class LongLongHash extends AbstractHash {
      * Return the second key at {@code 0 &lt;= index &lt;= capacity()}. The
      * result is undefined if the slot is unused.
      */
+    @Override
     public long getKey2(long id) {
         return keys.get(2 * id + 1);
     }
@@ -67,6 +69,7 @@ public final class LongLongHash extends AbstractHash {
     /**
      * Get the id associated with <code>key</code> or -1 if the key is not contained in the hash.
      */
+    @Override
     public long find(long key1, long key2) {
         final long slot = slot(hash(key1, key2), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
@@ -123,6 +126,7 @@ public final class LongLongHash extends AbstractHash {
      * the hash table yet, or {@code -1-id} if it was already present in
      * the hash table.
      */
+    @Override
     public long add(long key1, long key2) {
         if (size >= maxSize) {
             assert size == maxSize;

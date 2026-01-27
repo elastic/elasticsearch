@@ -37,6 +37,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1540,20 +1541,37 @@ public class ApiKeyService implements Closeable {
     }
 
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
-        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
+        if (isUsingExpensiveHashAlgorithm(hasher)) {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
+        } else {
+            ActionListener.completeWith(listener, () -> hasher.hash(apiKey));
+        }
     }
 
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
-        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
-            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+        final Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+        final CheckedSupplier<Boolean, Exception> hashVerification = () -> {
             final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
                 return hasher.verify(credentials.getKey(), apiKeyHashChars);
             } finally {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }
-        }));
+        };
+        if (isUsingExpensiveHashAlgorithm(hasher)) {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, hashVerification));
+        } else {
+            ActionListener.completeWith(listener, hashVerification);
+        }
+    }
+
+    /**
+     * Returns true if the hasher uses a computationally expensive algorithm
+     * that should be executed on a dedicated thread pool to avoid blocking.
+     */
+    static boolean isUsingExpensiveHashAlgorithm(Hasher hasher) {
+        return hasher.name().startsWith("BCRYPT") || hasher.name().startsWith("PBKDF2");
     }
 
     private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {

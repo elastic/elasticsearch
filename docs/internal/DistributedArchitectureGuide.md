@@ -839,7 +839,8 @@ of them. The shard state is computed for all shards involved in the snapshot at 
 is created. A large snapshot can easily have thousands of shards with `INIT` state indicating ready to be snapshotted.
 To avoid overwhelming the data nodes, a dedicated snapshot thread pool as well as `ThrottledTaskRunner` are
 used to keep concurrent running shard snapshots under control. Priority is given for snapshots which started
-earlier. We also order by shard to limit the number of incomplete shard snapshots.
+earlier. We also order by shard to limit the number of incomplete shard snapshots (see also [ShardSnapshotTaskRunner][]
+and `ShardSnapshotTaskRunner#COMPARATOR`).
 
 The lifecycle of each shard snapshot is also tracked in-memory on the data node with `IndexShardSnapshotStatus`.
 The status is indicated by `IndexShardSnapshotStatus#Stage` which is updated at various points during the process.
@@ -899,6 +900,7 @@ Snapshot deletions and creations are mutually exclusive. See also [Deletion of a
 [SnapshotShardsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotShardsService.java#L81
 [BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
 [SnapshotsInProgress]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java#L78
+[ShardSnapshotTaskRunner]: https://github.com/elastic/elasticsearch/blob/01ace3927df065f1caf090653404f29688e8103a/server/src/main/java/org/elasticsearch/repositories/blobstore/ShardSnapshotTaskRunner.java#L36
 [BlobStoreIndexShardSnapshots]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshots.java#L40
 [BlobStoreIndexShardSnapshot]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshot.java#L38
 [SnapshotInfo]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/snapshots/SnapshotInfo.java#L50

@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE;
 
 public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
@@ -51,6 +52,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(map, validationException);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -64,21 +66,24 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             throw validationException;
         }
 
-        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, rateLimitSettings);
+        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, rateLimitSettings, maxBatchSize);
     }
 
     private final String modelId;
 
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
+    private final Integer maxBatchSize;
 
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings(
         String modelId,
         @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable Integer maxBatchSize
     ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.maxInputTokens = maxInputTokens;
+        this.maxBatchSize = maxBatchSize;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -86,6 +91,11 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         this.modelId = in.readString();
         this.maxInputTokens = in.readOptionalVInt();
         this.rateLimitSettings = new RateLimitSettings(in);
+        if (in.getTransportVersion().supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+            this.maxBatchSize = in.readOptionalVInt();
+        } else {
+            this.maxBatchSize = null;
+        }
     }
 
     @Override
@@ -99,6 +109,10 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     public Integer maxInputTokens() {
         return maxInputTokens;
+    }
+
+    public Integer maxBatchSize() {
+        return maxBatchSize;
     }
 
     @Override
@@ -128,6 +142,9 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        if (maxBatchSize != null) {
+            builder.field(MAX_BATCH_SIZE, maxBatchSize);
+        }
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -138,6 +155,9 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         out.writeString(modelId);
         out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+            out.writeOptionalVInt(maxBatchSize);
+        }
     }
 
     @Override
@@ -147,11 +167,12 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         ElasticInferenceServiceSparseEmbeddingsServiceSettings that = (ElasticInferenceServiceSparseEmbeddingsServiceSettings) object;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(maxBatchSize, that.maxBatchSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, maxInputTokens, rateLimitSettings);
+        return Objects.hash(modelId, maxInputTokens, rateLimitSettings, maxBatchSize);
     }
 }

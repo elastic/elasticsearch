@@ -14,6 +14,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.util.Map;
+
 public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable, FilteredXContent {
 
     /**

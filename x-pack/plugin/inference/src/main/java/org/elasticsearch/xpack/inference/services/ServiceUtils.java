@@ -747,7 +747,32 @@ public final class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
-        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+        return extractPositiveIntegerBetween(map, settingName, minValue, maxValue, scope, true, validationException);
+    }
+
+    public static Integer extractOptionalPositiveIntegerBetween(
+        Map<String, Object> map,
+        String settingName,
+        int minValue,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        return extractPositiveIntegerBetween(map, settingName, minValue, maxValue, scope, false, validationException);
+    }
+
+    private static Integer extractPositiveIntegerBetween(
+        Map<String, Object> map,
+        String settingName,
+        int minValue,
+        int maxValue,
+        String scope,
+        boolean required,
+        ValidationException validationException
+    ) {
+        Integer field = required
+            ? extractRequiredPositiveInteger(map, settingName, scope, validationException)
+            : extractOptionalPositiveInteger(map, settingName, scope, validationException);
 
         if (field != null && field < minValue) {
             validationException.addValidationError(
@@ -940,11 +965,11 @@ public final class ServiceUtils {
     }
 
     public static String mustBeLessThanOrEqualNumberErrorMessage(String settingName, String scope, double value, double maxValue) {
-        return format("[%s] Invalid value [%s]. [%s] must be a less than or equal to [%s]", scope, value, settingName, maxValue);
+        return format("[%s] Invalid value [%s]. [%s] must be less than or equal to [%s]", scope, value, settingName, maxValue);
     }
 
     public static String mustBeGreaterThanOrEqualNumberErrorMessage(String settingName, String scope, double value, double minValue) {
-        return format("[%s] Invalid value [%s]. [%s] must be a greater than or equal to [%s]", scope, value, settingName, minValue);
+        return format("[%s] Invalid value [%s]. [%s] must be greater than or equal to [%s]", scope, value, settingName, minValue);
     }
 
     public static String mustBeAFloatingPointNumberErrorMessage(String settingName, String scope) {
